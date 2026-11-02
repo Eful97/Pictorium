@@ -290,9 +290,10 @@ test.describe("desktop layout + header slot", () => {
       expect(Math.abs(s.height - shapes[0].height)).toBeLessThanOrEqual(16)
     }
     await expect(dialog.getByRole("button", { name: "Save changes", exact: true })).toBeVisible()
-    // Back to Rankings: the loop ends on Data & Cache, but the overlay
-    // macro-group lives on the Rankings tab.
-    await setTab(dialog, "Rankings", false)
+    // Back to Information: the loop ends on Data & Cache, but the overlay
+    // macro-group lives on the Information tab (the former Rankings tab was
+    // folded into Information/Badge).
+    await setTab(dialog, "Information", false)
     // Macro-groups are always open in settings (bare sections, no disclosure
     // toggle): the overlay group stays reachable.
     await expect(dialog.getByTestId("badge-group-overlay").filter({ visible: true })).toBeVisible()
@@ -372,13 +373,21 @@ test.describe("mobile collapse + groups + footer", () => {
     await expect(cornerBtn).toBeVisible()
 
     // No extra traffic from minimizing alone: snapshot request counts first.
-    const posterUrls: string[] = []
+    // Scope = the preview owner's own fetches. The preview media is an XHR
+    // (the <img> shows a blob URL); the preset gallery thumbnails are separate
+    // lazy <img> resources that the collapse reflow can reveal — they are
+    // legitimate lazy loads, not a preview refetch.
+    const previewFetches: string[] = []
     const putUrls: string[] = []
     page.on("request", (req) => {
-      if (req.url().includes("/api/poster/")) posterUrls.push(req.url())
+      // The defaults preview owner's requests carry the demosamples flag
+      // (the preset gallery thumbnails do not): only those prove a preview
+      // refetch caused by minimizing.
+      if (req.url().includes("/api/poster/") && req.url().includes("demosamples=1")) {
+        previewFetches.push(req.url())
+      }
       if (req.method() === "PUT" && req.url().includes("/api/defaults")) putUrls.push(req.url())
     })
-    const postersBefore = posterUrls.length
     const putsBefore = putUrls.length
     await minimize.click()
     await expect(panel.getByTestId("defaults-preview-media")).toBeHidden()
@@ -389,6 +398,14 @@ test.describe("mobile collapse + groups + footer", () => {
     const after = (await controls.boundingBox())!.height
     // …while the controls keep their full height (overlay never owned it).
     expect(Math.abs(after - before)).toBeLessThanOrEqual(4)
+    // Minimize alone must not re-render the preview: measure BEFORE the
+    // keyboard focus probe below, because Tab from the corner button lands on
+    // the first editing card and focusing a card intentionally switches the
+    // preview family (U2 contextual preview) — that render belongs to the
+    // probe, not to the collapse.
+    await page.waitForTimeout(1800)
+    expect(previewFetches.length).toBe(0)
+    expect(putUrls.length).toBe(putsBefore)
     // Hidden preview keeps no focus: Tab from the corner button leaves the float.
     await cornerBtn.focus()
     await page.keyboard.press("Tab")
@@ -397,9 +414,6 @@ test.describe("mobile collapse + groups + footer", () => {
       return !!f && !f.contains(document.activeElement)
     })
     expect(outside).toBe(true)
-    await page.waitForTimeout(1800)
-    expect(posterUrls.length).toBe(postersBefore)
-    expect(putUrls.length).toBe(putsBefore)
     // Keyboard restore re-expands (Enter on the focused button), same owner.
     const restore = panel.getByTestId("floating-preview-restore")
     await restore.focus()
@@ -440,22 +454,34 @@ test.describe("mobile collapse + groups + footer", () => {
     await waitPreview(panel)
     // Overlay macro-group is always open in settings (bare section, no
     // disclosure toggle) and its rank switch stages the draft only. The
-    // group copies in inactive tabs stay hidden: navigate first.
-    await panel.locator("#mobile-settings-category").selectOption("rankings")
+    // group copies in inactive tabs stay hidden: navigate first (the former
+    // Rankings tab was folded into Information).
+    await panel.locator("#mobile-settings-category").selectOption("information")
     await waitPreview(panel)
     await expect(panel.getByTestId("badge-group-overlay").filter({ visible: true })).toBeVisible()
+    // The mobile float docks top-right over the controls: collapse it (the
+    // same affordance the user has) so the rows below stay reachable. The
+    // switch itself is keyboard-activated (the minimized toolbar still sits
+    // on that corner). Layout/geometry of the controls is unaffected.
+    await panel.getByTestId("floating-preview-minimize").click()
     // Real portrait switch: rank bucket off stages the flat sash.
     // 500ms poll interval (canonical badge-format pattern): the condition
     // follows the explicit Save PUT, and tight polling trips the
     // shared defaults rate limiter (30 burst, 3/sec refill).
-    await panel.getByRole("switch", { name: "Classifiche" }).click()
+    // The mobile float overlays the top-right toggle, and its minimized
+    // toolbar still sits on that corner: keyboard activation is the
+    // occlusion-free path (the switch is a real focusable button).
+    await panel.getByRole("switch", { name: "Classifiche" }).press("Space")
     // Staged, not saved: the server still carries the rank bucket.
     expect((await getDefaults(page)).sashOrder).toContain("rank")
     await panel.getByTestId("settings-save").click()
     await expect
       .poll(async () => (await getDefaults(page)).sashOrder, { timeout: 15_000, intervals: [500] })
       .not.toContain("rank")
-    await panel.getByRole("switch", { name: "Classifiche" }).click()
+    // The mobile float overlays the top-right toggle, and its minimized
+    // toolbar still sits on that corner: keyboard activation is the
+    // occlusion-free path (the switch is a real focusable button).
+    await panel.getByRole("switch", { name: "Classifiche" }).press("Space")
     await panel.getByTestId("settings-save").click()
     await expect
       .poll(async () => (await getDefaults(page)).sashOrder, { timeout: 15_000, intervals: [500] })
@@ -662,11 +688,12 @@ test.describe("mobile collapse + groups + footer", () => {
     const dialog = await openSettings(page, /Configura tutti i poster/i)
     await waitPreview(dialog)
     // No PUT without edits; the single-instance namespace carries no ?u=.
-    // The rank switch lives on the Classifiche tab (macro-groups are always
+    // The rank switch lives on the Information tab (the former Classifiche
+    // tab was folded into Information/Badge; macro-groups are always
     // open in settings: no disclosure toggle). Staged-session era: the
     // footer Save is the only writer, and re-clicking it after a failure is
     // the retry (no separate Riprova button exists).
-    await dialog.getByRole("tab", { name: "Classifiche", exact: true }).click()
+    await dialog.getByRole("tab", { name: "Informazioni", exact: true }).click()
     await dialog.getByRole("switch", { name: "Classifiche" }).click()
     const save = dialog.getByTestId("settings-save")
     await save.click()
@@ -846,9 +873,16 @@ test.describe("mobile toast header pointer", () => {
     const panel = await openMobilePanel(page)
     await waitPreview(panel)
     // 700px shows the sm+ desktop tablist (sm:flex ≥ 640) inside the mobile
-    // panel shell: reach Classifiche via role=tab, not the <640 select.
-    await panel.getByRole("tab", { name: "Classifiche", exact: true }).click()
-    await panel.getByRole("switch", { name: "Classifiche" }).click()
+    // panel shell: reach Informazioni via role=tab, not the <640 select.
+    await panel.getByRole("tab", { name: "Informazioni", exact: true }).click()
+    // The mobile float docks top-right over the controls: collapse it first
+    // (same affordance the user has). The switch itself is keyboard-activated
+    // because the minimized toolbar still sits on that corner.
+    await panel.getByTestId("floating-preview-minimize").click()
+    // The mobile float overlays the top-right toggle, and its minimized
+    // toolbar still sits on that corner: keyboard activation is the
+    // occlusion-free path (the switch is a real focusable button).
+    await panel.getByRole("switch", { name: "Classifiche" }).press("Space")
     // session.save posts via userFetch (no 5xx retry): one armed 500
     // surfaces the error toast, same as the desktop footer-retry test.
     let failOnce = true

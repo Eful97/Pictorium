@@ -48,7 +48,15 @@ export async function fetchPinnedProviderUrl(
       throw new Error("Invalid provider URL")
     }
     const host = target.hostname.toLowerCase()
-    if (isPrivateHost(host) || !isHostInFamily(host, pinnedHost)) {
+    if (!isHostInFamily(host, pinnedHost)) {
+      throw new Error("Blocked provider host")
+    }
+    // Hop 0 is the provider BASE, built from operator configuration (fixed
+    // host or instance override, never user input): a private/loopback base is
+    // the operator's own choice, so it stays allowed (self-hosted mirror, the
+    // E2E mock). Redirect hops never get that trust: a provider-issued 302
+    // toward 127.0.0.1/link-local is the actual SSRF vector and stays blocked.
+    if (hop > 0 && isPrivateHost(host)) {
       throw new Error("Blocked provider host")
     }
     const res = await fetch(current, { ...init, redirect: "manual" })

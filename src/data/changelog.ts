@@ -30,6 +30,20 @@ export interface ChangelogRelease {
  *  (which bumps on every commit and would leave the dot permanently on). */
 export const CHANGELOG: ChangelogRelease[] = [
   {
+    version: "1.26.5",
+    date: "2026-11-02",
+    title: "Release 1.26.5",
+    items: [
+      { type: "feature", text: "Choose a PIN or a longer password to protect the editor" },
+      { type: "feature", text: "Save TMDB, MDBList and TVDB keys in Settings, stored encrypted on the server" },
+      { type: "feature", text: "Add a No pill quality style that drops the badge plate" },
+      { type: "fix", text: "Keep admin actions locked until a PIN or admin token is set" },
+      { type: "fix", text: "Stop spoofed client headers from minting fresh anonymous rate-limit buckets" },
+      { type: "fix", text: "Refuse unknown hosts in the addon proxy on shared instances unless allowlisted" },
+      { type: "fix", text: "Refuse image and proxy fetches that target private network addresses" },
+    ],
+  },
+  {
     version: "1.26.4",
     date: "2026-11-01",
     title: "Release 1.26.4",

@@ -433,7 +433,7 @@ test.describe("Badge Verticale/Orizzontale: isolation + persistence", () => {
     // Rank lives in Classifiche (unified Nastro/Numero/Badge/Fresh/Card over
     // the same rs contract — never renamed to fit this spec). Five-tab Badge
     // renders bare: no macro-group disclosures to expand, controls are direct.
-    await gotoTab(dialog, "Classifiche")
+    await gotoTab(dialog, "Badge")
     const presentation = dialog.getByTestId("ranking-presentation")
     await expect(presentation).toBeVisible()
 
@@ -588,7 +588,7 @@ test.describe("Badge Verticale/Orizzontale: isolation + persistence", () => {
     // Back to Classifiche: same landscape URL is already loaded, so no
     // refetch is expected — assert the retained target + values in UI and
     // the last preview transport instead of waiting for a new request.
-    await gotoTab(dialog, "Classifiche")
+    await gotoTab(dialog, "Badge")
     await expect(dialog.getByTestId("ranking-presentation")).toBeVisible()
     await expect(formatTarget.getByText("Orizzontale", { exact: true })).toHaveAttribute(
       "aria-pressed",
@@ -699,7 +699,7 @@ test.describe("Badge Verticale/Orizzontale: isolation + persistence", () => {
     expect(p.get("rs")).toBe("number")
     expect(p.get("xbs")).toBe("corner")
     expect(p.get("bq")).toBe("0")
-    await gotoTab(dialog2, "Classifiche")
+    await gotoTab(dialog2, "Badge")
     await expect(
       dialog2.getByTestId("ranking-presentation").getByRole("radio", { name: "Numero" }),
     ).toHaveAttribute("aria-checked", "true")
@@ -743,8 +743,9 @@ test.describe("Badge Verticale/Orizzontale: isolation + persistence", () => {
     const category = panel.locator("#mobile-settings-category")
     await expect(category).toBeVisible()
     expect(await category.inputValue()).toBe("preset")
-    // Rank home is Classifiche (same unified rs contract as desktop).
-    await category.selectOption("rankings")
+    // Rank home is the Badge tab (the former Classifiche tab was folded;
+    // the ranking appearance lives in Badge).
+    await category.selectOption("badge")
     const presentation = panel.getByTestId("ranking-presentation")
     await expect(presentation).toBeVisible()
 

@@ -79,7 +79,7 @@ async function readJson(res: Response): Promise<TrendingPayload> {
 function req(path: string, init?: { signal?: AbortSignal; ua?: string }): NextRequest {
   return new NextRequest(`http://localhost:3000${path}`, {
     signal: init?.signal,
-    headers: { "user-agent": init?.ua ?? "task13-trending-deadline" },
+    headers: { "user-agent": init?.ua ?? "task13-trending-deadline", "x-real-ip": testClientIp },
   } as unknown as Record<string, unknown>)
 }
 
@@ -182,13 +182,25 @@ function installFetch(cfg: FetchCfg) {
   }) as unknown as typeof fetch)
 }
 
+// Rate-limit isolation. Without a trusted proxy every anonymous request shares
+// ONE `local` bucket (security fix, kept): the ~65-request limiter probe below
+// would then drain the budget for every following test and they would all see
+// 429 before reaching their assertions. Each test runs behind a trusted proxy
+// with its own client IP, so each starts with a full `tmdb` bucket.
+let testClientIp = ""
+let testClientIpSeq = 0
+
 beforeEach(() => {
   vi.useRealTimers()
+  process.env.PICTORIUM_TRUST_PROXY = "1"
+  testClientIpSeq += 1
+  testClientIp = `10.32.${Math.floor(testClientIpSeq / 250)}.${testClientIpSeq % 250}`
 })
 
 afterEach(() => {
   vi.restoreAllMocks()
   vi.useRealTimers()
+  delete process.env.PICTORIUM_TRUST_PROXY
   __resetJWRankingsCache()
   __clearTMDBCache()
   __resetKey401Cache()

@@ -21,6 +21,23 @@ vi.mock("@/lib/data-dir", () => ({
 // bypass implicito). Il token viaggia nell'header di ogni richiesta.
 const TEST_ADMIN_TOKEN = "defaults-test-admin-token"
 
+// Rate-limit isolation. Without a trusted proxy every anonymous request shares
+// ONE `local` bucket (security fix, kept as-is): ~30 requests across the file
+// overrun the 30-token `defaults` burst and the tail fails with 429. Each test
+// therefore runs behind a trusted proxy with its own client IP, so its bucket
+// starts full and never accumulates across tests.
+let testClientIp = ""
+let testClientIpSeq = 0
+beforeEach(() => {
+  process.env.PICTORIUM_TRUST_PROXY = "1"
+  testClientIpSeq += 1
+  testClientIp = `10.31.${Math.floor(testClientIpSeq / 250)}.${testClientIpSeq % 250}`
+})
+
+afterEach(() => {
+  delete process.env.PICTORIUM_TRUST_PROXY
+})
+
 afterEach(() => {
   vi.restoreAllMocks()
   cacheClear()
@@ -30,7 +47,7 @@ afterEach(() => {
 function mockPutRequest(body: unknown, headers?: Record<string, string>): Request {
   return new Request("http://localhost:3000/api/defaults", {
     method: "PUT",
-    headers: { "content-type": "application/json", "x-admin-token": TEST_ADMIN_TOKEN, ...headers },
+    headers: { "content-type": "application/json", "x-admin-token": TEST_ADMIN_TOKEN, "x-real-ip": testClientIp, ...headers },
     body: JSON.stringify(body),
   })
 }
@@ -43,7 +60,7 @@ describe("PUT /api/defaults", () => {
   it("returns 400 for invalid JSON", async () => {
     const req = new Request("http://localhost:3000/api/defaults", {
       method: "PUT",
-      headers: { "content-type": "application/json", "x-admin-token": TEST_ADMIN_TOKEN },
+      headers: { "content-type": "application/json", "x-admin-token": TEST_ADMIN_TOKEN, "x-real-ip": testClientIp },
       body: "not json",
     })
     const res = await PUT(req as unknown as NextRequest)
@@ -74,7 +91,7 @@ describe("PUT /api/defaults", () => {
     process.env.ADMIN_TOKEN = TEST_ADMIN_TOKEN
     const putRes = await PUT(mockPutRequest({ disableCleanPosters: true }) as unknown as NextRequest)
     expect(putRes.status).toBe(200)
-    const getRes = await GET(new Request("http://localhost:3000/api/defaults") as unknown as NextRequest)
+    const getRes = await GET(new Request("http://localhost:3000/api/defaults", { headers: { "x-real-ip": testClientIp } }) as unknown as NextRequest)
     const data = await getRes.json()
     expect(data.disableCleanPosters).toBe(true)
   })
@@ -86,7 +103,7 @@ describe("PUT /api/defaults", () => {
     ]
     const putRes = await PUT(mockPutRequest({ customCatalogs: catalogs }) as unknown as NextRequest)
     expect(putRes.status).toBe(200)
-    const getRes = await GET(new Request("http://localhost:3000/api/defaults") as unknown as NextRequest)
+    const getRes = await GET(new Request("http://localhost:3000/api/defaults", { headers: { "x-real-ip": testClientIp } }) as unknown as NextRequest)
     const data = await getRes.json()
     expect(data.customCatalogs?.[0]).toMatchObject({ datasetId: "ds_abc123" })
   })
@@ -113,7 +130,7 @@ describe("PUT /api/defaults", () => {
     const res = await PUT(mockPutRequest({ gradientHeight: 55 }) as unknown as NextRequest)
     expect(res.status).toBe(200)
 
-    const resGet = await GET(new Request("http://localhost:3000/api/defaults") as unknown as NextRequest)
+    const resGet = await GET(new Request("http://localhost:3000/api/defaults", { headers: { "x-real-ip": testClientIp } }) as unknown as NextRequest)
     const body = (await resGet.json()) as Record<string, unknown>
     expect(body.badgeStyle).toBe("bar")
     expect(body.gradientHeight).toBe(55)
@@ -121,10 +138,10 @@ describe("PUT /api/defaults", () => {
 
   it("a serialized rejoin clears persisted item offsets while preserving the moved group", async () => {
     process.env.ADMIN_TOKEN = TEST_ADMIN_TOKEN
-    // This test needs 3 extra requests: the file already sits on the 30-token
-    // `defaults` burst, so it runs on its OWN rate-limit bucket (the route keys
-    // an untrusted client by its user-agent) instead of exhausting the budget
-    // of the tests that follow. Production keying is untouched.
+    // This test needs 3 extra requests: every test now runs on its own
+    // trusted client IP (see the file-level beforeEach), so the `defaults`
+    // burst is never shared across tests. The dedicated user-agent below is
+    // historical and harmless.
     const ua = { "user-agent": "rejoin-serializer-test/1.0" }
     const old = "quality:tier=80,0,120;quality:format:hdr=100,0,200"
     expect((await PUT(mockPutRequest({ badgeItemTransforms: old }, ua) as unknown as NextRequest)).status).toBe(200)
@@ -135,7 +152,7 @@ describe("PUT /api/defaults", () => {
       defaultQualityBadgeOffsetY: -13,
     } as DefaultsState)
     expect((await PUT(mockPutRequest(payload, ua) as unknown as NextRequest)).status).toBe(200)
-    const body = await (await GET(new Request("http://localhost:3000/api/defaults", { headers: ua }) as unknown as NextRequest)).json()
+    const body = await (await GET(new Request("http://localhost:3000/api/defaults", { headers: { "x-real-ip": testClientIp, ...ua } }) as unknown as NextRequest)).json()
     expect(body.badgeItemTransforms).toBeNull()
     const config = resolvePosterRenderConfig({
       searchParams: new URLSearchParams(), mapping: null, configOverride: null,
@@ -153,7 +170,7 @@ describe("PUT /api/defaults", () => {
     await fsp.writeFile(path.join(DATA_DIR, "defaults.json"), JSON.stringify({ blurIntensity: 77 }))
     await bumpCatalogEpoch()
 
-    const res = await GET(new Request("http://localhost:3000/api/defaults") as unknown as NextRequest)
+    const res = await GET(new Request("http://localhost:3000/api/defaults", { headers: { "x-real-ip": testClientIp } }) as unknown as NextRequest)
     expect((await res.json()).blurIntensity).toBe(77)
   })
 
@@ -173,7 +190,7 @@ describe("PUT /api/defaults", () => {
     const res = await PUT(mockPutRequest({ gradientHeight: 40, tintStrength: 60 }) as unknown as NextRequest)
     expect(res.status).toBe(200)
 
-    const resGet = await GET(new Request("http://localhost:3000/api/defaults") as unknown as NextRequest)
+    const resGet = await GET(new Request("http://localhost:3000/api/defaults", { headers: { "x-real-ip": testClientIp } }) as unknown as NextRequest)
     const body = (await resGet.json()) as Record<string, unknown>
     expect(body.gradientHeight).toBe(40)
     expect(body.tintStrength).toBe(60)
@@ -209,7 +226,7 @@ describe("PUT /api/defaults", () => {
     )
     expect(res.status).toBe(200)
 
-    const resGet = await GET(new Request("http://localhost:3000/api/defaults") as unknown as NextRequest)
+    const resGet = await GET(new Request("http://localhost:3000/api/defaults", { headers: { "x-real-ip": testClientIp } }) as unknown as NextRequest)
     const body = (await resGet.json()) as Record<string, { blurFade?: number; gradientHeight?: number; tintStrength?: number; topShade?: number }>
     expect(body.landscape).toMatchObject({ blurFade: 70, gradientHeight: 20, tintStrength: 80, topShade: 10 })
 
@@ -251,7 +268,9 @@ describe("GET /api/defaults hasInstanceKeys", () => {
   let saved: Record<string, string | undefined>
 
   function mockGetRequest(headers?: Record<string, string>): Request {
-    return new Request("http://localhost:3000/api/defaults", { headers })
+    return new Request("http://localhost:3000/api/defaults", {
+      headers: { "x-real-ip": testClientIp, ...headers },
+    })
   }
 
   beforeEach(() => {

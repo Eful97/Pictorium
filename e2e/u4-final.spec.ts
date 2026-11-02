@@ -326,7 +326,7 @@ test.describe("U4 U1 ribbon Standard/Colorato (defaults)", () => {
     const dialog = page.getByRole("dialog")
     await expect(dialog).toBeVisible()
     // Default tab is Preset: the rank appearance lives on Classifiche.
-    await dialog.getByRole("tab", { name: "Classifiche", exact: true }).click()
+    await dialog.getByRole("tab", { name: "Badge", exact: true }).click()
     const badgePanel = dialog.getByRole("tabpanel", { name: "Badge", exact: true })
     await expect(badgePanel).toBeVisible()
 
@@ -602,13 +602,15 @@ test.describe("U4 U2 contextual preview (defaults)", () => {
     // extra at all.
     expect(p.get("sash")).toBe("upcoming,new,award,extra")
 
-    // Rank family narrows with no simultaneous extra (Classifiche tab).
-    await dialog.getByRole("tab", { name: "Classifiche", exact: true }).click()
-    const rankSwitch = badgePanel.getByRole("switch", { name: "Classifiche" })
+    // Rank family narrows with no simultaneous extra (the rank appearance card
+    // lives on the Badge tab after the Classifiche tab was folded; focusing it
+    // reports the rank preview family).
+    await dialog.getByRole("tab", { name: "Badge", exact: true }).click()
+    const rankAppearance = badgePanel.getByRole("radiogroup", { name: "Classifica" })
     p = await nextPreview(
       seen,
       async () => {
-        await rankSwitch.focus()
+        await rankAppearance.getByRole("radio", { name: "Nastro" }).focus()
       },
       (u) => u.searchParams.get("sash") === "rank",
     )
@@ -650,17 +652,20 @@ test.describe("U4 U2 contextual preview (defaults)", () => {
     )
     await expect(chip).toContainText("Verticale")
 
-    // Disabled categories: master OFF empties the sash (client path, saved);
-    // Info focus then emits no sample (no phantom). The click itself is the
-    // observed action: the preview refresh (200ms debounce) would otherwise
-    // fire while waitDefaults polls and the noop observer would miss it.
-    const masterSwitch = badgePanel.getByRole("switch", { name: "Badge superiore" })
-    await expect(masterSwitch).toBeVisible()
+    // Master switches live on the Information tab (former Classifiche folded):
+    // the old single "top badge" master is now two — rank and every non-rank
+    // top badge — so both are turned off to empty the sash.
+    await dialog.getByRole("tab", { name: "Informazioni", exact: true }).click()
+    const rankMaster = dialog.getByRole("switch", { name: "Classifiche" })
+    const extraMaster = dialog.getByRole("switch", { name: "Badge extra" })
+    await expect(rankMaster).toBeVisible()
+    await expect(extraMaster).toBeVisible()
     // The empty preview itself carries sash= with no extra.
     await nextPreview(
       seen,
       async () => {
-        await masterSwitch.click()
+        await rankMaster.click()
+        await extraMaster.click()
       },
       (u) => u.searchParams.get("sash") === "" && u.searchParams.get("extra") === null,
     )
@@ -820,7 +825,7 @@ test.describe("U4 U3 number baseline (transport + slider)", () => {
     const dialog = page.getByRole("dialog")
     await expect(dialog).toBeVisible()
     // Default tab is Preset: the rank appearance lives on Classifiche.
-    await dialog.getByRole("tab", { name: "Classifiche", exact: true }).click()
+    await dialog.getByRole("tab", { name: "Badge", exact: true }).click()
     const badgePanel = dialog.getByRole("tabpanel", { name: "Badge", exact: true })
     await expect(badgePanel).toBeVisible()
 
@@ -861,7 +866,7 @@ test.describe("U4 U3 number baseline (transport + slider)", () => {
 
     // Other styles read the raw value (baseline 0): back to Classifiche,
     // select a centered Badge variant — the stored +10 shows unshifted.
-    await dialog.getByRole("tab", { name: "Classifiche", exact: true }).click()
+    await dialog.getByRole("tab", { name: "Badge", exact: true }).click()
     const badgeBack = dialog.getByRole("tabpanel", { name: "Badge", exact: true })
     await expect(badgeBack).toBeVisible()
     await badgeBack

@@ -274,7 +274,10 @@ test.describe("Trasforma Verticale/Orizzontale preview-only", () => {
     expect(p.get("shape")).toBe("poster")
     expect(p.get("gradHeight")).toBe("30")
     expect(p.get("tscale")).toBe("100")
-    expect(p.get("qox")).toBe("-4")
+    // The flats are the ones seeded above (qualityBadgeOffsetX: -10), not the
+    // factory -4: the preview must follow the saved default chain, exactly
+    // like the Stremio URL does (query > mapping > config > saved defaults).
+    expect(p.get("qox")).toBe("-10")
     await expect(previewBox.locator(".aspect-video")).toHaveCount(0)
 
     // Tab Badge: default esistente (portrait), nessun refetch spurio.

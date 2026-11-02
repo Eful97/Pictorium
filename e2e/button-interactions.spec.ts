@@ -186,19 +186,19 @@ test.describe("Button interactions and immediate updates", () => {
     // Click "Abilita tutti"
     const enableAllBtn = page.getByRole("button", { name: "Abilita tutti", exact: true })
     await enableAllBtn.click()
-    await expect(page.getByText(/16\/16/).first()).toBeVisible()
+    await expect(page.getByText(/17\/17/).first()).toBeVisible()
 
     // Click "Solo IMDb" (reset a 1 provider: il vecchio "Disabilita tutti"
     // non esiste più — rimozione intenzionale, vedi SettingsPanel.test.tsx)
     const imdbOnlyBtn = page.getByRole("button", { name: "Solo IMDb", exact: true })
     await imdbOnlyBtn.click()
-    await expect(page.getByText(/1\/16/).first()).toBeVisible()
+    await expect(page.getByText(/1\/17/).first()).toBeVisible()
 
     // Test rank side control: position radios Sinistra/Destra (defaults-only —
     // shared by the ribbon AND the Numero numeral, T5 RankingAppearanceSelector).
     // The rank appearance lives on the Classifiche tab (macro-groups are
     // always open in settings: no disclosure toggle).
-    await page.getByRole("tab", { name: "Classifiche", exact: true }).click()
+    await page.getByRole("tab", { name: "Badge", exact: true }).click()
     // Select Numero first so the Posizione row is reachable, then flip sides.
     const rankGroup = page.getByRole("radiogroup", { name: "Classifica" })
     await rankGroup.getByRole("radio", { name: "Numero" }).click()
@@ -319,7 +319,7 @@ test.describe("Button interactions and immediate updates", () => {
     await rankGroup.getByRole("radio", { name: "Badge", exact: true }).click()
     const variantGroup = page.getByRole("radiogroup", { name: "Stile badge ranking predefinito" })
     await expect(variantGroup).toBeVisible()
-    await expect(variantGroup.getByRole("radio")).toHaveCount(6)
+    await expect(variantGroup.getByRole("radio")).toHaveCount(7)
     const mark = seen.length
     await rankGroup.getByRole("radio", { name: "Numero" }).click()
     await expect(rankGroup.getByRole("radio", { name: "Numero" })).toHaveAttribute("aria-checked", "true")

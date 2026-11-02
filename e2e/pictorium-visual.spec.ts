@@ -1088,11 +1088,13 @@ test.describe("poster API — visual regression", () => {
     // 88%), badge genere senza segmento ★. Soglia 0.02 (non 0.10): il mock è
     // deterministico e un flip di scala/polarità muove il 7-12% dei pixel —
     // con 0.10 passerebbe inosservato (mai allentare). gradHeight/bf espliciti
-    // ai code default portrait (30/50): come nel test landscape, i default
-    // salvati non devono poter spostare il render. Formati attesi dai local
+    // ai code default portrait (30/50) e quality offsets factory espliciti
+    // (-4/+6): come nel test landscape, i default salvati da altri spec non
+    // devono poter spostare il render (uno spec precedente lascia -10/+15 e
+    // trasla l'intero stack qualit��). Formati attesi dai local
     // specs di tt0133093 (4K/dv/atmos/hdr): la riga HDR spinge lo stack in
     // basso; tier tag 1.0fs + riga genere a segmenti (geometrie intenzionali).
-    const url = posterUrl({ genreName: "Action", voteAverage: "7.8", badges: "1", ranking: "0", imdbId: "tt0133093", sep: "1", rsrc: "imdb,tmdb,tomatoes", quality: "4K", gradHeight: "30", bf: "50" })
+    const url = posterUrl({ genreName: "Action", voteAverage: "7.8", badges: "1", ranking: "0", imdbId: "tt0133093", sep: "1", rsrc: "imdb,tmdb,tomatoes", quality: "4K", gradHeight: "30", bf: "50", qox: "-4", qoy: "6" })
     const poster = await renderPoster(page, url)
     await expect(poster).toHaveScreenshot("poster-separate-ratings.png", { maxDiffPixelRatio: 0.02 })
   })

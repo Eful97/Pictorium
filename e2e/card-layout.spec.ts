@@ -409,7 +409,7 @@ test.describe("card layouts — settings selection (portrait + landscape)", () =
   async function openRankingsTab(page: Page) {
     await page.goto("/")
     await page.getByRole("button", { name: /Impostazioni/i }).click()
-    await page.getByRole("tab", { name: "Classifiche", exact: true }).click()
+    await page.getByRole("tab", { name: "Badge", exact: true }).click()
     const controls = page.getByTestId("settings-controls").filter({ visible: true })
     await expect(controls).toBeVisible()
     return controls
