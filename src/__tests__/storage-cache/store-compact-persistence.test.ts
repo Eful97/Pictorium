@@ -11,7 +11,7 @@ import type { ImdbAlias } from "@/lib/store"
 
 // Network guard: even a programming error that reaches the KV backend must
 // fail loudly instead of hitting real Redis/Upstash from a configured runner.
-vi.mock("@vercel/kv", () => {
+vi.mock("@/lib/upstash-kv-client", () => {
   const fail = async (): Promise<never> => {
     throw new Error("compact-persistence test must not reach the KV network backend")
   }
@@ -237,7 +237,7 @@ describe("store compact persistence (task4/point4)", () => {
     // the harness runs. freshStore() must neutralize every backend selector,
     // so the store can never switch to kv or touch live data. Probe-guarded:
     // only getStorageMode()/getStorageBackend() (pure selectors, no I/O) are
-    // read — getKv() is never called, and the @vercel/kv mock above would
+    // read — getKv() is never called, and the @/lib/upstash-kv-client mock above would
     // throw on any accidental network use.
     vi.stubEnv("PICTORIUM_REDIS_URL", "redis://localhost:6379/0")
     vi.stubEnv("KV_REST_API_URL", "https://example.upstash.io")

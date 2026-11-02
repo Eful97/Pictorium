@@ -5,7 +5,7 @@ import { existsSync } from "node:fs"
 import { afterAll, afterEach, beforeEach, describe, expect, it, vi } from "vitest"
 
 const kvBacking = vi.hoisted(() => new Map<string, string>())
-vi.mock("@vercel/kv", () => ({
+vi.mock("@/lib/upstash-kv-client", () => ({
   kv: {
     get: async (key: string): Promise<string | null> => kvBacking.get(key) ?? null,
     set: async (key: string, value: unknown): Promise<string> => {

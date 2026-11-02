@@ -1,9 +1,9 @@
 import { afterEach, describe, expect, it, vi } from "vitest"
 
 // Store KV in-memory: valida il cablaggio server-defaults -> kv.ts ->
-// @vercel/kv senza rete. Attivo solo con KV_REST_API_URL/TOKEN.
+// @/lib/upstash-kv-client senza rete. Attivo solo con KV_REST_API_URL/TOKEN.
 const kvStore = vi.hoisted(() => new Map<string, unknown>())
-vi.mock("@vercel/kv", () => ({
+vi.mock("@/lib/upstash-kv-client", () => ({
   kv: {
     get: async (key: string) => kvStore.get(key) ?? null,
     set: async (key: string, value: unknown) => {

@@ -1,6 +1,6 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest"
 
-// Mock di @vercel/kv: il modulo deve esistere PRIMA dell'import di rate-limit
+// Mock di @/lib/upstash-kv-client: il modulo deve esistere PRIMA dell'import di rate-limit
 // (vi.mock è hoisted) e il mock viene risetolto con vi.resetModules + reimport
 // perché rate-limit.ts legge le env a module level.
 const kvMock = vi.hoisted(() => ({
@@ -8,7 +8,7 @@ const kvMock = vi.hoisted(() => ({
   expire: vi.fn<(key: string, seconds: number) => Promise<number>>(),
 }))
 
-vi.mock("@vercel/kv", () => ({ kv: kvMock }))
+vi.mock("@/lib/upstash-kv-client", () => ({ kv: kvMock }))
 
 // Fake ioredis con contatori reali: valida il rate-limit distribuito sul
 // backend Redis nativo (stessa semantica fixed-window di Upstash).

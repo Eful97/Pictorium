@@ -10,7 +10,7 @@ const kvMock = {
   get: vi.fn(),
   set: vi.fn(),
 }
-vi.mock("@vercel/kv", () => ({ kv: kvMock }))
+vi.mock("@/lib/upstash-kv-client", () => ({ kv: kvMock }))
 
 const redisStore = vi.hoisted(() => new Map<string, string>())
 vi.mock("ioredis", () => ({

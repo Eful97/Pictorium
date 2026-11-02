@@ -120,7 +120,7 @@ const kvMock = vi.hoisted(() => ({
   eval: vi.fn(),
 }))
 
-vi.mock("@vercel/kv", () => ({ kv: kvMock }))
+vi.mock("@/lib/upstash-kv-client", () => ({ kv: kvMock }))
 
 async function importKv() {
   vi.resetModules()
@@ -133,6 +133,8 @@ function clearEnv() {
   delete process.env.REDIS_URL
   delete process.env.KV_REST_API_URL
   delete process.env.KV_REST_API_TOKEN
+  delete process.env.UPSTASH_REDIS_REST_URL
+  delete process.env.UPSTASH_REDIS_REST_TOKEN
 }
 
 describe("kv.ts (Step 1: selezione backend + serializzazione)", () => {
@@ -186,6 +188,76 @@ describe("kv.ts (Step 1: selezione backend + serializzazione)", () => {
     expect(kvMock.set).toHaveBeenCalledWith("k", { a: 1 }, { ex: 60 })
     await client.set("k2", { a: 1 })
     expect(kvMock.set).toHaveBeenCalledWith("k2", { a: 1 }, undefined)
+  })
+
+  it("UPSTASH_REDIS_REST_*: nomi canonici attivi, nessun warning legacy", async () => {
+    process.env.UPSTASH_REDIS_REST_URL = "https://canonical.upstash.io"
+    process.env.UPSTASH_REDIS_REST_TOKEN = "canonical-token"
+    const warnSpy = vi.spyOn(console, "warn").mockImplementation(() => {})
+    try {
+      const kv = await importKv()
+      expect(kv.getStorageMode()).toBe("kv")
+      expect(kv.getStorageBackend()).toBe("upstash")
+      expect(kv.resolveUpstashRestCredentials()).toEqual({
+        url: "https://canonical.upstash.io",
+        token: "canonical-token",
+        legacy: false,
+      })
+      kv.getKv()
+      const legacyWarns = warnSpy.mock.calls.filter((c) => String(c[0]).includes("legacy KV_REST_API_URL"))
+      expect(legacyWarns).toHaveLength(0)
+    } finally {
+      warnSpy.mockRestore()
+    }
+  })
+
+  it("UPSTASH_* vince sui nomi legacy quando la coppia canonica è completa", async () => {
+    process.env.UPSTASH_REDIS_REST_URL = "https://canonical.upstash.io"
+    process.env.UPSTASH_REDIS_REST_TOKEN = "canonical-token"
+    process.env.KV_REST_API_URL = "https://legacy.upstash.io"
+    process.env.KV_REST_API_TOKEN = "legacy-token"
+    const warnSpy = vi.spyOn(console, "warn").mockImplementation(() => {})
+    try {
+      const kv = await importKv()
+      expect(kv.resolveUpstashRestCredentials()).toMatchObject({
+        url: "https://canonical.upstash.io",
+        legacy: false,
+      })
+      kv.getKv()
+      kv.getKv()
+      const legacyWarns = warnSpy.mock.calls.filter((c) => String(c[0]).includes("legacy KV_REST_API_URL"))
+      expect(legacyWarns).toHaveLength(0)
+    } finally {
+      warnSpy.mockRestore()
+    }
+  })
+
+  it("solo nomi legacy: backend attivo ma warning di deprecazione una sola volta", async () => {
+    process.env.KV_REST_API_URL = "https://legacy.upstash.io"
+    process.env.KV_REST_API_TOKEN = "legacy-token"
+    const warnSpy = vi.spyOn(console, "warn").mockImplementation(() => {})
+    try {
+      const kv = await importKv()
+      expect(kv.resolveUpstashRestCredentials()).toMatchObject({
+        url: "https://legacy.upstash.io",
+        legacy: true,
+      })
+      kv.getKv()
+      kv.getKv()
+      const legacyWarns = warnSpy.mock.calls.filter((c) => String(c[0]).includes("legacy KV_REST_API_URL"))
+      expect(legacyWarns).toHaveLength(1)
+    } finally {
+      warnSpy.mockRestore()
+    }
+  })
+
+  it("coppia Upstash parziale (URL senza token): nessun backend, getKv lancia", async () => {
+    process.env.UPSTASH_REDIS_REST_URL = "https://example.upstash.io"
+    const kv = await importKv()
+    expect(kv.isKvConfigured()).toBe(false)
+    expect(kv.getStorageMode()).toBe("file")
+    expect(kv.getStorageBackend()).toBeNull()
+    expect(() => kv.getKv()).toThrow(/No KV backend/)
   })
 
   it("entrambi configurati: vince Redis + warn esplicito una sola volta", async () => {
