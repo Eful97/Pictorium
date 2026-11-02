@@ -1,7 +1,7 @@
 import crypto from "node:crypto"
 import { createLogger } from "@/lib/logger"
 import { envWithFallback } from "@/lib/env-compat"
-import { hasPinConfiguredSync, verifySessionFromRequestSync } from "@/lib/pin-auth"
+import { extractSessionToken, hasPinConfigured, verifySessionFromRequest } from "@/lib/pin-auth"
 
 const log = createLogger("auth")
 
@@ -72,7 +72,7 @@ function constantTimeEqual(a: string, b: string): boolean {
   return crypto.timingSafeEqual(Buffer.from(a), Buffer.from(b))
 }
 
-export function checkAdminToken(request: Request): boolean {
+export async function checkAdminToken(request: Request): Promise<boolean> {
   const token = resolveAdminToken()
   if (token) {
     const headers = request.headers
@@ -82,9 +82,12 @@ export function checkAdminToken(request: Request): boolean {
     if (xtoken && constantTimeEqual(xtoken, token)) return true
   }
 
-  // Se è configurato un PIN d'istanza, verifica se la richiesta ha una sessione PIN valida
-  if (hasPinConfiguredSync()) {
-    return verifySessionFromRequestSync(request)
+  // Hot path: senza credenziale di sessione nessuna sessione PIN è possibile
+  // (produzione → zero I/O KV). In development la config va comunque letta:
+  // un PIN configurato deve continuare a oscurare il bypass loopback.
+  const sessionToken = extractSessionToken(request)
+  if (sessionToken || process.env.NODE_ENV === "development") {
+    if (await hasPinConfigured()) return verifySessionFromRequest(request)
   }
 
   // Nessun token né PIN configurato → le route restano aperte solo in dev
@@ -106,7 +109,7 @@ export function checkAdminToken(request: Request): boolean {
  * Da usare SOLO per le operazioni che devono restare protette anche sui deploy
  * condivisi (es. DELETE /api/mappings wipe-all, telemetria cache).
  */
-export function requireAdminToken(request: Request): boolean {
+export async function requireAdminToken(request: Request): Promise<boolean> {
   const token = resolveAdminToken()
   if (token) {
     const headers = request.headers
@@ -116,8 +119,10 @@ export function requireAdminToken(request: Request): boolean {
     if (xtoken && constantTimeEqual(xtoken, token)) return true
   }
 
-  if (hasPinConfiguredSync()) {
-    return verifySessionFromRequestSync(request)
+  // Senza credenziale di sessione nessuna sessione PIN è possibile: salta la
+  // lettura KV sull'hot path (poster) invece di interrogare la config a freddo.
+  if (extractSessionToken(request) && (await hasPinConfigured())) {
+    return verifySessionFromRequest(request)
   }
 
   return false

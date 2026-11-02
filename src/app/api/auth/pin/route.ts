@@ -108,7 +108,7 @@ export async function PUT(req: NextRequest) {
   const hasPin = await hasPinConfigured()
   const currentPin = typeof body?.currentPin === "string" ? body.currentPin.trim() : ""
   const isCurrentValid = currentPin ? await verifyPin(currentPin) : false
-  const isAdmin = checkAdminToken(req)
+  const isAdmin = await checkAdminToken(req)
   if (hasPin) {
     if (!isCurrentValid && !isAdmin) {
       return Response.json({ error: "PIN attuale non corretto", code: "pin_current_wrong" }, { status: 401 })
@@ -181,7 +181,7 @@ export async function DELETE(req: NextRequest) {
 
   const currentPin = typeof body?.currentPin === "string" ? body.currentPin.trim() : ""
   const isCurrentValid = currentPin ? await verifyPin(currentPin) : false
-  const isAdmin = checkAdminToken(req)
+  const isAdmin = await checkAdminToken(req)
 
   if (!isCurrentValid && !isAdmin) {
     return Response.json({ error: "PIN attuale non corretto", code: "pin_current_wrong" }, { status: 401 })

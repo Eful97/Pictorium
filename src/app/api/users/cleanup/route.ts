@@ -16,7 +16,7 @@ export async function POST(req: NextRequest) {
   }
   const rl = await rateLimit(rateLimitKey(req), "defaults")
   if (!rl.ok) return rateLimitResponse(rl.retAfter)
-  if (!requireAdminToken(req)) return adminAuthResponse()
+  if (!(await requireAdminToken(req))) return adminAuthResponse()
   // La sessione PIN viaggia via cookie: senza same-origin un sito malevolo
   // potrebbe triggerare il cleanup col cookie ambiente dell'admin (CSRF).
   if (!isSameOrigin(req)) return originMismatchResponse()

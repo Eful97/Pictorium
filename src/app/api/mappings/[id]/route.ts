@@ -58,7 +58,7 @@ export async function PUT(req: NextRequest, { params }: { params: Promise<RouteP
     const denied = await checkUserWrite(req, scoped)
     if (denied) return denied
   } else {
-    if (!checkAdminToken(req)) return adminAuthResponse()
+    if (!(await checkAdminToken(req))) return adminAuthResponse()
     if (!isSameOrigin(req)) return originMismatchResponse()
   }
   const { id } = await params
@@ -137,7 +137,7 @@ export async function DELETE(req: NextRequest, { params }: { params: Promise<Rou
     const denied = await checkUserWrite(req, scoped)
     if (denied) return denied
   } else {
-    if (!checkAdminToken(req)) return adminAuthResponse()
+    if (!(await checkAdminToken(req))) return adminAuthResponse()
     if (!isSameOrigin(req)) return originMismatchResponse()
   }
   const { id } = await params

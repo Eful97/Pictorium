@@ -153,7 +153,7 @@ export async function POST(req: NextRequest) {
         const header = req.headers.get("x-warmup-token")
         return !!header && constantTimeEqual(header, warmupToken)
       })()
-  if (warmupHeaderOk !== true && !checkAdminToken(req)) return adminAuthResponse()
+  if (warmupHeaderOk !== true && !(await checkAdminToken(req))) return adminAuthResponse()
   const rl = await rateLimit(rateLimitKey(req), "warmup")
   if (!rl.ok) return rateLimitResponse(rl.retAfter)
   if (!isSameOrigin(req)) return originMismatchResponse()

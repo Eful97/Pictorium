@@ -19,7 +19,7 @@ export async function GET(req: NextRequest) {
   // Telemetria sensibile (conteggi globali, memoria, pipeline): fail-closed
   // stretto — solo ADMIN_TOKEN o sessione PIN valida, anche su istanze
   // pubbliche (dove checkAdminToken resterebbe aperto a chiunque).
-  if (!requireAdminToken(req)) return adminAuthResponse()
+  if (!(await requireAdminToken(req))) return adminAuthResponse()
 
   const sharpCache = sharp.cache()
   const sharpCounters = sharp.counters()

@@ -36,7 +36,7 @@ export async function POST(req: NextRequest) {
     if (!(await checkUserAuth(req, scoped))) return userAuthResponse()
     if (!isSameOrigin(req)) return originMismatchResponse()
   } else {
-    if (!checkAdminToken(req)) return adminAuthResponse()
+    if (!(await checkAdminToken(req))) return adminAuthResponse()
     if (!isSameOrigin(req)) return originMismatchResponse()
   }
 

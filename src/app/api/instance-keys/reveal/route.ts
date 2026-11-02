@@ -19,7 +19,7 @@ import { BodyTooLargeError, DEFAULT_MAX_BODY_BYTES, readJsonBody } from "@/lib/r
 export async function POST(req: NextRequest) {
   const rl = await rateLimit(rateLimitKey(req), "instance-keys")
   if (!rl.ok) return rateLimitResponse(rl.retAfter)
-  if (!checkAdminToken(req)) return adminAuthResponse()
+  if (!(await checkAdminToken(req))) return adminAuthResponse()
   if (!isSameOrigin(req)) return originMismatchResponse()
 
   let body: unknown

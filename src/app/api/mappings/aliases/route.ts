@@ -38,7 +38,7 @@ export async function GET(req: NextRequest) {
     if (!(await checkUserAuth(req, scoped))) return userAuthResponse()
     return Response.json({ aliases: await getAllAliases(scoped) })
   }
-  if (!checkAdminToken(req)) return adminAuthResponse()
+  if (!(await checkAdminToken(req))) return adminAuthResponse()
   return Response.json({ aliases: await getAllAliases(scoped) })
 }
 
@@ -51,7 +51,7 @@ export async function POST(req: NextRequest) {
     const denied = await checkUserWrite(req, scoped)
     if (denied) return denied
   } else {
-    if (!checkAdminToken(req)) return adminAuthResponse()
+    if (!(await checkAdminToken(req))) return adminAuthResponse()
     if (!isSameOrigin(req)) return originMismatchResponse()
   }
   let body: unknown
@@ -94,7 +94,7 @@ export async function DELETE(req: NextRequest) {
     const denied = await checkUserWrite(req, scoped)
     if (denied) return denied
   } else {
-    if (!checkAdminToken(req)) return adminAuthResponse()
+    if (!(await checkAdminToken(req))) return adminAuthResponse()
     if (!isSameOrigin(req)) return originMismatchResponse()
   }
   const imdbId = (req.nextUrl.searchParams.get("imdbId") || "").trim()

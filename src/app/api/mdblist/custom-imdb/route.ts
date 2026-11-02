@@ -51,7 +51,7 @@ export async function POST(req: NextRequest) {
     const denied = await checkUserWrite(req, scoped)
     if (denied) return denied
   } else {
-    if (!checkAdminToken(req)) return adminAuthResponse()
+    if (!(await checkAdminToken(req))) return adminAuthResponse()
     if (!isSameOrigin(req)) return originMismatchResponse()
   }
 
@@ -108,7 +108,7 @@ export async function GET(req: NextRequest) {
   if (error) return error
   if (scoped) {
     if (!(await checkUserAuth(req, scoped))) return userAuthResponse()
-  } else if (!checkAdminToken(req)) {
+  } else if (!(await checkAdminToken(req))) {
     return adminAuthResponse()
   }
 

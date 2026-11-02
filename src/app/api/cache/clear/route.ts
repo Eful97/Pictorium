@@ -13,7 +13,7 @@ import { rateLimit, rateLimitKey, rateLimitResponse } from "@/lib/rate-limit"
 export async function POST(req: Request) {
   const rl = await rateLimit(rateLimitKey(req), "default")
   if (!rl.ok) return rateLimitResponse(rl.retAfter)
-  if (!checkAdminToken(req)) return adminAuthResponse()
+  if (!(await checkAdminToken(req))) return adminAuthResponse()
   if (!isSameOrigin(req)) return originMismatchResponse()
   // Il clear copre l'intero store condiviso di cache.ts (poster renderizzati,
   // badge, image-level, cataloghi) più le cache module-level con store proprio

@@ -396,7 +396,7 @@ export async function GET(req: NextRequest) {
   // requireAdminToken (solo ADMIN_TOKEN o sessione PIN valida) le espone,
   // mentre la lettura non autenticata riceve solo i booleani. `serverKeys`
   // resta la proiezione degli ENV (lo store d'istanza non viene mai echoato).
-  if (requireAdminToken(req)) {
+  if (await requireAdminToken(req)) {
     const serverKeys = {
       tmdbKey: envWithFallback("TMDB_KEY") || process.env.TMDB_API_KEY || "",
       mdblistApiKey: envWithFallback("MDBLIST_KEY") || process.env.MDBLIST_API_KEY || "",
@@ -418,7 +418,7 @@ export async function PUT(req: NextRequest) {
     if (!(await checkUserAuth(req, scoped))) return userAuthResponse()
     if (!isSameOrigin(req)) return originMismatchResponse()
   } else {
-    if (!checkAdminToken(req)) return adminAuthResponse()
+    if (!(await checkAdminToken(req))) return adminAuthResponse()
     if (!isSameOrigin(req)) return originMismatchResponse()
   }
   let body: unknown

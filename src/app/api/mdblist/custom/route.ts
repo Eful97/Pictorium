@@ -51,7 +51,7 @@ export async function GET(req: NextRequest) {
     if (rawUser && isMultiUserEnabled() && !userId) return invalidUserResponse()
     if (userId) {
       if (!(await checkUserAuth(req, userId))) return userAuthResponse()
-    } else if (!checkAdminToken(req)) {
+    } else if (!(await checkAdminToken(req))) {
       return adminAuthResponse()
     }
   }
@@ -89,7 +89,7 @@ export async function GET(req: NextRequest) {
     // Large windows (`limit` above the grid page size) require a real
     // credential: admin token or an authenticated user namespace. Anonymous
     // requests are clamped to MAX_ANON_LIMIT before any per-item enrichment.
-    const privileged = checkAdminToken(req) || (!!userId && (await checkUserAuth(req, userId)))
+    const privileged = (await checkAdminToken(req)) || (!!userId && (await checkUserAuth(req, userId)))
     const limit = privileged ? requestedLimit : Math.min(requestedLimit, MAX_ANON_LIMIT)
     // Il conteggio totale serve alla UI ("N titoli — anteprima K"): il raw si
     // fetcha fino a 500 (una sola chiamata upstream, cache condivisa con la
