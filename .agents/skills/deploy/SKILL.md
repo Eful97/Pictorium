@@ -21,9 +21,9 @@ operator/agent checklist.
 | Docker manual | `docker build --build-arg NODE_MAX_OLD_SPACE=1024 -t pictorium .` then `docker run -p 8080:8080 -v posterium-data:/data pictorium` | named volume `/data` (legacy name `posterium-data` kept — do NOT rename, it holds user data) | entrypoint self-warmup (needs rebuilt image) |
 | Docker Compose | `docker compose up -d` (`.env` only for admin token; hardening cap_drop ALL, no-new-privileges; 512MB mem limit) | volume `posterium-data` | same |
 | HF Spaces | frontmatter `sdk: docker` + `app_port: 8080`; env `NODE_OPTIONS=--max-old-space-size=1024` + **`PICTORIUM_ADMIN_TOKEN`** (paste it in Settings → Admin token to unlock the editor) | Storage bucket → `/data` (uid 1000) | same |
-| Vercel | deploy button / import repo; Next.js runtime; **`PICTORIUM_ADMIN_TOKEN`** needed for editor routes (admin is fail-closed) | **KV required for server-side saves** (`PICTORIUM_REDIS_URL` native Redis, or KV_REST_API_URL/TOKEN); without either profiles degrade to stateless `?config=` (needs CONFIG_HMAC_SECRET) — fs is read-only | NOT useful on Hobby (10s limit) |
+| Vercel | deploy button / import repo; Next.js runtime; **`PICTORIUM_ADMIN_TOKEN`** needed for editor routes (admin is fail-closed) | **KV required for server-side saves** (`PICTORIUM_REDIS_URL` native Redis, or KV_REST_API_URL/TOKEN); without either profiles degrade to stateless `?config=` (needs CONFIG_HMAC_SECRET) — fs is read-only | nightly `/api/warmup` cron (needs `CRON_SECRET`; Hobby allows up to 300s with Fluid compute, the current default) |
 | ElfHosted/K8s HA | image + `REDIS_URL` (or `PICTORIUM_REDIS_URL`) to the cluster Redis, no `/data` volume, ≥2 replicas | native Redis shared by all replicas (wins over KV_REST_* when both set, no auto-migration) | entrypoint self-warmup per replica |
-| VPS/Oracle/Termux | `npm run build && npm start` (or docker compose); Oracle A1 4 OCPU free tier | local `/data` | none |
+| VPS/Oracle/Termux | `npm run build && node .next/standalone/server.js` (or docker compose; Termux needs a glibc env — proot-distro Debian — since `sharp` ships no Android build); Oracle A1 4 OCPU free tier | local `/data` | none |
 
 > **Editor routes** (`POST/GET /api/mappings`, `/api/poster-fit`, `/api/defaults`)
 > are admin-protected and **fail-closed** unless an admin token is configured or
@@ -63,8 +63,13 @@ README "Tuning performance". Env vars are read at module level → restart neede
 `entrypoint.sh` runs `/api/warmup` in the background after boot:
 1. Polls `http://127.0.0.1:${PORT:-8080}/api/health` up to ~60s.
 2. POSTs `/api/warmup?lang=it` with `x-warmup-token` when configured, else
-   with `x-admin-token`; with neither the route answers 401 (fail-closed) and
-   the call fails silently.
+   with `x-admin-token`; with neither the route answers 401 (fail-closed).
+   The script logs the real HTTP status: `Self-warmup completed (HTTP 2xx)`
+   on success, `Self-warmup NOT run: /api/warmup returned 401 — set
+   PICTORIUM_WARMUP_TOKEN (or PICTORIUM_ADMIN_TOKEN) to enable it` when
+   unauthenticated (401 means it did NOT run),
+   `Self-warmup failed: no HTTP response (timeout/network)` on no response,
+   `Self-warmup finished with HTTP <code>` otherwise.
 3. All failures are non-fatal (`|| true`) — never blocks boot.
 
 - Disable with `PICTORIUM_SELF_WARMUP=0`.
@@ -77,8 +82,9 @@ Run these against the deployed instance:
 1. `GET /api/health` → `ok` (does not leak data path).
 2. `GET /api/status` → TMDB status, streaming, storage sections populated.
 3. `GET /manifest.json` → Stremio manifest (`resources: catalog, meta`).
-4. Warmup ran: check logs for `[entrypoint] Self-warmup completed` (or
-   `PICTORIUM_SELF_WARMUP=0` intentionally).
+4. Warmup ran: check logs for `[entrypoint] Self-warmup completed (HTTP 2xx)`
+   (or `PICTORIUM_SELF_WARMUP=0` intentionally). The 401 line (`Self-warmup
+   NOT run: /api/warmup returned 401`) means it did NOT run — configure a token.
 5. On HF: confirm a Storage bucket is linked to `/data` (logs warn on boot if
    storage is not writable by uid 1000).
 
@@ -104,8 +110,11 @@ Run these against the deployed instance:
 - The stateless fallback requires `CONFIG_HMAC_SECRET` (or
   `ENCRYPTION_KEY_SECRET`) to sign the token — without the secret, config token
   creation fails with an explanatory 500.
-- Hobby function duration is 10s: cold catalogs (~10s) and burst poster renders
-  can time out. Warmup does not complete on Hobby — not critical.
+- With Fluid compute (the current default) Hobby functions allow up to 300s —
+  the app caps its own routes well below that (poster 40s, catalogs 60s,
+  warmup 60s). The nightly `/api/warmup` Vercel Cron needs `CRON_SECRET`
+  configured (Vercel attaches it as `Authorization: Bearer <CRON_SECRET>`
+  automatically); without it the route answers 401 and the warmup does not run.
 - `CONFIG_HMAC_SECRET` unlocks config tokens (fail-closed without it).
 - **Personal single-user instances** (one person deploying their own Vercel):
   either set `PICTORIUM_TMDB_KEY` / `PICTORIUM_MDBLIST_KEY`, or save the keys

@@ -58,7 +58,7 @@ echo "[entrypoint] ============================================"
 # burst a freddo. Disattivabile con PICTORIUM_SELF_WARMUP=0.
 # Auth: la route warmup richiede x-warmup-token (se configurato) oppure un
 # ADMIN_TOKEN valido/PIN; senza credenziali risponde 401 (fail-closed) e il
-# self-warmup resta silenziosamente non eseguito. Mai bloccante per il boot.
+# self-warmup riporta lo status HTTP, senza mai bloccare il boot.
 # ---------------------------------------------------------------------------
 WARMUP_ENABLED="${PICTORIUM_SELF_WARMUP:-${POSTERIUM_SELF_WARMUP:-1}}"
 if [ "$WARMUP_ENABLED" = "1" ]; then
@@ -78,14 +78,21 @@ if [ "$WARMUP_ENABLED" = "1" ]; then
     if [ "$UP" = "1" ]; then
       WARMUP_TOKEN="${PICTORIUM_WARMUP_TOKEN:-${POSTERIUM_WARMUP_TOKEN:-}}"
       ADMIN_TOKEN_VAL="${PICTORIUM_ADMIN_TOKEN:-${POSTERIUM_ADMIN_TOKEN:-$ADMIN_TOKEN}}"
+      WARMUP_CODE=""
       if [ -n "$WARMUP_TOKEN" ]; then
-        curl -sS -m 300 -X POST -H "x-warmup-token: $WARMUP_TOKEN" "$WARMUP_URL" >/dev/null 2>&1 || true
+        WARMUP_CODE=$(curl -sS -o /dev/null -w '%{http_code}' -m 300 -X POST -H "x-warmup-token: $WARMUP_TOKEN" "$WARMUP_URL" 2>/dev/null || true)
       elif [ -n "$ADMIN_TOKEN_VAL" ]; then
-        curl -sS -m 300 -X POST -H "x-admin-token: $ADMIN_TOKEN_VAL" "$WARMUP_URL" >/dev/null 2>&1 || true
+        WARMUP_CODE=$(curl -sS -o /dev/null -w '%{http_code}' -m 300 -X POST -H "x-admin-token: $ADMIN_TOKEN_VAL" "$WARMUP_URL" 2>/dev/null || true)
       else
-        curl -sS -m 300 -X POST "$WARMUP_URL" >/dev/null 2>&1 || true
+        WARMUP_CODE=$(curl -sS -o /dev/null -w '%{http_code}' -m 300 -X POST "$WARMUP_URL" 2>/dev/null || true)
       fi
-      echo "[entrypoint] Self-warmup completed"
+      if [ -z "$WARMUP_CODE" ]; then WARMUP_CODE="000"; fi
+      case "$WARMUP_CODE" in
+        2*) echo "[entrypoint] Self-warmup completed (HTTP $WARMUP_CODE)" ;;
+        401) echo "[entrypoint] Self-warmup NOT run: /api/warmup returned 401 — set PICTORIUM_WARMUP_TOKEN (or PICTORIUM_ADMIN_TOKEN) to enable it" ;;
+        000) echo "[entrypoint] Self-warmup failed: no HTTP response (timeout/network)" ;;
+        *) echo "[entrypoint] Self-warmup finished with HTTP $WARMUP_CODE" ;;
+      esac
     else
       echo "[entrypoint] Server not up in time — self-warmup skipped"
     fi
