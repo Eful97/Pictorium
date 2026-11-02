@@ -49,7 +49,7 @@ export async function GET(req: NextRequest) {
     const mappings = await getAll(scoped)
     return Response.json({ mappings })
   }
-  // Fail-open senza ADMIN_TOKEN (istanza pubblica HF Spaces); fail-closed con token.
+  // Fail-closed: serve ADMIN_TOKEN o una sessione PIN valida (nessuna modalità pubblica).
   if (!checkAdminToken(req)) return adminAuthResponse()
   const mappings = await getAll()
   return Response.json({ mappings })
