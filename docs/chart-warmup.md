@@ -173,7 +173,9 @@ WantedBy=timers.target
 - **Vercel:** serverless functions are short-lived (the repo caps routes at
   60s), so watch mode cannot live there — run it externally against the
   deployment URL. The existing `vercel.json` cron entry for `/api/warmup`
-  is unchanged.
+  now reaches the route, but only when `CRON_SECRET` is configured (Vercel
+  attaches it as `Authorization: Bearer <CRON_SECRET>` automatically);
+  without it the route stays fail-closed (401).
 
 ## Verification
 

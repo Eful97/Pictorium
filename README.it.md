@@ -200,6 +200,7 @@ Attivando `PICTORIUM_MULTI_USER=1`, l'istanza permette a più utenti di condivid
      * `CONFIG_HMAC_SECRET` = *un segreto lungo e casuale* (obbligatorio in produzione per i link `?config=` di condivisione/installazione)
      * `PROFILE_ENCRYPTION_KEY` = *hex di 64 caratteri* (obbligatoria solo con `PICTORIUM_MULTI_USER=1`)
      * `PICTORIUM_TMDB_KEY` = *la tua chiave TMDB v3* (opzionale: puoi salvarla dopo il deploy in Impostazioni → Dati & Cache → Configura chiavi API)
+     * `CRON_SECRET` = *un segreto casuale* (permette al cron notturno `/api/warmup` di Vercel di autenticarsi — Vercel lo allega come `Authorization: Bearer <CRON_SECRET>`; senza, la route risponde 401)
    * Clicca su **Deploy**.
 4. **Collega Upstash Redis — sempre obbligatorio**:
    * Il filesystem di Vercel è read-only: senza Redis mapping e impostazioni non persistono e gli spazi degradano a link `?config=` stateless.
@@ -211,7 +212,7 @@ Attivando `PICTORIUM_MULTI_USER=1`, l'istanza permette a più utenti di condivid
    * Salva le chiavi TMDB/MDBList/TVDB in **Impostazioni → Dati & Cache → Configura chiavi API**: sono cifrate a riposo in Upstash e le richieste Stremio anonime le risolvono senza env.
    * Clicca su **Installa su Stremio**!
 
-> **Limite piano Hobby**: ogni funzione è limitata a ~10 s, quindi un render a freddo o un upstream lento può rispondere con un 503 limitato. Il piano Pro alza il limite; mantenere i cataloghi caldi riduce il rischio.
+> **Durata delle funzioni**: con Fluid compute (il default attuale) le funzioni Hobby arrivano fino a 300s, e l'app limita le proprie route ben al di sotto (poster 40s, cataloghi 60s, warmup 60s). Un render a freddo o un upstream lento può comunque rispondere con un 503 limitato; mantenere i cataloghi caldi riduce il rischio.
 
 > **Aggiornamenti Futuri**: Per aggiornare la tua istanza, ti basterà aprire il tuo fork su GitHub e cliccare su **Sync fork → Update branch**. Vercel effettuerà il redeploy automatico in 60 secondi senza toccare i tuoi dati.
 
@@ -274,10 +275,19 @@ tuodominio.com {
 Su dominio pubblico proteggi l'editor con `PICTORIUM_ADMIN_TOKEN` (sblocco in Impostazioni → Token admin): senza, le route admin restano chiuse (fail-closed). Aggiungi `CONFIG_HMAC_SECRET` per i link `?config=` e `PROFILE_ENCRYPTION_KEY` quando `PICTORIUM_MULTI_USER=1`.
 
 #### 📱 Termux (Android)
+Termux diretto non è supportato: manca glibc e `sharp` non ha build per Android. Usa Debian via proot-distro:
 ```bash
-pkg update && pkg install nodejs git -y
+pkg install proot-distro -y
+proot-distro install debian
+proot-distro login debian
+# dentro Debian (il nodejs di bookworm è v18, il progetto richiede Node 22+):
+apt update && apt install -y curl ca-certificates gnupg git
+curl -fsSL https://deb.nodesource.com/setup_22.x | bash -
+apt install -y nodejs
+node -v   # deve stampare v22.x
 git clone https://github.com/Eful97/Pictorium && cd Pictorium
-npm install --ignore-scripts && npm run build && npm start
+npm ci && npm run build
+PORT=8080 node .next/standalone/server.js
 ```
 </details>
 
@@ -349,7 +359,7 @@ Note Trakt OAuth (multi-utente): una sola registrazione app Trakt per istanza (c
 |---|:---:|---|
 | `PICTORIUM_MAX_CONCURRENT_RENDERS` | Scalato sulla CPU `2`–`8` (`4` in docker-compose) | Render Sharp contemporanei massimi (anti-OOM). Non impostata = `min(8, max(2, availableParallelism()))`; un valore esplicito (1–32) vince sempre, un valore invalido ricade su `4`. |
 | `PICTORIUM_MAX_CONCURRENT_FETCHES` | `12` | Fetch upstream/immagini contemporanei massimi nella pipeline di render (1–32). Chi attende non tiene buffer immagine, quindi questo budget è volutamente più alto di quello dei render. |
-| `PICTORIUM_RENDER_SLOT_WAIT_MS` | `15000` | Attesa massima per uno slot di render prima di un 503 limitato (500–60000 ms). Su Vercel senza valore esplicito il default è `7500`, sotto il limite di 10 s delle funzioni Hobby. |
+| `PICTORIUM_RENDER_SLOT_WAIT_MS` | `15000` | Attesa massima per uno slot di render prima di un 503 limitato (500–60000 ms). Su Vercel senza valore esplicito il default è `7500`, ben entro il limite di 300s delle funzioni Hobby con Fluid compute (il default attuale). |
 | `PICTORIUM_RENDER_QUEUE` | `0` | Coda di render limitata (0–128). `0` = chi attende si accoda fino a `PICTORIUM_RENDER_SLOT_WAIT_MS`; `N` > 0 = oltre `N` si riceve subito un 503 (backpressure invece di coda illimitata). |
 | `PICTORIUM_ZOMBIE_GRACE_MS` | `10000` | Per quanto un render abbandonato dal deadline watchdog continua a occupare uno slot prima di essere rilasciato a forza (1000–120000 ms). Lo zombie continua in background finché non termina. |
 | `PICTORIUM_RENDER_TIMEOUT_MS` | `30000` | Deadline massima di render prima di un 503 limitato con `Retry-After` (1000–40000 ms). Oltre la deadline il job tardivo non mette mai in cache e non conta doppio il 503. |

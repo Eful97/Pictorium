@@ -4,7 +4,10 @@ import { getJWRankings } from "@/lib/justwatch"
 import { warmTop250 } from "@/lib/imdb-top250"
 
 // Vercel: il warmup itera decine di poster in batch → richiede il massimo
-// consentito. Su Hobby (10s) non completa comunque; su Pro vale 60s.
+// consentito qui (60s). Per le Vercel docs correnti (Functions limits, Fluid
+// compute) il default E il massimo Hobby sono 300s, quindi 60s resta dentro
+// i limiti di ogni piano; non alzarlo (upper bound diversi per piano/account
+// e OOM/load sotto traffico reale).
 export const maxDuration = 60
 import { buildPosterPublicUrl } from "@/lib/poster-public-url"
 import { getServerDefaults } from "@/lib/server-defaults"
@@ -155,6 +158,29 @@ export async function POST(req: NextRequest) {
   if (!rl.ok) return rateLimitResponse(rl.retAfter)
   if (!isSameOrigin(req)) return originMismatchResponse()
 
+  return runWarmup(req)
+}
+
+export async function GET(req: NextRequest) {
+  // Vercel Cron invoca il path con GET allegando automaticamente
+  // `Authorization: Bearer <CRON_SECRET>` quando la env var esiste. Mai
+  // user-agent o altri segnali non autenticati: la route è un amplificatore
+  // di richieste (fail-closed senza CRON_SECRET).
+  const cronSecret = process.env.CRON_SECRET?.trim()
+  if (!cronSecret) {
+    log.warn("Cron warmup rejected: CRON_SECRET not configured")
+    return adminAuthResponse()
+  }
+  const auth = req.headers.get("authorization")
+  if (!auth || !constantTimeEqual(auth, `Bearer ${cronSecret}`)) return adminAuthResponse()
+  const rl = await rateLimit(rateLimitKey(req), "warmup")
+  if (!rl.ok) return rateLimitResponse(rl.retAfter)
+  if (!isSameOrigin(req)) return originMismatchResponse()
+
+  return runWarmup(req)
+}
+
+async function runWarmup(req: NextRequest) {
   const apiKey = await resolveRouteApiKey(req)
   const concurrency = boundedInt({ value: req.nextUrl.searchParams.get("concurrency"), fallback: 3, min: 1, max: 8 })
   // C2: regione per le classifiche JW (prima hardcoded IT) — la cache key
@@ -166,17 +192,18 @@ export async function POST(req: NextRequest) {
   const warmRegionDef = getRegionDef(warmRegion)
   const warmLang = req.nextUrl.searchParams.get("lang") || (regionParam ? warmRegionDef.lang || "it" : "it")
   // C2: resume — offset nella coda dedup + nextOffset in risposta per
-  // concatenare chiamate sotto deadline (Vercel Hobby 10s).
+  // concatenare chiamate sotto la deadline interna di 50s.
   const queueOffset = boundedInt({ value: req.nextUrl.searchParams.get("offset"), fallback: 0, min: 0, max: 10000 })
   // C2: warm dei cataloghi (default off — upstream costoso). Scalda gli 8
   // WARMUP_CATALOG_IDS così il primo browse non è freddo N+1; con C1 i body
   // finiscono anche in KV cross-istanza. Chiavi pass-through dalla richiesta.
   const warmCatalogs = req.nextUrl.searchParams.get("catalogs") === "1"
   // D2: default dimezzati (~110 target invece di ~340). Prima ogni warmup
-  // senza parametri veniva sempre troncato dalla deadline 50s (e su Hobby
-  // 10s non completava nulla), sprecando lavoro e — al boot su 512M —
-  // rischiando OOM contro il traffico reale. Chi vuole di più passa i
-  // parametri espliciti (max invariati).
+  // senza parametri veniva spesso troncato dalla deadline interna di 50s,
+  // sprecando lavoro e — al boot su 512M — rischiando OOM contro il traffico
+  // reale. La deadline resta per ragioni di OOM/carico, non per un limite
+  // Hobby (il massimo Hobby attuale è 300s per le Vercel docs correnti).
+  // Chi vuole di più passa i parametri espliciti (max invariati).
   const trendingLimit = boundedInt({ value: req.nextUrl.searchParams.get("trending"), fallback: 20, min: 0, max: 100 })
   const justWatchLimit = boundedInt({ value: req.nextUrl.searchParams.get("justwatch"), fallback: 10, min: 0, max: 50 })
   const mappingLimit = boundedInt({ value: req.nextUrl.searchParams.get("mappings"), fallback: 50, min: 0, max: 500 })
