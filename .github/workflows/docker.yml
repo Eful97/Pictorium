@@ -6,6 +6,9 @@ on:
   # CI can never push images. PRs always stay build-only.
   push:
     branches: [master, main]
+    # Docs-only master pushes need no image: skip the build entirely (CI itself
+    # is skipped too, so the workflow_run publish path does not fire either).
+    paths-ignore: ['**.md', 'docs/**', 'LICENSE']
   pull_request:
     branches: [master, main]
   workflow_run:
