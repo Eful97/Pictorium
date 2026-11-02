@@ -305,7 +305,11 @@ describe("per-item corrections inside the staged settings session", () => {
     expect(screen.queryByTestId("settings-conflict")).toBeNull()
     expect(ctx().defaultBadgeItemTransforms).toBe("rating:imdb=130,5,0")
     await waitFor(() => expect(previewParams()?.get("bit")).toBe("rating:imdb=130,5,0"), { timeout: 3000 })
-  })
+    // Same explicit wall-clock budget as the sibling test above: the flow mounts
+    // the real panel (async defaults hydration + 200 ms preview debounce + XHR
+    // delivery) and already measures ~3 s on an idle machine, so the 5 s suite
+    // default is exceeded under full-suite CPU contention, not on a hang.
+  }, 15000)
 
   it("stages a per-item RESET of an existing correction (double-click)", async () => {
     localStorage.setItem("badgeDefaults", JSON.stringify({ badgeItemTransforms: "rating:slot:1=130,5,0" }))
