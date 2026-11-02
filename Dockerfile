@@ -9,11 +9,6 @@ RUN if [ ! -f package.json ]; then \
       cp -a /tmp/pictorium/. .; \
     fi && test -f package.json
 
-FROM node:22-bookworm AS deps
-WORKDIR /app
-COPY --from=source /src/package.json /src/package-lock.json ./
-RUN npm ci --omit=dev --no-audit --no-fund
-
 FROM node:22-bookworm AS builder
 WORKDIR /app
 COPY --from=source /src/package.json /src/package-lock.json ./
@@ -48,7 +43,8 @@ ENV POSTERIUM_DATA_DIR=/data
 # che coincide esattamente con l'owner dello storage HF Spaces (persistenza distribuita).
 # Testo completo AGPL-3.0 a bordo immagine (anche senza .git nel context).
 COPY --from=source /src/LICENSE ./LICENSE
-COPY --from=deps /app/node_modules ./node_modules
+# No second node_modules copy: .next/standalone already carries the traced
+# production deps (serverExternalPackages: @resvg/resvg-js, sharp, ioredis).
 COPY --from=builder /app/public ./public
 COPY --from=builder --chown=node:node /app/.next/standalone ./
 COPY --from=builder --chown=node:node /app/.next/static ./.next/static
