@@ -5,3 +5,14 @@ node_modules
 .gitignore
 *.md
 data
+# Local build/test artifacts only: isolated Next dist dirs, test outputs,
+# scratch/analysis dumps, and TS incremental state. `.next-*` is separate
+# because `.next` does not match suffixed dist dirs (`.next-e2e`, etc.),
+# which would otherwise bloat the COPY . . build context.
+.next-*
+test-results*
+playwright-report
+artifacts
+coverage
+graphify-out
+*.tsbuildinfo
