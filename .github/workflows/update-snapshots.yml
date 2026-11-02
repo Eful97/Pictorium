@@ -1,0 +1,89 @@
+name: Update visual snapshots
+
+# Rigenera i baseline screenshot della suite visuale SU LINUX e li committa sul
+# branch indicato. Gli snapshot Playwright sono per-OS: questo workflow produce
+# SOLO la variante Linux (quella usata dal job `visual` di ci.yml). Il branch di
+# destinazione e' tipicamente il branch di una PR: il diff della PR e' la
+# superficie di review (niente snapshot aggiornati alla cieca, vanno ispezionati
+# come qualsiasi altra modifica).
+#
+# Nota: un push fatto con GITHUB_TOKEN NON triggera altri workflow (limite di
+# GitHub per evitare loop). Dopo l'update il branch va quindi ri-controllato a
+# mano — possibile proprio grazie al workflow_dispatch aggiunto a ci.yml.
+
+on:
+  workflow_dispatch:
+    inputs:
+      branch:
+        description: "Branch da aggiornare (riceve commit + push degli snapshot)"
+        required: true
+        type: string
+      grep:
+        description: "Filtro opzionale --grep (es. 'badge')"
+        required: false
+        type: string
+
+permissions:
+  contents: write
+
+jobs:
+  update-snapshots:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v7
+        with:
+          ref: ${{ inputs.branch }}
+          # Serve la history per committare/pushare sul branch indicato.
+          fetch-depth: 0
+      - uses: actions/setup-node@v7
+        with:
+          node-version: 22
+          cache: npm
+      - run: npm ci
+      - run: npx playwright install --with-deps chromium
+
+      # Il filtro arriva via env: mai interpolato nella stringa di shell.
+      - name: Update snapshot baselines
+        env:
+          GREP_FILTER: ${{ inputs.grep }}
+        run: |
+          if [ -n "$GREP_FILTER" ]; then
+            npx playwright test e2e/pictorium-visual.spec.ts --update-snapshots --grep "$GREP_FILTER"
+          else
+            npx playwright test e2e/pictorium-visual.spec.ts --update-snapshots
+          fi
+
+      - name: Commit and push updated snapshots
+        env:
+          TARGET_BRANCH: ${{ inputs.branch }}
+        run: |
+          if [ -z "$(git status --porcelain -- e2e/)" ]; then
+            echo "no snapshot changes"
+            exit 0
+          fi
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add e2e/
+          git commit -m "test(visual): Update Linux snapshot baselines"
+          # Mai force-push: un push normale fallisce se il branch e' avanzato.
+          git push origin "HEAD:${TARGET_BRANCH}"
+
+      - name: Job summary
+        if: always()
+        env:
+          TARGET_BRANCH: ${{ inputs.branch }}
+        run: |
+          {
+            echo "### Snapshot Linux aggiornati"
+            echo ""
+            echo "Branch: \`${TARGET_BRANCH}\`"
+            echo ""
+            echo "**Il push fatto con \`GITHUB_TOKEN\` non triggera la CI.**"
+            echo "Il branch va ri-controllato a mano con:"
+            echo ""
+            echo '```'
+            echo "gh workflow run ci.yml --ref ${TARGET_BRANCH}"
+            echo '```'
+            echo ""
+            echo "Poi revisiona il diff degli snapshot nella PR prima del merge."
+          } >> "$GITHUB_STEP_SUMMARY"
