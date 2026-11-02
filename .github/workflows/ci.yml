@@ -4,9 +4,22 @@ on:
   push:
     branches: [master, main]
   pull_request:
+    # `ready_for_review` e' NECESSARIO: i tipi di default sono solo
+    # opened/synchronize/reopened, quindi segnare una draft PR come "ready"
+    # non farebbe partire il run completo (resterebbe senza verify/visual).
+    types: [opened, synchronize, reopened, ready_for_review]
+  workflow_dispatch:
+
+# Un push su master NON deve mai cancellare il proprio run: docker.yml consuma
+# la conclusion via workflow_run, e un run cancellato non publica l'immagine.
+concurrency:
+  group: ci-${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: ${{ github.event_name == 'pull_request' }}
 
 jobs:
-  verify:
+  # Feedback loop veloce (~2-3 min) su OGNI evento, draft inclusi: typecheck +
+  # lint. Il resto delle verifiche pesanti vive in verify/visual.
+  fast:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v7
@@ -20,6 +33,20 @@ jobs:
       - run: npm ci
       - run: npx tsc --noEmit
       - run: npx eslint .
+
+  # Suite pesante: parte solo quando i controlli veloci sono verdi e la PR non
+  # e' una draft (git push su master/main gira sempre).
+  verify:
+    needs: fast
+    if: github.event_name != 'pull_request' || github.event.pull_request.draft == false
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v7
+      - uses: actions/setup-node@v7
+        with:
+          node-version: 22
+          cache: npm
+      - run: npm ci
       - run: npm run test
       - run: npm run build
 
@@ -36,6 +63,7 @@ jobs:
       - run: node scripts/check-commit-subjects.mjs
 
   visual:
+    if: github.event_name != 'pull_request' || github.event.pull_request.draft == false
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v7
