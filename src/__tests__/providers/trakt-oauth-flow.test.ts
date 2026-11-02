@@ -15,7 +15,7 @@ import { NextRequest } from "next/server"
 const kvStore = vi.hoisted(() => new Map<string, unknown>())
 const kvLocks = vi.hoisted(() => new Map<string, { owner: string; expiresAt: number }>())
 const kvCtl = vi.hoisted(() => ({ rawEval: false, evalFail: false, getCalls: 0, delCalls: 0 }))
-vi.mock("@vercel/kv", () => ({
+vi.mock("@/lib/upstash-kv-client", () => ({
   kv: {
     get: async (key: string) => {
       kvCtl.getCalls++
@@ -167,7 +167,7 @@ beforeEach(async () => {
   // Defensive: restoreAllMocks/resetModules do NOT undo vi.doMock. A leaked
   // always-429 "@/lib/rate-limit" mock (pre-F7 line-932 doUnmock sat AFTER the
   // assert, so any failure skipped it) 429s every later startFlow in the file.
-  // Never doUnmock "@/lib/kv" or "@vercel/kv" here: the hoisted memory mock
+  // Never doUnmock "@/lib/kv" or "@/lib/upstash-kv-client" here: the hoisted memory mock
   // must stay registered (unmocking it would route KV tests at real Upstash).
   vi.doUnmock("@/lib/rate-limit")
   vi.restoreAllMocks()

@@ -1,12 +1,12 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest"
 
-// Mock di @vercel/kv: vi.mock è hoisted, il modulo cache viene reimportato
+// Mock di @/lib/upstash-kv-client: vi.mock è hoisted, il modulo cache viene reimportato
 // per-test con vi.resetModules (stesso pattern di rate-limit-kv.test.ts).
 const kvMock = {
   get: vi.fn(),
   set: vi.fn(),
 }
-vi.mock("@vercel/kv", () => ({ kv: kvMock }))
+vi.mock("@/lib/upstash-kv-client", () => ({ kv: kvMock }))
 
 // Fake ioredis in-memory (condiviso tra i resetModules: simula il Redis
 // condiviso tra istanze). Serve al test del backend Redis nativo.

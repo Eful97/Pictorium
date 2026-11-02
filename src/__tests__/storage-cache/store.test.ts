@@ -4,10 +4,10 @@ import path from "node:path"
 import { afterAll, afterEach, describe, expect, it, vi } from "vitest"
 import type { Mapping } from "@/lib/types"
 
-// Hash KV in-memory: valida il cablaggio store -> kv.ts -> @vercel/kv
+// Hash KV in-memory: valida il cablaggio store -> kv.ts -> @/lib/upstash-kv-client
 // senza rete. Attivo solo con KV_REST_API_URL/TOKEN.
 const kvHashes = vi.hoisted(() => new Map<string, Map<string, unknown>>())
-vi.mock("@vercel/kv", () => ({
+vi.mock("@/lib/upstash-kv-client", () => ({
   kv: {
     hgetall: async (key: string) => {
       const h = kvHashes.get(key)
@@ -267,7 +267,7 @@ describe("KV per-user quota guards (Q2b2 atomic EVAL)", () => {
   function stubFakeRestKv(max: string): void {
     // Fake REST KV explicitly, independent of any caller Redis URL: Redis
     // wins over KV in getKv(), so blank the Redis selectors ("" trims to
-    // unset in resolveRedisUrl) to force the mocked @vercel/kv path — never
+    // unset in resolveRedisUrl) to force the mocked @/lib/upstash-kv-client path — never
     // an accidental real Redis when the parent env is configured.
     vi.stubEnv("PICTORIUM_REDIS_URL", "")
     vi.stubEnv("POSTERIUM_REDIS_URL", "")

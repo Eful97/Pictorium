@@ -9,7 +9,7 @@ import { NextRequest } from "next/server"
 // in-memory backend with atomic EVAL semantics. Each `eval` runs its
 // check-and-write synchronously (no awaits inside), so concurrent workers
 // serialize exactly like server-side Lua scripts. Production `kv.ts` — and
-// its concurrent dynamic `import("@vercel/kv")`, which races the real
+// its concurrent dynamic `import("@/lib/upstash-kv-client")`, which races the real
 // package past `vi.mock` under `resetModules` (`res.map is not a function`)
 // — is never loaded here. Production `trakt-auth` / `trakt-profile-lock` /
 // `trakt-oauth-state` / `user-auth` / `user-activity` still run unmodified
@@ -196,11 +196,11 @@ vi.mock("@/lib/kv", () => {
 })
 
 // Tripwire: production `kv.ts` must stay unloaded in this file (its dynamic
-// `import("@vercel/kv")` is the documented race). Any unexpected import of
+// `import("@/lib/upstash-kv-client")` is the documented race). Any unexpected import of
 // the real package throws loudly instead of reaching the network.
-vi.mock("@vercel/kv", () => {
+vi.mock("@/lib/upstash-kv-client", () => {
   const boom = () => {
-    throw new Error("@vercel/kv tripwire: production kv.ts must stay unloaded (mock @/lib/kv instead)")
+    throw new Error("@/lib/upstash-kv-client tripwire: production kv.ts must stay unloaded (mock @/lib/kv instead)")
   }
   return { kv: { get: boom, set: boom, del: boom, eval: boom } }
 })
@@ -403,7 +403,7 @@ describe("coordinated refresh: single-flight", () => {
     // boundary mock above has a stable hoisted identity across
     // `resetModules` (Vitest keeps `mock:` nodes), so both workers
     // deterministically share one backend — unlike the previous
-    // `@vercel/kv` mock, which raced the real package inside `kv.ts`'s
+    // `@/lib/upstash-kv-client` mock, which raced the real package inside `kv.ts`'s
     // concurrent dynamic import (`res.map is not a function`). `a.trakt !==
     // b` proves isolated worker contexts (not one shared inflight Map).
     vi.resetModules()

@@ -17,11 +17,11 @@ import { checkAdminToken } from "@/lib/auth"
 import { NextRequest } from "next/server"
 import { GET, POST, PUT, DELETE } from "@/app/api/auth/pin/route"
 
-// Store KV in-memory: valida il cablaggio pin-auth -> kv.ts -> @vercel/kv
+// Store KV in-memory: valida il cablaggio pin-auth -> kv.ts -> @/lib/upstash-kv-client
 // senza rete. Attivo solo quando il test imposta KV_REST_API_URL/TOKEN
 // (gli altri test restano in file-mode).
 const kvStore = vi.hoisted(() => new Map<string, unknown>())
-vi.mock("@vercel/kv", () => ({
+vi.mock("@/lib/upstash-kv-client", () => ({
   kv: {
     get: async (key: string) => kvStore.get(key) ?? null,
     set: async (key: string, value: unknown) => {

@@ -85,16 +85,15 @@ let redisTimed: KvClient | null = null
 let upstashTimed: KvClient | null = null
 
 /**
- * Storage Key-Value unificato (Step 1: solo definizione + selezione backend).
- *
- * Nessun consumer migrato in questo step: i moduli esistenti continuano a
- * importare `@vercel/kv` direttamente. Questo modulo è usato solo dal suo
- * unit test finché lo Step 2 non migra il primo consumer (`catalog-epoch`).
+ * Storage Key-Value unificato: definizione + selezione backend.
  *
  * Backend (precedenza):
  *  1. Redis nativo (`PICTORIUM_REDIS_URL`, fallback `POSTERIUM_REDIS_URL`,
  *     fallback `REDIS_URL` nudo per ElfHosted) via `ioredis` (TCP).
- *  2. Vercel KV / Upstash (`KV_REST_API_URL` + `KV_REST_API_TOKEN`) via REST.
+ *  2. Upstash Redis via REST (`UPSTASH_REDIS_REST_URL` +
+ *     `UPSTASH_REDIS_REST_TOKEN`; i vecchi nomi Vercel KV `KV_REST_API_URL` +
+ *     `KV_REST_API_TOKEN` restano accettati come fallback) tramite
+ *     `@/lib/upstash-kv-client`.
  *  3. Altrimenti filesystem locale (i caller usano il ramo file esistente).
  *
  * `getStorageMode()` resta rigorosamente `"kv" | "file"` (contratto di
@@ -143,8 +142,27 @@ export function isRedisConfigured(): boolean {
   return resolveRedisUrl() !== undefined
 }
 
+/**
+ * Credenziali Upstash REST con precedenza esplicita:
+ *  1. `UPSTASH_REDIS_REST_URL` + `UPSTASH_REDIS_REST_TOKEN` (canonici)
+ *  2. `KV_REST_API_URL` + `KV_REST_API_TOKEN` (nomi legacy iniettati da Vercel
+ *     KV / Marketplace: sono le STESSE credenziali Upstash)
+ * Una coppia vale solo con entrambe le metà (fail-closed). Rispecchia la
+ * risoluzione in `lib/upstash-kv-client.ts` (che costruisce il client): se
+ * cambi i nomi qui, aggiornala anche lì.
+ */
+export function resolveUpstashRestCredentials(): { url: string; token: string; legacy: boolean } | null {
+  const url = process.env.UPSTASH_REDIS_REST_URL?.trim()
+  const token = process.env.UPSTASH_REDIS_REST_TOKEN?.trim()
+  if (url && token) return { url, token, legacy: false }
+  const legacyUrl = process.env.KV_REST_API_URL?.trim()
+  const legacyToken = process.env.KV_REST_API_TOKEN?.trim()
+  if (legacyUrl && legacyToken) return { url: legacyUrl, token: legacyToken, legacy: true }
+  return null
+}
+
 export function isKvConfigured(): boolean {
-  return !!process.env.KV_REST_API_URL && !!process.env.KV_REST_API_TOKEN
+  return resolveUpstashRestCredentials() !== null
 }
 
 /** Contratto storico: solo "kv" | "file" (Redis conta come "kv"). */
@@ -165,7 +183,17 @@ function warnBothConfiguredOnce(): void {
   if (bothWarned) return
   bothWarned = true
   log.warn(
-    "Both Redis and Vercel KV are configured: Redis takes precedence. No automatic data migration is performed.",
+    "Both Redis and Upstash REST KV are configured: Redis takes precedence. No automatic data migration is performed.",
+  )
+}
+
+let legacyUpstashWarned = false
+
+function warnLegacyUpstashEnvOnce(): void {
+  if (legacyUpstashWarned) return
+  legacyUpstashWarned = true
+  log.warn(
+    "Using the legacy KV_REST_API_URL/KV_REST_API_TOKEN names: UPSTASH_REDIS_REST_URL/UPSTASH_REDIS_REST_TOKEN take precedence and are the canonical ones (same Upstash credentials).",
   )
 }
 
@@ -177,10 +205,13 @@ export function getKv(): KvClient {
     return redisTimed
   }
   if (isKvConfigured()) {
+    if (resolveUpstashRestCredentials()?.legacy) warnLegacyUpstashEnvOnce()
     upstashTimed ??= wrapKvWithTimeout(upstashKv)
     return upstashTimed
   }
-  throw new Error("No KV backend configured (set PICTORIUM_REDIS_URL or KV_REST_API_URL/KV_REST_API_TOKEN)")
+  throw new Error(
+    "No KV backend configured (set PICTORIUM_REDIS_URL, or UPSTASH_REDIS_REST_URL/UPSTASH_REDIS_REST_TOKEN, or the legacy KV_REST_API_URL/KV_REST_API_TOKEN)",
+  )
 }
 
 // ---- Serializzazione (parità Upstash) ----
@@ -231,8 +262,10 @@ type UpstashKv = {
 }
 
 async function loadUpstash(): Promise<UpstashKv> {
-  const { kv } = await import("@vercel/kv")
-  return kv as unknown as UpstashKv
+  // Dynamic import keeps the REST SDK out of the module graph until this
+  // backend is actually used (file/Redis deployments never load it).
+  const { kv } = await import("@/lib/upstash-kv-client")
+  return kv
 }
 
 const upstashKv: KvClient = {

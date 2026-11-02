@@ -8,7 +8,7 @@ import { NextRequest } from "next/server"
 // KV backend in-memory: exercises the real `kv.ts` adapter (and therefore the
 // KV branch of instance-keys) without network or a real deployment.
 const kvStore = vi.hoisted(() => new Map<string, unknown>())
-vi.mock("@vercel/kv", () => ({
+vi.mock("@/lib/upstash-kv-client", () => ({
   kv: {
     get: async (key: string) => kvStore.get(key) ?? null,
     set: async (key: string, value: unknown) => {

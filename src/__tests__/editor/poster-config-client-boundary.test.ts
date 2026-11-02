@@ -69,7 +69,7 @@ function expectNoServerEdges(rel: string): void {
       `${rel} has a runtime edge to server-only module "${edge}" (client bundle would pull Node-only code)`,
     ).toBe(false)
     expect(
-      edge.startsWith("node:") || edge === "ioredis" || edge === "@vercel/kv",
+      edge.startsWith("node:") || edge === "ioredis" || edge === "@upstash/redis",
       `${rel} imports Node-only specifier "${edge}" at runtime`,
     ).toBe(false)
   }

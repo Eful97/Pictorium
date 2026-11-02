@@ -7,13 +7,13 @@ import { NextRequest } from "next/server"
 import type { Mapping } from "@/lib/types"
 
 // Store KV in-memory con scan: valida il cablaggio user-activity ->
-// kv.ts -> @vercel/kv senza rete. Attivo solo con KV_REST_API_URL/TOKEN.
+// kv.ts -> @/lib/upstash-kv-client senza rete. Attivo solo con KV_REST_API_URL/TOKEN.
 const kvMemory = vi.hoisted(() => new Map<string, unknown>())
 function kvGlobToRegExp(glob: string): RegExp {
   const escaped = glob.replace(/[.+^${}()|[\]\\]/g, "\\$&").replace(/\*/g, ".*").replace(/\?/g, ".")
   return new RegExp(`^${escaped}$`)
 }
-vi.mock("@vercel/kv", () => ({
+vi.mock("@/lib/upstash-kv-client", () => ({
   kv: {
     get: async (key: string) => kvMemory.get(key) ?? null,
     set: async (key: string, value: unknown) => {

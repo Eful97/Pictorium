@@ -17,7 +17,7 @@ import {
 //
 // Deterministic lib-level mock: spying cacheGetShared (static import, same
 // interception pattern as the cacheSet spy in ratings-mdblist-raw-ttl) avoids
-// the racy dynamic `@vercel/kv` SDK mock entirely — every KV-op here is
+// the racy dynamic `@/lib/upstash-kv-client` SDK mock entirely — every KV-op here is
 // synchronous mock code, so concurrency is fully deterministic.
 
 const RICH = {

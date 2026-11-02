@@ -5,10 +5,10 @@ import os from "node:os"
 import path from "node:path"
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest"
 
-// Store KV in-memory: valida il cablaggio trakt-auth -> kv.ts -> @vercel/kv
+// Store KV in-memory: valida il cablaggio trakt-auth -> kv.ts -> @/lib/upstash-kv-client
 // senza rete. Attivo solo quando il test imposta KV_REST_API_URL/TOKEN.
 const kvStore = vi.hoisted(() => new Map<string, unknown>())
-vi.mock("@vercel/kv", () => ({
+vi.mock("@/lib/upstash-kv-client", () => ({
   kv: {
     get: async (key: string) => kvStore.get(key) ?? null,
     set: async (key: string, value: unknown) => {

@@ -5,11 +5,11 @@ import os from "node:os"
 import path from "node:path"
 import { afterAll, afterEach, beforeEach, describe, expect, it, vi } from "vitest"
 
-// Mock di @vercel/kv (usato SOLO dal test in KV mode; in file mode nessun
+// Mock di @/lib/upstash-kv-client (usato SOLO dal test in KV mode; in file mode nessun
 // ramo tocca mai il client — stesso pattern hoisted di
 // ratings-mdblist-raw-kv.test.ts, fasi strettamente seriali).
 const kvBacking = vi.hoisted(() => new Map<string, string>())
-vi.mock("@vercel/kv", () => ({
+vi.mock("@/lib/upstash-kv-client", () => ({
   kv: {
     get: async (key: string): Promise<string | null> => kvBacking.get(key) ?? null,
     set: async (key: string, value: unknown): Promise<string> => {

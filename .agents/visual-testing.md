@@ -20,7 +20,7 @@
 
 ## Esecuzioni mirate (durante il lavoro)
 
-Il check per singolo edit è un **sottoinsieme**, non la suite intera (101 test in un unico file, seriale). Mappa aree → filtro:
+Il check per singolo edit è un **sottoinsieme**, non la suite intera (un unico file, seriale). Mappa aree → filtro:
 
 | Area toccata | Comando |
 |---|---|

@@ -1,7 +1,7 @@
 import { createHash } from "node:crypto"
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest"
 
-// Mock di @vercel/kv: vi.mock è hoisted, i moduli vengono reimportati
+// Mock di @/lib/upstash-kv-client: vi.mock è hoisted, i moduli vengono reimportati
 // per-fase con vi.resetModules (stesso pattern di cache-kv.test.ts). Il
 // backing Map simula la KV condivisa tra istanze/restart.
 //
@@ -22,7 +22,7 @@ const kvMock = {
     return "OK"
   }),
 }
-vi.mock("@vercel/kv", () => ({ kv: kvMock }))
+vi.mock("@/lib/upstash-kv-client", () => ({ kv: kvMock }))
 
 const OLD_MOVIE = {
   type: "movie",

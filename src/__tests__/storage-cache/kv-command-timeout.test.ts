@@ -1,7 +1,7 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest"
 
 // Hung backends, no network: every command returns a never-settling promise
-// (ioredis and @vercel/kv are both mocked).
+// (ioredis and @/lib/upstash-kv-client are both mocked).
 const hang = <T,>(): Promise<T> => new Promise<T>(() => {})
 
 vi.mock("ioredis", () => {
@@ -54,7 +54,7 @@ const kvMock = vi.hoisted(() => {
   }
 })
 
-vi.mock("@vercel/kv", () => ({ kv: kvMock }))
+vi.mock("@/lib/upstash-kv-client", () => ({ kv: kvMock }))
 
 function clearEnv() {
   delete process.env.PICTORIUM_REDIS_URL
@@ -62,6 +62,8 @@ function clearEnv() {
   delete process.env.REDIS_URL
   delete process.env.KV_REST_API_URL
   delete process.env.KV_REST_API_TOKEN
+  delete process.env.UPSTASH_REDIS_REST_URL
+  delete process.env.UPSTASH_REDIS_REST_TOKEN
   delete process.env.PICTORIUM_KV_COMMAND_TIMEOUT_MS
   delete process.env.POSTERIUM_KV_COMMAND_TIMEOUT_MS
 }

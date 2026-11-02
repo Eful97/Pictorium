@@ -1,13 +1,13 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest"
 import { CATALOG_EMPTY_TTL_MS, CATALOG_TTL_MS } from "@/lib/catalog-handler"
 
-// Mock di @vercel/kv (stesso pattern di cache-kv.test.ts): serve solo alla
+// Mock di @/lib/upstash-kv-client (stesso pattern di cache-kv.test.ts): serve solo alla
 // sezione KV→L1; senza env KV la L2 resta no-op e gli altri test girano in L1.
 const kvMock = {
   get: vi.fn(),
   set: vi.fn(),
 }
-vi.mock("@vercel/kv", () => ({ kv: kvMock }))
+vi.mock("@/lib/upstash-kv-client", () => ({ kv: kvMock }))
 
 async function importCache() {
   vi.resetModules()
