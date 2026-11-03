@@ -44,6 +44,7 @@ You need a TMDB key (variable `PICTORIUM_TMDB_KEY`, see `README.md` → Environm
 
 - Never push directly to `master` (blocked), never force-push, never delete it.
 - **Push to the next release branch, never to `master`** (and never force-push): if `origin/release/X.Y.Z` already exists, commit and push there; if it does not, create it from `origin/master` and bump the version first (`package.json` + `package-lock.json`, via the release script — never by hand, no tag at this step).
+- **A branch push alone triggers no workflows**: open the pull request to `master` to start CI (`fast`/`verify`/`visual`); further pushes to the same branch update that pull request and rerun the workflows automatically. If the pull request is already merged, use a new branch.
 - One branch per change, merged with **Rebase and merge** (linear history, no merge commits, no squash).
 - Commit subjects are part of the product: `type(scope): text` with `type` in `feat|fix|perf|docs|chore|test|refactor|ci|build|revert`, max 120 characters, no trailing period. `feat`/`fix`/`perf` appear in the in-app "Recent updates" list, so write them for users.
 - Do not edit generated files by hand: `src/generated/app-version.ts`, `src/lib/render-version.ts` and `src/generated/recent-changes.ts` come from scripts.
