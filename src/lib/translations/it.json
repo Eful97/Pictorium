@@ -515,6 +515,7 @@
   "ui.rotationScope": "Poster in rotazione",
   "ui.rotationScopeNoLanguage": "Solo clean",
   "ui.rotationScopeWithLanguage": "Clean + la mia lingua",
+  "ui.rotationScopeDefaultHint": "Default per i nuovi titoli: i titoli salvati mantengono la propria scelta.",
   "ui.heroTitleLead": "Crea i tuoi ",
   "ui.heroTitleAccent": "poster",
   "ui.heroTitleTail": " Stremio",

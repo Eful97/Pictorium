@@ -173,6 +173,61 @@ describe("useSettingsSession draft foundation", () => {
     expect(putBodies).toEqual([])
   })
 
+  it("rotation-scope toggle stays a local draft edit (no phantom conflict)", async () => {
+    // Regression: the automation toggles live in PrefsPanel inside the staged
+    // session override. A defaults setter missing from the session-local set
+    // falls through to the OUTER provider, writing live truth under the draft
+    // and flagging the "settings changed elsewhere" banner on a purely local
+    // edit. The rotation scope (Solo clean / Clean+lingua) must behave like
+    // every other default toggle.
+    let outerSeen: PosterEditorCtx | null = null
+    let draftSeen: PosterEditorCtx | null = null
+    function OuterProbe() {
+      outerSeen = usePosterEditor()
+      return null
+    }
+    function SessionBridge({ children }: { children: ReactNode }) {
+      const session = useSettingsSession()
+      ;(SessionBridge as unknown as { session?: SettingsSessionResult }).session = session
+      return <PosterEditorValueOverride value={session.value}>{children}</PosterEditorValueOverride>
+    }
+    function DraftProbe() {
+      draftSeen = usePosterEditor()
+      return null
+    }
+    render(
+      <PosterEditorProvider>
+        <OuterProbe />
+        <SessionBridge>
+          <DraftProbe />
+        </SessionBridge>
+      </PosterEditorProvider>,
+    )
+    await settle()
+    const bridge = SessionBridge as unknown as { session?: SettingsSessionResult }
+    // A real local edit first: the reported flow has a draft in progress.
+    act(() => {
+      bridge.session!.value.setDefaultBadgeYear(false)
+      bridge.session!.value.setDefaultAutoRotateClean(true)
+      draftSeen!.setDefaultRotationIncludeNonClean(true)
+    })
+    await settle()
+    expect(draftSeen!.defaultRotationIncludeNonClean).toBe(true)
+    expect(bridge.session!.value.defaultRotationIncludeNonClean).toBe(true)
+    // Local only: outer truth untouched, no phantom conflict, no live PUT.
+    expect(outerSeen!.defaultRotationIncludeNonClean).toBe(false)
+    expect(bridge.session!.dirty).toBe(true)
+    expect(bridge.session!.conflict).toBe(false)
+    expect(putBodies).toEqual([])
+    // Rapid rotation ON->OFF->ON keeps the scope value (hidden, never lost).
+    act(() => {
+      bridge.session!.value.setDefaultAutoRotateClean(false)
+      bridge.session!.value.setDefaultAutoRotateClean(true)
+    })
+    expect(bridge.session!.value.defaultRotationIncludeNonClean).toBe(true)
+    expect(bridge.session!.conflict).toBe(false)
+  })
+
   it("atomic save: one PUT with every default-backed field in both formats, then quiet", async () => {
     const { result } = renderHook(() => useSettingsSession(), { wrapper })
     await settle()

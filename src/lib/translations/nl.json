@@ -509,6 +509,7 @@
   "ui.rotationScope": "Posters in rotatie",
   "ui.rotationScopeNoLanguage": "Alleen schoon",
   "ui.rotationScopeWithLanguage": "Schoon + mijn taal",
+  "ui.rotationScopeDefaultHint": "Standaard voor nieuwe titels: opgeslagen titels behouden hun eigen keuze.",
   "ui.heroTitleLead": "Ontwerp je ",
   "ui.heroTitleAccent": "Stremio",
   "ui.heroTitleTail": " posters",

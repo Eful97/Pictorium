@@ -88,6 +88,7 @@ const USER_SAVED = {
   posterFreshScope: "all",
   sashOrder: ["upcoming", "rank", "new", "award", "extra"],
   autoRotateClean: false,
+  defaultRotationIncludeNonClean: false,
   defaultAutoRotateBackdrop: false,
   disableCleanPosters: false,
   portraitBackdropFallback: true,
@@ -248,6 +249,15 @@ describe("useDefaults hydration", () => {
     })
     expect(result.current.defaultPortraitFitEnabled).toBe(false)
     expect(result.current.defaultLandscapeFitEnabled).toBe(false)
+  })
+
+  it("legge il default globale dello scope rotazione dallo storage", async () => {
+    storage.setItem("badgeDefaults", JSON.stringify({ defaultRotationIncludeNonClean: true }))
+    const { result } = renderHook(() => useDefaults())
+    await act(async () => {
+      await vi.advanceTimersByTimeAsync(1200)
+    })
+    expect(result.current.defaultRotationIncludeNonClean).toBe(true)
   })
 
   it("setGradientHeight tocca solo il corrente, il default salvato resta", async () => {

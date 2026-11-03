@@ -519,6 +519,7 @@
   "ui.viewGrid": "Cuadrícula",
   "ui.viewMoodboard": "Mood Board",
   "ui.quickView": "Vista rápida",
+  "ui.rotationScopeDefaultHint": "Valor predeterminado para títulos nuevos: los títulos guardados conservan su propia elección.",
   "ui.heroTitleLead": "Diseña tus ",
   "ui.heroTitleAccent": "pósters",
   "ui.heroTitleTail": " de Stremio",

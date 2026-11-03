@@ -509,6 +509,7 @@
   "ui.rotationScope": "Posters i rotation",
   "ui.rotationScopeNoLanguage": "Endast rena",
   "ui.rotationScopeWithLanguage": "Ren + mitt språk",
+  "ui.rotationScopeDefaultHint": "Standard för nya titlar: sparade titlar behåller sitt eget val.",
   "ui.heroTitleLead": "Designa dina ",
   "ui.heroTitleAccent": "Stremio",
   "ui.heroTitleTail": " posters",

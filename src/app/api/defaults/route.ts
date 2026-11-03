@@ -155,6 +155,8 @@ const defaultsSchema = z.object({
   separateRatingsStyle: z.enum(SEPARATE_RATINGS_STYLES).optional(),
   sashOrder: z.array(z.string().max(20)).optional(),
   autoRotateClean: z.boolean().optional(),
+  /** Default rotazione poster: Solo clean / Clean + lingua (assente = OFF storico). */
+  defaultRotationIncludeNonClean: z.boolean().optional(),
   defaultAutoRotateBackdrop: z.boolean().optional(),
   disableCleanPosters: z.boolean().optional(),
   // Automazioni globali (default ON): flat names on the wire; absent = ON so

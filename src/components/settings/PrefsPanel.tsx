@@ -1,6 +1,6 @@
 "use client"
 
-import { Globe, Palette, RectangleHorizontal, RectangleVertical, Sliders, Sparkles, Tv, Sun, Type } from "lucide-react"
+import { Globe, Palette, RectangleHorizontal, RectangleVertical, RotateCcw, Sliders, Sparkles, Tv, Sun, Type } from "lucide-react"
 import { usePSelector } from "@/lib/context"
 import { useT } from "@/lib/contexts/TranslationContext"
 import { usePosterEditor } from "@/lib/contexts/PosterEditorContext"
@@ -151,6 +151,33 @@ export function PrefsPanel({ active }: { active: boolean }) {
               label={t("ui.autoRotateDefaultPortrait")}
             />
           </div>
+          {ed.defaultAutoRotateClean && (
+            <div className="py-1.5 space-y-1">
+              <div className="flex items-center justify-between gap-2">
+                <span className="text-zinc-200 text-xs sm:text-sm font-medium flex items-center gap-2">
+                  <RotateCcw className="w-4 h-4 text-zinc-400 shrink-0" />
+                  <span>{t("ui.rotationScope")}</span>
+                </span>
+                <button
+                  type="button"
+                  aria-pressed={ed.defaultRotationIncludeNonClean}
+                  onClick={() => ed.setDefaultRotationIncludeNonClean(!ed.defaultRotationIncludeNonClean)}
+                  className={`px-2 py-1 text-[11px] font-semibold rounded-lg border transition-all ${
+                    ed.defaultRotationIncludeNonClean
+                      ? "bg-accent-orange/20 text-accent-orange border-accent-orange/25"
+                      : "bg-white/5 text-muted border-white/10"
+                  }`}
+                >
+                  {ed.defaultRotationIncludeNonClean
+                    ? t("ui.rotationScopeWithLanguage")
+                    : t("ui.rotationScopeNoLanguage")}
+                </button>
+              </div>
+              <p className="text-xs text-zinc-400 leading-relaxed pl-6">
+                {t("ui.rotationScopeDefaultHint")}
+              </p>
+            </div>
+          )}
           <div className="py-1.5 space-y-1">
             <div className="flex items-center justify-between">
               <span className="text-zinc-200 text-xs sm:text-sm font-medium flex items-center gap-2">

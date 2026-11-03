@@ -509,6 +509,7 @@
   "ui.rotationScope": "Postere în rotire",
   "ui.rotationScopeNoLanguage": "Doar curate",
   "ui.rotationScopeWithLanguage": "Curat + limba mea",
+  "ui.rotationScopeDefaultHint": "Implicit pentru titluri noi: titlurile salvate își păstrează propria alegere.",
   "ui.heroTitleLead": "Creează-ți posterele ",
   "ui.heroTitleAccent": "Stremio",
   "ui.heroTitleTail": " preferate",

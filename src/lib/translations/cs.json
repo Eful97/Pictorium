@@ -509,6 +509,7 @@
   "ui.rotationScope": "Plakáty v rotaci",
   "ui.rotationScopeNoLanguage": "Pouze čisté",
   "ui.rotationScopeWithLanguage": "Čisté + můj jazyk",
+  "ui.rotationScopeDefaultHint": "Výchozí pro nové tituly: uložené tituly si zachovávají vlastní volbu.",
   "ui.heroTitleLead": "Navrhni své ",
   "ui.heroTitleAccent": "Stremio",
   "ui.heroTitleTail": " plakáty",

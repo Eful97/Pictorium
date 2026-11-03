@@ -922,6 +922,12 @@ export async function GET(req: NextRequest, { params }: { params: Promise<RouteP
     backdropEnabled: sd.defaultAutoRotateBackdrop ?? false,
     nowMs: startTime,
   })
+  // Global rotation-scope default for UNMAPPED portrait titles only: when ON
+  // (+ auto-rotate ON) the dynamic pool includes the requested-language
+  // posters alongside the clean ones. Mapped titles never read it (their
+  // per-title mapping flag is authoritative).
+  const dynamicRotationIncludeNonClean =
+    configOverride?.defaultRotationIncludeNonClean ?? sd.defaultRotationIncludeNonClean ?? false
   const dynamicBucketKey = dynamicDayBucket !== null ? `:dd${dynamicDayBucket}` : ""
   // TTL allineato al prossimo cut (header + storage esplicito sotto): oltre
   // il cut la chiave cambia comunque, mai contenuto stantio oltre il giorno.
@@ -1889,17 +1895,42 @@ export async function GET(req: NextRequest, { params }: { params: Promise<RouteP
           sdFit: sd,
           isLandscape,
         })
-        // Rotazione giornaliera dinamici portrait (solo clean, cut 02:00 UTC):
+        // Rotazione giornaliera dinamici portrait (cut 02:00 UTC):
         // precede il best-fit così il cambio giorno cambia davvero la base.
         // Solo con logo (un clean senza logo non ha titolo da comporre) e con
-        // almeno 2 clean, altrimenti fallback storico invariato.
-        const dynamicCleanPool = (dynamicDayBucket !== null && !isLandscape && hasTitleLogo)
-          ? images.posters.filter((p: TMDBImage) => p.iso_639_1 === null)
+        // almeno 2 candidati, altrimenti fallback storico invariato.
+        // Default globale `defaultRotationIncludeNonClean` (solo titoli NON
+        // mappati): quando ON il pool aggiunge i poster della lingua richiesta
+        // accanto ai clean. I titoli mappati non passano da qui (dynamicDayBucket
+        // e' null con mapping) e restano governati dal flag per-titolo.
+        const preferredLangKey = preferredLanguage.trim().toLowerCase().split(/[-_]/)[0]
+        const dynamicPortraitPool = (dynamicDayBucket !== null && !isLandscape && hasTitleLogo)
+          ? images.posters.filter((p: TMDBImage) =>
+              p.iso_639_1 === null
+              || (dynamicRotationIncludeNonClean
+                && typeof p.iso_639_1 === "string"
+                && p.iso_639_1.trim().toLowerCase().split(/[-_]/)[0] === preferredLangKey))
           : []
-        if (dynamicDayBucket !== null && dynamicCleanPool.length >= 2) {
-          const picked = dynamicCleanPool[rotationIndexFor(dynamicDayBucket, dynamicCleanPool.length)]
+        if (dynamicDayBucket !== null && dynamicPortraitPool.length >= 2) {
+          const picked = dynamicPortraitPool[rotationIndexFor(dynamicDayBucket, dynamicPortraitPool.length)]
           posterPath = picked.file_path
-          log.info("Dynamic rotation: daily clean poster", { mediaType, tmdbId, poster: picked.file_path, pool: dynamicCleanPool.length })
+          const pickedNonClean = picked.iso_639_1 !== null
+          autoPosterClean = !pickedNonClean
+          if (pickedNonClean) {
+            // Un poster in lingua ha gia' il titolo cotto: nessun secondo
+            // titolo (logo/wordmark) sopra la base.
+            logoPath = null
+            logoPathBuffer = null
+            textLogo = null
+            textLogoAuto = false
+          }
+          log.info("Dynamic rotation: daily portrait poster", {
+            mediaType,
+            tmdbId,
+            poster: picked.file_path,
+            pool: dynamicPortraitPool.length,
+            includeNonClean: dynamicRotationIncludeNonClean,
+          })
         } else if (logoPath && logoFitEnabled) {
           try {
             const fitStart = Date.now()

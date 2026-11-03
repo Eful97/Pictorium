@@ -509,6 +509,7 @@
   "ui.rotationScope": "회전 중인 포스터",
   "ui.rotationScopeNoLanguage": "클린만",
   "ui.rotationScopeWithLanguage": "클린 + 내 언어",
+  "ui.rotationScopeDefaultHint": "새 제목의 기본값: 저장된 제목은 자체 선택을 유지합니다.",
   "ui.heroTitleLead": "나만의 ",
   "ui.heroTitleAccent": "Stremio",
   "ui.heroTitleTail": " 포스터 디자인",

@@ -38,6 +38,7 @@ import {
   getDynamicRotationBucket,
 } from "@/lib/poster-rotation"
 import { getAll, getById, getImdbAlias, upsert } from "@/lib/store"
+import { getServerDefaultsChecked } from "@/lib/server-defaults"
 import { mappingVersionParam } from "@/lib/stremio-poster-url"
 import type { Mapping } from "@/lib/types"
 
@@ -79,11 +80,11 @@ vi.mock("@/lib/server-defaults", async (importOriginal) => {
   const mod = await importOriginal<typeof import("@/lib/server-defaults")>()
   return {
     ...mod,
-    getServerDefaultsChecked: async () => ({
+    getServerDefaultsChecked: vi.fn(async () => ({
       autoRotateClean: true,
       defaultAutoRotateBackdrop: true,
       region: "IT",
-    }),
+    })),
   }
 })
 
@@ -227,6 +228,11 @@ beforeEach(async () => {
   __resetImageBytesForTest()
   fetchedUrls.length = 0
   imagesFixture = () => ({ posters: [], logos: [], backdrops: [] })
+  vi.mocked(getServerDefaultsChecked).mockResolvedValue({
+    autoRotateClean: true,
+    defaultAutoRotateBackdrop: true,
+    region: "IT",
+  })
   png = await sharp({
     create: { width: 500, height: 750, channels: 3, background: "#28304a" },
   })
@@ -859,5 +865,42 @@ describe("dynamic GET across the day cut (unmapped, logo + 2 clean posters)", ()
     const cc2 = res2.headers.get("cache-control") ?? ""
     expect(cc1).toContain(`max-age=${secondsUntilDynamicRotationCut(T1)}`)
     expect(cc2).toContain(`max-age=${secondsUntilDynamicRotationCut(T2)}`)
+  })
+
+  it("adds the requested-language posters only when the global scope default is ON (unmapped)", async () => {
+    const id = 616004
+    imagesFixture = (fixtureId) =>
+      fixtureId === id
+        ? {
+            posters: [
+              tmdbImage("/dyn-scope-clean.jpg", null, 500, 750),
+              tmdbImage("/dyn-scope-it.jpg", "it", 500, 750),
+            ],
+            logos: [{ ...tmdbImage("/dyn-logo.png", "en", 300, 150) }],
+            backdrops: [],
+          }
+        : { posters: [], logos: [], backdrops: [] }
+    // Pick a day whose pool index selects the language poster (index 1).
+    let nowMs = Date.UTC(2026, 9, 1, 12, 0, 0)
+    if (rotationIndexFor(dynamicRotationBucket(nowMs), 2) !== 1) nowMs += DAY
+    vi.spyOn(Date, "now").mockReturnValue(nowMs)
+
+    // OFF (legacy): clean-only pool, language poster never fetched.
+    fetchedUrls.length = 0
+    const off = await getPoster(id)
+    expect(off.status).toBe(200)
+    expect(fetchedUrls.some((u) => u.includes("/dyn-scope-it.jpg"))).toBe(false)
+
+    // ON: clean + my language, and the day index really selects it.
+    vi.mocked(getServerDefaultsChecked).mockResolvedValue({
+      autoRotateClean: true,
+      defaultAutoRotateBackdrop: true,
+      region: "IT",
+      defaultRotationIncludeNonClean: true,
+    })
+    fetchedUrls.length = 0
+    const on = await getPoster(id)
+    expect(on.status).toBe(200)
+    expect(fetchedUrls.some((u) => u.includes("/dyn-scope-it.jpg"))).toBe(true)
   })
 })

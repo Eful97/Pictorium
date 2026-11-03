@@ -509,6 +509,7 @@
   "ui.rotationScope": "Plakaty w rotacji",
   "ui.rotationScopeNoLanguage": "Tylko czyste",
   "ui.rotationScopeWithLanguage": "Czyste + mój język",
+  "ui.rotationScopeDefaultHint": "Domyślnie dla nowych tytułów: zapisane tytuły zachowują własny wybór.",
   "ui.heroTitleLead": "Stwórz własne ",
   "ui.heroTitleAccent": "plakaty",
   "ui.heroTitleTail": " Stremio",

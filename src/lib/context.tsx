@@ -802,6 +802,7 @@ export function usePictorium(): PictoriumCtx {
     defaultGenreBadgeOffsetX, defaultGenreBadgeOffsetY, defaultQualityBadgeOffsetX, defaultQualityBadgeOffsetY,
     defaultNetworkLogoOffsetX, defaultNetworkLogoOffsetY,
     defaultAutoRotateClean,
+    defaultRotationIncludeNonClean,
     defaultAutoRotateBackdrop,
     defaultDisableCleanPosters,
     defaultPortraitBackdropFallback,
@@ -3021,6 +3022,11 @@ export function usePictorium(): PictoriumCtx {
       // Opt-in rotazione portrait: ripristina il flag salvato e, quando è OFF,
       // rimuove dal pool i path non-clean registrati (legacy/opt-out) — il pool
       // live non deve mostrare poster di lingua mai serviti ("mai resurrect").
+      // I titoli MAPPATI non sono mai influenzati dal default globale: vince
+      // solo il flag esplicito del mapping, un flag assente resta legacy
+      // (Solo clean). Il globale `defaultRotationIncludeNonClean` è un default
+      // per i titoli NON mappati (vedi ramo else sotto e rotazione dinamica
+      // server-side), mai un override retroattivo.
       {
         const includeNonClean = existing.rotationIncludeNonClean === true
         const recordedNonClean = new Set([
@@ -3183,7 +3189,10 @@ export function usePictorium(): PictoriumCtx {
       // lo riempie, mai colori stantii).
       setAccentColor(null)
       setRotationPosters([])
-      setRotationIncludeNonClean(false)
+      // Titolo nuovo (nessun mapping): la rotazione parte dal default globale
+      // (OFF = "Solo clean" storico, ON = clean + lingua). Vale SOLO qui: i
+      // titoli mappati restano governati dal proprio flag salvato.
+      setRotationIncludeNonClean(defaultRotationIncludeNonClean)
       setAutoRotateClean(defaultAutoRotateClean)
       setExcludedPosters([])
       setRotationBackdrops([])

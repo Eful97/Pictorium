@@ -515,6 +515,7 @@
   "ui.rotationScope": "Posters in rotation",
   "ui.rotationScopeNoLanguage": "Clean only",
   "ui.rotationScopeWithLanguage": "Clean + my language",
+  "ui.rotationScopeDefaultHint": "Default for new titles: saved titles keep their own choice.",
   "ui.heroTitleLead": "Design your ",
   "ui.heroTitleAccent": "Stremio",
   "ui.heroTitleTail": " posters",

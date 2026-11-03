@@ -509,6 +509,7 @@
   "ui.rotationScope": "פוסטרים בסבב",
   "ui.rotationScopeNoLanguage": "נקי בלבד",
   "ui.rotationScopeWithLanguage": "נקי + השפה שלי",
+  "ui.rotationScopeDefaultHint": "ברירת מחדל עבור כותרות חדשות: כותרות שמורות שומרות על הבחירה שלהן.",
   "ui.heroTitleLead": "עיצוב ",
   "ui.heroTitleAccent": "פוסטרים",
   "ui.heroTitleTail": " ל-Stremio",

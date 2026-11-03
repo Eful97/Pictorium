@@ -509,6 +509,7 @@
   "ui.rotationScope": "Döndürmedeki posterler",
   "ui.rotationScopeNoLanguage": "Yalnızca temiz",
   "ui.rotationScopeWithLanguage": "Temiz + dilim",
+  "ui.rotationScopeDefaultHint": "Yeni başlıklar için varsayılan: kaydedilmiş başlıklar kendi seçimlerini korur.",
   "ui.heroTitleLead": "Stremio ",
   "ui.heroTitleAccent": "posterlerinizi",
   "ui.heroTitleTail": " tasarlayın",

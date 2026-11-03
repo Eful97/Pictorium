@@ -146,6 +146,13 @@ export interface DefaultsState {
    */
   defaultDisabledNetworks: string[]
   defaultAutoRotateClean: boolean
+  /**
+   * Default rotazione poster: include anche i poster della lingua corrente
+   * (false = "Solo clean", comportamento storico). Vale SOLO per i titoli
+   * NON mappati (rotazione dinamica 24h); i titoli mappati restano governati
+   * dal flag per-titolo `rotationIncludeNonClean`, mai da questo globale.
+   */
+  defaultRotationIncludeNonClean: boolean
   /** Rotazione 24h di default per formato (sdoppiata). */
   defaultAutoRotateBackdrop: boolean
   /** Disattiva i poster clean TMDB nella selezione automatica (default OFF = priorità ai clean). */
@@ -342,6 +349,7 @@ const DEFAULT_FLAT_DEFAULTS: Omit<DefaultsState, "landscape"> = {
   defaultDisabledContentTags: [],
   defaultDisabledNetworks: [],
   defaultAutoRotateClean: false,
+  defaultRotationIncludeNonClean: false,
   defaultAutoRotateBackdrop: false,
   defaultDisableCleanPosters: false,
   defaultPortraitBackdropFallback: true,
@@ -566,6 +574,8 @@ interface StoredDefaults {
   /** Chiave server/local piatta (saveDefaults/defaultsToPayload): fallback di lettura. */
   disabledNetworks?: string[]
   defaultAutoRotateClean?: boolean
+  /** Default rotazione poster (Solo clean / Clean + lingua). */
+  defaultRotationIncludeNonClean?: boolean
   defaultAutoRotateBackdrop?: boolean
   defaultDisableCleanPosters?: boolean
   /** Chiave flat server (ServerDefaults.disableCleanPosters): fallback di lettura. */
@@ -911,6 +921,7 @@ function buildFromStored(d: StoredDefaults | null): DefaultsState {
     defaultDisabledContentTags: sanitizeDisabledContentTags(d.defaultDisabledContentTags ?? d.disabledContentTags),
     defaultDisabledNetworks: sanitizeDisabledNetworks(d.defaultDisabledNetworks ?? d.disabledNetworks),
     defaultAutoRotateClean: d.defaultAutoRotateClean ?? d.autoRotateClean ?? false,
+    defaultRotationIncludeNonClean: d.defaultRotationIncludeNonClean ?? false,
     defaultAutoRotateBackdrop: d.defaultAutoRotateBackdrop ?? false,
     defaultDisableCleanPosters: d.defaultDisableCleanPosters ?? d.disableCleanPosters ?? false,
     // Automazioni (default ON): chiave assente = comportamento storico.
@@ -1114,6 +1125,7 @@ export function defaultsToPayload(d: DefaultsState): Record<string, unknown> {
     disabledContentTags: d.defaultDisabledContentTags,
     disabledNetworks: d.defaultDisabledNetworks,
     autoRotateClean: d.defaultAutoRotateClean,
+    defaultRotationIncludeNonClean: d.defaultRotationIncludeNonClean,
     defaultAutoRotateBackdrop: d.defaultAutoRotateBackdrop,
     disableCleanPosters: d.defaultDisableCleanPosters,
     // Sempre emessi: la PUT fa merge, omettere al toggle-back-ON lascerebbe un
