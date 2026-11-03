@@ -1,6 +1,7 @@
 "use client"
 
 import { Check } from "lucide-react"
+import { useAuthenticatedPreviewUrl } from "@/lib/useAuthenticatedPreview"
 
 export interface PosterStyleOption {
   id: string
@@ -15,6 +16,27 @@ export interface PosterStyleOption {
 
 /** Thumbnail canvas shape: portrait = 2:3, landscape = 16:9, always contained (no crop). */
 export type PosterStyleThumbnailShape = "portrait" | "landscape"
+
+/**
+ * Real thumbnail, loaded with the preview credentials when the URL needs them
+ * (plain `<img>` cannot send headers → shared instances downgraded the demo).
+ * A hook per rendered card: the hook cannot run inside the options map.
+ */
+function StyleThumbnail({ url }: { url: string }) {
+  const src = useAuthenticatedPreviewUrl(url)
+  if (!src) return null
+  return (
+    /* eslint-disable-next-line @next/next/no-img-element */
+    <img
+      src={src}
+      alt=""
+      aria-hidden="true"
+      loading="lazy"
+      onError={(e) => e.currentTarget.classList.add("opacity-0")}
+      className="h-full w-full object-contain"
+    />
+  )
+}
 
 /**
  * PosterStyleCard — preset-first builtin selection for the Badge tab.
@@ -85,17 +107,7 @@ export function PosterStyleCard({
                 aria-hidden="true"
                 className={frameClass}
               >
-                {opt.thumbnailUrl ? (
-                /* eslint-disable-next-line @next/next/no-img-element */
-                <img
-                  src={opt.thumbnailUrl}
-                  alt=""
-                  aria-hidden="true"
-                  loading="lazy"
-                  onError={(e) => e.currentTarget.classList.add("opacity-0")}
-                  className="h-full w-full object-contain"
-                />
-                ) : null}
+                {opt.thumbnailUrl ? <StyleThumbnail url={opt.thumbnailUrl} /> : null}
               </span>
             ) : null}
             <div className="flex items-center justify-between w-full">

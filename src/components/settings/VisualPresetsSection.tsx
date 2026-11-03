@@ -8,6 +8,7 @@ import { usePosterEditor } from "@/lib/contexts/PosterEditorContext"
 import { usePSelector } from "@/lib/context"
 import { http } from "@/lib/http"
 import { usePresetTransfer } from "@/lib/usePresetTransfer"
+import { useAuthenticatedPreviewUrl } from "@/lib/useAuthenticatedPreview"
 import {
   applyPersonalLandscapeIsolated,
   applyPersonalPortraitIsolated,
@@ -307,10 +308,7 @@ export function VisualPresetsSection({ shape = "portrait", enabled = true, galle
                     frame always renders — even with no URL yet or a failed
                     image — so load/error never shifts the layout. */}
                 <span aria-hidden="true" className={`mx-auto max-w-full shrink-0 rounded-lg border border-white/10 bg-zinc-950/80 mb-1.5 overflow-hidden ${shape === "landscape" ? "w-28 sm:w-36 lg:w-40 aspect-video" : "w-16 sm:w-20 lg:w-24 aspect-[2/3]"}`}>
-                  {thumb ? (
-                    /* eslint-disable-next-line @next/next/no-img-element */
-                    <img src={thumb} alt="" aria-hidden="true" loading="lazy" onError={(e) => e.currentTarget.classList.add("opacity-0")} className="h-full w-full object-contain" />
-                  ) : null}
+                  {thumb ? <PresetThumbnail url={thumb} /> : null}
                 </span>
                 <span className="flex items-center justify-between w-full gap-1">
                   <span className="font-semibold text-xs text-foreground truncate">{preset.name}</span>
@@ -456,5 +454,20 @@ export function VisualPresetsSection({ shape = "portrait", enabled = true, galle
       </div>
       )}
     </section>
+  )
+}
+
+/**
+ * Real preset thumbnail, loaded with the preview credentials when the URL
+ * needs them (a plain `<img>` cannot send headers, so shared instances
+ * downgraded the request and the demo badges disappeared). One hook per
+ * rendered card: it cannot run inside the presets map.
+ */
+function PresetThumbnail({ url }: { url: string }) {
+  const src = useAuthenticatedPreviewUrl(url)
+  if (!src) return null
+  return (
+    /* eslint-disable-next-line @next/next/no-img-element */
+    <img src={src} alt="" aria-hidden="true" loading="lazy" onError={(e) => e.currentTarget.classList.add("opacity-0")} className="h-full w-full object-contain" />
   )
 }
