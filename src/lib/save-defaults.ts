@@ -82,6 +82,7 @@ export async function saveDefaults(ed: PosterEditorCtx): Promise<boolean> {
     networkLogoOffsetX: ed.defaultNetworkLogoOffsetX,
     networkLogoOffsetY: ed.defaultNetworkLogoOffsetY,
     autoRotateClean: ed.defaultAutoRotateClean,
+    defaultRotationIncludeNonClean: ed.defaultRotationIncludeNonClean,
     defaultAutoRotateBackdrop: ed.defaultAutoRotateBackdrop,
     disableCleanPosters: ed.defaultDisableCleanPosters,
     portraitBackdropFallback: ed.defaultPortraitBackdropFallback,

@@ -509,6 +509,7 @@
   "ui.rotationScope": "الملصقات في التدوير",
   "ui.rotationScopeNoLanguage": "نظيف فقط",
   "ui.rotationScopeWithLanguage": "نظيف + لغتي",
+  "ui.rotationScopeDefaultHint": "الافتراضي للعناوين الجديدة: تحتفظ العناوين المحفوظة باختيارها الخاص.",
   "ui.heroTitleLead": "صمم ملصقات ",
   "ui.heroTitleAccent": "Stremio",
   "ui.heroTitleTail": " الخاصة بك",

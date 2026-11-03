@@ -509,6 +509,7 @@
   "ui.rotationScope": "Pôsteres em rotação",
   "ui.rotationScopeNoLanguage": "Apenas limpos",
   "ui.rotationScopeWithLanguage": "Limpo + meu idioma",
+  "ui.rotationScopeDefaultHint": "Padrão para novos títulos: os títulos salvos mantêm a própria escolha.",
   "ui.heroTitleLead": "Crie seus ",
   "ui.heroTitleAccent": "Stremio",
   "ui.heroTitleTail": " pôsteres",

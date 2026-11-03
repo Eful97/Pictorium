@@ -516,6 +516,7 @@
   "ui.viewGrid": "Raster",
   "ui.viewMoodboard": "Mood Board",
   "ui.quickView": "Schnellansicht",
+  "ui.rotationScopeDefaultHint": "Standard für neue Titel: gespeicherte Titel behalten ihre eigene Auswahl.",
   "ui.heroTitleLead": "Gestalte deine ",
   "ui.heroTitleAccent": "Stremio",
   "ui.heroTitleTail": "-Poster",

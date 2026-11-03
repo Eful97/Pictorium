@@ -515,6 +515,7 @@
   "ui.rotationScope": "Poster trong vòng xoay",
   "ui.rotationScopeNoLanguage": "Chỉ bản dọn",
   "ui.rotationScopeWithLanguage": "Bản dọn + ngôn ngữ của tôi",
+  "ui.rotationScopeDefaultHint": "Mặc định cho tiêu đề mới: tiêu đề đã lưu giữ lựa chọn riêng.",
   "ui.heroTitleLead": "Thiết kế ",
   "ui.heroTitleAccent": "Stremio",
   "ui.heroTitleTail": " poster của bạn",

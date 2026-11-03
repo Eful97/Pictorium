@@ -515,6 +515,7 @@
   "ui.viewGrid": "Grille",
   "ui.viewMoodboard": "Mood Board",
   "ui.quickView": "Aperçu rapide",
+  "ui.rotationScopeDefaultHint": "Par défaut pour les nouveaux titres : les titres enregistrés conservent leur propre choix.",
   "ui.heroTitleLead": "Créez vos ",
   "ui.heroTitleAccent": "affiches",
   "ui.heroTitleTail": " Stremio",

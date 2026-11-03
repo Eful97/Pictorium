@@ -238,6 +238,14 @@ export interface ServerDefaults {
   /** Ordine/priorità sash (sottoinsieme ammesso: non listati = spenti). Default = ordine standard. */
   sashOrder?: SashBucket[]
   autoRotateClean?: boolean
+  /**
+   * Default rotazione poster: include i poster della lingua corrente
+   * (false = "Solo clean", comportamento storico). Vale SOLO per i titoli
+   * NON mappati (rotazione dinamica 24h): i titoli mappati restano governati
+   * dal flag per-titolo `rotationIncludeNonClean`, mai da questo globale.
+   * Entra nella cache key perché cambia la base servita ai non mappati.
+   */
+  defaultRotationIncludeNonClean?: boolean
   /** Rotazione giornaliera backdrop landscape (anche titoli non salvati). Default OFF. */
   defaultAutoRotateBackdrop?: boolean
   /** Esclude i poster clean TMDB dalla selezione automatica (catena lingua -> originale -> primo). Default OFF. */
@@ -435,6 +443,16 @@ const CATALOG_ONLY_DEFAULTS = [
 const CATALOG_ONLY_DEFAULT_KEYS: ReadonlySet<string> = new Set(CATALOG_ONLY_DEFAULTS)
 
 /**
+ * Render booleans whose `false` is equivalent to absent (the renderer reads
+ * them as `=== true`): keeping an explicit `false` out of the visual hash
+ * preserves legacy cache keys for spaces that never enable the feature, while
+ * an explicit `true` still invalidates (it changes the render).
+ */
+const TRUE_ONLY_VISUAL_DEFAULTS: ReadonlySet<string> = new Set([
+  "defaultRotationIncludeNonClean",
+])
+
+/**
  * Visual/render subset of the effective server defaults, canonical for hashing:
  * sorted keys and `undefined` treated as absent, so object key order (and an
  * explicit `undefined` vs a missing key) never fragments the poster cache.
@@ -449,6 +467,7 @@ export function pickVisualDefaults(sd: ServerDefaults): Record<string, unknown> 
     if (CATALOG_ONLY_DEFAULT_KEYS.has(key)) continue
     const value = sd[key]
     if (value === undefined) continue
+    if (value === false && TRUE_ONLY_VISUAL_DEFAULTS.has(key)) continue
     out[key] = value
   }
   return out

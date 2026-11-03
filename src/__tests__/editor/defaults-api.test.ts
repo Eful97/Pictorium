@@ -106,6 +106,15 @@ describe("PUT /api/defaults", () => {
     expect(data.autoWordmark).toBe(false)
   })
 
+  it("persists the global rotation scope default through PUT and GET", async () => {
+    process.env.ADMIN_TOKEN = TEST_ADMIN_TOKEN
+    const putRes = await PUT(mockPutRequest({ defaultRotationIncludeNonClean: true }) as unknown as NextRequest)
+    expect(putRes.status).toBe(200)
+    const getRes = await GET(new Request("http://localhost:3000/api/defaults", { headers: { "x-real-ip": testClientIp } }) as unknown as NextRequest)
+    const data = await getRes.json()
+    expect(data.defaultRotationIncludeNonClean).toBe(true)
+  })
+
   it("preserves custom catalog datasetId through PUT and GET", async () => {
     process.env.ADMIN_TOKEN = TEST_ADMIN_TOKEN
     const catalogs = [

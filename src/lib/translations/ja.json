@@ -509,6 +509,7 @@
   "ui.rotationScope": "ローテーション内のポスター",
   "ui.rotationScopeNoLanguage": "クリーンのみ",
   "ui.rotationScopeWithLanguage": "クリーン + 自分の言語",
+  "ui.rotationScopeDefaultHint": "新しいタイトルの既定値: 保存済みのタイトルは独自の選択を保持します。",
   "ui.heroTitleLead": "あなたの",
   "ui.heroTitleAccent": "Stremio",
   "ui.heroTitleTail": "ポスターをデザイン",
