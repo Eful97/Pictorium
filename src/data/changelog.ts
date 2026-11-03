@@ -37,6 +37,8 @@ export const CHANGELOG: ChangelogRelease[] = [
       { type: "feature", text: "Choose a PIN or a longer password to protect the editor" },
       { type: "feature", text: "Save TMDB, MDBList and TVDB keys in Settings, stored encrypted on the server" },
       { type: "feature", text: "Add a No pill quality style that drops the badge plate" },
+      { type: "feature", text: "Turn off the automatic backdrop poster when a title has no vertical artwork" },
+      { type: "feature", text: "Turn off the automatic title logo on posters without a TMDB logo" },
       { type: "fix", text: "Keep admin actions locked until a PIN or admin token is set" },
       { type: "fix", text: "Stop spoofed client headers from minting fresh anonymous rate-limit buckets" },
       { type: "fix", text: "Refuse unknown hosts in the addon proxy on shared instances unless allowlisted" },
