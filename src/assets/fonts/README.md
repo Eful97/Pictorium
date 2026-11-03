@@ -82,3 +82,95 @@ SHA256 dei binari (verifica 2026-10-12, identici prima/dopo questa modifica):
 | `147373bfe10a9b1e0eb649bcf6408566d0cb7334271845f24d4c224cca1c4412` | `Oswald-Regular.ttf` |
 | `901c0d593fcb06080fd49d01262391254e472efd4e1d21734557e9ef869922d6` | `Oswald-SemiBold.ttf` |
 | `21843a0ccca2e97030da1330961646510ed6e9b8bb39620974c1195b9803034a` | `Oswald-Bold.ttf` |
+
+## Copertura glifi e limiti di una "dieta" dei font (audit 2026-11-03)
+
+Stato dell'audit: **nessun binario modificato**. I 13 TTF restano byte-identici
+(SHA256 riverificati il 2026-11-03: 13/13 corrispondono alla tabella sopra; i 13
+hash sono tutti distinti, quindi non esiste un file duplicato da eliminare) e
+`RENDER_VERSION` non cambia.
+
+### Copertura misurata (cmap reale dei TTF, non stime)
+
+| Famiglia (pesi) | Peso | Code point mappati | Fasce principali |
+|---|---|---|---|
+| Inter (3) | 920,2 KiB | 2.505 | Latin Ext-A 127, Latin Ext-B 207, Latin Ext-Add 256 (vietnamita), greco 121, cirillico 254, punteggiatura 85, frecce 28, dingbats 13 |
+| Noto Sans Symbols 2 (1) | 1.204,2 KiB | 2.955 | simboli geometrici 96, simboli vari 121, dingbats 145, tecnici 37, frecce 13 |
+| Rubik (3) | 513,5 KiB | 885 | ebraico 47, arabo 89 (+ forme di presentazione 106), cirillico 176, Latin Ext-A 126 |
+| Barlow Condensed (3) | 299,6 KiB | 525 | Latin Ext-A 119, Latin Ext-B 22 |
+| Oswald (3) | 256,3 KiB | 850 | Latin Ext-A 128, Latin Ext-B 80, cirillico 222 |
+
+Totale 3.193,8 KiB (3,12 MiB), di cui Noto Symbols 2 da solo il 37,7%.
+
+Copertura delle etichette reali dei badge per lingua UI (19 lingue):
+
+| Lingue | Font che le copre |
+|---|---|
+| `en it fr de es es-419 pt pt-br nl sv` | tutte le famiglie |
+| `pl cs ro tr` | tutte (Latin Ext-A/B) |
+| `vi` (`ạ ả ấ … ự`) | Inter, Barlow Condensed, Oswald (Noto e Rubik ne coprono 6/40) |
+| `he ar` | solo Rubik |
+| `ja ko` | **nessuna famiglia** (0 glifi Hiragana/Katakana/Hangul/CJK) |
+
+Simboli (testo libero): Inter ha `★ ✓ → • … €`, Noto Symbols 2 ha
+`★ ✦ ✧ ✓ ✔ • … €`. `✦ ✧ ✔` esistono **solo** in Noto e `→` **solo** in Inter:
+i due font si completano, nessuno dei due è ridondante. La stella del badge
+genere è già un path SVG, quindi Noto serve al caso comune solo come fail-safe.
+
+### Perché il subset "solo lingue UI" è rifiutato
+
+1. **Inter è l'unico font sempre caricato** (`fontFilesFor` in `src/lib/fonts.ts`
+   mette sempre il gruppo Inter nel fontdb). Toglierle greco, cirillico o il
+   blocco Latin Extended-Additional (vietnamita, coperto solo da Inter/Barlow/
+   Oswald) rimuove copertura che oggi funziona — non solo per le lingue UI.
+2. **Il testo libero non è vincolato alle 19 lingue**: `ltext` (fino a 60
+   caratteri, `TEXT_LOGO_MAX_LENGTH` in `src/lib/text-logo.ts`), `label`/`extra`
+   manuali, `customBadge` e il wordmark automatico derivato dal titolo TMDB
+   possono essere in qualsiasi scrittura. Caso misto reale: una stringa con
+   ebraico/arabo più parole cirilliche fa scegliere `Rubik` a `fontFamilyFor`
+   per TUTTA la stringa, quindi la parte cirillica la deve rendere Rubik stesso
+   (che la copre): un subset Rubik latino+ebraico+arabo la romperebbe.
+3. **Noto Symbols 2 è il fail-safe dichiarato**: `mayNeedSymbolFallback`
+   (`src/lib/svg-badge.ts`) tiene il font nel fontdb appena il testo esce dalle
+   fasce note (ASCII, latin-ext, Latin Ext-Add, greco, cirillico, ebraico,
+   arabo, punteggiatura, forme di presentazione). Ridurlo trasformerebbe
+   caratteri oggi dipinti in tofu.
+4. **ja/ko non migliora con un subset**: nessun font bundle ha glifi CJK, quindi
+   le etichette ja/ko sono già senza glifo (lacuna preesistente, invariata). Un
+   subset latin-only non toglie nulla lì e peggiora tutto il resto: la lacuna si
+   chiude solo aggiungendo una faccia CJK (decisione di peso/licenza), mai
+   rimpicciolendo le altre.
+
+### Passo "dieta" rimandato (gate pending): fontTools assente
+
+`python -m fontTools.subset` non è installato su questa macchina (verificato il
+2026-11-03: `ModuleNotFoundError: No module named 'fontTools'`), quindi nessuna
+tabella è stata riscritta a mano. Installazione (NON eseguita: aggiunge una
+dipendenza di build locale, richiede approvazione esplicita):
+
+```bash
+python -m pip install fonttools==4.59.4
+```
+
+Procedura conservativa ammessa (vale solo se produce PNG byte-identici su tutti
+i golden: diversamente si torna indietro):
+
+- `--unicodes=` con l'**unione** dei code point già mappati (nessun glifo
+  rimosso), oppure nessuno subsetting affatto;
+- mai toccare `name` (fontdb/resvg risolvono la famiglia da lì), `GPOS`/`GSUB`
+  (kerning e shaping arabo/ebraico), `glyf`/`loca`/`cmap`/`head`/`hhea`/`hmtx`/
+  `maxp`/`OS/2`;
+- risparmi realmente misurati: `post` (nomi dei glifi, ~164 KiB sui 13 file;
+  il formato 3 evita i nomi, che il rasterizzatore non usa — da provare col
+  confronto PNG, non da assumere) e le tabelle di hinting `fpgm`/`prep`/
+  `cvt ` (~15 KiB). resvg non applica hinting, ma anche qui la prova richiesta
+  resta il confronto PNG;
+- `DSIG` non esiste in nessuno dei 13 file (verificato), quindi non c'è nulla da
+  buttare lì;
+- i binari cambiati vanno rigenerati con `node scripts/write-render-version.mjs`
+  (i TTF sono in `RENDER_FILES`), poi SHA256 in questo README, test narrow
+  (`polish-font-coverage`, `badge-font`, `hebrew-badges`, `arabic-badges`,
+  `render-version-files`) e gate visuale.
+
+Tetto realistico senza toccare i glifi: ~179 KiB su 3.270.492 byte (5,6%), a
+fronte di un invalidamento completo di `RENDER_VERSION` (tutte le cache poster).

@@ -163,8 +163,9 @@ function safeLookup(hostname: string, options: LookupOptions, callback: (err: No
     .catch((err: NodeJS.ErrnoException) => callback(err, []))
 }
 
-/** Fetch + Agent undici caricati dalla STESSA istanza (DNS pin) — lazy per non
- * rompere la build su Node 20 (undici 8 richiede >=22.19: markAsUncloneable).
+/** Fetch + RetryAgent(Agent) undici caricati dalla STESSA istanza (DNS pin) —
+ * lazy per non rompere la build su Node 20 (undici 8 richiede >=22.19:
+ * markAsUncloneable).
  *
  * Il dispatcher DEVE appartenere alla stessa implementazione undici della
  * fetch usata: passare un Agent del pacchetto npm `undici` alla fetch globale
@@ -173,11 +174,29 @@ function safeLookup(hostname: string, options: LookupOptions, callback: (err: No
  * coppia fetch/dispatcher viene presa dallo stesso modulo dinamico. Se la
  * coppia non è disponibile si fallisce chiuso: la fetch globale senza
  * dispatcher non applica il DNS pin alla connessione.
+ *
+ * Retry (undici `RetryAgent`): il RetryHandler avvolge lo STESSO Agent pinned,
+ * quindi i retry avvengono sulla connessione già vincolata agli IP pubblici
+ * verificati — nessun secondo trasporto, nessun bypass del lookups SSRF.
+ * `retryAfter: true` onora l'header `Retry-After` (secondi o data HTTP, capped
+ * da `maxTimeout` di undici e cancellabile dall'abort del chiamante: le
+ * deadline hop/deadline restano autorevoli), mentre i metodi sono i soli
+ * idempotenti. Breaker, negative cache e rotazione 401 dei provider restano
+ * fuori da questo modulo e non vengono toccati.
  */
 type SafeFetchPair = {
   fetchFn: typeof fetch
-  dispatcher: InstanceType<typeof import("undici").Agent>
+  dispatcher: InstanceType<typeof import("undici").Dispatcher>
 }
+
+/**
+ * Methods eligible for transport-level retries: those RFC 9110 defines as
+ * idempotent (plus HEAD/OPTIONS/TRACE). POST/PATCH are deliberately absent, so
+ * a retried upstream call can never duplicate a non-idempotent side effect.
+ * Undici's RetryHandler applies its own defaults when `methods` is omitted; we
+ * pass this list explicitly to make the contract independent of the version.
+ */
+const RETRY_IDEMPOTENT_METHODS = ["GET", "HEAD", "OPTIONS", "PUT", "DELETE", "TRACE"] as const
 
 /** Fetch sicura non disponibile: meglio fallire che usare un trasporto non
  * pinned. Un pre-check DNS una tantum non chiude il rebinding tra check e
@@ -188,10 +207,18 @@ let safePairPromise: Promise<SafeFetchPair> | undefined
 
 async function loadSafeFetch(): Promise<SafeFetchPair> {
   try {
-    const { Agent, fetch: undiciFetch } = await import("undici") as typeof import("undici")
+    const undici = await import("undici") as typeof import("undici")
+    const agent = new undici.Agent({ connect: { lookup: safeLookup } })
+    // RetryAgent is the undici 8 transport-level retry dispatcher. It must wrap
+    // the pinned Agent (never replace it), so every retried attempt still
+    // connects only to the public IPs returned by `safeLookup`. Retry is not
+    // the security boundary: when the runtime does not expose it (older undici
+    // or a partial module double), keep the pinned Agent instead of failing
+    // the whole safe transport closed.
+    const dispatcher = createRetryDispatcher(agent, readRetryAgentCtor(undici))
     return {
-      fetchFn: undiciFetch as unknown as typeof fetch,
-      dispatcher: new Agent({ connect: { lookup: safeLookup } }),
+      fetchFn: undici.fetch as unknown as typeof fetch,
+      dispatcher,
     }
   } catch (e) {
     log.error("undici unavailable — safe fetch disabled", {
@@ -199,6 +226,32 @@ async function loadSafeFetch(): Promise<SafeFetchPair> {
     })
     throw new SafeFetchUnavailableError("undici unavailable: DNS-pinned fetch is required")
   }
+}
+
+/** Reads the optional RetryAgent constructor without making a missing export
+ * fatal: partial module doubles (and undici builds without it) throw on the
+ * property access itself, and the SSRF-pinned Agent must still be usable. */
+function readRetryAgentCtor(undici: typeof import("undici")): typeof import("undici").RetryAgent | undefined {
+  try {
+    return undici.RetryAgent
+  } catch {
+    return undefined
+  }
+}
+
+/** Wraps the pinned Agent in a RetryAgent when the runtime provides one. */
+function createRetryDispatcher(
+  agent: InstanceType<typeof import("undici").Agent>,
+  RetryAgentCtor: typeof import("undici").RetryAgent | undefined,
+): SafeFetchPair["dispatcher"] {
+  if (typeof RetryAgentCtor !== "function") {
+    log.warn("undici RetryAgent unavailable — pinned Agent without automatic retries")
+    return agent
+  }
+  return new RetryAgentCtor(agent, {
+    retryAfter: true,
+    methods: [...RETRY_IDEMPOTENT_METHODS],
+  })
 }
 
 /** Una sola promise di inizializzazione condivisa: due richieste concorrenti
