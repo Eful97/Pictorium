@@ -10,6 +10,7 @@ import { __resetChartGenerationForTest } from "@/lib/chart-generation"
 import { decodeConfig, encodeConfig, partialCatalogTokenSchema } from "@/lib/config-token"
 import {
   getExplicitCatalogShape,
+  mappingHasBothShapeBases,
   normalizeCatalogShapeKeys,
   sanitizeCatalogShapes,
 } from "@/lib/catalog-shape"
@@ -69,6 +70,15 @@ function portraitMapping() {
   }
 }
 
+/** Both base families saved (portrait poster + chosen landscape backdrop). */
+function dualBaseMapping(partial: Record<string, unknown> = {}) {
+  return {
+    ...portraitMapping(),
+    backdropPath: "/house-of-the-dragon-backdrop.jpg",
+    ...partial,
+  }
+}
+
 async function getCatalogItem(catalogId: string) {
   const req = new NextRequest(`http://localhost:3000/catalog/series/${catalogId}.json?api_key=settings-key`)
   const res = await GET(req, { params: Promise.resolve({ type: "series", id: `${catalogId}.json` }) })
@@ -117,6 +127,19 @@ describe("catalog-shape helper", () => {
     expect(getExplicitCatalogShape("toString", shapes)).toBeUndefined()
     expect(getExplicitCatalogShape("__proto__", shapes)).toBeUndefined()
     expect(getExplicitCatalogShape("pictorium-jw-series", undefined)).toBeUndefined()
+  })
+
+  it("mappingHasBothShapeBases requires a portrait AND a saved landscape base", () => {
+    expect(mappingHasBothShapeBases(null)).toBe(false)
+    // Portrait-only save: the landscape family stays absent/null.
+    expect(mappingHasBothShapeBases({ ...portraitMapping(), backdropPath: null } as never)).toBe(false)
+    // Chosen landscape backdrop (TMDB or custom) = second base saved.
+    expect(mappingHasBothShapeBases(dualBaseMapping() as never)).toBe(true)
+    expect(mappingHasBothShapeBases({
+      ...portraitMapping(), backdropPath: null, customBackdropUrl: "https://example.com/land.jpg",
+    } as never)).toBe(true)
+    // Automatic landscape backdrop written as null is not a saved base.
+    expect(mappingHasBothShapeBases({ ...portraitMapping(), posterShape: "landscape", backdropPath: null } as never)).toBe(false)
   })
 })
 
@@ -243,6 +266,44 @@ describe("per-catalog format truth matrix (route)", () => {
       .mockResolvedValueOnce(tmdbShowResponse(94997))
     const item = await getCatalogItem("pictorium-jw-series")
     expect(item.posterShape).toBe("landscape")
+  })
+
+  it("dual-format saved title serves portrait poster AND landscape landscapePoster, omitting the separate logo", async () => {
+    // Last save was landscape (posterShape landscape) but the portrait base
+    // survives: the two canvases must not collapse into one. `poster` is the
+    // portrait rendering (Stremio/vertical), `landscapePoster` the landscape
+    // one (Nuvio horizontal, logo baked-in) — no separate logo overlay.
+    vi.mocked(getServerDefaults).mockReturnValue({ posterShape: "poster" })
+    mockedGetById.mockResolvedValue(dualBaseMapping({ posterShape: "landscape" }) as never)
+    vi.spyOn(globalThis, "fetch")
+      .mockResolvedValueOnce(justWatchResponse(94997, "tt11198330"))
+      .mockResolvedValueOnce(tmdbShowResponse(94997))
+    const item = await getCatalogItem("pictorium-jw-series")
+    expect(item.posterShape).toBe("poster")
+    const posterUrl = new URL(item.poster)
+    expect(posterUrl.searchParams.get("shape")).toBe(null)
+    expect(posterUrl.searchParams.has("hideLogo")).toBe(false)
+    expect(new URL(item.landscapePoster).searchParams.get("shape")).toBe("landscape")
+    expect(new URL(item.landscapePoster).searchParams.has("hideLogo")).toBe(false)
+    expect(item.landscapePoster).not.toBe(item.poster)
+    // Nuvio overlays `logo` on the landscape canvas: omit it.
+    expect(item.logo).toBeUndefined()
+    // Clean banner unchanged (landscape + no logo).
+    expect(item.banner).toContain("shape=landscape")
+    expect(item.banner).toContain("hideLogo=1")
+  })
+
+  it("dual-format title keeps both canvases even under the global landscape default", async () => {
+    vi.mocked(getServerDefaults).mockReturnValue({ posterShape: "landscape" })
+    mockedGetById.mockResolvedValue(dualBaseMapping({ posterShape: "poster" }) as never)
+    vi.spyOn(globalThis, "fetch")
+      .mockResolvedValueOnce(justWatchResponse(94997, "tt11198330"))
+      .mockResolvedValueOnce(tmdbShowResponse(94997))
+    const item = await getCatalogItem("pictorium-jw-series")
+    expect(item.posterShape).toBe("poster")
+    expect(new URL(item.poster).searchParams.get("shape")).toBe(null)
+    expect(new URL(item.landscapePoster).searchParams.get("shape")).toBe("landscape")
+    expect(item.logo).toBeUndefined()
   })
 
   it("a config-token override wins over namespace shapes without leaking credentials", async () => {

@@ -8,11 +8,13 @@ import {
   getStoredUserToken,
   hasStoredCredential,
   isUserUnlocked,
+  previewRequestHeaders,
   setStoredUserPassword,
   setStoredUserToken,
   userAuthHeaders,
   USER_UNLOCK_EVENT,
 } from "@/lib/user-token"
+import { __resetAdminTokenForTests } from "@/lib/admin-token"
 import { scopedApiInit } from "@/lib/http"
 
 const UUID_A = "11111111-1111-4111-8111-111111111111"
@@ -41,12 +43,14 @@ beforeEach(() => {
   setUrl("/")
   __resetUnlockedUsersForTests()
   __resetUserCredentialsForTests()
+  __resetAdminTokenForTests()
 })
 
 afterEach(() => {
   setUrl("/")
   __resetUnlockedUsersForTests()
   __resetUserCredentialsForTests()
+  __resetAdminTokenForTests()
   vi.unstubAllGlobals()
 })
 
@@ -135,6 +139,40 @@ describe("currentPathUuid", () => {
     expect(currentPathUuid()).toBeNull()
     setUrl("/")
     expect(currentPathUuid()).toBeNull()
+  })
+})
+
+describe("previewRequestHeaders (auth transport of the Settings/preview XHR)", () => {
+  function unlock() {
+    window.dispatchEvent(new CustomEvent(USER_UNLOCK_EVENT, { detail: { uuid: UUID_A } }))
+  }
+  const previewUrl = (extra = "") =>
+    `http://localhost:3000/api/poster/movie/19995?preview=1&u=${UUID_A}${extra}`
+
+  it("locked namespace: no credentials, even with a stored secret", () => {
+    setStoredUserToken(UUID_A, "tok")
+    expect(previewRequestHeaders(previewUrl())).toEqual({})
+  })
+
+  it("unlocked namespace: the same credential scopedApiInit sends", () => {
+    setStoredUserPassword(UUID_A, "pw")
+    unlock()
+    expect(previewRequestHeaders(previewUrl())).toEqual({ "x-user-password": "pw" })
+    setStoredUserToken(UUID_A, "tok")
+    expect(previewRequestHeaders(previewUrl())).toEqual({ "x-user-token": "tok" })
+  })
+
+  it("URL without a valid scoped uuid never carries a credential", () => {
+    setStoredUserToken(UUID_A, "tok")
+    unlock()
+    expect(previewRequestHeaders("http://localhost:3000/api/poster/movie/19995?preview=1")).toEqual({})
+    expect(previewRequestHeaders(`http://localhost:3000/api/poster/movie/19995?preview=1&u=not-a-uuid`)).toEqual({})
+  })
+
+  it("another namespace's unlock never leaks", () => {
+    setStoredUserToken(UUID_B, "tok-b")
+    unlock() // unlocks A only
+    expect(previewRequestHeaders(`http://localhost:3000/api/poster/movie/19995?preview=1&u=${UUID_B}`)).toEqual({})
   })
 })
 

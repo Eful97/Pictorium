@@ -11,13 +11,87 @@ export interface EffectiveBackdropRotationState {
   readonly isRotating: boolean
 }
 
-export function getEffectiveRotationState(mapping: Mapping | null): EffectiveRotationState {
+/**
+ * Primary language subtag used by the rotation language match. TMDB posters
+ * carry an ISO 639-1 `iso_639_1` (`it`); an explicit region tag (`it-IT`,
+ * `it_IT`) compares on its primary subtag so both spellings are equal.
+ * Empty/absent = no language (fail-closed, never a wildcard).
+ */
+function normalizeRotationLanguage(value: string | null | undefined): string | null {
+  const trimmed = typeof value === "string" ? value.trim().toLowerCase() : ""
+  if (!trimmed) return null
+  return trimmed.split(/[-_]/)[0] || null
+}
+
+function hasRotationLanguage(languages: Record<string, string> | null | undefined, path: string): boolean {
+  return !!languages && Object.prototype.hasOwnProperty.call(languages, path)
+}
+
+/**
+ * Portrait rotation pool after exclusions/language filtering.
+ *
+ * - Legacy mappings (no opt-in metadata) keep the historical "all
+ *   cleanPosters" behavior, byte-identical: every path is treated as clean
+ *   because the saved list never carried language posters before the opt-in.
+ * - Opt-out (`rotationIncludeNonClean` not true): recorded non-clean paths
+ *   (list or language map) are filtered out, never resurrected.
+ * - Opt-in: the clean paths stay, plus ONLY the non-clean posters whose saved
+ *   language matches `selectedLang` (case-insensitive primary subtag). Other
+ *   languages and non-clean paths without language metadata stay inert.
+ *   Absent/empty `selectedLang` = clean-only (fail-closed).
+ */
+function availablePosterRotationPaths(mapping: Mapping, selectedLang?: string | null): string[] {
+  const excludedSet = new Set(mapping.excludedPosters || [])
+  const includeNonClean = mapping.rotationIncludeNonClean === true
+  const nonCleanSet = new Set(mapping.rotationNonCleanPosters || [])
+  const languages = mapping.rotationPosterLanguages
+  const wantedLang = includeNonClean ? normalizeRotationLanguage(selectedLang) : null
+  return (mapping.cleanPosters || []).filter((path) => {
+    if (excludedSet.has(path)) return false
+    const hasLang = hasRotationLanguage(languages, path)
+    const knownLang = hasLang ? normalizeRotationLanguage(languages![path]) : null
+    const isNonClean = nonCleanSet.has(path) || hasLang
+    if (!includeNonClean) return !isNonClean
+    if (!isNonClean) return true
+    return wantedLang !== null && knownLang === wantedLang
+  })
+}
+
+/**
+ * True when the CURRENT portrait base (or an explicitly requested `path`) is
+ * a non-clean poster that entered the rotation through the explicit opt-in.
+ * Such a base already has a baked-in title: the renderer must not compose the
+ * logo image or the text wordmark on top. Manual non-clean selections (no
+ * rotation metadata) keep the historical manual-logo behavior.
+ *
+ * When `selectedLang` is provided, a path with saved language metadata only
+ * counts for its own language (never suppress a clean/other-language base);
+ * a recorded non-clean path without a language code keeps the historic
+ * suppression (it still has a baked title).
+ */
+export function isRotatedNonCleanPoster(
+  mapping: Mapping | null,
+  path?: string | null,
+  selectedLang?: string | null,
+): boolean {
+  if (!mapping || mapping.rotationIncludeNonClean !== true) return false
+  const candidate = path ?? mapping.posterPath
+  if (!candidate) return false
+  const nonClean = mapping.rotationNonCleanPosters
+  const hasLang = hasRotationLanguage(mapping.rotationPosterLanguages, candidate)
+  const listed = Array.isArray(nonClean) && nonClean.includes(candidate)
+  if (!listed && !hasLang) return false
+  if (selectedLang == null || !hasLang) return true
+  return normalizeRotationLanguage(mapping.rotationPosterLanguages![candidate])
+    === normalizeRotationLanguage(selectedLang)
+}
+
+export function getEffectiveRotationState(mapping: Mapping | null, selectedLang?: string | null): EffectiveRotationState {
   if (!mapping?.autoRotateClean || !mapping.cleanPosters || mapping.cleanPosters.length < 2) {
     return { availablePosters: [], isRotating: false }
   }
 
-  const excludedSet = new Set(mapping.excludedPosters || [])
-  const availablePosters = mapping.cleanPosters.filter((path) => !excludedSet.has(path))
+  const availablePosters = availablePosterRotationPaths(mapping, selectedLang)
   return {
     availablePosters,
     isRotating: availablePosters.length >= 2,
@@ -76,11 +150,15 @@ export async function withRotationLock<T>(key: string, fn: () => Promise<T>): Pr
  * `userId` scopes the re-read/write to the caller's namespace (null = global,
  * same default as the store); it is also part of the lock key so namespaces
  * never block each other.
+ * `selectedLang` is the same "my language" value used to build the passed
+ * state: the store re-read recomputes the pool with it, so a concurrent save
+ * cannot rotate into another language's poster.
  */
 export async function tryRotatePoster(
   mapping: Mapping,
   rotationState: EffectiveRotationState,
   userId?: string | null,
+  selectedLang?: string | null,
 ): Promise<Mapping | null> {
   if (!rotationState.isRotating || rotationState.availablePosters.length < 2) {
     return null
@@ -101,9 +179,7 @@ export async function tryRotatePoster(
     }
 
     // Recompute rotation state with current data
-    const excludedSet = new Set(currentMapping.excludedPosters || [])
-    const currentAvailable = (currentMapping.cleanPosters || [])
-      .filter((path) => !excludedSet.has(path))
+    const currentAvailable = availablePosterRotationPaths(currentMapping, selectedLang)
     if (currentAvailable.length < 2) return null
 
     const currentIdx = currentMapping.cleanPosterIndex ?? -1

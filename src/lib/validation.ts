@@ -49,6 +49,31 @@ const retiredBadgeFamilyFollowsSchema = z.custom<RetiredBadgeFamilyFollows | nul
   return true
 }).nullable().optional()
 
+/**
+ * Portrait rotation language metadata for the opted-in non-clean posters:
+ * TMDB file path -> ISO 639-1 code. Paths are arbitrary map keys, so the
+ * prototype-key guard is explicit (same forbidden set as the retired Badge
+ * Lab maps); the entry/length bounds keep a hostile write from storing an
+ * unbounded blob. Absent/null = legacy (no language metadata), so old
+ * mappings keep validating unchanged.
+ */
+const ROTATION_POSTER_LANGUAGES_MAX_ENTRIES = 200
+const ROTATION_POSTER_LANGUAGES_MAX_CODE_LENGTH = 8
+const ROTATION_POSTER_PATH_MAX_LENGTH = 160
+
+const rotationPosterLanguagesSchema = z.custom<Record<string, string> | null | undefined>((raw) => {
+  if (raw === undefined || raw === null) return true
+  if (typeof raw !== "object" || Array.isArray(raw)) return false
+  const entries = Object.entries(raw)
+  if (entries.length > ROTATION_POSTER_LANGUAGES_MAX_ENTRIES) return false
+  for (const [path, code] of entries) {
+    if (RETIRED_FORBIDDEN_KEYS.has(path)) return false
+    if (path.length === 0 || path.length > ROTATION_POSTER_PATH_MAX_LENGTH) return false
+    if (typeof code !== "string" || code.length === 0 || code.length > ROTATION_POSTER_LANGUAGES_MAX_CODE_LENGTH) return false
+  }
+  return true
+}).nullable().optional()
+
 export const mappingSchema = z.object({
   tmdbId: z.number().int().positive(),
   mediaType: z.enum(["movie", "tv"]),
@@ -186,6 +211,15 @@ export const mappingSchema = z.object({
   cleanPosterIndex: z.number().int().min(0).nullable().optional(),
   cleanPosterUpdatedAt: z.string().nullable().optional(),
   autoRotateClean: z.boolean().nullable().optional(),
+  /** Opt-in: language posters in the portrait 24h rotation (absent = legacy). */
+  rotationIncludeNonClean: z.boolean().nullable().optional(),
+  /** Subset of cleanPosters that are non-clean TMDB posters (logo suppression). */
+  rotationNonCleanPosters: z.array(z.string()).nullable().optional(),
+  /**
+   * Path -> ISO 639-1 language for the opted-in non-clean rotation posters
+   * (portrait flat; absent/null = legacy clean-only).
+   */
+  rotationPosterLanguages: rotationPosterLanguagesSchema,
   cleanBackdrops: z.array(z.string()).nullable().optional(),
   cleanBackdropIndex: z.number().int().min(0).nullable().optional(),
   cleanBackdropUpdatedAt: z.string().nullable().optional(),

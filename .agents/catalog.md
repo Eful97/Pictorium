@@ -667,14 +667,26 @@ chiave d'istanza condivisa) resta valida per quel caso.
 
 - Campi immagine per item: `poster` = rendering Pictorium (formato da
   mapping/defaults, col logo baked-in anche in landscape), `landscapePoster` =
-  rendering Pictorium in canvas 16:9 con logo — SOLO per i titoli landscape
-  (NuvioTV lo legge e NON deve ricevere il `logo` separato, altrimenti lo
-  sovrappone al nostro: per quei titoli `logo` è omesso in catalogo e /meta),
-  `banner` = SEMPRE rendering Pictorium in canvas landscape SENZA logo
-  (`forceShape` + `hideLogo` in `stremio-poster-url.ts`, profilo landscape del
-  mapping) per i client che leggono `banner`, `background` = backdrop TMDB
-  grezzo per l'hero dettaglio. I titoli portrait non emettono `landscapePoster`
-  e mantengono il `logo` separato (comportamento invariato).
+  rendering Pictorium in canvas 16:9 con logo — per i titoli landscape e per i
+  titoli **dual-format** (entrambe le basi salvate: famiglia portrait
+  `posterPath`/`customPosterUrl`/`portraitBackdropPath` + famiglia landscape
+  `backdropPath`/`customBackdropUrl`, vedi `mappingHasBothShapeBases` in
+  `catalog-shape.ts`). Sui titoli dual `poster` è SEMPRE il canvas verticale
+  (profilo portrait, `posterShape` = `poster`) e `landscapePoster` il canvas
+  orizzontale (profilo landscape, dalla propria base salvata): il client
+  sceglie per vista (Stremio card verticale, Nuvio Landscape Posters) invece di
+  collassare sull'ultima forma salvata. Per quei titoli — e per i titoli
+  landscape storici — il `logo` separato è omesso in catalogo e /meta (Nuvio lo
+  sovrapporrebbe al logo baked-in); i titoli portrait a base singola mantengono
+  il `logo` separato (comportamento invariato). `banner` = SEMPRE rendering
+  Pictorium in canvas landscape SENZA logo (`forceShape` + `hideLogo` in
+  `stremio-poster-url.ts`, profilo landscape del mapping) per i client che
+  leggono `banner`, `background` = backdrop TMDB grezzo per l'hero dettaglio.
+  La risoluzione di forma storica (globale landscape che forza i mapping
+  portrait, override `catalogShapes`, mapping landscape salvato) resta
+  byte-identica per i titoli a base singola; un save landscape lasciato sullo
+  sfondo automatico non salva una base (`backdropPath` null) e resta a base
+  singola.
 
 - Navigazione video solo film (parità Easy Catalogs): le preview movie
   espongono `behaviorHints: { defaultVideoId: <id emesso>, hasScheduledVideos: false }`
@@ -686,7 +698,9 @@ chiave d'istanza condivisa) resta valida per quel caso.
 
 - Cache catalogo (`cacheSet`/`cacheGet` in `lib/cache.ts`): key include tipo,
   `catalogId`, `POSTER_URL_VERSION`, hash `config` e hash `mdblist_key`.
-  La key è `stremio:catalog:v4` (v4 con hints video film: le entry v3 senza
+  La key è `stremio:catalog:v5` (v5 = dual-format: i body v4 servivano una sola
+  forma collassata, le entry v4 non vengono più lette e scadono naturalmente;
+  v4 aveva introdotto gli hints video film: le entry v3 senza
   `behaviorHints`/`videos:[]` non vengono più lette e scadono naturalmente;
   le chiavi search dedicate portano il frammento `:idv2` (v2 = id IMDb-first
   via external_ids + hints film: le entry pre-fix non vengono più lette e
@@ -695,9 +709,9 @@ chiave d'istanza condivisa) resta valida per quel caso.
   sul refresh schedulato del tag `catalog`); catalogo **vuoto** → 60 s.
 - Cache meta (`meta-handler.ts`): key include `episodeGroupId:updatedAt` del
   mapping (film e serie) così save poster/ordinamento invalidano anche
-  cross-instance; frammento `:mhv1` (hints video film: le entry pre-fix senza
-  `hasScheduledVideos`/`videos:[]` non vengono più lette e scadono col TTL);
-  TTL 12h.
+  cross-instance; frammento `:mhv2` (dual-format: `landscapePoster` accanto al
+  `poster` portrait; `mhv1` senza la coppia non viene più letto e scade col
+  TTL; storicamente `mhv1` = hints video film) TTL 12h.
 - Su deploy multi-istanza (Vercel serverless) la `cacheInvalidate("stremio")`
   del save non raggiunge le altre istanze: il cache key catalogo include anche
   epoch globale (`lib/catalog-epoch.ts`, bump su ogni scrittura
@@ -746,7 +760,11 @@ Ogni catalogo può forzare il proprio formato card (`catalogShapes` in
 - Vale SOLO per le card di quel catalogo: stesso titolo in altro catalogo
   invariato, mapping salvato mai riscritto, `/meta` resta globale (nessun
   contesto catalogo inventato). `banner` resta sempre landscape+hideLogo;
-  `landscapePoster`/`logo` seguono la forma card risolta.
+  `landscapePoster`/`logo` seguono la forma card risolta. Eccezione
+  dual-format: un titolo con entrambe le basi salvate non viene collassato
+  dalla forma card (né dal globale) — `poster` resta il verticale con
+  `posterShape` `poster` e `landscapePoster` l'orizzontale (vedi "Caching &
+  risposte").
 - Chiavi legacy `posterium-*` normalizzate, id ignoti preservati senza fetch
   di lista, chiavi `__proto__`/`constructor`/`prototype` rifiutate, enum
   ignoti rifiutati dal server (mai default silenziosi), tetto ragionevole

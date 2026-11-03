@@ -29,6 +29,7 @@ import { __resetImageBytesForTest } from "@/lib/image-bytes-cache"
 import {
   getEffectiveRotationState,
   getEffectiveBackdropRotationState,
+  isRotatedNonCleanPoster,
   tryRotatePoster,
   tryRotateBackdrop,
   dynamicRotationBucket,
@@ -410,6 +411,153 @@ describe("tryRotatePoster against the store (sliding 24h, not a UTC day)", () =>
     const after = mappingVersionParam(res)
     expect(after).not.toBeNull()
     expect(after).not.toBe(before)
+  })
+})
+
+describe("tryRotatePoster language scope against the store (mixed clean+it+en)", () => {
+  const CLEAN_A = "/clean-a.jpg"
+  const CLEAN_B = "/clean-b.jpg"
+  const IT_POSTER = "/it-poster.jpg"
+  const EN_POSTER = "/en-poster.jpg"
+
+  function scopedDue(input: Partial<Mapping> & { tmdbId: number }): Mapping {
+    return seedGlobal(baseMapping({
+      posterPath: CLEAN_A,
+      cleanPosters: [CLEAN_A, CLEAN_B, IT_POSTER, EN_POSTER],
+      cleanPosterIndex: 0,
+      cleanPosterUpdatedAt: new Date(Date.now() - 25 * HOUR).toISOString(),
+      autoRotateClean: true,
+      rotationIncludeNonClean: true,
+      rotationNonCleanPosters: [IT_POSTER, EN_POSTER],
+      rotationPosterLanguages: { [IT_POSTER]: "it", [EN_POSTER]: "en" },
+      ...input,
+    }))
+  }
+
+  it("selected `it` rotates through clean then lands on `it` (logo suppression applies)", async () => {
+    const T = Date.UTC(2026, 9, 6, 12, 0, 0)
+    const now = vi.spyOn(Date, "now").mockReturnValue(T)
+    const m = scopedDue({ tmdbId: 613001 })
+    const state = getEffectiveRotationState(m, "it")
+    expect(state.availablePosters).toEqual([CLEAN_A, CLEAN_B, IT_POSTER])
+
+    const first = await tryRotatePoster(m, state, null, "it")
+    expect(first?.posterPath).toBe(CLEAN_B)
+    expect(isRotatedNonCleanPoster(first, first?.posterPath, "it")).toBe(false)
+
+    now.mockReturnValue(T + DAY + 1_000)
+    const second = await tryRotatePoster(first!, getEffectiveRotationState(first!, "it"), null, "it")
+    expect(second?.posterPath).toBe(IT_POSTER)
+    expect(second?.cleanPosterIndex).toBe(2)
+    const persisted = storedGlobal("movie", 613001)
+    expect(persisted?.posterPath).toBe(IT_POSTER)
+    expect(isRotatedNonCleanPoster(persisted!, persisted?.posterPath, "it")).toBe(true)
+  })
+
+  it("selected `en` never enters the `it` poster and wraps clean->en->clean", async () => {
+    const T = Date.UTC(2026, 9, 6, 12, 0, 0)
+    const now = vi.spyOn(Date, "now").mockReturnValue(T)
+    const m = scopedDue({ tmdbId: 613002 })
+    const state = getEffectiveRotationState(m, "en")
+    expect(state.availablePosters).toEqual([CLEAN_A, CLEAN_B, EN_POSTER])
+
+    const first = await tryRotatePoster(m, state, null, "en")
+    expect(first?.posterPath).toBe(CLEAN_B)
+
+    now.mockReturnValue(T + DAY + 1_000)
+    const second = await tryRotatePoster(first!, getEffectiveRotationState(first!, "en"), null, "en")
+    expect(second?.posterPath).toBe(EN_POSTER)
+
+    now.mockReturnValue(T + 2 * (DAY + 1_000))
+    const third = await tryRotatePoster(second!, getEffectiveRotationState(second!, "en"), null, "en")
+    expect(third?.posterPath).toBe(CLEAN_A)
+    expect(storedGlobal("movie", 613002)?.posterPath).toBe(CLEAN_A)
+  })
+
+  it("an absent selected language rotates the clean-only pool (it/en inert)", async () => {
+    const T = Date.UTC(2026, 9, 6, 12, 0, 0)
+    const now = vi.spyOn(Date, "now").mockReturnValue(T)
+    const m = scopedDue({ tmdbId: 613003 })
+    const state = getEffectiveRotationState(m)
+    expect(state.availablePosters).toEqual([CLEAN_A, CLEAN_B])
+
+    const first = await tryRotatePoster(m, state)
+    expect(first?.posterPath).toBe(CLEAN_B)
+    now.mockReturnValue(T + DAY + 1_000)
+    const second = await tryRotatePoster(first!, getEffectiveRotationState(first!))
+    expect(second?.posterPath).toBe(CLEAN_A)
+    expect(storedGlobal("movie", 613003)?.posterPath).toBe(CLEAN_A)
+  })
+
+  it("matches `IT` case-insensitively on the store path too", async () => {
+    const m = scopedDue({ tmdbId: 613004 })
+    const state = getEffectiveRotationState(m, "IT")
+    expect(state.availablePosters).toEqual([CLEAN_A, CLEAN_B, IT_POSTER])
+    const first = await tryRotatePoster(m, state, null, "IT")
+    expect(first?.posterPath).toBe(CLEAN_B)
+  })
+
+  it("exclusions respected: stale state recomputed on re-read drops the excluded it/clean", async () => {
+    const stale = baseMapping({
+      tmdbId: 613010,
+      posterPath: CLEAN_A,
+      cleanPosters: [CLEAN_A, CLEAN_B, IT_POSTER],
+      autoRotateClean: true,
+      rotationIncludeNonClean: true,
+      rotationNonCleanPosters: [IT_POSTER],
+      rotationPosterLanguages: { [IT_POSTER]: "it" },
+    })
+    const staleState = getEffectiveRotationState(stale, "it")
+    expect(staleState.isRotating).toBe(true)
+
+    seedGlobal(baseMapping({
+      tmdbId: 613010,
+      posterPath: CLEAN_A,
+      cleanPosters: [CLEAN_A, CLEAN_B, IT_POSTER],
+      cleanPosterIndex: 0,
+      cleanPosterUpdatedAt: new Date(Date.now() - 25 * HOUR).toISOString(),
+      autoRotateClean: true,
+      rotationIncludeNonClean: true,
+      rotationNonCleanPosters: [IT_POSTER],
+      rotationPosterLanguages: { [IT_POSTER]: "it" },
+      excludedPosters: [CLEAN_B, IT_POSTER],
+    }))
+
+    const res = await tryRotatePoster(stale, staleState, null, "it")
+    expect(res).toBeNull()
+    expect(vi.mocked(upsert)).not.toHaveBeenCalled()
+    expect(storedGlobal("movie", 613010)?.posterPath).toBe(CLEAN_A)
+  })
+
+  it("flag off keeps the legacy clean rotation byte-identical", async () => {
+    const m = seedGlobal(baseMapping({
+      tmdbId: 613011,
+      posterPath: CLEAN_A,
+      cleanPosters: [CLEAN_A, CLEAN_B],
+      cleanPosterIndex: 0,
+      cleanPosterUpdatedAt: new Date(Date.now() - 25 * HOUR).toISOString(),
+      autoRotateClean: true,
+      rotationIncludeNonClean: false,
+      rotationNonCleanPosters: [IT_POSTER],
+      rotationPosterLanguages: { [IT_POSTER]: "it" },
+    }))
+    const res = await tryRotatePoster(m, getEffectiveRotationState(m, "it"), null, "it")
+    expect(res?.posterPath).toBe(CLEAN_B)
+    expect(res?.cleanPosterIndex).toBe(1)
+    expect(storedGlobal("movie", 613011)?.posterPath).toBe(CLEAN_B)
+  })
+
+  it("selected language with no poster rotates clean-only", async () => {
+    const m = scopedDue({
+      tmdbId: 613012,
+      rotationNonCleanPosters: [IT_POSTER, EN_POSTER],
+      rotationPosterLanguages: { [EN_POSTER]: "en" },
+    })
+    const state = getEffectiveRotationState(m, "it")
+    expect(state.availablePosters).toEqual([CLEAN_A, CLEAN_B])
+    const res = await tryRotatePoster(m, state, null, "it")
+    expect(res?.posterPath).toBe(CLEAN_B)
+    expect(storedGlobal("movie", 613012)?.posterPath).toBe(CLEAN_B)
   })
 })
 

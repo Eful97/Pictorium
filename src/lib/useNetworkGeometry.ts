@@ -6,6 +6,7 @@ import {
   parseNetGeoResponse,
   type FrozenNetworkGeometry,
 } from "@/lib/network-freeze"
+import { previewRequestHeaders } from "@/lib/user-token"
 
 /**
  * Shared network-geometry prefetch for the follow OFF gate.
@@ -57,7 +58,14 @@ export function useNetworkGeometry(
     const fetchedUrl = debouncedUrl
     const ctrl = new AbortController()
     setLoading(true)
-    fetch(buildNetGeoUrl(fetchedUrl), { signal: ctrl.signal, cache: "no-store" })
+    // Owner-only diagnostics on a raw transport: carry the same preview auth
+    // the image/geometry requests send (scoped credential / admin token).
+    const geoUrl = buildNetGeoUrl(fetchedUrl)
+    fetch(geoUrl, {
+      signal: ctrl.signal,
+      cache: "no-store",
+      headers: previewRequestHeaders(geoUrl),
+    })
       .then((res) => {
         if (!res.ok) throw new Error(`HTTP ${res.status}`)
         return res.json()

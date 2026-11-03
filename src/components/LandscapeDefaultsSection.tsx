@@ -131,6 +131,9 @@ export function LandscapeDefaultsSection({ editVal, editTxt, setEditVal, setEdit
   const { freezing: netFreezing, freezeOff: freezeNetworkOff, turnOn: turnNetworkOn } = useNetworkFreeze()
   const tmdbKey = usePSelector((v) => v.tmdbKey)
   const userId = usePSelector((v) => v.currentUserId)
+  // Same device config the displayed landscape preview carries (profileless
+  // spaces): the frozen network geometry must come from the SAME render.
+  const localConfigToken = usePSelector((v) => v.localConfigToken)
   // Effective landscape view with server semantics (flat never leaks into
   // landscape absolutes, follow without fixed coords reads ON): checkbox,
   // sliders and freeze priors always agree with the render.
@@ -148,18 +151,19 @@ export function LandscapeDefaultsSection({ editVal, editTxt, setEditVal, setEdit
   const freezeLiveRef = useRef({
     ed, demoMedia: demoMedia ?? null,
     previewFamily: previewFamily ?? null,
-    tmdbKey, userId, lang,
+    tmdbKey, userId, localConfigToken, lang,
   })
   freezeLiveRef.current = {
     ed, demoMedia: demoMedia ?? null,
     previewFamily: previewFamily ?? null,
-    tmdbKey, userId, lang,
+    tmdbKey, userId, localConfigToken, lang,
   }
   const buildFreezePreview = () => {
     const L = freezeLiveRef.current
     return buildDefaultsPreviewUrlFromEditor(L.ed, {
       tmdbKey: L.tmdbKey,
       userId: L.userId,
+      configToken: L.localConfigToken,
       lang: L.lang,
       demoMedia: L.demoMedia,
       previewShape: "landscape",

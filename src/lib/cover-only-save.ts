@@ -47,7 +47,12 @@ import { normalizeLogoFont, sanitizeLogoText } from "./text-logo"
  * and defaultBadgeStyles. Selected-format rotation lists
  * are omitted too (the existing opt-out: without cleanPosters/cleanBackdrops
  * + auto flags the 24h rotation in poster-rotation.ts stays idle, so the
- * pinned cover cannot be rotated away). Exclusion lists are preserved from
+ * pinned cover cannot be rotated away). The rotation OPT-IN metadata
+ * (`rotationIncludeNonClean`/`rotationNonCleanPosters`/`rotationPosterLanguages`)
+ * is preserved from the previous mapping verbatim: it is inert without a
+ * pool/auto flag (never rotates the pinned cover) and preserving it keeps a
+ * portrait cover-only save from silently wiping the user's opt-in; it is
+ * never invented from the live preview. Exclusion lists are preserved from
  * the previous mapping (user curation, inert without rotation lists).
  */
 export interface CoverOnlySaveInput {
@@ -180,6 +185,12 @@ export function buildCoverOnlyPayload(input: CoverOnlySaveInput): Record<string,
     if (prevMapping?.cleanPosterIndex !== undefined) body.cleanPosterIndex = prevMapping.cleanPosterIndex
     if (prevMapping?.cleanPosterUpdatedAt !== undefined) body.cleanPosterUpdatedAt = prevMapping.cleanPosterUpdatedAt
     if (prevMapping?.autoRotateClean !== undefined) body.autoRotateClean = prevMapping.autoRotateClean
+    // Portrait rotation opt-in metadata: other-format identity, preserved
+    // verbatim like the pool above (the landscape save must not wipe the
+    // portrait opt-in). The pool itself is still preserved untouched.
+    if (prevMapping?.rotationIncludeNonClean !== undefined) body.rotationIncludeNonClean = prevMapping.rotationIncludeNonClean
+    if (prevMapping?.rotationNonCleanPosters !== undefined) body.rotationNonCleanPosters = prevMapping.rotationNonCleanPosters
+    if (prevMapping?.rotationPosterLanguages !== undefined) body.rotationPosterLanguages = prevMapping.rotationPosterLanguages
     if (prevMapping?.excludedPosters !== undefined) body.excludedPosters = prevMapping.excludedPosters
     if (prevMapping?.excludedBackdrops !== undefined) body.excludedBackdrops = prevMapping.excludedBackdrops
   } else {
@@ -194,6 +205,14 @@ export function buildCoverOnlyPayload(input: CoverOnlySaveInput): Record<string,
     if (prevMapping?.cleanBackdropIndex !== undefined) body.cleanBackdropIndex = prevMapping.cleanBackdropIndex
     if (prevMapping?.cleanBackdropUpdatedAt !== undefined) body.cleanBackdropUpdatedAt = prevMapping.cleanBackdropUpdatedAt
     if (prevMapping?.autoRotateBackdrop !== undefined) body.autoRotateBackdrop = prevMapping.autoRotateBackdrop
+    // Portrait rotation OPT-IN metadata is preserved verbatim even though the
+    // pool stays omitted (pinned cover opt-out above): without `cleanPosters`
+    // + `autoRotateClean` it is inert and can never rotate the pinned cover,
+    // but dropping it here would silently wipe the user's opt-in on every
+    // portrait cover-only save. It is never rebuilt from the live preview.
+    if (prevMapping?.rotationIncludeNonClean !== undefined) body.rotationIncludeNonClean = prevMapping.rotationIncludeNonClean
+    if (prevMapping?.rotationNonCleanPosters !== undefined) body.rotationNonCleanPosters = prevMapping.rotationNonCleanPosters
+    if (prevMapping?.rotationPosterLanguages !== undefined) body.rotationPosterLanguages = prevMapping.rotationPosterLanguages
     if (prevMapping?.excludedBackdrops !== undefined) body.excludedBackdrops = prevMapping.excludedBackdrops
     if (prevMapping?.excludedPosters !== undefined) body.excludedPosters = prevMapping.excludedPosters
   }
