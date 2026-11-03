@@ -17,6 +17,7 @@ import { __resetJWRankingsCache } from "@/lib/justwatch"
 import { __resetCircuitBreaker } from "@/lib/awards"
 import { clearTvdbCache } from "@/lib/tvdb"
 import { getById } from "@/lib/store"
+import type { ServerDefaults } from "@/lib/server-defaults"
 
 vi.mock("@/lib/rate-limit", () => ({
   rateLimit: vi.fn(async () => ({ ok: true, retAfter: 0 })),
@@ -31,18 +32,18 @@ vi.mock("@/lib/store", () => ({
   getImdbAlias: vi.fn(async () => null),
 }))
 
+// Mutable overrides so each test can flip the global automations
+// (`portraitBackdropFallback`). The base defaults stay the REAL module result:
+// only the keys set here are overridden, so every existing test keeps the
+// exact same defaults it had before.
+let serverDefaults: ServerDefaults = {}
+
 vi.mock("@/lib/server-defaults", async (importOriginal) => {
   const mod = await importOriginal<typeof import("@/lib/server-defaults")>()
   return {
     ...mod,
-    getServerDefaults: vi.fn(() => ({
-      defaultLogoFitEnabled: true,
-      badgeStyle: "shadow",
-      rankingBadgeStyle: "default",
-      region: "IT",
-      badgeQuality: false,
-      preRelease: false,
-    })),
+    getServerDefaults: vi.fn(() => ({ ...mod.getServerDefaults(), ...serverDefaults })),
+    getServerDefaultsChecked: vi.fn(async () => ({ ...await mod.getServerDefaultsChecked(), ...serverDefaults })),
   }
 })
 
@@ -53,6 +54,12 @@ let backdropPng: Buffer
 let cleanBackdropPng: Buffer
 let posterPng: Buffer
 let logoPng: Buffer
+
+// Reset delle automazioni globali prima di ogni test (outer hook: gira prima
+// dei beforeEach dei describe).
+beforeEach(() => {
+  serverDefaults = {}
+})
 
 function tmdbDetails(id: number, withBackdrop: boolean) {
   return {
@@ -302,6 +309,17 @@ describe("Portrait senza clean — base dal primo backdrop clean", () => {
     expect(meta.width).toBe(768)
     expect(meta.height).toBe(432)
   })
+
+  it("portraitBackdropFallback OFF: nessun crop automatico, catena in lingua", async () => {
+    serverDefaults = { ...serverDefaults, portraitBackdropFallback: false }
+    const { res } = await getPoster(620104)
+    expect(res.status).toBe(200)
+    const debug = await getDebug(620104)
+    const images = debug.images as { poster: string | null; logo: string | null }
+    // Auto branch skipped: the language poster chain applies (no clean crop).
+    expect(images.poster).toBe("/lang-it.jpg")
+    expect(images.logo).toBeNull()
+  })
 })
 
 // Base portrait CONGELATA dal save (`portraitBackdropPath`): riaprendo il
@@ -399,5 +417,17 @@ describe("mapping con base portrait congelata (portraitBackdropPath)", () => {
     expect(res.status).toBe(200)
     const avg = await avgChannels(buf)
     expect(avg.b).toBeGreaterThan(avg.r * 1.2)
+  })
+
+  it("portraitBackdropFallback OFF: la base salvata esplicita resta onorata", async () => {
+    serverDefaults = { ...serverDefaults, portraitBackdropFallback: false }
+    vi.mocked(getById).mockResolvedValue(savedMapping({ portraitBackdropPath: "/bdclean.jpg" }) as never)
+    const { res } = await getPoster(620110)
+    expect(res.status).toBe(200)
+    const debug = await getDebug(620110)
+    const images = debug.images as { poster: string | null; logo: string | null }
+    // Explicit user pick (saved mapping), exactly like the disableCleanPosters contract.
+    expect(images.poster).toBe("/bdclean.jpg")
+    expect(images.logo).toBe("/logo-it.png")
   })
 })

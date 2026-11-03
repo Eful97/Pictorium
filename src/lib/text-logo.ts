@@ -111,6 +111,12 @@ export function truncateWordmarkTitle(raw: string | null | undefined): string | 
 }
 
 export interface AutoWordmarkInput {
+  /**
+   * Opt-out globale dell'utente (default globale `autoWordmark`, default ON).
+   * false = nessun wordmark automatico, su ogni base e anche nel ramo mapping
+   * salvato: la base testuale resta senza titolo.
+   */
+  readonly enabled: boolean
   /** Titolo nella lingua della richiesta (mapping/titolo selezionato/TMDB). */
   readonly title: string | null | undefined
   /** Una sorgente logo immagine è già attiva (TMDB, query o mapping). */
@@ -131,6 +137,7 @@ export interface AutoWordmarkInput {
  * catene di gating che possono divergere.
  */
 export function resolveAutoWordmark(input: AutoWordmarkInput): TextLogo | null {
+  if (!input.enabled) return null
   if (input.hasImageLogo || input.hasTypedText || input.logoDisabled) return null
   if (!input.baseIsTextless) return null
   const text = truncateWordmarkTitle(input.title)

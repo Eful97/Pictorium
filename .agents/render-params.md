@@ -928,7 +928,13 @@ non ha titolo cotto, quindi vale come clean: il logo resta
 composto sopra (`autoPosterClean = true`) e la sfumatura segue il profilo clean.
 Senza backdrops la catena in lingua resta intatta (preferita → originale → primo
 poster) con logo tolto. Con `disableCleanPosters` ON (scelta esplicita per la
-catena in lingua) il ramo nuovo resta spento. Landscape invariato (base =
+catena in lingua) il ramo nuovo resta spento. Il ramo AUTOMATICO richiede anche
+il default globale `portraitBackdropFallback` (default ON, flat/condiviso,
+override via config token; nessun per-titolo né profilo di forma): OFF = il ramo
+automatico viene saltato del tutto e vale la catena in lingua. Le basi ESPLICITE
+— `portraitBackdropPath` salvato nel mapping e il `pbase` live — restano onorate
+anche con il toggle OFF (scelta manuale, stesso contratto di
+`disableCleanPosters`). Landscape invariato (base =
 backdrop 16:9). La chiave dell'analisi pixel è `portrait:backdropcrop:<path>`: i
 byte sono un crop, non il poster nominale.
 
@@ -1217,7 +1223,10 @@ entrambi. Testo vuoto/blank = nessun logo (comportamento storico invariato).
 
 Se il titolo non ha nessun logo TMDB la sorgente logo viene generata dal
 TITOLO stesso: niente da digitare. Stesso trasporto/pipeline del logo testuale
-(un solo renderer), ma testo derivato e resa dedicata.
+(un solo renderer), ma testo derivato e resa dedicata. Richiede il default
+globale `autoWordmark` (default ON, flat/condiviso, override via config token):
+OFF = nessun wordmark automatico su nessuna base, ramo mapping salvato con base
+textless incluso (la base resta quella salvata, semplicemente senza titolo).
 
 - **Gate (base senza titolo cotto)**: poster clean (ramo clean), landscape
   (base = backdrop textless) e base portrait dal crop 2:3 di un backdrop,

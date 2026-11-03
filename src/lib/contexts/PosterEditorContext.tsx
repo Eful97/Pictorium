@@ -363,6 +363,12 @@ export interface PosterEditorCtx {
   /** Disattiva i poster clean TMDB nella selezione automatica (default OFF). */
   defaultDisableCleanPosters: boolean
   setDefaultDisableCleanPosters: (v: boolean | ((prev: boolean) => boolean)) => void
+  /** Base portrait automatica da backdrop quando manca un clean (default ON, globale). */
+  defaultPortraitBackdropFallback: boolean
+  setDefaultPortraitBackdropFallback: (v: boolean | ((prev: boolean) => boolean)) => void
+  /** Wordmark automatico dal titolo quando manca un logo (default ON, globale). */
+  defaultAutoWordmark: boolean
+  setDefaultAutoWordmark: (v: boolean | ((prev: boolean) => boolean)) => void
   defaultAutoRotateBackdrop: boolean
   setDefaultAutoRotateBackdrop: (v: boolean | ((prev: boolean) => boolean)) => void
   /** Best-fit automatico per formato (sdoppiato dal vecchio flag unico). */
@@ -740,6 +746,8 @@ export function PosterEditorProvider({
     defaultBadgeGenre, defaultBadgeYear, defaultBadgeRating, defaultBadgeQuality, defaultAgeBadge, defaultAgeCountry, defaultAgeBadgeStyle, defaultAwardBadgeStyle, defaultCustomRatings, defaultCustomRatingEndpoint, defaultCustomRatingApiKeyHeader, defaultRatingSources, defaultSeparateRatings, defaultSeparateRatingsStyle, defaultPosterLayout, defaultPosterFreshScope, defaultSashOrder, defaultDisabledContentTags, defaultDisabledNetworks,
     defaultAutoRotateClean, defaultAutoRotateBackdrop, defaultPortraitFitEnabled, defaultLandscapeFitEnabled, defaultNetworkLogo, defaultNetworkLogoPosition, defaultNetworkLogoFollowTitle, defaultPreRelease, defaultRibbonSide, defaultRibbonEnabled, defaultPosterShape, defaultLogoAlign,
     defaultDisableCleanPosters,
+    defaultPortraitBackdropFallback,
+    defaultAutoWordmark,
     landscape: landscapeDefaults,
     episodeMetadataSource, defaultEpisodeMetadataSource,
     region, defaultRegion, defaultDateFormat,
@@ -1466,6 +1474,16 @@ export function PosterEditorProvider({
       const next = typeof v === "function" ? v(defaultDisableCleanPosters) : v
       update({ defaultDisableCleanPosters: next })
     }, [defaultDisableCleanPosters, update])
+  const setDefaultPortraitBackdropFallback = useCallback(
+    (v: boolean | ((prev: boolean) => boolean)) => {
+      const next = typeof v === "function" ? v(defaultPortraitBackdropFallback) : v
+      update({ defaultPortraitBackdropFallback: next })
+    }, [defaultPortraitBackdropFallback, update])
+  const setDefaultAutoWordmark = useCallback(
+    (v: boolean | ((prev: boolean) => boolean)) => {
+      const next = typeof v === "function" ? v(defaultAutoWordmark) : v
+      update({ defaultAutoWordmark: next })
+    }, [defaultAutoWordmark, update])
   const setDefaultPortraitFitEnabled = useCallback(
     (v: boolean | ((prev: boolean) => boolean)) => {
       const next = typeof v === "function" ? v(defaultPortraitFitEnabled) : v
@@ -2059,6 +2077,10 @@ export function PosterEditorProvider({
       setDefaultAutoRotateClean,
       defaultDisableCleanPosters,
       setDefaultDisableCleanPosters,
+      defaultPortraitBackdropFallback,
+      setDefaultPortraitBackdropFallback,
+      defaultAutoWordmark,
+      setDefaultAutoWordmark,
       defaultAutoRotateBackdrop,
       setDefaultAutoRotateBackdrop,
       defaultPortraitFitEnabled,
@@ -2332,6 +2354,8 @@ export function PosterEditorProvider({
       defaultDisabledNetworks, setDefaultDisabledNetworks,
       defaultAutoRotateClean, setDefaultAutoRotateClean,
       defaultDisableCleanPosters, setDefaultDisableCleanPosters,
+      defaultPortraitBackdropFallback, setDefaultPortraitBackdropFallback,
+      defaultAutoWordmark, setDefaultAutoWordmark,
       defaultAutoRotateBackdrop, setDefaultAutoRotateBackdrop,
       defaultPortraitFitEnabled, setDefaultPortraitFitEnabled,
       defaultLandscapeFitEnabled, setDefaultLandscapeFitEnabled,

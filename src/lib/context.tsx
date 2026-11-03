@@ -804,6 +804,8 @@ export function usePictorium(): PictoriumCtx {
     defaultAutoRotateClean,
     defaultAutoRotateBackdrop,
     defaultDisableCleanPosters,
+    defaultPortraitBackdropFallback,
+    defaultAutoWordmark,
     defaultNetworkLogo,
     defaultNetworkLogoPosition,
     defaultNetworkLogoFollowTitle,
@@ -1900,6 +1902,7 @@ export function usePictorium(): PictoriumCtx {
   // migrazione).
   const autoWordmarkSource = navigation.selected
     ? resolveAutoWordmark({
+      enabled: defaultAutoWordmark,
       title: navigation.selected.title || navigation.selected.name || null,
       hasImageLogo: false,
       hasTypedText: false,
@@ -1914,6 +1917,7 @@ export function usePictorium(): PictoriumCtx {
     && (savedPortraitBase !== null
       || (!selectedPosterMapping
         && !defaultDisableCleanPosters
+        && defaultPortraitBackdropFallback
         && !navigation.posters.some((p) => p.iso_639_1 === null)
         && backdrops.length > 0
         && (navigation.logos.length > 0 || autoWordmarkSource !== null)))
@@ -1944,6 +1948,7 @@ export function usePictorium(): PictoriumCtx {
   // solo `lauto=1` e il server lo deriva dal titolo (il save non eredita mai
   // un wordmark automatico). `true`/`false` stabile per le deps del callback.
   const autoWordmark = resolveAutoWordmark({
+    enabled: defaultAutoWordmark,
     title: navigation.selected ? (navigation.selected.title || navigation.selected.name || null) : null,
     hasImageLogo: !!navigation.selectedLogo,
     hasTypedText: !!sanitizeLogoText(logoText),
@@ -2604,6 +2609,7 @@ export function usePictorium(): PictoriumCtx {
             )
           }
         } else if (resolveAutoWordmark({
+          enabled: defaultAutoWordmark,
           title: details.title || details.name || item.title || item.name || null,
           hasImageLogo: false,
           hasTypedText: false,
@@ -2753,6 +2759,7 @@ export function usePictorium(): PictoriumCtx {
               navigation.setPreviewPoster({ file_path: clean.file_path, iso_639_1: null, vote_average: 0, width: 0, height: 0 })
               applyFor(clean)
             } else if (resolveAutoWordmark({
+              enabled: defaultAutoWordmark,
               title: details.title || details.name || item.title || item.name || null,
               hasImageLogo: false,
               hasTypedText: false,
