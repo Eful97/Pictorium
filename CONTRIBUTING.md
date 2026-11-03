@@ -1,6 +1,6 @@
 # Contributing to Pictorium
 
-Thanks for your interest! Before opening a PR, please read these guidelines.
+Thanks for your interest! Before opening a PR, please read these guidelines. This repository uses a short-lived branch + pull request flow; `master` is protected.
 
 ## Setup
 
@@ -39,3 +39,77 @@ You need a TMDB key (variable `PICTORIUM_TMDB_KEY`, see `README.md` → Environm
 - One topic per PR; the final diff must contain only justified changes.
 - In the PR body, describe what you changed, which checks you ran, and whether the visual output changed (with updated snapshots in that case).
 - Project documentation (`AGENTS.md`, `.agents/*.md`) is intentionally in Italian; code and comments are in English.
+
+## Ground rules
+
+- Never push directly to `master` (blocked), never force-push, never delete it.
+- One branch per change, merged with **Rebase and merge** (linear history, no merge commits, no squash).
+- Commit subjects are part of the product: `type(scope): text` with `type` in `feat|fix|perf|docs|chore|test|refactor|ci|build|revert`, max 120 characters, no trailing period. `feat`/`fix`/`perf` appear in the in-app "Recent updates" list, so write them for users.
+- Do not edit generated files by hand: `src/generated/app-version.ts`, `src/lib/render-version.ts` and `src/generated/recent-changes.ts` come from scripts.
+
+## Daily flow
+
+```bash
+git switch master
+git pull
+git switch -c feat/short-description
+# ... work, commit as often as you like ...
+git push -u origin feat/short-description
+gh pr create --base master --head feat/short-description
+```
+
+Open the pull request as **draft** while you are still working: only the fast checks run. Mark it "Ready for review" when you want the full suite.
+
+When the required checks are green, merge with **Rebase and merge** and delete the branch.
+
+## What runs on a pull request
+
+| Job | Runs | Required |
+|---|---|---|
+| `commits` | always | yes |
+| `fast` (typecheck + lint) | always | no, but a failure fails `verify` |
+| `changes` | always | no |
+| `verify` (unit tests + build) | ready PRs and `master` pushes | yes |
+| `visual` (Playwright screenshots) | ready PRs and `master` pushes | yes |
+| Docker build | only when Docker inputs change | no |
+
+Docs-only pull requests (`.md`, `docs/`, `LICENSE`) skip `verify`/`visual`; the required checks still report success.
+
+If a check fails, read the failing job, fix and push again. Re-run without changes only after proving the failure is flaky.
+
+## Visual snapshots
+
+Playwright baselines are per-OS; CI produces the Linux ones. When a change intentionally alters the look, run the **Update visual snapshots** workflow from the Actions tab on your branch, review the PNG diff in the pull request, then re-trigger CI. Never commit snapshots blindly.
+
+## Release
+
+Releases are curated, never generated from commit subjects.
+
+1. Collect source material (prints only):
+   `node scripts/write-changelog-release.mjs <version> --collect`
+2. Write the reviewed notes file, e.g. `{"items":[{"type":"fix","text":"..."}]}`: one bullet per user-visible benefit, plain prose, no trailing period, max 200 characters.
+3. Apply the notes and bump the version:
+   `node scripts/write-changelog-release.mjs <version> --notes notes-<version>.json`
+   then set `version` in `package.json` and `package-lock.json`.
+4. Open a release pull request, wait for the gate, merge with **Rebase and merge**.
+5. Tag the merged `master` commit and push the tag explicitly:
+   ```bash
+   git switch master && git pull
+   git tag -a v<version> -m "Pictorium <version>"
+   git push origin v<version>
+   ```
+   Do not rely on `git push --follow-tags`: it skips lightweight tags.
+6. The `Release` workflow re-runs the gates on the tagged commit, then publishes the GitHub Release from the curated entry **at the tag** and announces it on Discord.
+7. Verify with `gh release view v<version>`.
+
+The comparison base is the last **published** release, so a tag whose release failed never becomes the base of the next one.
+
+If a release fails, do not move or delete the tag: fix the cause and cut the next patch version.
+
+## Files that matter
+
+- `src/data/changelog.ts` — curated release notes (English only, user-facing).
+- `scripts/write-changelog-release.mjs` and `scripts/release-editorial.mjs` — notes pipeline and style rules.
+- `.github/workflows/ci.yml`, `release.yml`, `docker.yml`, `update-snapshots.yml` — the gates and the release.
+
+`AGENTS.md` and some `.agents/` files are intentionally untracked local notes; this file is the durable copy of the workflow.
