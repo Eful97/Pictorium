@@ -2,15 +2,22 @@ name: Build and Publish Docker Image
 
 on:
   # Branch pushes only VERIFY the build (push: false below): publishing is
-  # green-gated via workflow_run (CI success) and release (published), so red
-  # CI can never push images.
+  # green-gated via workflow_run (CI success), release (published) and a
+  # version tag push, so red CI can never push images.
   push:
     branches: [master, main]
+    # Version tags publish the semver images (1.26.7, ...). A tag push is the
+    # only trigger that reliably reaches every release: workflows started by a
+    # GITHUB_TOKEN-created release event are never dispatched, which is why
+    # releases had no versioned image since the tag trigger was dropped.
+    tags: ['v*.*.*']
     # Docs-only master pushes need no image: skip the build entirely (CI itself
     # is skipped too, so the workflow_run publish path does not fire either).
+    # Path filters are not evaluated for tag pushes, so releases are never
+    # skipped by this rule.
     paths-ignore: ['**.md', 'docs/**', 'LICENSE']
-  # PRs never build the image: it is built and published on master pushes and
-  # on releases only.
+  # PRs never build the image: it is built and published on master pushes,
+  # version tag pushes and releases only.
   workflow_run:
     workflows: [CI]
     types: [completed]
@@ -37,6 +44,7 @@ jobs:
         with:
           # workflow_run/release run on default-branch context (GITHUB_SHA =
           # default tip, NOT the tested commit): pin the gated ref explicitly.
+          # A tag push already carries the tag in github.ref.
           ref: ${{ github.event.workflow_run.head_sha || github.event.release.tag_name || github.ref }}
 
       - name: Set up QEMU
@@ -45,15 +53,17 @@ jobs:
       - name: Set up Docker Buildx
         uses: docker/setup-buildx-action@v4
 
+      # Publish gate (identical for both logins and the push). Tag pushes are
+      # listed explicitly because a `push` event is otherwise build-only.
       - name: Log in to Docker Hub
-        if: github.event_name == 'release' || (github.event_name == 'workflow_run' && github.event.workflow_run.conclusion == 'success' && github.event.workflow_run.event == 'push')
+        if: github.event_name == 'release' || (github.event_name == 'push' && startsWith(github.ref, 'refs/tags/v')) || (github.event_name == 'workflow_run' && github.event.workflow_run.conclusion == 'success' && github.event.workflow_run.event == 'push')
         uses: docker/login-action@v4
         with:
           username: ${{ secrets.DOCKERHUB_USERNAME }}
           password: ${{ secrets.DOCKERHUB_TOKEN }}
 
       - name: Log in to GitHub Container Registry (GHCR)
-        if: github.event_name == 'release' || (github.event_name == 'workflow_run' && github.event.workflow_run.conclusion == 'success' && github.event.workflow_run.event == 'push')
+        if: github.event_name == 'release' || (github.event_name == 'push' && startsWith(github.ref, 'refs/tags/v')) || (github.event_name == 'workflow_run' && github.event.workflow_run.conclusion == 'success' && github.event.workflow_run.event == 'push')
         uses: docker/login-action@v4
         with:
           registry: ghcr.io
@@ -85,7 +95,7 @@ jobs:
         with:
           context: .
           platforms: linux/amd64,linux/arm64
-          push: ${{ github.event_name == 'release' || (github.event_name == 'workflow_run' && github.event.workflow_run.conclusion == 'success' && github.event.workflow_run.event == 'push') }}
+          push: ${{ github.event_name == 'release' || (github.event_name == 'push' && startsWith(github.ref, 'refs/tags/v')) || (github.event_name == 'workflow_run' && github.event.workflow_run.conclusion == 'success' && github.event.workflow_run.event == 'push') }}
           tags: ${{ steps.meta.outputs.tags }}
           labels: ${{ steps.meta.outputs.labels }}
           # Versione vera dentro l'immagine: il generator la legge da APP_VERSION
