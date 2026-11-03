@@ -15,6 +15,7 @@
  * The module cache/in-flight maps are process-wide (`vi.resetModules` is not
  * used), hence the exported test reset in `beforeEach`.
  */
+import { StrictMode } from "react"
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest"
 import { renderHook, waitFor } from "@testing-library/react"
 
@@ -123,6 +124,34 @@ describe("useAuthenticatedPreviewUrl", () => {
     expect((observedSignal as AbortSignal | null)?.aborted).toBe(true)
     // No blob was produced, so there is nothing to revoke.
     expect(URL.revokeObjectURL).not.toHaveBeenCalled()
+  })
+
+  it("StrictMode remount after the synchronous abort starts a fresh fetch", async () => {
+    previewHeadersMock.mockReturnValue(CREDENTIALS)
+    const signals: AbortSignal[] = []
+    const fetchMock = vi.fn((_url: string, init?: RequestInit) => {
+      signals.push(init?.signal as AbortSignal)
+      return Promise.resolve({
+        ok: true,
+        status: 200,
+        blob: async () => new Blob(["img"], { type: "image/png" }),
+      }) as unknown as Promise<Response>
+    })
+    vi.stubGlobal("fetch", fetchMock)
+
+    // StrictMode mounts, cleans up and mounts again in the same tick: the
+    // first request is aborted by the cleanup, so the remount must NOT reuse
+    // its (doomed) in-flight promise — a second authenticated fetch is due.
+    const { result } = renderHook(() => useAuthenticatedPreviewUrl(THUMB_URL), {
+      wrapper: StrictMode,
+    })
+
+    await waitFor(() => expect(fetchMock).toHaveBeenCalledTimes(2))
+    await waitFor(() => expect(result.current).toMatch(/^blob:mock-preview-\d+$/))
+    expect(signals[0]?.aborted).toBe(true)
+    expect(signals[1]?.aborted).toBe(false)
+    // The authenticated transport was used, not the downgraded direct URL.
+    expect(result.current).not.toBe(THUMB_URL)
   })
 
   it("URL change aborts the stale request and loads the new one", async () => {
