@@ -766,6 +766,102 @@ export function effectiveFamilyFollows(
 
 export type CustomCatalogType = "movie" | "series" | "mixed"
 
+/** Sort direction shared by every provider-supported custom list. */
+export type CustomCatalogSortOrder = "asc" | "desc"
+
+/**
+ * MDBList item sort fields (`GET /lists/.../items` `sort` query), transcribed
+ * from the published OpenAPI schema (25 values). Values are never translated:
+ * the provider receives the canonical key.
+ */
+export const MDBLIST_CATALOG_SORT_KEYS = [
+  "added",
+  "budget",
+  "imdbpopular",
+  "imdbrating",
+  "imdbvotes",
+  "last_air_date",
+  "letterrating",
+  "lettervotes",
+  "metacritic",
+  "myanimelist",
+  "random",
+  "rank",
+  "released",
+  "releasedigital",
+  "revenue",
+  "rogerebert",
+  "rtaudience",
+  "rtomatoes",
+  "runtime",
+  "score",
+  "score_average",
+  "sort_title",
+  "title",
+  "tmdbpopular",
+  "usort",
+] as const
+
+/** Trakt list-item sort fields (`GET /users|lists/.../items` `sort_by`). */
+export const TRAKT_CATALOG_SORT_KEYS = [
+  "rank",
+  "added",
+  "title",
+  "released",
+  "runtime",
+  "popularity",
+  "percentage",
+  "votes",
+  "my_rating",
+  "random",
+] as const
+
+export type MdbListCatalogSortKey = (typeof MDBLIST_CATALOG_SORT_KEYS)[number]
+export type TraktCatalogSortKey = (typeof TRAKT_CATALOG_SORT_KEYS)[number]
+
+/**
+ * Provider allowlist for an explicit per-list sort. `null` means the provider
+ * has no supported sort contract (the configured values are ignored, never
+ * translated into another provider's keys).
+ */
+export function customCatalogSortKeys(provider: string | null | undefined): readonly string[] | null {
+  if (provider === "mdblist") return MDBLIST_CATALOG_SORT_KEYS
+  if (provider === "trakt") return TRAKT_CATALOG_SORT_KEYS
+  return null
+}
+
+/**
+ * Fail-closed sanitize at every boundary (UI draft, stored config, provider
+ * fetch): unknown provider/field/order yields null, so a foreign value is
+ * never forwarded upstream and legacy configs stay unsorted.
+ */
+export function sanitizeCustomCatalogSort(
+  provider: string | null | undefined,
+  sortBy: unknown,
+  sortHow: unknown,
+): { sortBy: string; sortHow: CustomCatalogSortOrder } | null {
+  const keys = customCatalogSortKeys(provider)
+  if (!keys) return null
+  if (typeof sortBy !== "string" || !keys.includes(sortBy)) return null
+  return { sortBy, sortHow: sortHow === "desc" ? "desc" : "asc" }
+}
+
+/**
+ * Cache-key fragment isolating differently sorted custom lists. Only an
+ * explicit, provider-validated sort yields a fragment: legacy unsorted
+ * configs keep byte-identical keys, and garbage values never fragment the
+ * cache. Shared by the outer catalog key and the custom rank route key so
+ * both fences can never drift.
+ */
+export function customCatalogSortFragment(
+  provider: string | null | undefined,
+  sortBy: unknown,
+  sortHow: unknown,
+): string {
+  const sort = sanitizeCustomCatalogSort(provider, sortBy, sortHow)
+  return sort ? `:so${sort.sortBy}:${sort.sortHow}` : ""
+}
+
 export interface CustomCatalogConfig {
   id: string
   name: string
@@ -775,6 +871,14 @@ export interface CustomCatalogConfig {
   /** Riferimento allo snapshot CSV importato (namespace utente): gli item
    *  vivono server-side, mai nel config token. */
   datasetId?: string
+  /**
+   * Optional explicit item sort for provider lists that support it (MDBList
+   * `sort`/`order`, Trakt `sort_by`/`sort_how`). Values are validated against
+   * the provider allowlist at fetch time; absent/invalid = provider default
+   * (Trakt public lists explicitly request the curated `rank`/`asc` order).
+   */
+  sortBy?: string
+  sortHow?: CustomCatalogSortOrder
   /** Import da addon Stremio via manifest (MVP): riferimento alla sorgente +
    *  catalogo originale + capacità dichiarate. Quando presente, il ramo
    *  addon preserva ordine/duplicati/ID originali (niente normalizzazione

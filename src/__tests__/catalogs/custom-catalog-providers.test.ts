@@ -352,6 +352,30 @@ describe("fetchUnifiedCatalogItems", () => {
     expect(again[0]?.title).toBe("Movie One")
     expect(calls.length).toBe(2)
   })
+
+  it("forwards an explicit MDBList sort and isolates the source cache key", async () => {
+    const calls: string[] = []
+    global.fetch = vi.fn().mockImplementation((url: string) => {
+      calls.push(String(url))
+      return Promise.resolve({
+        ok: true,
+        json: async () => [{ imdb_id: "tt0000001", title: "Sorted", year: 2020, tmdb_id: 1 }],
+      })
+    }) as unknown as typeof fetch
+
+    const url = "https://mdblist.com/lists/snoak/sort-cache-test"
+    await fetchUnifiedCatalogItems(url, { mdblistKey: "KEY-SORT", sortBy: "score", sortHow: "desc" })
+    expect(calls[0]).toContain("&sort=score&order=desc")
+
+    // Same config = source cache hit (no new upstream).
+    await fetchUnifiedCatalogItems(url, { mdblistKey: "KEY-SORT", sortBy: "score", sortHow: "desc" })
+    expect(calls).toHaveLength(1)
+
+    // Different sort = different key and a new upstream request.
+    await fetchUnifiedCatalogItems(url, { mdblistKey: "KEY-SORT", sortBy: "title", sortHow: "asc" })
+    expect(calls).toHaveLength(2)
+    expect(calls[1]).toContain("&sort=title&order=asc")
+  })
 })
 
 describe("fetchUnifiedCatalogItems via official Trakt API", () => {
@@ -375,6 +399,55 @@ describe("fetchUnifiedCatalogItems via official Trakt API", () => {
       [type]: { title, year, ids: { trakt: 1, slug: "x", imdb, tmdb } },
     }
   }
+
+  it("requests the curated rank/asc order by default (public lists)", async () => {
+    const seenUrls: string[] = []
+    global.fetch = vi.fn().mockImplementation((url: string) => {
+      seenUrls.push(String(url))
+      return Promise.resolve({
+        ok: true,
+        status: 200,
+        headers: new Headers(),
+        json: async () => [traktItem("movie", "tt0371746", 1726, "Iron Man", 2008)],
+      })
+    }) as unknown as typeof fetch
+
+    await fetchUnifiedCatalogItems("https://trakt.tv/users/donxy/lists/trakt-default-order-test")
+    const parsed = new URL(seenUrls[0])
+    expect(parsed.searchParams.get("sort_by")).toBe("rank")
+    expect(parsed.searchParams.get("sort_how")).toBe("asc")
+  })
+
+  it("forwards an explicit allowlisted sort and ignores unknown fields", async () => {
+    const seenUrls: string[] = []
+    global.fetch = vi.fn().mockImplementation((url: string) => {
+      seenUrls.push(String(url))
+      return Promise.resolve({
+        ok: true,
+        status: 200,
+        headers: new Headers(),
+        json: async () => [traktItem("movie", "tt0371746", 1726, "Iron Man", 2008)],
+      })
+    }) as unknown as typeof fetch
+
+    await fetchUnifiedCatalogItems("https://trakt.tv/users/donxy/lists/trakt-sort-explicit-test", {
+      sortBy: "title",
+      sortHow: "desc",
+    })
+    let parsed = new URL(seenUrls[0])
+    expect(parsed.searchParams.get("sort_by")).toBe("title")
+    expect(parsed.searchParams.get("sort_how")).toBe("desc")
+
+    // Unknown field is dropped at the boundary: the provider default wins,
+    // a foreign key is never forwarded upstream.
+    await fetchUnifiedCatalogItems("https://trakt.tv/users/donxy/lists/trakt-sort-invalid-test", {
+      sortBy: "not_a_trakt_key",
+      sortHow: "desc",
+    })
+    parsed = new URL(seenUrls[1])
+    expect(parsed.searchParams.get("sort_by")).toBe("rank")
+    expect(parsed.searchParams.get("sort_how")).toBe("asc")
+  })
 
   it("fetches a mixed public list through api.trakt.tv, never StremThru", async () => {
     const seenUrls: string[] = []

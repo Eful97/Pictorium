@@ -3,6 +3,7 @@ import { NextRequest } from "next/server"
 import { APP_VERSION } from "@/generated/app-version"
 import { PICTORIUM_CATALOGS, PICTORIUM_PEOPLE_SEARCH_CATALOGS, regionJwName } from "@/lib/catalog-definitions"
 import { getOriginFromRequest } from "@/lib/poster-public-url"
+import { envWithFallback } from "@/lib/env-compat"
 import { decodeConfig, type PictoriumUserConfig } from "@/lib/config-token"
 import { normalizeCatalogIdKeys, normalizeCatalogIdList, partitionAnimeCatalogsLast } from "@/lib/catalog-definitions"
 import { rankingSourceCatalogName, resolveCatalogDisplayName } from "@/lib/ranking-source"
@@ -42,6 +43,19 @@ function getCatalogGenreOptions(type: "movie" | "series" | "all", catalogId: str
   if (catalogId.includes("anime") || catalogId.includes("crunchyroll")) return ANIME_GENRES
   if (type === "all") return [...new Set([...MOVIE_GENRES, ...SERIES_GENRES])]
   return type === "movie" ? MOVIE_GENRES : SERIES_GENRES
+}
+
+// Stremio docs: background must be a png/jpg at least 1024x786. The shipped
+// home screenshot (2559x1439) is the lightest asset that satisfies both.
+const MANIFEST_BACKGROUND_PATH = "/Screen/home.png"
+
+const CONTACT_EMAIL_RE = /^[^\s@]+@[^\s@]+\.[^\s@]+$/
+
+/** Operator contact for the Stremio "Report" button; omitted when unset/invalid. */
+function resolveContactEmail(): string | null {
+  const value = envWithFallback("CONTACT_EMAIL")?.trim()
+  if (!value || value.length > 254 || !CONTACT_EMAIL_RE.test(value)) return null
+  return value
 }
 
 function safeSuffix(value: string | null | undefined): string | null {
@@ -250,6 +264,7 @@ export async function buildManifestResponse(req: NextRequest, user?: string | nu
     ? rawMode
     : (userConfig?.hubMode || "all")
 
+  const contactEmail = resolveContactEmail()
   const safeConfig = safeSuffix(config || user)
   const suffix = safeConfig ? `.${safeConfig}` : ""
   const modeSuffix = hubMode === "all" ? "" : `.${hubMode}`
@@ -271,14 +286,15 @@ export async function buildManifestResponse(req: NextRequest, user?: string | nu
       return { id: c.id, name: c.name, type: c.type, extra }
     }
     const genreOptions = getCatalogGenreOptions(c.type, c.id)
-    return {
-      id: c.id,
-      name: c.name,
-      type: c.type,
-      extra: isHomeHidden
-        ? [{ name: "genre", isRequired: true, options: genreOptions }, { name: "skip", isRequired: false }]
-        : [{ name: "genre", isRequired: false, options: genreOptions }, { name: "skip", isRequired: false }],
-    }
+    // Built-in sources are bounded (Top 10 / Top 20): Stremio's page size is
+    // 100, so a `skip` request can never return a second page. Custom lists
+    // can exceed 100 items and keep pagination; imported addon catalogs keep
+    // the source capabilities untouched above.
+    const extra: Array<{ name: string; isRequired: boolean; options?: string[] }> = [
+      { name: "genre", isRequired: isHomeHidden, options: genreOptions },
+    ]
+    if (c.customBaseId) extra.push({ name: "skip", isRequired: false })
+    return { id: c.id, name: c.name, type: c.type, extra }
   })
 
   const searchCatalogs = [
@@ -359,6 +375,8 @@ export async function buildManifestResponse(req: NextRequest, user?: string | nu
     types: TYPES,
     idPrefixes: ID_PREFIXES,
     logo: `${domain}/App.png`,
+    background: `${domain}${MANIFEST_BACKGROUND_PATH}`,
+    ...(contactEmail ? { contactEmail } : {}),
     addonCatalogs: [],
     manifestVersion: 1,
     behaviorHints: {

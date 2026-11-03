@@ -9,6 +9,7 @@ import type { PictoriumUserConfig } from "./config-token"
 import type { AwardBadgeMode } from "./badge-styles"
 import { normalizeSeasonalTheme, resolveEffectiveSeasonalTheme, type SeasonalTheme } from "./seasonal-theme"
 import { effectiveMappingForShape, isPosterLayout, isPosterFreshScope, DEFAULT_POSTER_LAYOUT, DEFAULT_POSTER_FRESH_SCOPE, type Mapping, type NetworkLogoPosition, type PosterLayout, type PosterFreshScope, type PosterShape } from "./types"
+import type { FanartSections } from "./fanart"
 import { effectiveDefaultsForShape } from "./server-defaults-shape"
 import type { ServerDefaults } from "./server-defaults"
 import { resolveLabelFor } from "./i18n"
@@ -81,6 +82,29 @@ function ownedLandscapeEnum<T>(mapping: Mapping | null, shape: PosterShape, key:
   const raw = land[key]
   if (raw === null || raw === undefined) return undefined
   return guard(raw as string | null | undefined) ? (raw as T) : undefined
+}
+
+/**
+ * Candidati Fanart per la base landscape (shape=landscape): background e
+ * thumbnail sono già 16:9 - 20:9, i poster verticali non lo sono. Ordine
+ * deterministico (background prima dei thumb, likes già applicati a monte),
+ * dedup per URL, nessun fetch né euristica pixel: la scelta resta esplicita
+ * (picker/`backdrop=`). Sezioni assenti = nessun candidato (base TMDB storica
+ * invariata).
+ */
+export function fanartLandscapeBaseCandidates(
+  sections: Pick<FanartSections, "backgrounds" | "thumbs"> | null | undefined,
+): string[] {
+  if (!sections) return []
+  const seen = new Set<string>()
+  const out: string[] = []
+  for (const entry of [...(sections.backgrounds ?? []), ...(sections.thumbs ?? [])]) {
+    const url = typeof entry?.url === "string" ? entry.url.trim() : ""
+    if (!url || seen.has(url)) continue
+    seen.add(url)
+    out.push(url)
+  }
+  return out
 }
 
 /**

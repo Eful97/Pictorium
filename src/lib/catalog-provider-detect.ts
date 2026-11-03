@@ -240,6 +240,27 @@ export function detectCatalogProvider(input: string): ProviderDetectionResult | 
 }
 
 /**
+ * Costruisce l'URL canonico di una lista MDBList dalle parti note (picker
+ * "Sfoglia MDBList"): preferisce user+slug, poi id numerico, poi slug.
+ * Solo token ammessi da `parseMDBListTarget`; null quando non c'è nulla di
+ * valido (mai un URL inventato). Client-safe: zero import.
+ */
+export function buildMDBListListUrl(parts: {
+  userName?: string | null
+  slug?: string | null
+  id?: number | string | null
+}): string | null {
+  const token = /^[A-Za-z0-9_.-]+$/
+  const user = typeof parts.userName === "string" && token.test(parts.userName.trim()) ? parts.userName.trim() : ""
+  const slug = typeof parts.slug === "string" && token.test(parts.slug.trim()) ? parts.slug.trim() : ""
+  if (user && slug) return `https://mdblist.com/lists/${user}/${slug}`
+  const rawId = parts.id === null || parts.id === undefined ? "" : String(parts.id).trim()
+  if (/^\d+$/.test(rawId)) return `https://mdblist.com/lists/${rawId}`
+  if (slug) return `https://mdblist.com/lists/${slug}`
+  return null
+}
+
+/**
  * Euristica client-safe speculare a `parseMDBListTarget` (mdblist.ts):
  * decide se la stringa può essere un target MDBList senza import server.
  */

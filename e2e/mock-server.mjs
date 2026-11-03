@@ -19,6 +19,17 @@ import sharp from "sharp"
 const PORT = Number(process.env.MOCK_PORT) || 8790
 const MOCKED_POSTER_PATH = "/mocked/avatar.jpg"
 
+// ---- Fixture client-contract (ynotv / Glassio) ----
+// Questi client leggono SOLO `poster`, `background` e `logo` dall'item di
+// catalogo/meta e ignorano `landscapePoster`/`banner`. Un id TMDB dedicato
+// (mai usato dalle fixture storiche) espone poster + backdrop + logo, così
+// un test E2E può verificare i campi universali senza alterare i poster già
+// scansionati: niente modifiche alle fixture esistenti.
+const GLASSIO_FIXTURE_ID = 987654
+const GLASSIO_POSTER_PATH = "/glassio/poster.jpg"
+const GLASSIO_BACKDROP_PATH = "/glassio/backdrop.jpg"
+const GLASSIO_LOGO_PATH = "/glassio/logo.png"
+
 // ---- Dati fittizi deterministi ----
 
 const MOVIE = {
@@ -59,6 +70,11 @@ function detailFor(type, tmdbId) {
     credits: { cast: [{ id: 1, name: "Actor One" }], crew: [{ id: 2, name: "Director One", job: "Director" }] },
     videos: { results: [{ id: "v1", key: "abc123", site: "YouTube", type: "Trailer", name: "Trailer" }] },
     external_ids: { imdb_id: imdbId, wikidata_id: "Q12345" },
+    // Solo il fixture Glassio/ynotv porta le basi universali: i titoli
+    // storici restano byte-identici (niente backdrop/poster iniettati).
+    ...(numericId === GLASSIO_FIXTURE_ID
+      ? { poster_path: GLASSIO_POSTER_PATH, backdrop_path: GLASSIO_BACKDROP_PATH }
+      : {}),
   }
   if (type === "tv") {
     return {
@@ -231,7 +247,17 @@ const server = http.createServer(async (req, res) => {
     }
     const imagesMatch = pathname.match(/^\/3\/(movie|tv)\/(\d+)\/images$/)
     if (imagesMatch) {
-      return json(res, 200, { id: Number(imagesMatch[2]), backdrops: [], posters: [posterItem()], logos: [] })
+      const imagesId = Number(imagesMatch[2])
+      // Fixture Glassio/ynotv: logo separato per il ramo hero, additivo.
+      if (imagesId === GLASSIO_FIXTURE_ID) {
+        return json(res, 200, {
+          id: imagesId,
+          backdrops: [],
+          posters: [posterItem()],
+          logos: [{ file_path: GLASSIO_LOGO_PATH, iso_639_1: "en", width: 500, height: 200 }],
+        })
+      }
+      return json(res, 200, { id: imagesId, backdrops: [], posters: [posterItem()], logos: [] })
     }
     const extIdsMatch = pathname.match(/^\/3\/(movie|tv)\/(\d+)\/external_ids$/)
     if (extIdsMatch) {

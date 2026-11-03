@@ -47,6 +47,11 @@ const customCatalogSchema = z.object({
   url: z.string().max(500),
   enabled: z.boolean().optional(),
   datasetId: z.string().max(64).optional(),
+  // Optional provider sort (validated against the provider allowlist at
+  // fetch time). Preserved verbatim so local-only/profileless tokens carry
+  // the same list order the space configured.
+  sortBy: z.string().max(32).optional(),
+  sortHow: z.enum(["asc", "desc"]).optional(),
   addon: addonSourceSchema.optional(),
 })
 

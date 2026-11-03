@@ -384,6 +384,51 @@ describe("GET /api/poster age badge (mocked production route)", () => {
     expect(genInput.ageLabel).toBe("VM14")
   })
 
+  it("passes MDBList whatson features to the production renderer with dct intact", async () => {
+    // Auto (non-mapped, no explicit `poster=`) path: the production route
+    // resolves TMDB details + ratings aggregate, so same-response features
+    // reach the renderer. Images are synthesized to keep the render cheap.
+    mockedGetImages.mockResolvedValue({
+      id: 44,
+      posters: [{ file_path: "/q.jpg", iso_639_1: null, vote_average: 0, vote_count: 0, width: 500, height: 750 }],
+      logos: [{ file_path: "/l.png", iso_639_1: null, vote_average: 0, vote_count: 0, width: 500, height: 200 }],
+      backdrops: [],
+    } as never)
+    vi.mocked(fetchAggregatedRating).mockResolvedValue({
+      sources: { imdb: 8.2 },
+      average: 8.2,
+      count: 1,
+      whatsonFeatures: {
+        imdbTopRanking: 12,
+        metacriticMustSee: false,
+        rottenTomatoesCriticsCertified: true,
+        rottenTomatoesUsersCertified: false,
+      },
+    } as never)
+    const res = await GET(adminReq(
+      "http://localhost:3000/api/poster/movie/44?preview=1&badges=1&ranking=1&dct=imdbTopRanking&api_key=test",
+    ), {
+      params: Promise.resolve({ type: "movie", id: "44" }),
+    })
+    expect(res.status).toBe(200)
+    expect(vi.mocked(fetchAggregatedRating)).toHaveBeenCalled()
+    const spy = vi.mocked(posterService.generatePosterBuffer)
+    expect(spy).toHaveBeenCalled()
+    const genInput = spy.mock.calls[spy.mock.calls.length - 1][0] as {
+      whatsonFeatures: unknown
+      disabledContentTags: string[] | null
+    }
+    // Same-response features travel to the renderer (zero extra fetch) and
+    // the canonical dct tag stays part of the render input.
+    expect(genInput.whatsonFeatures).toEqual({
+      imdbTopRanking: 12,
+      metacriticMustSee: false,
+      rottenTomatoesCriticsCertified: true,
+      rottenTomatoesUsersCertified: false,
+    })
+    expect(genInput.disabledContentTags).toContain("imdbTopRanking")
+  })
+
   it("agebs=knockout resolves the knockout style end-to-end (debug + renderer input)", async () => {
     mockedGetReleaseDates.mockResolvedValue(movieReleaseDatesIT() as never)
     const debug = await GET(adminReq(movieUrl("&age=1&agecountry=IT&agebs=knockout&debug=1")), {

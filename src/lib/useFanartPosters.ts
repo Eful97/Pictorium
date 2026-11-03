@@ -16,6 +16,13 @@ export interface FanartTabData {
   readonly status: FanartTabStatus
   readonly posters: TMDBImage[]
   readonly meta: FanartTabMeta[]
+  /** Additive artwork sections (landscape bases / logos / thumbs). */
+  readonly sections: {
+    readonly backgrounds: TMDBImage[]
+    readonly thumbs: TMDBImage[]
+    readonly logos: TMDBImage[]
+    readonly clearart: TMDBImage[]
+  }
   readonly reload: () => void
 }
 
@@ -38,6 +45,12 @@ export function useFanartPosters(enabled: boolean): FanartTabData {
   const [status, setStatus] = useState<FanartTabStatus>("idle")
   const [posters, setPosters] = useState<TMDBImage[]>([])
   const [meta, setMeta] = useState<FanartTabMeta[]>([])
+  const [sections, setSections] = useState<FanartTabData["sections"]>({
+    backgrounds: [],
+    thumbs: [],
+    logos: [],
+    clearart: [],
+  })
   const abortRef = useRef<AbortController | null>(null)
   const keyRef = useRef<string | null>(null)
   keyRef.current = key
@@ -57,7 +70,17 @@ export function useFanartPosters(enabled: boolean): FanartTabData {
         { signal: ctrl.signal, timeout: 15000 },
       )
       const data = (await res.json().catch(() => null)) as
-        | { posters?: FanartApiPoster[]; code?: string; error?: string }
+        | {
+            posters?: FanartApiPoster[]
+            sections?: {
+              backgrounds?: FanartApiPoster[]
+              thumbs?: FanartApiPoster[]
+              logos?: FanartApiPoster[]
+              clearart?: FanartApiPoster[]
+            }
+            code?: string
+            error?: string
+          }
         | null
       // Risposta tardiva di un titolo precedente: scarta.
       if (ctrl.signal.aborted || keyRef.current !== current) return
@@ -69,13 +92,23 @@ export function useFanartPosters(enabled: boolean): FanartTabData {
         setStatus("unavailable")
         return
       }
-      if (data.posters.length === 0) {
-        setPosters([])
-        setMeta([])
-        setStatus("empty")
-        return
+      const toImages = (arr: FanartApiPoster[] | undefined): TMDBImage[] =>
+        (Array.isArray(arr) ? arr : [])
+          .filter((p) => typeof p?.url === "string")
+          .map((p) => ({
+            file_path: p.url,
+            iso_639_1: null,
+            vote_average: 0,
+            width: 0,
+            height: 0,
+          }))
+      const items = (data.posters ?? []).filter((p) => typeof p?.url === "string")
+      const nextSections = {
+        backgrounds: toImages(data.sections?.backgrounds),
+        thumbs: toImages(data.sections?.thumbs),
+        logos: toImages(data.sections?.logos),
+        clearart: toImages(data.sections?.clearart),
       }
-      const items = data.posters.filter((p) => typeof p?.url === "string")
       setPosters(items.map((p) => ({
         file_path: p.url,
         iso_639_1: null,
@@ -84,7 +117,13 @@ export function useFanartPosters(enabled: boolean): FanartTabData {
         height: 0,
       })))
       setMeta(items.map((p) => ({ lang: p.lang ?? null, likes: p.likes ?? 0 })))
-      setStatus("ready")
+      setSections(nextSections)
+      const hasAny = items.length > 0 ||
+        nextSections.backgrounds.length > 0 ||
+        nextSections.thumbs.length > 0 ||
+        nextSections.logos.length > 0 ||
+        nextSections.clearart.length > 0
+      setStatus(hasAny ? "ready" : "empty")
     } catch {
       if (ctrl.signal.aborted || keyRef.current !== current) return
       setStatus("unavailable")
@@ -98,6 +137,7 @@ export function useFanartPosters(enabled: boolean): FanartTabData {
     setStatus("idle")
     setPosters([])
     setMeta([])
+    setSections({ backgrounds: [], thumbs: [], logos: [], clearart: [] })
   }, [key])
 
   useEffect(() => {
@@ -108,5 +148,5 @@ export function useFanartPosters(enabled: boolean): FanartTabData {
     if (enabled && selected && status === "idle") void load()
   }, [enabled, selected, status, load])
 
-  return { status, posters, meta, reload: load }
+  return { status, posters, meta, sections, reload: load }
 }

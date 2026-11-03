@@ -59,7 +59,13 @@ export const CONTENT_TAG_IDS: readonly string[] = [
   "award",
   "nomination",
   "absoluteCinema",
-  // extra bucket
+  // extra bucket — MDBList/WhatsOn feature badges (below the numeric chart
+  // rank, above sub-genres). Canonical IDs are independent from the external
+  // provider names and never change with the UI language.
+  "imdbTopRanking",
+  "certifiedFresh",
+  "verifiedHot",
+  "mustSee",
   SUBGENRE_FAMILY_TAG,
   ...SUBGENRE_TAG_KEYS.map((k) => `${SUBGENRE_TAG_PREFIX}${k}`),
   "trueStory",
@@ -117,3 +123,29 @@ export function isContentTagDisabled(
   }
   return has(tagId)
 }
+
+/**
+ * Normalized MDBList/WhatsOn feature flags (top-level `whatson_features`).
+ * Client-safe shape: the server parser lives in `ratings.ts` (lenient input
+ * parsing), this interface is the canonical value every consumer reads.
+ *
+ * `imdbTopRanking` is the IMDb Top-250 position (1..250) or null when absent
+ * or malformed; the three booleans are only ever true when the provider
+ * explicitly certified the title (never inferred from a score).
+ */
+export interface MdbListWhatsonFeatures {
+  readonly imdbTopRanking: number | null
+  readonly metacriticMustSee: boolean
+  readonly rottenTomatoesCriticsCertified: boolean
+  readonly rottenTomatoesUsersCertified: boolean
+}
+
+/** Canonical IDs of the automatic MDBList/WhatsOn feature badges. */
+export const MDBLIST_FEATURE_TAG_IDS = [
+  "imdbTopRanking",
+  "certifiedFresh",
+  "verifiedHot",
+  "mustSee",
+] as const
+
+export type MdbListFeatureTagId = (typeof MDBLIST_FEATURE_TAG_IDS)[number]

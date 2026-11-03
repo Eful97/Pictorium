@@ -6,6 +6,8 @@ import { getScopedUserId, userExists } from "@/lib/user-auth"
 import { decodeConfig } from "@/lib/config-token"
 import { resolveUserApiKeys } from "@/lib/tmdb"
 import { resolveRankingSource, type RankingSlot } from "@/lib/ranking-source"
+import { customCatalogSortFragment } from "@/lib/types"
+import { detectCatalogProvider } from "@/lib/catalog-provider-detect"
 import { fetchCustomRankingTop20, findRankingCustomCatalog } from "@/lib/custom-ranking"
 import { streamingRankingCoordinates, streamingRankingItemsFromPin } from "@/lib/streaming-ranking"
 import { addonRankingRemainingMs, addonRankingSourceKey, fetchAddonRanking } from "@/lib/addon-ranking"
@@ -107,6 +109,7 @@ export async function GET(req: NextRequest) {
     const cacheKey =
       `rank:v2:${rawType}:${id}:f20:r${region.code}` +
       `:rs${hashFragment(`${rankingSource.customId}:${rankingCustom.url}:${rankingCustom.datasetId ?? ""}`)}` +
+      customCatalogSortFragment(detectCatalogProvider(rankingCustom.url)?.provider, rankingCustom.sortBy, rankingCustom.sortHow) +
       `${scopedUser ? `:u${hashFragment(scopedUser)}` : ""}` +
       `:ak${hashFragment(resolvedKeys.tmdb.key)}:mk${hashFragment(resolvedKeys.mdblist.key)}:vk${hashFragment(resolvedKeys.tvdb.key)}`
     const cached = cacheGet<{ rank: number | null; top: number }>(cacheKey)

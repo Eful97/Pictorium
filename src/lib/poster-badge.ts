@@ -9,6 +9,7 @@ import { withIdAwards, withIdNoms } from "./award-ids"
 import { formatReleaseDate, getUpcomingReleaseLabel, type DateFormat } from "./release-badge"
 import { getSubGenreMatch, getAllSubGenreMatches } from "./subgenres"
 import { isContentTagDisabled } from "./content-tags"
+import type { MdbListWhatsonFeatures } from "./content-tags"
 
 export { NEXT_EPISODE_BADGE_KEY, isNextEpisodeBadgeKey }
 
@@ -52,6 +53,13 @@ export interface BadgeInput {
   keywords?: string[]
   /** IMDb Top 100 eligibility flag for Absolute Cinema (rank 1..100; legacy name kept, see badge-priority). Resolved externally (async fetch). */
   imdbTop250?: boolean
+  /**
+   * MDBList/WhatsOn feature flags from the SAME ratings response (zero extra
+   * fetch). Absent/null = no automatic feature badge (never a negative
+   * certification). Each badge respects the existing `disabledContentTags`
+   * opt-out through its canonical tag id (see `content-tags.ts`).
+   */
+  whatsonFeatures?: MdbListWhatsonFeatures | null
   /**
    * Space-wide disabled automatic content-tag IDs (canonical, see
    * `content-tags.ts`). Filters BEFORE priority selection: a disabled
@@ -476,6 +484,13 @@ export function computeTopBadge(input: BadgeInput, t: BadgeT, locale?: string, o
     : null
   const trueStory = getTrueStoryLabel(input.keywords || [], t)
   const basedOnBook = getBasedOnBookLabel(input.keywords || [], t)
+  // MDBList/WhatsOn features (same-response payload): only explicit flags
+  // badge; absence never means "not certified", it just renders nothing.
+  const features = input.whatsonFeatures ?? null
+  const imdbTopRanking = features?.imdbTopRanking ?? null
+  const certifiedFresh = features?.rottenTomatoesCriticsCertified === true
+  const verifiedHot = features?.rottenTomatoesUsersCertified === true
+  const mustSee = features?.metacriticMustSee === true
   const nextEpisode = input.mediaType === "tv"
     ? getNextEpisodeLabel({
         mediaType: "tv",
@@ -519,6 +534,10 @@ export function computeTopBadge(input: BadgeInput, t: BadgeT, locale?: string, o
     miniseries,
     returning,
     seriesEnded,
+    imdbTopRanking,
+    certifiedFresh,
+    verifiedHot,
+    mustSee,
     subGenre: autoSubGenre?.label ?? null,
     subGenreKey: autoSubGenre?.key ?? null,
     trueStory,

@@ -678,6 +678,49 @@ describe("GET /catalog/[type]/[id]", () => {
     expect(fetchSpy.mock.calls.some(([url]) => String(url).includes("/movie/550/external_ids") && String(url).includes("api_key=settings-key"))).toBe(true)
   })
 
+  it("keeps universal search-row fields on the 0-10 scale with the raw hero background", async () => {
+    // ynotv/Glassio read poster/background/logo and ignore
+    // landscapePoster/banner: these universal fields must stay valid for
+    // every row, with imdbRating always on TMDB's 0-10 scale.
+    vi.spyOn(globalThis, "fetch")
+      .mockResolvedValueOnce(Response.json({
+        page: 1,
+        results: [
+          {
+            id: 550,
+            title: "Fight Club",
+            release_date: "1999-10-15",
+            backdrop_path: "/fight-club-bg.jpg",
+            vote_average: 8.4,
+          },
+        ],
+        total_pages: 1,
+        total_results: 1,
+      }))
+      .mockResolvedValueOnce(Response.json({ genres: [{ id: 28, name: "Azione" }] }))
+      .mockResolvedValueOnce(Response.json({ id: 550, imdb_id: "tt0137523" }))
+
+    const req = new NextRequest("http://localhost:3000/catalog/movie/pictorium-search-movies/search=fight%20club.json?api_key=settings-key")
+    const res = await GET_EXTRA(req, {
+      params: Promise.resolve({
+        type: "movie",
+        id: "pictorium-search-movies",
+        extra: ["search=fight%20club.json"],
+      }),
+    })
+    const body = await res.json()
+
+    expect(res.status).toBe(200)
+    const meta = body.metas[0]
+    expect(meta.poster).toContain("/api/poster/movie/550")
+    expect(meta.background).toContain("/t/p/original/fight-club-bg.jpg")
+    expect(meta.background).not.toContain("/api/poster")
+    expect(Number(meta.imdbRating)).toBeGreaterThanOrEqual(0.1)
+    expect(Number(meta.imdbRating)).toBeLessThanOrEqual(10)
+    // Portrait search rows: Nuvio-only art stays absent.
+    expect(meta.landscapePoster).toBeUndefined()
+  })
+
   it("emits tmdb: fallback for full-text search rows without a resolvable IMDb id", async () => {
     vi.spyOn(globalThis, "fetch")
       .mockResolvedValueOnce(Response.json({

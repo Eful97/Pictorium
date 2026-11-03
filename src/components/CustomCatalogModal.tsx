@@ -4,12 +4,12 @@ import React, { useState, useRef, useEffect } from "react"
 import { X, Plus, ListPlus, Film, Tv, Shuffle, Check, AlertCircle } from "lucide-react"
 import { usePSelector } from "@/lib/context"
 import { useT } from "@/lib/contexts/TranslationContext"
-import { detectCatalogProvider, catalogStatusErrorKey } from "@/lib/catalog-provider-detect"
+import { detectCatalogProvider, catalogStatusErrorKey, buildMDBListListUrl } from "@/lib/catalog-provider-detect"
 import { requestSettingsTab } from "@/lib/settings-tab"
 import { parseImdbCsv, IMDB_CSV_MAX_BYTES } from "@/lib/imdb-csv"
 import { userFetch } from "@/lib/http"
 import { EmojiPicker } from "@/components/ui"
-import type { CustomCatalogType } from "@/lib/types"
+import { customCatalogSortKeys, sanitizeCustomCatalogSort, type CustomCatalogType } from "@/lib/types"
 
 interface CustomCatalogModalProps {
   isOpen: boolean
@@ -25,6 +25,22 @@ export function CustomCatalogModal({ isOpen, onClose }: CustomCatalogModalProps)
   const [url, setUrl] = useState("")
   const [name, setName] = useState("")
   const [type, setType] = useState<CustomCatalogType>("movie")
+  // Optional provider sort (validated allowlist below): empty = provider
+  // default. Trakt defaults to its curated `rank`/`asc` order server-side.
+  const [sortBy, setSortBy] = useState("")
+  const [sortHow, setSortHow] = useState<"asc" | "desc">("asc")
+  // MDBList browse picker: read-only top-list discovery, URL synthesized
+  // through the same client-safe detector used for manual input.
+  const [browseOpen, setBrowseOpen] = useState(false)
+  const [browseStatus, setBrowseStatus] = useState<"idle" | "loading" | "ready" | "empty" | "error">("idle")
+  const [browseLists, setBrowseLists] = useState<Array<{
+    name: string
+    url?: string | null
+    id?: number | null
+    slug?: string | null
+    userName?: string | null
+    itemCount?: number | null
+  }>>([])
   const [loading, setLoading] = useState(false)
   const [error, setError] = useState<string | null>(null)
   const [previewItems, setPreviewItems] = useState<Array<{ title: string; year: number }> | null>(null)
@@ -52,6 +68,15 @@ export function CustomCatalogModal({ isOpen, onClose }: CustomCatalogModalProps)
         if (detection.defaultType) {
           setType(detection.defaultType)
         }
+      }
+      // Provider change can invalidate the chosen sort field: reset only when
+      // the new provider cannot honor it (never silently translate keys).
+      const allowed = customCatalogSortKeys(detection?.provider)
+      if (!allowed) {
+        setSortBy("")
+        setSortHow("asc")
+      } else if (sortBy && !allowed.includes(sortBy)) {
+        setSortBy("")
       }
     }
   }
@@ -250,16 +275,20 @@ export function CustomCatalogModal({ isOpen, onClose }: CustomCatalogModalProps)
         return
       }
 
+      const sort = sanitizeCustomCatalogSort(detection.provider, sortBy, sortHow)
       addCustomCatalog({
         name: trimmedName,
         type,
         url: trimmedUrl,
         enabled: true,
+        ...(sort ? { sortBy: sort.sortBy, sortHow: sort.sortHow } : {}),
       })
 
       setTimeout(() => {
         setUrl("")
         setName("")
+        setSortBy("")
+        setSortHow("asc")
         setPreviewItems(null)
         setLoading(false)
         onClose()
@@ -269,6 +298,44 @@ export function CustomCatalogModal({ isOpen, onClose }: CustomCatalogModalProps)
       setLoading(false)
       return
     }
+  }
+
+  // Picker MDBList: top list lette in sola lettura dalla route dedicata
+  // (cache 60min/quota server-side). Nessun segreto nel client oltre alla
+  // chiave che l'utente già possiede, passata come le altre preview.
+  const loadBrowse = async () => {
+    setBrowseStatus("loading")
+    try {
+      const params = new URLSearchParams({ mode: "top", limit: "20" })
+      if (mdblistApiKey) params.set("mdblist_key", mdblistApiKey)
+      const res = await userFetch(`/api/mdblist/lists?${params.toString()}`, {
+        signal: AbortSignal.timeout(8000),
+      }).catch(() => null)
+      const data = res && res.ok ? await res.json().catch(() => null) : null
+      const lists = Array.isArray(data?.lists) ? data.lists : []
+      setBrowseLists(lists)
+      setBrowseStatus(lists.length > 0 ? "ready" : "empty")
+    } catch {
+      setBrowseStatus("error")
+    }
+  }
+
+  const handleBrowseToggle = () => {
+    const next = !browseOpen
+    setBrowseOpen(next)
+    if (next && browseStatus === "idle") void loadBrowse()
+  }
+
+  const handleBrowsePick = (entry: (typeof browseLists)[number]) => {
+    const target = entry.url || buildMDBListListUrl({
+      userName: entry.userName,
+      slug: entry.slug,
+      id: entry.id,
+    })
+    if (!target) return
+    handleUrlChange(target)
+    if (!name.trim() && entry.name) setName(entry.name)
+    setBrowseOpen(false)
   }
 
   // Prompt di collegamento Trakt: la preview owner-private richiede
@@ -281,6 +348,12 @@ export function CustomCatalogModal({ isOpen, onClose }: CustomCatalogModalProps)
     requestSettingsTab("spazio")
     setSettingsOpen(true)
   }
+
+  // Provider-specific sort allowlist (empty for providers without a sort
+  // contract). Only accepted keys are offered: a foreign value can never be
+  // submitted, and the server re-validates the same leaf.
+  const urlDetection = url.trim() ? detectCatalogProvider(url.trim()) : null
+  const sortKeys = customCatalogSortKeys(urlDetection?.provider)
 
   return (
     <div
@@ -361,6 +434,52 @@ export function CustomCatalogModal({ isOpen, onClose }: CustomCatalogModalProps)
             <span className="text-[9px] px-1.5 py-0.5 rounded bg-white/5 border border-white/10 text-zinc-400">IMDb CSV</span>
             <span className="text-[9px] px-1.5 py-0.5 rounded bg-white/5 border border-white/10 text-zinc-400">TVDB</span>
           </div>
+          <div className="mt-2">
+            <button
+              type="button"
+              onClick={handleBrowseToggle}
+              aria-expanded={browseOpen}
+              aria-label="MDBList"
+              className="w-full py-1.5 px-2 rounded-xl text-[11px] font-semibold border border-white/10 bg-white/5 text-zinc-300 hover:text-white hover:bg-white/10 transition-all"
+            >
+              MDBList
+            </button>
+            {browseOpen && (
+              <div className="mt-1.5 rounded-xl border border-white/10 bg-surface2/60 p-2 max-h-44 overflow-y-auto">
+                {browseStatus === "loading" && (
+                  <p className="py-2 text-center text-[10px] text-zinc-400">{t("ui.loading")}</p>
+                )}
+                {browseStatus === "empty" && (
+                  <p className="py-2 text-center text-[10px] text-zinc-400">{t("ui.customNoTitles")}</p>
+                )}
+                {browseStatus === "error" && (
+                  <div className="py-2 text-center">
+                    <p className="text-[10px] text-zinc-400">{t("ui.customErrUnavailable")}</p>
+                    <button
+                      type="button"
+                      onClick={() => void loadBrowse()}
+                      className="mt-1 px-2 py-1 rounded-lg bg-white/5 border border-white/10 text-[10px] font-semibold text-zinc-300 hover:text-white hover:bg-white/10 transition-all"
+                    >
+                      {t("ui.retry")}
+                    </button>
+                  </div>
+                )}
+                {browseStatus === "ready" && browseLists.map((entry, idx) => (
+                  <button
+                    key={`${entry.userName ?? ""}:${entry.slug ?? entry.id ?? idx}`}
+                    type="button"
+                    onClick={() => handleBrowsePick(entry)}
+                    className="w-full text-left px-2 py-1.5 rounded-lg text-[11px] text-zinc-300 hover:text-white hover:bg-white/10 transition-colors"
+                  >
+                    <span className="block truncate">{entry.name}</span>
+                    {typeof entry.itemCount === "number" && entry.itemCount > 0 && (
+                      <span className="block text-[9px] text-zinc-500">{entry.itemCount}</span>
+                    )}
+                  </button>
+                ))}
+              </div>
+            )}
+          </div>
         </div>
         ) : (
         <div className="space-y-3">
@@ -395,6 +514,35 @@ export function CustomCatalogModal({ isOpen, onClose }: CustomCatalogModalProps)
             />
           </div>
         </div>
+        )}
+
+        {mode === "url" && sortKeys && (
+          <div>
+            <label className="block text-[11px] font-semibold text-zinc-300 mb-1">
+              {t("ui.ordering")}
+            </label>
+            <div className="grid grid-cols-[1fr_auto] gap-1.5">
+              <select
+                value={sortBy}
+                onChange={(e) => setSortBy(e.target.value)}
+                className="w-full px-2 py-2 bg-surface2 border border-white/10 rounded-xl text-xs text-foreground focus:outline-none focus:border-accent-orange transition-colors"
+              >
+                <option value="">—</option>
+                {sortKeys.map((key) => (
+                  <option key={key} value={key}>{key}</option>
+                ))}
+              </select>
+              <select
+                value={sortHow}
+                onChange={(e) => setSortHow(e.target.value === "desc" ? "desc" : "asc")}
+                disabled={!sortBy}
+                className="px-2 py-2 bg-surface2 border border-white/10 rounded-xl text-xs text-foreground focus:outline-none focus:border-accent-orange transition-colors disabled:opacity-40"
+              >
+                <option value="asc">↑ asc</option>
+                <option value="desc">↓ desc</option>
+              </select>
+            </div>
+          </div>
         )}
 
         <div>

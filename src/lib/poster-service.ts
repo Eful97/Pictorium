@@ -41,6 +41,7 @@ import fs from "fs"
 import path from "path"
 import { buildQualityBadgeSvg, buildQualityKnockoutSvg, buildAgeEmphasisSvg, buildGradientMarkSvg, buildStripBadgeSvg, QUALITY_GROUP_ROW_MAX_ITEMS, badgeBoxHeight, TOP_SHADOW_PAD, TOP_SHADOW_FILTER, KNOCKOUT_SHADOW_FILTER, KNOCKOUT_INK_OPACITY, knockoutOuterShadow, AGE_KNOCKOUT_RADIUS_FACTOR, AGE_MONO_STROKE_FACTOR, AGE_MONO_STROKE_MIN, AGE_MONO_INK_DARK, AGE_MONO_INK_LIGHT, SATIN_PILL_INK_DARK, SATIN_PILL_INK_LIGHT, SATIN_PILL_STROKE_DARK, SATIN_PILL_STROKE_LIGHT, SATIN_PILL_STROKE_WIDTH, satinPillStops } from "./badge-svg-shared"
 import { computeTopBadge, getNextEpisodeLabel, isNetworkStudio, shouldSuppressExtraTopBadgeForNetwork, type BadgeInput } from "./poster-badge"
+import type { MdbListWhatsonFeatures } from "./content-tags"
 import { isNextEpisodeBadgeKey, DEFAULT_SASH_ORDER } from "./badge-priority"
 import { DEMO_SAMPLE_NETWORK } from "./demo-samples"
 import type { DateFormat } from "./release-badge"
@@ -418,6 +419,13 @@ export interface GenerationInput {
   accentOverride: { genreColor: string; rankColor: string } | null
   /** Pre-resolved IMDb Top 250 membership. Falls back gracefully when falsy. */
   imdbTop250?: boolean
+  /**
+   * MDBList/WhatsOn feature flags from the SAME ratings response (zero extra
+   * fetch, resolved by the route). Absent/null = no automatic feature badge;
+   * each badge still respects `disabledContentTags` (dct) via the canonical
+   * tag ids inside `computeTopBadge`.
+   */
+  whatsonFeatures?: MdbListWhatsonFeatures | null
   /** Path sorgente del poster (cache image-level). Assente → niente cache. */
   posterSrc?: string | null
   /**
@@ -2387,7 +2395,7 @@ export async function generatePosterBuffer(input: GenerationInput): Promise<Buff
     tvType, tvStatus, releaseDate, firstAirDate,
     lastAirDate, seasonCount, nextEpisodeAirDate, numberOfEpisodes, originCountries, genreIds,
     wikidataResult, tmdbKeywords, locale, t,
-    qLabel, queryExtra, qNetLogo, networkLogo, networkLogoPosition = "auto", networkLogoFollowTitle, networkFixedX, networkFixedY, onNetworkGeometry, onBadgeGeometry, badgeItemTransforms, badgeHomeGhosts, onAccentMeta, sd, accentOverride, imdbTop250,
+    qLabel, queryExtra, qNetLogo, networkLogo, networkLogoPosition = "auto", networkLogoFollowTitle, networkFixedX, networkFixedY, onNetworkGeometry, onBadgeGeometry, badgeItemTransforms, badgeHomeGhosts, onAccentMeta, sd, accentOverride, imdbTop250, whatsonFeatures,
     logoSrc, backdropSrc, analysisKey,
     preRelease = false,
     hideLogo = false,
@@ -2466,6 +2474,7 @@ export async function generatePosterBuffer(input: GenerationInput): Promise<Buff
     tvStatus,
     keywords: [...tmdbKeywords],
     imdbTop250: !!imdbTop250,
+    whatsonFeatures: whatsonFeatures ?? null,
     disabledContentTags: disabledContentTags ?? null,
   }
   const computed = computeTopBadge(badgeInput, t, locale, sashOrder ?? null, input.dateFormat ?? "locale")

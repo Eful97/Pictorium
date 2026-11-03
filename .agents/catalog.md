@@ -49,6 +49,54 @@ emette solo ID `pictorium-*`.
 Warmup automatico: `pictorium-jw-movies`, `pictorium-jw-series`, `pictorium-netflix-movies/series`, `pictorium-prime-movies/series`, `pictorium-anime-movies`, `pictorium-anime`
 (`WARMUP_CATALOG_IDS` — 8 cataloghi). I restanti 10 platform restano cold ma beneficiano della cache JustWatch condivisa (6 ore).
 
+## Manifest health (contratto Stremio)
+
+Gate dedicato: `src/__tests__/catalogs/manifest-health.test.ts`. Misura la
+lunghezza REALE del body di `buildManifestResponse` per lo spazio default e la
+tiene sotto **8192 byte** (cap di fatto di client/strumenti addon), più i
+controlli inline del linter Stremio (`id`/`name`/`version` semver, `resources`,
+`types`, `catalogs`, `extra`): nessuna dipendenza `stremio-addon-linter`
+aggiunta. Baseline corrente: ~7.99 KB senza `contactEmail`, ~8.02 KB con
+l'env impostata; il margine è volutamente piccolo, quindi il test va tenuto
+verde e il budget va considerato quando si aggiungono campi al manifest.
+
+- **8 KB**: il manifest non è un catalogo. Non aggiungere dati per-item
+  (thumbnail, descrizioni lunghe, meta) né duplicare liste genere. Se un nuovo
+  default sfora, il messaggio del test riporta la dimensione esatta e i
+  cataloghi più pesanti: si riduce la sorgente (es. un extra inutile), **mai**
+  troncare cataloghi utente.
+- **`background` assoluto**: `${origin}/Screen/home.png` (2559×1439, requisito
+  Stremio ≥1024×786; `public/pictorium.png` è 2402×400 e non basta).
+- **`contactEmail`**: da `PICTORIUM_CONTACT_EMAIL` (fallback legacy
+  `POSTERIUM_CONTACT_EMAIL` via `envWithFallback`), incluso solo se è un
+  indirizzo plausibile; senza env il campo è omesso (nessun contatto inventato).
+- **`meta.links`**: categorie canoniche stremio-core `Genres` e `imdb`. I generi
+  aprono `stremio:///discover/<manifest-encoded>/<type>/pictorium-jw-*?genre=...`
+  (stessa forma di Cinemeta); l'IMDb link compare solo con un `tt` valido. Il
+  body meta porta il frammento cache `:lk1` per non servire per 12h i body
+  precedenti privi di `links`.
+
+### Regola `skip` < 100 item
+
+`skip` è la paginazione Stremio: la pagina standard è 100 item e una risposta
+con meno di 100 chiude il catalogo. I cataloghi built-in sono bounded (Top 10
+piattaforme, Top 20 JustWatch/anime, selezioni streaming) e non possono mai
+restituire una seconda pagina: **non dichiarano `skip`**. Lo dichiarano solo i
+cataloghi custom (possono superare 100 item) e i cataloghi addon importati
+(capacità della fonte, invariate). Il route continua ad accettare `skip` per
+compatibilità con URL/install esistenti: cambia solo ciò che il manifest
+pubblicizza. È questa rimozione a tenere lo spazio default sotto gli 8 KB.
+
+### Checklist catalogo/manifest
+
+- [ ] `id`/`name`/`type` string, `id` unico; `type` in `movie|series|all`.
+- [ ] `extra`: `name` string, `isRequired` boolean, `options` string[]; niente
+      `skip` se la sorgente è bounded <100.
+- [ ] Manifest default <8192 byte e linter inline verde.
+- [ ] `background` assoluto e ≥1024×786; `logo` assoluto.
+- [ ] `contactEmail` solo da env valida.
+- [ ] `/meta` con `links` `Genres`/`imdb` quando applicabili.
+
 ## Flusso per catalogo
 
 ### JustWatch (`pictorium-jw-*`)
@@ -869,3 +917,52 @@ regionale JW > base; liste custom con split `— Film/Serie TV` per `mixed`):
 - `src/app/catalog/[type]/[id]/route.ts` — route Stremio
 - `src/app/api/trending/rank/route.ts` — rank JustWatch per il badge
 - `src/app/api/warmup/route.ts` — preriscaldamento poster (trending + JW + mapping)
+
+## Superfici client e campi universali (ynotv / Glassio)
+
+Analisi dei client ynotv/Glassio: dell'item di catalogo/meta leggono SOLO
+`poster`, `background` e `logo`; `landscapePoster` e `banner` sono Nuvio-only
+e vengono ignorati.
+
+- **`poster`**: sempre il rendering Pictorium (`/api/poster/...`), mai
+  `background` né un path TMDB grezzo. Per i titoli dual-format resta SEMPRE
+  il canvas verticale (`posterShape: "poster"`) con `landscapePoster`
+  additivo; per i titoli a base singola segue la forma risolta (mapping,
+  `catalogShapes`, globale) e `posterShape` dichiara la verità.
+- **`background`**: sempre l'artwork TMDB grezzo
+  (`image.tmdb.org/t/p/original/...`), mai un rendering Pictorium: è l'hero
+  art dei dettagli. Vale per portrait, landscape e dual.
+- **`logo`**: logo TMDB separato solo quando NON c'è un canvas landscape
+  baked-in (`rowLogoSuppressed`: titoli landscape o dual). Stesso gate in
+  `/meta`. Nuvio sovrappone `logo` a `landscapePoster`, quindi ometterlo è la
+  guardia anti doppio-logo.
+- **`landscapePoster`/`banner`**: additivi. `banner` è sempre il canvas
+  landscape pulito (`hideLogo=1`); `landscapePoster` esiste solo quando un
+  canvas landscape è servito (titolo landscape o dual-format).
+- **`imdbRating`**: stringa decimale sulla scala 0-10 (TMDB `vote_average`),
+  mai percentuali. Guard fail-closed `normalizeCatalogRating` in
+  `catalog-handler.ts`: fuori da `(0.1, 10]` il campo è omesso (come un voto
+  assente), anche per i body raw in cache
+  (`normalizeCatalogRatingString`).
+
+### Rischio formato globale landscape (tradeoff accettato)
+
+Con `posterShape: "landscape"` nei default globali i titoli a base singola
+servono un `poster` 16:9 anche nel campo universale `poster` (comportamento
+storico, coperto da test). Un client che forza uno slot verticale 2:3 e
+ignora `posterShape` croppa quell'immagine.
+
+- Non si cambia il renderer: la mitigazione esplicita è per-catalogo
+  (`catalogShapes: { "<id>": "poster" }`) o un template con `shape=poster`;
+  i titoli dual-format sono già immuni (`poster` verticale +
+  `landscapePoster`).
+- `background`/`logo`/`imdbRating` non sono toccati dal formato globale.
+- `/meta` non dispone di un segnale client per distinguere Nuvio (overlay
+  logo) da ynotv/Glassio (hero con `background` + `logo`): per landscape/dual
+  il `logo` resta soppresso. Servire entrambi richiederebbe un parametro
+  esplicito di client/contesto (es. `?hero=1`), fuori scope finché non esiste
+  un consumer che lo richieda.
+
+Fixture E2E: `e2e/mock-server.mjs` espone un id TMDB dedicato
+(`GLASSIO_FIXTURE_ID = 987654`) con `poster_path`, `backdrop_path` e un
+`logo` separato, additivo e non usato dalle fixture storiche.

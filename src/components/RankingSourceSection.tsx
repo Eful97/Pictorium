@@ -373,6 +373,9 @@ function RankingInfoPopover({
         <p id="ranking-source-desc" className="text-xs leading-relaxed text-zinc-300">
           {t("ui.rankingSourceDesc")}
         </p>
+        <p className="mt-2 text-[11px] leading-relaxed text-zinc-400">
+          {t("ui.ordering")}: <span dir="ltr">Trakt · rank · asc</span>
+        </p>
         <div className="mt-2.5 flex items-start gap-1.5 border-t border-white/[0.06] pt-2 text-[11px] text-zinc-400">
           <span className="mt-0.5 shrink-0 text-accent-orange">•</span>
           <span>

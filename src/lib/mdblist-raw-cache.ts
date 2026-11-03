@@ -7,6 +7,7 @@ import { atomicWriteFile } from "@/lib/atomic-write"
 import { combineAbortSignals, raceWithAbort } from "@/lib/abort-signal"
 import { getStorageMode } from "@/lib/kv"
 import { createLogger } from "@/lib/logger"
+import type { MdbListWhatsonFeatures } from "@/lib/content-tags"
 
 const log = createLogger("mdblist-raw-cache")
 
@@ -126,17 +127,28 @@ const FILE_NAME_RE = /^mdblist-raw-v1-[0-9a-f]{64}\.json$/
 
 export interface MdbRawPersisted {
   sources: Record<string, number>
+  /**
+   * Normalized `whatson_features` from the same upstream response, persisted
+   * with the sources (envelope v2). Absent on legacy v1 rows and on rows
+   * written without renderable features: absence is "no automatic feature
+   * badge", never a negative certification.
+   */
+  whatsonFeatures?: MdbListWhatsonFeatures
   /** Remaining lifetime (ms) of the absolute expiry: repopulate L1 with
    *  exactly this, never with a fresh TTL (no sliding expiration). */
   remainingTtlMs: number
 }
 
 interface MdbRawEnvelope {
-  v: 1
+  /** Envelope schema: v1 legacy (sources only), v2 adds `f`. Old v1 rows are
+   *  still read fail-closed (sources served, features omitted). */
+  v: 1 | 2
   /** Full raw cache key (`mdb:raw:<version>:<type-segment>:<imdb|tmdb{id}>:<keyHash>:mv<minVotes>`):
    *  identity check on read, never a plaintext secret (only the key hash fragment). */
   key: string
   d: Record<string, number>
+  /** Normalized `whatson_features` (v2 only; never present on legacy rows). */
+  f?: MdbListWhatsonFeatures
   /** Generation (ms epoch): absolute age is `now - t`, never renewed. */
   t: number
   /** Explicit TTL chosen at write time (24h default, 7d old movies). */
@@ -185,10 +197,34 @@ function isValidSources(raw: unknown): raw is Record<string, number> {
   return true
 }
 
+const IMDB_TOP_RANKING_MAX = 250
+
+/** Strict feature shape (fail-closed): unknown fields/values are ignored and
+ *  never invent a certification. Returns null when nothing is renderable. */
+function normalizeFeatures(raw: unknown): MdbListWhatsonFeatures | null {
+  if (typeof raw !== "object" || raw === null || Array.isArray(raw)) return null
+  const rec = raw as Record<string, unknown>
+  const rank = typeof rec.imdbTopRanking === "number" && Number.isInteger(rec.imdbTopRanking)
+    && rec.imdbTopRanking >= 1 && rec.imdbTopRanking <= IMDB_TOP_RANKING_MAX
+    ? rec.imdbTopRanking
+    : null
+  const features: MdbListWhatsonFeatures = {
+    imdbTopRanking: rank,
+    metacriticMustSee: rec.metacriticMustSee === true,
+    rottenTomatoesCriticsCertified: rec.rottenTomatoesCriticsCertified === true,
+    rottenTomatoesUsersCertified: rec.rottenTomatoesUsersCertified === true,
+  }
+  const any = features.imdbTopRanking !== null
+    || features.metacriticMustSee
+    || features.rottenTomatoesCriticsCertified
+    || features.rottenTomatoesUsersCertified
+  return any ? features : null
+}
+
 function isValidEnvelope(raw: unknown, rawKey: string): raw is MdbRawEnvelope {
   if (typeof raw !== "object" || raw === null) return false
   const rec = raw as Record<string, unknown>
-  return rec.v === 1
+  return (rec.v === 1 || rec.v === 2)
     && rec.key === rawKey
     && isValidSources(rec.d)
     && typeof rec.t === "number"
@@ -453,7 +489,16 @@ export async function getPersistedMdbRaw(
     await boundedCleanupUnlink(file, owned)
     return null
   }
-  return { sources: { ...parsed.d }, remainingTtlMs: parsed.ttl - ageMs }
+  return {
+    sources: { ...parsed.d },
+    // Legacy v1 rows and invalid/missing v2 `f` are read fail-closed: sources
+    // still served, features omitted (never a negative certification).
+    ...(parsed.v === 2 ? (() => {
+      const features = normalizeFeatures(parsed.f)
+      return features ? { whatsonFeatures: features } : {}
+    })() : {}),
+    remainingTtlMs: parsed.ttl - ageMs,
+  }
 }
 
 /**
@@ -481,6 +526,7 @@ export async function setPersistedMdbRaw(
   rawKey: string,
   sources: Record<string, number>,
   ttlMs: number,
+  whatsonFeatures?: MdbListWhatsonFeatures | null,
 ): Promise<boolean> {
   if (!isValidRawKey(rawKey) || !isValidSources(sources) || !isValidTtl(ttlMs)) return false
   if (!isDiskPersistEnabled()) return false
@@ -507,10 +553,12 @@ export async function setPersistedMdbRaw(
   }
   const filename = mdbRawPersistFilename(rawKey)
   if (!filename) return false
+  const features = normalizeFeatures(whatsonFeatures)
   const envelope: MdbRawEnvelope = {
-    v: 1,
+    v: 2,
     key: rawKey,
     d: { ...sources },
+    ...(features ? { f: features } : {}),
     t: Date.now(),
     ttl: Math.floor(ttlMs),
   }
@@ -622,7 +670,7 @@ export async function pruneMdbRawPersisted(
           const parsed: unknown = JSON.parse(await fsp.readFile(full, "utf-8"))
           if (
             typeof parsed !== "object" || parsed === null
-            || (parsed as Record<string, unknown>).v !== 1
+            || ((parsed as Record<string, unknown>).v !== 1 && (parsed as Record<string, unknown>).v !== 2)
             || typeof (parsed as Record<string, unknown>).t !== "number"
             || !isValidTtl((parsed as Record<string, unknown>).ttl)
           ) {

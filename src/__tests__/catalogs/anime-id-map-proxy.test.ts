@@ -20,6 +20,8 @@ describe("anime proxy rewrite (local snapshot, zero network)", () => {
         [
           { id: "anilist:290", type: "series", poster: "https://orig/a.jpg" },
           { id: "kitsu:123", type: "series", poster: "https://orig/k.jpg" },
+          { id: "mal:22", type: "series", poster: "https://orig/mal.jpg" },
+          { id: "anidb:199", type: "series", poster: "https://orig/anidb.jpg" },
           { id: "anilist:999999999", type: "series", poster: "https://orig/m.jpg" },
         ],
         DOMAIN,
@@ -59,7 +61,7 @@ describe("anime proxy rewrite (local snapshot, zero network)", () => {
     expect(out.poster).toContain(`&u=${USER}`)
   })
 
-  it("keeps original artwork on miss, ambiguity, media mismatch and disabled namespaces", () => {
+  it("keeps original artwork on miss, ambiguity, media mismatch and unknown ids", () => {
     const miss: StremioItemMeta = { id: "anilist:999999999", type: "series", poster: "https://orig/miss.jpg" }
     expect(rewriteSingleMetaPoster(miss, DOMAIN).poster).toBe("https://orig/miss.jpg")
 
@@ -73,20 +75,45 @@ describe("anime proxy rewrite (local snapshot, zero network)", () => {
     expect(animeArtworkPosterId("anilist:164", "series")).toBeNull()
     expect(rewriteSingleMetaPoster(wrongSide, DOMAIN).poster).toBe("https://orig/ws.jpg")
 
-    // mal:/anidb: non abilitati in questa delivery → intatti.
-    const mal: StremioItemMeta = { id: "mal:145", type: "series", poster: "https://orig/mal.jpg" }
-    const anidb: StremioItemMeta = { id: "anidb:199", type: "series", poster: "https://orig/anidb.jpg" }
-    expect(rewriteSingleMetaPoster(mal, DOMAIN).poster).toBe("https://orig/mal.jpg")
-    expect(rewriteSingleMetaPoster(anidb, DOMAIN).poster).toBe("https://orig/anidb.jpg")
-
     // Tipo ambiguo (`anime` nudo): nessun guess movie-vs-tv.
     const bare: StremioItemMeta = { id: "anilist:290", type: "anime", poster: "https://orig/bare.jpg" }
     expect(rewriteSingleMetaPoster(bare, DOMAIN).poster).toBe("https://orig/bare.jpg")
 
     // Id malformati: intatti.
-    for (const bad of ["anilist:", "anilist:0", "anilist:-5", "anilist:xx", "anilist:1:2"]) {
+    for (const bad of ["anilist:", "anilist:0", "anilist:-5", "anilist:xx", "anilist:1:2", "mal:", "anidb:0"]) {
       const item: StremioItemMeta = { id: bad, type: "series", poster: "https://orig/bad.jpg" }
       expect(rewriteSingleMetaPoster(item, DOMAIN).poster).toBe("https://orig/bad.jpg")
+    }
+  })
+
+  it("rewrites mal:/anidb: with the same unique side-compatible rules", () => {
+    // mal 164 / anidb 7 puntano al film tmdb 128; anidb 199 alla serie 36837.
+    const metas: StremioItemMeta[] = [
+      { id: "mal:164", type: "movie", name: "Mononoke", poster: "https://orig/mal164.jpg" },
+      { id: "anidb:199", type: "series", name: "KareKano", poster: "https://orig/anidb199.jpg" },
+      { id: "mal:22", type: "anime.series", name: "GTO", poster: "https://orig/mal22.jpg" },
+    ]
+    const out = rewriteMetasPosters(metas, DOMAIN, USER, DV)
+    expect(out.map((m) => m.id)).toEqual(["mal:164", "anidb:199", "mal:22"])
+    expect(out.map((m) => m.type)).toEqual(["movie", "series", "anime.series"])
+    expect(out[0].poster).toContain("/api/poster/movie/128?")
+    expect(out[0].poster).toContain(`&u=${USER}`)
+    expect(out[0].poster).toContain(`&dv=${DV}`)
+    expect(out[1].poster).toContain("/api/poster/series/36837?")
+    expect(out[2].poster).toContain("/api/poster/series/27845?")
+  })
+
+  it("never first-picks mal:/anidb: ambiguity and keeps the wrong-side artwork", () => {
+    expect(animeArtworkPosterId("mal:11441", "movie")).toBeNull()
+    expect(animeArtworkPosterId("anidb:7439", "movie")).toBeNull()
+    for (const [id, type, poster] of [
+      ["mal:11441", "movie", "https://orig/amb-mal.jpg"],
+      ["anidb:7439", "movie", "https://orig/amb-anidb.jpg"],
+      ["mal:164", "series", "https://orig/ws-mal.jpg"],
+      ["anidb:1", "movie", "https://orig/ws-anidb.jpg"],
+    ] as const) {
+      const item: StremioItemMeta = { id, type, poster }
+      expect(rewriteSingleMetaPoster(item, DOMAIN).poster).toBe(poster)
     }
   })
 

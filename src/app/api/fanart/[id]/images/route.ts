@@ -1,5 +1,6 @@
 import { NextRequest } from "next/server"
-import { getFanartPosters, FanartError } from "@/lib/fanart"
+import { getFanartImages, FanartError } from "@/lib/fanart"
+import { fanartLandscapeBaseCandidates } from "@/lib/poster-config"
 import { resolveUserApiKeys } from "@/lib/tmdb"
 import { getScopedUserId, extractUserParam } from "@/lib/user-auth"
 import { rateLimit, rateLimitKey, rateLimitResponse } from "@/lib/rate-limit"
@@ -35,14 +36,16 @@ export async function GET(req: NextRequest, { params }: { params: Promise<RouteP
       { status: 503 },
     )
   }
-  const cacheKey = `fanart:images:${type}:${id}`
+  // v2: additive artwork sections (background/thumb/logo/clearart) — v1 bodies
+  // carry posters only and must not be served as the new shape.
+  const cacheKey = `fanart:images:v2:${type}:${id}`
   const acceptEncoding = req.headers.get("accept-encoding")
-  const cached = cacheGet<{ posters: unknown[]; source: string }>(cacheKey)
+  const cached = cacheGet<{ posters: unknown[]; sections?: unknown; landscapeCandidates?: string[]; source: string }>(cacheKey)
   if (cached) return jsonGzip(cached, 200, undefined, acceptEncoding)
   // Niente catch-and-cache: guasti upstream non diventano "nessun artwork".
-  let posters: Awaited<ReturnType<typeof getFanartPosters>>
+  let images: Awaited<ReturnType<typeof getFanartImages>>
   try {
-    posters = await getFanartPosters(
+    images = await getFanartImages(
       type,
       tmdbId,
       { tmdbApiKey: resolved.tmdb.key, fanartKey: resolved.fanart.key },
@@ -54,8 +57,22 @@ export async function GET(req: NextRequest, { params }: { params: Promise<RouteP
     }
     return jsonGzip({ error: "Fanart.tv unavailable", code: "fanart_unavailable" }, 502, undefined, acceptEncoding)
   }
-  const data = { posters, source: "fanart" }
+  const data = {
+    posters: images.posters,
+    // Additive artwork sections (normalized like posters).
+    sections: {
+      backgrounds: images.backgrounds,
+      thumbs: images.thumbs,
+      logos: images.logos,
+      clearart: images.clearart,
+    },
+    // Landscape-base candidates (backgrounds first, then thumbs).
+    landscapeCandidates: fanartLandscapeBaseCandidates(images),
+    source: "fanart",
+  }
   // Hit 24h, assenza 10min (stessi TTL del client, senza segreti nella chiave).
-  cacheSet(cacheKey, data, ["fanart", "images"], posters.length > 0 ? 24 * 60 * 60 * 1000 : 10 * 60 * 1000)
+  const hasAny = images.posters.length > 0 || images.backgrounds.length > 0 || images.thumbs.length > 0 ||
+    images.logos.length > 0 || images.clearart.length > 0
+  cacheSet(cacheKey, data, ["fanart", "images"], hasAny ? 24 * 60 * 60 * 1000 : 10 * 60 * 1000)
   return jsonGzip(data, 200, undefined, acceptEncoding)
 }

@@ -6,6 +6,7 @@ import { createLogger } from "@/lib/logger"
 import { envWithFallback } from "@/lib/env-compat"
 import { isPrivateHost } from "@/lib/safe-remote-fetch"
 import { detectCatalogProvider, isTraktUserContentUrl } from "./catalog-provider-detect"
+import { sanitizeCustomCatalogSort, type CustomCatalogSortOrder } from "./types"
 
 // Re-export per compatibilità: il riconoscimento URL vive in
 // catalog-provider-detect.ts (foglia client-safe); route e test continuano
@@ -454,7 +455,13 @@ async function fetchLetterboxdList(url: string, limit: number = 500, signal?: Ab
  * Richiede la Client ID d'istanza (PICTORIUM_TRAKT_CLIENT_ID); le liste
  * pubbliche non richiedono OAuth.
  */
-async function fetchTraktList(url: string, limit: number = 500, signal?: AbortSignal, traktAuth?: TraktAuthContext | null): Promise<UnifiedCatalogResult> {
+async function fetchTraktList(
+  url: string,
+  limit: number = 500,
+  signal?: AbortSignal,
+  traktAuth?: TraktAuthContext | null,
+  sort?: { sortBy: string; sortHow: CustomCatalogSortOrder } | null,
+): Promise<UnifiedCatalogResult> {
   const empty = (status: CatalogFetchStatus): UnifiedCatalogResult => ({ items: [], status })
   try {
     const trimmed = url.trim()
@@ -509,14 +516,14 @@ async function fetchTraktList(url: string, limit: number = 500, signal?: AbortSi
         log.warn("Trakt watchlist or slug-less list not supported as custom catalog")
         return empty("unsupported")
       }
-      return fetchTraktWatchlist(user, limit, signal, traktAuth)
+      return fetchTraktWatchlist(user, limit, signal, traktAuth, sort)
     }
     if (!slug) {
       log.warn("Trakt watchlist or slug-less list not supported as custom catalog")
       return empty("unsupported")
     }
 
-    return fetchTraktStandardList(user || null, slug, limit, signal, traktAuth)
+    return fetchTraktStandardList(user || null, slug, limit, signal, traktAuth, sort)
   } catch (err) {
     log.error("Error fetching Trakt list", { error: (err as Error).message })
     return empty("unavailable")
@@ -541,6 +548,7 @@ async function fetchTraktPaged(
   signal: AbortSignal | undefined,
   transient: "unavailable" | "temporary",
   authenticated = false,
+  sort?: { sortBy: string; sortHow: CustomCatalogSortOrder } | null,
 ): Promise<UnifiedCatalogResult> {
   const empty = (status: CatalogFetchStatus): UnifiedCatalogResult => ({ items: [], status })
   // Partial prefix: pagination was interrupted (abort/page error) — the
@@ -553,11 +561,16 @@ async function fetchTraktPaged(
   try {
     const base = traktApiBase()
     const baseHost = new URL(base).hostname
+    // Curated list order: Trakt's default item order is not guaranteed to be
+    // the owner's rank, so public lists explicitly ask for `rank`/`asc`
+    // (validated allowlist upstream) unless the space configured a sort.
+    const sortBy = sort?.sortBy ?? "rank"
+    const sortHow = sort?.sortHow ?? "asc"
     const maxPages = Math.max(1, Math.min(25, Math.ceil(limit / TRAKT_PAGE_LIMIT)))
     const items: MDBListEntry[] = []
     for (let page = 1; page <= maxPages; page++) {
       if (signal?.aborted) return items.length ? done(items, true) : empty(transient)
-      const pageUrl = `${base}${path}?page=${page}&limit=${TRAKT_PAGE_LIMIT}`
+      const pageUrl = `${base}${path}?page=${page}&limit=${TRAKT_PAGE_LIMIT}&sort_by=${encodeURIComponent(sortBy)}&sort_how=${sortHow}`
       const res = await fetchPinnedProviderUrl(pageUrl, {
         headers,
         signal: combineAbortSignals(signal, TRAKT_TIMEOUT_MS),
@@ -659,6 +672,7 @@ async function fetchTraktWatchlist(
   limit: number,
   signal: AbortSignal | undefined,
   traktAuth: TraktAuthContext | null | undefined,
+  sort?: { sortBy: string; sortHow: CustomCatalogSortOrder } | null,
 ): Promise<UnifiedCatalogResult> {
   const empty = (status: CatalogFetchStatus): UnifiedCatalogResult => ({ items: [], status })
   if (!traktAuth) {
@@ -678,6 +692,7 @@ async function fetchTraktWatchlist(
     signal,
     "temporary",
     true,
+    sort,
   )
 }
 
@@ -697,6 +712,7 @@ async function fetchTraktStandardList(
   limit: number,
   signal: AbortSignal | undefined,
   traktAuth: TraktAuthContext | null | undefined,
+  sort?: { sortBy: string; sortHow: CustomCatalogSortOrder } | null,
 ): Promise<UnifiedCatalogResult> {
   const empty = (status: CatalogFetchStatus): UnifiedCatalogResult => ({ items: [], status })
   const clientId = getTraktClientId()
@@ -708,9 +724,9 @@ async function fetchTraktStandardList(
     ? `/users/${encodeURIComponent(user)}/lists/${encodeURIComponent(slug)}/items/movie,show`
     : `/lists/${encodeURIComponent(slug)}/items/movie,show`
   if (traktAuth?.kind === "token" && user) {
-    return fetchTraktPaged(path, traktHeaders(clientId, traktAuth.accessToken), limit, signal, "temporary", true)
+    return fetchTraktPaged(path, traktHeaders(clientId, traktAuth.accessToken), limit, signal, "temporary", true, sort)
   }
-  const pub = await fetchTraktPaged(path, traktHeaders(clientId), limit, signal, "unavailable")
+  const pub = await fetchTraktPaged(path, traktHeaders(clientId), limit, signal, "unavailable", false, sort)
   // 401/403 pubblico su path utente con proprietario non autenticabile qui:
   // disconnesso → reconnect esplicito; transient → riprova più tardi. Mai un
   // `private` definitivo che nasconde la via di riconnessione. (Token + path
@@ -1197,6 +1213,15 @@ export interface UnifiedCatalogOptions {
   userId?: string | null
   signal?: AbortSignal
   /**
+   * Optional explicit item sort for provider lists that support it. Values are
+   * validated against the provider allowlist (`sanitizeCustomCatalogSort`):
+   * unknown provider/field/order is ignored, never forwarded upstream. Absent
+   * keeps the provider default (Trakt public lists still explicitly request
+   * the curated `rank`/`asc` order).
+   */
+  sortBy?: string
+  sortHow?: CustomCatalogSortOrder
+  /**
    * UUID proprietario fidato (task 4, vedi sopra): abilita watchlist/liste
    * private Trakt dopo il controllo auth/capability del caller. Mai un token
    * fornito dall'utente. Ignorato fuori dai path contenuto-utente Trakt.
@@ -1220,6 +1245,11 @@ export async function fetchUnifiedCatalogResult(
   const limit = options?.limit ?? 500
   const detection = detectCatalogProvider(trimmed)
   const provider = detection?.provider ?? "mdblist"
+  // Explicit per-list sort (validated allowlist): unknown provider/key is
+  // ignored at the boundary. Only an accepted explicit sort enters the 12h
+  // source cache key (legacy keys stay byte-identical without one).
+  const sort = sanitizeCustomCatalogSort(provider, options?.sortBy, options?.sortHow)
+  const sortCacheFragment = sort ? `:so${sort.sortBy}:${sort.sortHow}` : ""
 
   // Contesto Trakt autenticato (task 4): risolto una sola volta PRIMA della
   // cache così la generation di fencing entra nel key — isolamento per UUID +
@@ -1255,7 +1285,7 @@ export async function fetchUnifiedCatalogResult(
       : traktAuth.kind === "token"
         ? `:tu${hashFragment(traktOwner)}:tg${hashFragment(traktAuth.generation ?? "none")}`
         : `:tu${hashFragment(traktOwner)}:tg${traktAuth.kind}`
-  const cacheKey = `custom_cat:${provider}:${crypto.createHash("sha1").update(trimmed).digest("hex").slice(0, 10)}:${limit}:ak${hashFragment(options?.apiKey)}:mk${hashFragment(options?.mdblistKey)}:tk${hashFragment(getTraktClientId())}:ds${hashFragment(options?.datasetId)}:vk${hashFragment(options?.tvdbKey)}:u${hashFragment(options?.userId ?? undefined)}${traktCacheFragment}`
+  const cacheKey = `custom_cat:${provider}:${crypto.createHash("sha1").update(trimmed).digest("hex").slice(0, 10)}:${limit}:ak${hashFragment(options?.apiKey)}:mk${hashFragment(options?.mdblistKey)}:tk${hashFragment(getTraktClientId())}:ds${hashFragment(options?.datasetId)}:vk${hashFragment(options?.tvdbKey)}:u${hashFragment(options?.userId ?? undefined)}${traktCacheFragment}${sortCacheFragment}`
   const cached = traktNoCache ? null : cacheGet<MDBListEntry[]>(cacheKey)
   if (cached) return { items: cached, status: "ok" }
 
@@ -1266,7 +1296,7 @@ export async function fetchUnifiedCatalogResult(
       result = await fetchLetterboxdList(trimmed, limit, options?.signal)
       break
     case "trakt":
-      result = await fetchTraktList(trimmed, limit, options?.signal, traktAuth)
+      result = await fetchTraktList(trimmed, limit, options?.signal, traktAuth, sort)
       break
     case "tmdb_collection":
     case "tmdb_list": {
@@ -1299,7 +1329,7 @@ export async function fetchUnifiedCatalogResult(
     }
     case "mdblist":
     default: {
-      const entries = await fetchCustomMDBList(trimmed, options?.mdblistKey, limit, options?.signal)
+      const entries = await fetchCustomMDBList(trimmed, options?.mdblistKey, limit, options?.signal, sort)
       result = { items: entries, status: entries.length > 0 ? "ok" : "empty" }
       break
     }

@@ -3060,6 +3060,7 @@ export async function GET(req: NextRequest, { params }: { params: Promise<RouteP
         tvStatus: tvStatus ?? null,
         keywords: [...tmdbKeywords],
         imdbTop250: !!imdbTop250,
+        whatsonFeatures: aggregated?.whatsonFeatures ?? null,
         disabledContentTags: disabledContentTags ?? null,
       },
       locale: ephemeralLocale,
@@ -3358,6 +3359,7 @@ export async function GET(req: NextRequest, { params }: { params: Promise<RouteP
         tvStatus,
         keywords: [...tmdbKeywords],
         imdbTop250: !!imdbTop250,
+        whatsonFeatures: aggregated?.whatsonFeatures ?? null,
         disabledContentTags: disabledContentTags ?? null,
       }
       const badgeComputed = computeTopBadge(badgeInput, t, locale, sashOrder, dateFormat)
@@ -3575,7 +3577,7 @@ export async function GET(req: NextRequest, { params }: { params: Promise<RouteP
       badgeHomeGhosts: isDebug && wantNetGeo && wantBadgeGhosts,
       onAccentMeta: (m) => { collectedAccentMeta = m },
       demoSamples,
-      accentOverride, imdbTop250, preRelease: applyPreRelease,
+      accentOverride, imdbTop250, whatsonFeatures: aggregated?.whatsonFeatures ?? null, preRelease: applyPreRelease,
       shape: posterShape,
       posterLayout,
       posterFreshScope,
