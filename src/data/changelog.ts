@@ -30,9 +30,9 @@ export interface ChangelogRelease {
  *  (which bumps on every commit and would leave the dot permanently on). */
 export const CHANGELOG: ChangelogRelease[] = [
   {
-    version: "1.26.5",
-    date: "2026-11-02",
-    title: "Release 1.26.5",
+    version: "1.26.6",
+    date: "2026-11-03",
+    title: "Release 1.26.6",
     items: [
       { type: "feature", text: "Choose a PIN or a longer password to protect the editor" },
       { type: "feature", text: "Save TMDB, MDBList and TVDB keys in Settings, stored encrypted on the server" },
@@ -41,6 +41,8 @@ export const CHANGELOG: ChangelogRelease[] = [
       { type: "fix", text: "Stop spoofed client headers from minting fresh anonymous rate-limit buckets" },
       { type: "fix", text: "Refuse unknown hosts in the addon proxy on shared instances unless allowlisted" },
       { type: "fix", text: "Refuse image and proxy fetches that target private network addresses" },
+      { type: "fix", text: "Saving settings with a PIN no longer fails after the first save" },
+      { type: "fix", text: "Restore the nightly warmup so posters stay fresh on Vercel" },
     ],
   },
   {
