@@ -21,8 +21,11 @@ import { previewRequestHeaders } from "@/lib/user-token"
  * - Results are cached per URL in a bounded module cache (24 entries, LRU
  *   eviction revokes the evicted object URL); concurrent consumers of the same
  *   URL share one in-flight request.
- * - Unmount / URL change aborts the request when the last consumer leaves; a
- *   cached object URL stays valid (owned by the cache, revoked on eviction).
+ * - Unmount / URL change aborts the request when the last consumer leaves; the
+ *   in-flight bookkeeping is dropped in the SAME synchronous step as the abort,
+ *   so a remount in the same tick (React StrictMode) never reuses a doomed
+ *   aborted promise. A cached object URL stays valid (owned by the cache,
+ *   revoked on eviction).
  * - Any failure falls back to the direct URL: never throws, never blank.
  *
  * `api_key` handling is intentionally out of scope (`useSecurePosterUrl`).
@@ -72,7 +75,15 @@ export function __resetAuthenticatedPreviewCacheForTests() {
 
 function requestPreview(url: string): Promise<string> {
   const shared = inflight.get(url)
-  if (shared) return shared
+  if (shared) {
+    const sharedCtrl = controllers.get(url)
+    // An aborted request can never produce a usable result: discard it and
+    // start a fresh authenticated fetch instead of handing back the doomed
+    // promise (it would resolve to the downgraded direct URL).
+    if (!sharedCtrl || !sharedCtrl.signal.aborted) return shared
+    if (inflight.get(url) === shared) inflight.delete(url)
+    if (controllers.get(url) === sharedCtrl) controllers.delete(url)
+  }
   const ctrl = new AbortController()
   controllers.set(url, ctrl)
   const pending = fetch(url, {
@@ -127,7 +138,14 @@ export function useAuthenticatedPreviewUrl(url: string | null | undefined): stri
         return
       }
       consumers.delete(target)
-      controllers.get(target)?.abort()
+      // Abort in the same synchronous step as the bookkeeping: a StrictMode
+      // remount happens in this tick, and it must not find (and reuse) the
+      // aborted in-flight promise, which would resolve to the downgraded
+      // direct URL (no credentials → server drops `demosamples`).
+      const ctrl = controllers.get(target)
+      inflight.delete(target)
+      controllers.delete(target)
+      ctrl?.abort()
     }
   }, [target])
 
