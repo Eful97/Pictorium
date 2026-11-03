@@ -91,9 +91,24 @@ jobs:
         id: notes
         env:
           GITHUB_REPOSITORY: ${{ github.repository }}
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         run: |
           TAG="${{ github.event.inputs.tag || github.ref_name }}"
-          PREV="$(git describe --tags --abbrev=0 "${TAG}^" 2>/dev/null || true)"
+          # Compare against the last PUBLISHED release, never the last tag: a
+          # tag whose release failed (e.g. v1.26.5) must not become the base and
+          # silently swallow a range users never saw. Only ancestors of TAG^ are
+          # considered, so backfilling an old tag still resolves to its own
+          # real predecessor.
+          PREV=""
+          while IFS= read -r candidate; do
+            if [ -n "$candidate" ] && git merge-base --is-ancestor "${candidate}^{commit}" "${TAG}^" 2>/dev/null; then
+              PREV="$candidate"
+              break
+            fi
+          done < <(gh release list --limit 100 --json tagName --jq '.[].tagName' 2>/dev/null || true)
+          if [ -z "$PREV" ]; then
+            PREV="$(git describe --tags --abbrev=0 "${TAG}^" 2>/dev/null || true)"
+          fi
           if [ -z "$PREV" ]; then
             echo "no previous tag reachable from $TAG"
             exit 1
