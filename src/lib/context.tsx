@@ -869,6 +869,7 @@ export function usePictorium(): PictoriumCtx {
     // Editing UI
     // Rotation
     rotationPosters, setRotationPosters,
+    setRotationIncludeNonClean,
     autoRotateClean, setAutoRotateClean,
     excludedPosters, setExcludedPosters,
     rotationBackdrops, setRotationBackdrops,
@@ -3016,8 +3017,23 @@ export function usePictorium(): PictoriumCtx {
       // save successivo dropperebbe il manuale. Null/assente = automatico in
       // attesa del ricalcolo (mai colori campionati congelati qui).
       setAccentColor(eff?.accentColor ?? null)
-      setRotationPosters(existing.cleanPosters || [])
       setAutoRotateClean(existing.autoRotateClean ?? defaultAutoRotateClean)
+      // Opt-in rotazione portrait: ripristina il flag salvato e, quando è OFF,
+      // rimuove dal pool i path non-clean registrati (legacy/opt-out) — il pool
+      // live non deve mostrare poster di lingua mai serviti ("mai resurrect").
+      {
+        const includeNonClean = existing.rotationIncludeNonClean === true
+        const recordedNonClean = new Set([
+          ...(existing.rotationNonCleanPosters || []),
+          ...Object.keys(existing.rotationPosterLanguages || {}),
+        ])
+        setRotationPosters(
+          includeNonClean
+            ? (existing.cleanPosters || [])
+            : (existing.cleanPosters || []).filter((path) => !recordedNonClean.has(path)),
+        )
+        setRotationIncludeNonClean(includeNonClean)
+      }
       setExcludedPosters(existing.excludedPosters || [])
       setRotationBackdrops(existing.cleanBackdrops || [])
       setAutoRotateBackdrop(existing.autoRotateBackdrop ?? defaultAutoRotateBackdrop)
@@ -3167,6 +3183,7 @@ export function usePictorium(): PictoriumCtx {
       // lo riempie, mai colori stantii).
       setAccentColor(null)
       setRotationPosters([])
+      setRotationIncludeNonClean(false)
       setAutoRotateClean(defaultAutoRotateClean)
       setExcludedPosters([])
       setRotationBackdrops([])
@@ -3407,7 +3424,20 @@ export function usePictorium(): PictoriumCtx {
       if (shapeAtSave === "landscape") {
         setRotationBackdrops([])
         setAutoRotateBackdrop(false)
-        setRotationPosters(prev?.cleanPosters ?? [])
+        // Portrait preservato dal salvato: riallinea pool + opt-in non-clean
+        // alla stessa verità del mapping (mai il live unsaved). Un mapping
+        // opt-out può avere metadata non-clean residue: fuori dal pool.
+        {
+          const prevIncludeNonClean = prev?.rotationIncludeNonClean === true
+          const prevNonClean = new Set([
+            ...(prev?.rotationNonCleanPosters || []),
+            ...Object.keys(prev?.rotationPosterLanguages || {}),
+          ])
+          setRotationPosters(
+            (prev?.cleanPosters ?? []).filter((path) => prevIncludeNonClean || !prevNonClean.has(path)),
+          )
+          setRotationIncludeNonClean(prevIncludeNonClean)
+        }
         setAutoRotateClean(prev?.autoRotateClean ?? false)
         setExcludedPosters(prev?.excludedPosters ?? [])
         setExcludedBackdrops(prev?.excludedBackdrops ?? [])
@@ -3435,6 +3465,7 @@ export function usePictorium(): PictoriumCtx {
         }
       } else {
         setRotationPosters([])
+        setRotationIncludeNonClean(false)
         setAutoRotateClean(false)
         setRotationBackdrops(prev?.cleanBackdrops ?? [])
         setAutoRotateBackdrop(prev?.autoRotateBackdrop ?? false)
@@ -3457,7 +3488,7 @@ export function usePictorium(): PictoriumCtx {
       setAccentColor(null)
     }
     return ok
-  }, [saveCoverOnlyPost, editorCtx, navigation, mappingsMap, posterShape, selectedBackdrop, setRotationPosters, setAutoRotateClean, setExcludedPosters, setRotationBackdrops, setAutoRotateBackdrop, setExcludedBackdrops, setSelectedBackdrop, setAccentColor])
+  }, [saveCoverOnlyPost, editorCtx, navigation, mappingsMap, posterShape, selectedBackdrop, setRotationPosters, setRotationIncludeNonClean, setAutoRotateClean, setExcludedPosters, setRotationBackdrops, setAutoRotateBackdrop, setExcludedBackdrops, setSelectedBackdrop, setAccentColor])
 
   const autoSaveExcludedPosters = useCallback(async (nextExcluded: string[], nextRotationPosters?: string[], nextPreviewPoster?: TMDBImage) => {
     await savePosterConfig(withSharedShapeStash({

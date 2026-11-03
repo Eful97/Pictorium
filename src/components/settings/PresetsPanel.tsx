@@ -94,6 +94,9 @@ export function PresetsPanel({
   const ed = usePosterEditor()
   const tmdbKey = usePSelector((v) => v.tmdbKey)
   const userId = usePSelector((v) => v.currentUserId)
+  // Device config of profileless spaces: thumbnails render the same
+  // configuration (ranking source included) the device URLs carry.
+  const localConfigToken = usePSelector((v) => v.localConfigToken)
 
   const live = useMemo(
     () => ({ ...captureVisualPreset(ed), landscape: ed.landscape }),
@@ -217,12 +220,12 @@ export function PresetsPanel({
     try {
       return buildDefaultsPreviewUrlFromEditor(
         { ...ed, ...expectedAfterApply(desired, ageOff, readyPin, freshPin) } as unknown as PosterEditorCtx,
-        { tmdbKey, userId, lang, demoMedia: demoMedia ?? null, previewShape: shape, previewFamily: null },
+        { tmdbKey, userId, configToken: localConfigToken, lang, demoMedia: demoMedia ?? null, previewShape: shape, previewFamily: null },
       ).url
     } catch {
       return null
     }
-  }, [ed, expectedAfterApply, tmdbKey, userId, lang, demoMedia, shape])
+  }, [ed, expectedAfterApply, tmdbKey, userId, localConfigToken, lang, demoMedia, shape])
 
   const thumbnails = useMemo(() => {
     const out: Record<string, string | null> = {}

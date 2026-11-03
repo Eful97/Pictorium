@@ -1,5 +1,5 @@
 import { normalizeCatalogId } from "./catalog-definitions"
-import type { PosterShape } from "./types"
+import type { Mapping, PosterShape } from "./types"
 
 /**
  * Per-catalog card format override, keyed by the actual manifest/route
@@ -21,6 +21,29 @@ import type { PosterShape } from "./types"
 export type CatalogShapeOverride = PosterShape
 
 export type CatalogShapes = Record<string, CatalogShapeOverride>
+
+/**
+ * Dual-format saved title: the mapping owns BOTH base families, so the
+ * catalog/meta delivery serves both canvases at once (portrait `poster` +
+ * landscape `landscapePoster`) instead of collapsing them into one shape.
+ *
+ * Portrait base = `posterPath` / `customPosterUrl` / `portraitBackdropPath`
+ * (the `posterPath` family is always written by a save). Landscape base =
+ * `backdropPath` / `customBackdropUrl`: a portrait save writes `backdropPath`
+ * from the previous mapping (null when the title never saved a landscape
+ * base), so its presence is the marker of a genuinely saved landscape cover.
+ * A landscape save left on the automatic TMDB backdrop stores no base and is
+ * NOT dual: single-format shape resolution stays byte-identical for it.
+ */
+export function mappingHasBothShapeBases(mapping: Mapping | null | undefined): boolean {
+  if (!mapping) return false
+  const portraitBase =
+    Boolean(mapping.posterPath) ||
+    Boolean(mapping.customPosterUrl) ||
+    Boolean(mapping.portraitBackdropPath)
+  const landscapeBase = Boolean(mapping.backdropPath) || Boolean(mapping.customBackdropUrl)
+  return portraitBase && landscapeBase
+}
 
 export const CATALOG_SHAPES_STORAGE_KEY = "pictorium_catalog_shapes"
 

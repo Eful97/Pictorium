@@ -2,6 +2,7 @@ import { describe, expect, it } from "vitest"
 import {
   getEffectiveRotationState,
   getEffectiveBackdropRotationState,
+  isRotatedNonCleanPoster,
   dynamicRotationBucket,
   secondsUntilDynamicRotationCut,
   rotationIndexFor,
@@ -45,6 +46,183 @@ describe("getEffectiveRotationState", () => {
 
     expect(state.isRotating).toBe(true)
     expect(state.availablePosters).toEqual(["/a.jpg", "/b.jpg"])
+  })
+})
+
+// Mixed clean + it + en pool for the portrait rotation language scope
+// (`rotationIncludeNonClean` + `rotationPosterLanguages`). The `en` poster is
+// the inert control: it must never enter a pool selected for `it`.
+const CLEAN_A = "/clean-a.jpg"
+const CLEAN_B = "/clean-b.jpg"
+const IT_POSTER = "/it-poster.jpg"
+const EN_POSTER = "/en-poster.jpg"
+
+function scopedMapping(input: Partial<Mapping> = {}): Mapping {
+  return mapping({
+    autoRotateClean: true,
+    cleanPosters: [CLEAN_A, CLEAN_B, IT_POSTER, EN_POSTER],
+    rotationIncludeNonClean: true,
+    rotationNonCleanPosters: [IT_POSTER, EN_POSTER],
+    rotationPosterLanguages: { [IT_POSTER]: "it", [EN_POSTER]: "en" },
+    ...input,
+  })
+}
+
+describe("getEffectiveRotationState language scope (mixed clean+it+en pool)", () => {
+  it("selected `it` keeps clean + it only: `en` is inert", () => {
+    const state = getEffectiveRotationState(scopedMapping(), "it")
+
+    expect(state.availablePosters).toEqual([CLEAN_A, CLEAN_B, IT_POSTER])
+    expect(state.availablePosters).not.toContain(EN_POSTER)
+    expect(state.isRotating).toBe(true)
+  })
+
+  it("matches the language case-insensitively on the primary subtag", () => {
+    const expected = [CLEAN_A, CLEAN_B, IT_POSTER]
+    expect(getEffectiveRotationState(scopedMapping(), "IT").availablePosters).toEqual(expected)
+    expect(getEffectiveRotationState(scopedMapping(), "it-IT").availablePosters).toEqual(expected)
+    expect(getEffectiveRotationState(scopedMapping(), "it_IT").availablePosters).toEqual(expected)
+    expect(getEffectiveRotationState(scopedMapping(), " It ").availablePosters).toEqual(expected)
+  })
+
+  it("empty/absent selected language falls back to clean-only", () => {
+    const expected = [CLEAN_A, CLEAN_B]
+    expect(getEffectiveRotationState(scopedMapping(), "").availablePosters).toEqual(expected)
+    expect(getEffectiveRotationState(scopedMapping(), null).availablePosters).toEqual(expected)
+    expect(getEffectiveRotationState(scopedMapping(), undefined).availablePosters).toEqual(expected)
+  })
+
+  it("selected language with no matching poster is clean-only", () => {
+    const state = getEffectiveRotationState(scopedMapping({
+      rotationPosterLanguages: { [EN_POSTER]: "en" },
+    }), "it")
+
+    expect(state.availablePosters).toEqual([CLEAN_A, CLEAN_B])
+    expect(state.availablePosters).not.toContain(IT_POSTER)
+    expect(state.availablePosters).not.toContain(EN_POSTER)
+  })
+
+  it("a non-clean path without language metadata stays inert in opt-in mode", () => {
+    const state = getEffectiveRotationState(scopedMapping({
+      cleanPosters: [CLEAN_A, IT_POSTER],
+      rotationNonCleanPosters: [IT_POSTER],
+      rotationPosterLanguages: null,
+    }), "it")
+
+    expect(state.availablePosters).toEqual([CLEAN_A])
+    expect(state.isRotating).toBe(false)
+  })
+
+  it("legacy mapping (no opt-in fields) keeps every cleanPosters path, byte-identical", () => {
+    const state = getEffectiveRotationState(mapping({
+      autoRotateClean: true,
+      cleanPosters: [CLEAN_A, CLEAN_B, "/old-c.jpg"],
+    }))
+
+    expect(state.availablePosters).toEqual([CLEAN_A, CLEAN_B, "/old-c.jpg"])
+    expect(state.isRotating).toBe(true)
+  })
+
+  it("flag off (opt-out) filters recorded non-clean paths without changing legacy lists", () => {
+    const state = getEffectiveRotationState(scopedMapping({
+      rotationIncludeNonClean: false,
+    }), "it")
+
+    expect(state.availablePosters).toEqual([CLEAN_A, CLEAN_B])
+    expect(state.availablePosters).not.toContain(IT_POSTER)
+    expect(state.availablePosters).not.toContain(EN_POSTER)
+  })
+
+  it("exclusions are respected in opt-in mode (clean and selected-language posters)", () => {
+    const state = getEffectiveRotationState(scopedMapping({
+      excludedPosters: [CLEAN_B, IT_POSTER],
+    }), "it")
+
+    expect(state.availablePosters).toEqual([CLEAN_A])
+    expect(state.isRotating).toBe(false)
+  })
+
+  it("exclusions are respected in legacy mode", () => {
+    const state = getEffectiveRotationState(mapping({
+      autoRotateClean: true,
+      cleanPosters: [CLEAN_A, CLEAN_B, "/old-c.jpg"],
+      excludedPosters: [CLEAN_B],
+    }))
+
+    expect(state.availablePosters).toEqual([CLEAN_A, "/old-c.jpg"])
+    expect(state.isRotating).toBe(true)
+  })
+
+  it("pool < 2 after language filtering/exclusions does not rotate", () => {
+    expect(getEffectiveRotationState(scopedMapping({
+      cleanPosters: [CLEAN_A, IT_POSTER],
+      rotationNonCleanPosters: [IT_POSTER],
+      excludedPosters: [IT_POSTER],
+    }), "it").isRotating).toBe(false)
+
+    expect(getEffectiveRotationState(scopedMapping({
+      cleanPosters: [IT_POSTER, EN_POSTER],
+      rotationNonCleanPosters: [IT_POSTER, EN_POSTER],
+    }), "it").isRotating).toBe(false)
+  })
+})
+
+describe("isRotatedNonCleanPoster logo suppression (mixed pool)", () => {
+  it("suppresses the logo when the base lands on the selected-language poster", () => {
+    expect(isRotatedNonCleanPoster(scopedMapping(), IT_POSTER, "it")).toBe(true)
+    expect(isRotatedNonCleanPoster(scopedMapping(), IT_POSTER, "IT")).toBe(true)
+    expect(isRotatedNonCleanPoster(scopedMapping({ posterPath: IT_POSTER }), undefined, "it")).toBe(true)
+  })
+
+  it("does not suppress a clean base or another language's base", () => {
+    expect(isRotatedNonCleanPoster(scopedMapping(), CLEAN_A, "it")).toBe(false)
+    expect(isRotatedNonCleanPoster(scopedMapping(), EN_POSTER, "it")).toBe(false)
+    expect(isRotatedNonCleanPoster(scopedMapping(), IT_POSTER, "en")).toBe(false)
+  })
+
+  it("never suppresses without the opt-in flag (legacy behavior)", () => {
+    expect(isRotatedNonCleanPoster(
+      scopedMapping({ rotationIncludeNonClean: false }),
+      IT_POSTER,
+      "it",
+    )).toBe(false)
+    expect(isRotatedNonCleanPoster(mapping({ posterPath: IT_POSTER }), IT_POSTER, "it")).toBe(false)
+  })
+
+  it("a recorded non-clean path without a language keeps the historic suppression", () => {
+    const m = scopedMapping({
+      rotationIncludeNonClean: true,
+      rotationPosterLanguages: null,
+    })
+    expect(isRotatedNonCleanPoster(m, IT_POSTER, "it")).toBe(true)
+    expect(isRotatedNonCleanPoster(m, IT_POSTER, null)).toBe(true)
+  })
+
+  it("custom bases and portrait backdrop crops stay historical (route-equivalent guard)", () => {
+    // Same predicate the route applies before suppressing logo/text wordmark:
+    // portrait only, no explicit custom URL, no `portraitBackdropPath` crop.
+    function routeSuppresses(
+      m: Mapping,
+      path: string | null,
+      lang: string,
+      opts: { isLandscape?: boolean; effectiveCustomUrl?: string | null; portraitBackdropPath?: string | null } = {},
+    ): boolean {
+      const isLandscape = opts.isLandscape ?? false
+      const effectiveCustomUrl = opts.effectiveCustomUrl ?? null
+      const mappingPortraitBackdropPath = opts.portraitBackdropPath ?? null
+      return !isLandscape
+        && !effectiveCustomUrl
+        && mappingPortraitBackdropPath === null
+        && isRotatedNonCleanPoster(m, path, lang)
+    }
+
+    const m = scopedMapping()
+    expect(routeSuppresses(m, IT_POSTER, "it")).toBe(true)
+    // Defensive fixtures: even a path that IS in the rotation metadata cannot
+    // suppress when the base is custom, cropped from a backdrop, or landscape.
+    expect(routeSuppresses(m, IT_POSTER, "it", { effectiveCustomUrl: IT_POSTER })).toBe(false)
+    expect(routeSuppresses(m, IT_POSTER, "it", { portraitBackdropPath: "/bd.jpg" })).toBe(false)
+    expect(routeSuppresses(m, IT_POSTER, "it", { isLandscape: true })).toBe(false)
   })
 })
 

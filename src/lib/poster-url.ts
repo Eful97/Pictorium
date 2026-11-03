@@ -779,6 +779,13 @@ export interface DefaultsPreviewParams {
   defaultLogoOffsetY?: number | null
   tmdbKey?: string
   userId?: string | null
+  /**
+   * Signed device config token for namespace-less spaces (profileless on a
+   * multi-user instance). Carries the device catalog/ranking selection so the
+   * preview resolves the SAME source (rank included) the delivered URLs use;
+   * absent/null everywhere else → byte-identical URLs.
+   */
+  configToken?: string | null
   lang?: string
   defaultGlobalBadges?: boolean
   defaultRankingBadges?: boolean
@@ -975,6 +982,11 @@ export function buildDefaultsPreviewUrl(bp: DefaultsPreviewParams): string {
   const params: string[] = [`rv=${RENDER_VERSION}`, "preview=1", "demosamples=1"]
   if (bp.tmdbKey) params.push(`api_key=${encodeURIComponent(bp.tmdbKey)}`)
   if (bp.userId) params.push(`u=${encodeURIComponent(bp.userId)}`)
+  // Device config (profileless spaces): the ranking source selection and the
+  // device exclusions travel here, exactly like the per-title preview and the
+  // Stremio URLs. Without it the Settings preview silently fell back to the
+  // instance JW charts (rank missing even though the device source has one).
+  if (bp.configToken) params.push(`config=${encodeURIComponent(bp.configToken)}`)
   // Shape preview-only (tab Trasforma Orizzontale): vince sul default
   // persistito senza modificarlo; assente = segui `defaultPosterShape`.
   const previewLandscape =

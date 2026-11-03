@@ -11,6 +11,7 @@ import { getRegionDef } from "@/lib/regions"
 import { Modal } from "@/components/ui/Modal"
 import { PosterBadgeDragLayer } from "@/components/settings/PosterBadgeDragLayer"
 import { readBadgeDragEnabled, writeBadgeDragEnabled } from "@/lib/badge-drag-pref"
+import { previewRequestHeaders } from "@/lib/user-token"
 import { DefaultsPreviewTitleSearch } from "@/components/settings/DefaultsPreviewTitleSearch"
 
 interface DefaultsPosterPreviewProps {
@@ -151,6 +152,12 @@ export interface DefaultsPreviewBuildOpts {
   demoMedia: DefaultsPreviewDemoMedia | null
   previewShape: "portrait" | "landscape" | null
   previewFamily: DefaultsPreviewFamily | null
+  /**
+   * Signed device config (profileless spaces): carries the device ranking
+   * source + exclusions so the preview resolves the same configuration the
+   * delivered URLs do. Absent/null in named spaces → byte-identical URL.
+   */
+  configToken?: string | null
 }
 
 /**
@@ -219,6 +226,7 @@ export function buildDefaultsPreviewUrlFromEditor(
   const url = buildDefaultsPreviewUrl({
     tmdbKey: opts.tmdbKey,
     userId: opts.userId,
+    configToken: opts.configToken ?? null,
     lang: opts.lang,
     demoMedia: opts.demoMedia ?? null,
     defaultLogoScale: ed.defaultLogoScale,
@@ -306,6 +314,10 @@ export function DefaultsPosterPreview({ compact, floating, suspended, previewSha
   const rankHintIdZoom = useId()
   const tmdbKey = usePSelector((v) => v.tmdbKey)
   const userId = usePSelector((v) => v.currentUserId)
+  // Device config (profileless spaces): the previewed render must resolve the
+  // same ranking source/exclusions the device URLs carry. Null in named
+  // spaces → URL byte-identical.
+  const localConfigToken = usePSelector((v) => v.localConfigToken)
   const serverHasTmdbKey = usePSelector((v) => v.serverHasTmdbKey)
 
   const [debouncedUrl, setDebouncedUrl] = useState("")
@@ -366,6 +378,7 @@ export function DefaultsPosterPreview({ compact, floating, suspended, previewSha
     const { url } = buildDefaultsPreviewUrlFromEditor(ed, {
       tmdbKey,
       userId,
+      configToken: localConfigToken,
       lang,
       demoMedia: demoMedia ?? null,
       previewShape: previewShape ?? null,
@@ -381,6 +394,7 @@ export function DefaultsPosterPreview({ compact, floating, suspended, previewSha
   }, [
     tmdbKey,
     userId,
+    localConfigToken,
     lang,
     demoMedia,
     ed.defaultLogoScale,
@@ -491,6 +505,12 @@ export function DefaultsPosterPreview({ compact, floating, suspended, previewSha
     xhr.open("GET", debouncedUrl, true)
     xhr.responseType = "blob"
     xhr.timeout = 45000
+    // Raw transport: carry the same auth every scoped API call sends, so the
+    // owner's Settings preview stays live on shared/multi-user instances
+    // (demo samples = every enabled badge, no-store). Same-origin only.
+    for (const [name, value] of Object.entries(previewRequestHeaders(debouncedUrl))) {
+      xhr.setRequestHeader(name, value)
+    }
 
     xhr.onprogress = (e) => {
       if (e.lengthComputable) {

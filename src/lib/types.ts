@@ -355,10 +355,39 @@ export interface Mapping {
    */
   topShadeHeight?: number | null
   gradientHeight?: number | null
+  /**
+   * Portrait 24h rotation pool (TMDB file paths). Historically clean-only
+   * (`iso_639_1 === null`); with `rotationIncludeNonClean` ON the same array
+   * also carries the opted-in language posters. Absent/null = legacy.
+   */
   cleanPosters?: string[] | null
   cleanPosterIndex?: number | null
   cleanPosterUpdatedAt?: string | null
   autoRotateClean?: boolean | null
+  /**
+   * Opt-in: allow non-clean (language) posters in the portrait 24h rotation.
+   * Null/absent/false = legacy clean-only pool (byte-identical behavior).
+   * Per-title, flat (the rotation itself is portrait-only).
+   */
+  rotationIncludeNonClean?: boolean | null
+  /**
+   * Subset of `cleanPosters` that are NON-clean TMDB posters
+   * (`iso_639_1 !== null`). The renderer cannot re-check TMDB language when
+   * only the saved mapping is available, so this metadata drives the
+   * logo/wordmark suppression on a rotated language base. Absent = legacy.
+   * The companion `rotationPosterLanguages` map carries each path's language
+   * (the list alone cannot tell "my language" from another language).
+   */
+  rotationNonCleanPosters?: string[] | null
+  /**
+   * Language metadata for the opted-in non-clean rotation posters: TMDB file
+   * path -> ISO 639-1 code (`iso_639_1`, e.g. "it"). Keys mirror the non-clean
+   * subset of `cleanPosters` / `rotationNonCleanPosters`; storing the code
+   * lets the server filter the portrait 24h rotation to "clean + my language"
+   * without a TMDB fetch. Portrait-only flat (the rotation is portrait-only).
+   * Absent/null = no language metadata (legacy clean-only behavior).
+   */
+  rotationPosterLanguages?: Record<string, string> | null
   /** Rotazione 24h degli sfondi landscape (mirror dei clean poster): lista
    *  candidati, indice corrente, timestamp ultima rotazione, flag auto,
    *  esclusioni permanenti. Indipendente dalla rotazione verticale. */

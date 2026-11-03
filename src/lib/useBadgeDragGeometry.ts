@@ -3,6 +3,7 @@
 import { useEffect, useRef, useState } from "react"
 import { buildNetGeoUrl } from "@/lib/network-freeze"
 import { parseBadgeDragGeometry, type BadgeDragGeometry } from "@/lib/badge-drag-geometry"
+import { previewRequestHeaders } from "@/lib/user-token"
 
 /**
  * In-flight coalescing: the enlarged preview and the per-item numeric controls
@@ -30,7 +31,9 @@ function badgeGeometryUrl(previewUrl: string): string {
 function fetchGeometryJson(url: string): Promise<unknown> {
   const existing = inflight.get(url)
   if (existing) return existing
-  const next = fetch(url, { cache: "no-store" }).then((res) => {
+  // Raw transport: same auth as the preview image (scoped/admin owner), so
+  // the owner-only geometry is actually returned on shared instances.
+  const next = fetch(url, { cache: "no-store", headers: previewRequestHeaders(url) }).then((res) => {
     if (!res.ok) throw new Error(`HTTP ${res.status}`)
     return res.json() as Promise<unknown>
   })

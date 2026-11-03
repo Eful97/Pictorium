@@ -1,5 +1,7 @@
 "use client"
 
+import { adminAuthHeaders } from "./admin-token"
+
 // Contratto client delle credenziali utente (multi-user, stile AIOmetadata):
 // la password vive SOLO in memoria di sessione (muore col refresh), il secret
 // di recupero resta sul dispositivo (localStorage) così è sempre copiabile
@@ -236,6 +238,29 @@ function requestPathUuid(path: string): string | null {
     return null
   } catch {
     return null
+  }
+}
+
+/**
+ * Auth headers for the RAW preview transports (poster image XHR + drag
+ * geometry fetch). Those calls bypass `http()`/`userFetch`, so on shared
+ * instances they reached the poster route anonymously: the preview was
+ * downgraded (no demo samples → enabled badges missing, no owner-only
+ * diagnostics → no drag handles). Same proof the scoped API layer already
+ * sends, never a new credential: the namespace secret/password (only AFTER
+ * the session unlock, exactly like `scopedApiInit`) plus the instance admin
+ * token when unlocked. Same-origin `/api/` only; nothing before unlock.
+ */
+export function previewRequestHeaders(url: string): Record<string, string> {
+  try {
+    const parsed = new URL(url, typeof window !== "undefined" ? window.location.href : "http://localhost")
+    if (typeof window !== "undefined" && parsed.origin !== window.location.origin) return {}
+    if (!parsed.pathname.startsWith("/api/")) return {}
+    const uuid = requestPathUuid(url)
+    const namespace = uuid && isUserUnlocked(uuid) ? userAuthHeaders(uuid) : {}
+    return { ...adminAuthHeaders(), ...namespace }
+  } catch {
+    return {}
   }
 }
 

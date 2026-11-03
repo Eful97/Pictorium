@@ -238,6 +238,46 @@ describe("GET /api/poster admission gates", () => {
     expect(res.headers.get("cache-control") ?? "").toContain("no-store")
   })
 
+  it("F4: a VERIFIED user-space credential keeps the live preview + geometry (Settings editor)", async () => {
+    // The multi-user Settings editor is unlocked by the space credential
+    // (secret/password), not by the instance PIN: without recognizing it the
+    // owner's preview was downgraded (no demo samples, no badge geometry),
+    // which broke "preview shows every enabled badge" and the drag handles.
+    vi.stubEnv("PICTORIUM_MULTI_USER", "1")
+    const { uuid, secret } = await createUser()
+    const req = new NextRequest(
+      `${baseUrl}&u=${uuid}&preview=1&demosamples=1&ranking=1&sash=rank&debug=1&netgeo=1`,
+      { headers: { "x-user-token": secret } },
+    )
+    const res = await GET(req, { params: Promise.resolve({ type: "movie", id: "44" }) })
+    expect(res.status).toBe(200)
+    const body = (await res.json()) as {
+      badges?: { kind?: string | null; layout?: string; families?: Record<string, unknown> } | null
+    }
+    // Owner-only diagnostics: the drag overlay reads exactly these boxes.
+    expect(body.badges).not.toBeNull()
+    // Demo sample fills the rank slot of an unranked demo title, so an
+    // enabled rank is visible in the Settings preview (the top slot is a rank
+    // and the whole layout is "ranked", never the without-ranking fallback).
+    expect(body.badges?.kind).toBe("rank")
+    expect(body.badges?.layout).toBe("ranked")
+    expect(Object.keys(body.badges?.families ?? {}).length).toBeGreaterThan(0)
+  })
+
+  it("F4: a WRONG user-space credential still stays downgraded", async () => {
+    vi.stubEnv("PICTORIUM_MULTI_USER", "1")
+    const { uuid } = await createUser()
+    const req = new NextRequest(
+      `${baseUrl}&u=${uuid}&preview=1&debug=1&netgeo=1`,
+      { headers: { "x-user-token": "not-the-secret" } },
+    )
+    const res = await GET(req, { params: Promise.resolve({ type: "movie", id: "44" }) })
+    expect(res.status).toBe(200)
+    expect(res.headers.get("cache-control") ?? "").not.toContain("no-store")
+    const body = (await res.json()) as Record<string, unknown>
+    expect("badges" in body).toBe(false)
+  })
+
   it("F3: scoped ?u= never uses the operator MDBLIST_KEY for the anime rankings", async () => {
     vi.stubEnv("PICTORIUM_MULTI_USER", "1")
     vi.stubEnv("PICTORIUM_MDBLIST_KEY", "operator-mdblist-secret")

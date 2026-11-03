@@ -49,7 +49,7 @@ import {
 import { detectSeasonalThemeFromCatalogName, resolveEffectiveCatalogDisplayName, resolveEffectiveSeasonalTheme, sanitizeSeasonalCustomKeywords, type SeasonalCustomKeywordsInput, type SeasonalTheme } from "@/lib/seasonal-theme"
 import { CHART_LIVE_PIN_ID, chartPinCacheFragment, familySlotEndMs, familySlotFloorMs, isBuiltInChartCatalogId, pinChartFamily, pinnedFamilyRows, CHART_READY_TTL_MS, type ChartFamilyPin } from "@/lib/chart-generation"
 import { CHART_PLATFORM_SOURCES, ensureFreshChartFamily } from "@/lib/chart-renewal"
-import { getExplicitCatalogShape, normalizeCatalogShapeKeys } from "@/lib/catalog-shape"
+import { getExplicitCatalogShape, mappingHasBothShapeBases, normalizeCatalogShapeKeys } from "@/lib/catalog-shape"
 import type { PosterShape, CustomCatalogConfig } from "@/lib/types"
 
 const log = createLogger("catalog")
@@ -436,6 +436,15 @@ async function buildPosterRowContext(opts: {
  * it is the same canvas with baked-in logo (untouchable image, Nuvio must
  * not overlay anything) — emitted only then. `background` stays the raw
  * backdrop for the detail-page hero.
+ *
+ * Dual-format saved titles (both base families in the mapping, see
+ * `mappingHasBothShapeBases`) serve BOTH canvases at once instead of
+ * collapsing to the last saved shape: `poster` is the PORTRAIT rendering
+ * (portrait profile) and `landscapePoster` the LANDSCAPE rendering
+ * (landscape profile, baked-in logo), each from its own saved base. The
+ * client picks per view (Stremio poster vs Nuvio horizontal layout) and
+ * `posterShape` truthfully describes `poster`. Single-base titles keep the
+ * historical resolution byte-identically, global landscape forcing included.
  */
 /**
  * Per-row mapping resolution: request Map hit in production, per-row getById
@@ -477,7 +486,12 @@ async function buildPosterRowUrls(
     rankBuster: rankBusterParam ?? undefined,
     seasonalTheme: ctx.seasonalTheme ?? undefined,
   } as const
-  const posterShape = ctx.explicitShape ?? stremioPosterShape(mapping, ctx.defaults)
+  // Dual-format: both bases saved -> serve both canvases, `poster` = portrait.
+  // Single-format: historical card-shape resolution untouched.
+  const dualBase = mappingHasBothShapeBases(mapping)
+  const posterShape: PosterShape = dualBase
+    ? "poster"
+    : (ctx.explicitShape ?? stremioPosterShape(mapping, ctx.defaults))
   // Cornice stagionale (contesto effimero del catalogo di origine): viaggia
   // nel `poster` su entrambi i canvas (ognuno rende il proprio asset
   // 500×750 / 768×432, mai stirato) — il banner pulito resta byte-identico
@@ -503,8 +517,15 @@ async function buildPosterRowUrls(
     hideLogo: true,
   }).toString()
   // NuvioTV: immagine esattamente come Pictorium (logo baked-in, vedi
-  // poster-service). I titoli forzati dal default sono inclusi.
-  const landscapePoster = posterShape === "landscape" ? poster : undefined
+  // poster-service). Dual-format: il canvas landscape del suo profilo/base.
+  // Single-format landscape: è lo stesso `poster` (nessun secondo render).
+  const landscapePoster = dualBase
+    ? buildStremioPosterUrl({
+      ...base,
+      forceShape: "landscape",
+      seasonalTheme: effectiveTheme ?? undefined,
+    }).toString()
+    : posterShape === "landscape" ? poster : undefined
   return { poster, banner, landscapePoster, posterShape }
 }
 
@@ -513,13 +534,23 @@ function catalogBackground(backdropPath: string | null | undefined): string | un
 }
 
 /**
- * Logo separato per NuvioTV: i titoli landscape hanno già il logo baked-in
- * nel `landscapePoster` — inviare anche `logo` farebbe sovrapporre a Nuvio
- * un secondo logo sopra l'immagine Pictorium. Ometterlo spegne l'overlay
- * (il /meta fa lo stesso, così l'arricchimento non lo reintroduce).
+ * Logo separato per NuvioTV: quando la riga espone un rendering landscape
+ * (`landscapePoster`, logo già baked-in) Nuvio sovrapporrebbe il `logo` a
+ * un secondo logo sopra l'immagine Pictorium. Ometterlo spegne l'overlay (il
+ * /meta fa lo stesso, così l'arricchimento non lo reintroduce). Vale per i
+ * titoli landscape storici E per i titoli dual-format (entrambi i canvas
+ * serviti: la vista orizzontale usa il landscape).
  */
-function catalogLogoForShape(posterShape: PosterShape, logo: string | undefined): string | undefined {
-  return posterShape === "landscape" ? undefined : logo
+function rowLogoSuppressed(posterShape: PosterShape, landscapePoster: string | undefined): boolean {
+  return posterShape === "landscape" || landscapePoster !== undefined
+}
+
+function catalogLogoForShape(
+  posterShape: PosterShape,
+  logo: string | undefined,
+  landscapePoster?: string,
+): string | undefined {
+  return rowLogoSuppressed(posterShape, landscapePoster) ? undefined : logo
 }
 
 /**
@@ -1417,7 +1448,10 @@ export async function pictoriumCatalog(
       }
     }
   }
-  const cacheKey = `stremio:catalog:v4:${stType}:${catalogId}:pv${POSTER_URL_VERSION}${scopedUser ? `:u${hashUserFragment(scopedUser)}` : ""}:ak${apiKey ? hashFragment(apiKey) : "none"}${configParam ? `:cfg${hashFragment(configParam)}` : ""}${mdblistKey ? `:mk${hashFragment(mdblistKey)}` : ""}${tvdbKey ? `:tv${hashFragment(tvdbKey)}` : ""}${genreFragment}${skipFragment}${searchFragment}${regionFragment}${rankingFragment}${chartCgFragment}${streamingRankingCgFragment}${traktGenFragment}${themeFragment}${freshness}`
+  // v5: dual-format saved titles emit BOTH `poster` (portrait) and
+  // `landscapePoster` (landscape) — the v4 body served a single collapsed
+  // shape, so old entries must not be reused.
+  const cacheKey = `stremio:catalog:v5:${stType}:${catalogId}:pv${POSTER_URL_VERSION}${scopedUser ? `:u${hashUserFragment(scopedUser)}` : ""}:ak${apiKey ? hashFragment(apiKey) : "none"}${configParam ? `:cfg${hashFragment(configParam)}` : ""}${mdblistKey ? `:mk${hashFragment(mdblistKey)}` : ""}${tvdbKey ? `:tv${hashFragment(tvdbKey)}` : ""}${genreFragment}${skipFragment}${searchFragment}${regionFragment}${rankingFragment}${chartCgFragment}${streamingRankingCgFragment}${traktGenFragment}${themeFragment}${freshness}`
   // C1: L1 + L2 condivisa (KV su multi-istanza, no-op locale/VPS).
   // Il selettore conserva il TTL originale anche dopo il ripopolamento L1
   // da KV (il payload KV non trasporta la scadenza): pieno → 1h, vuoto → 60s.
@@ -1559,8 +1593,9 @@ export async function pictoriumCatalog(
             }
             if (!tmdbId) return base
             const posterAndShape = await buildPosterRowUrls(posterCtx, stType, tmdbId)
-            // H3: niente fetch logo sulle righe landscape (verrebbe scartato).
-            const logo = posterAndShape.posterShape === "landscape"
+            // H3: niente fetch logo quando la riga espone il canvas landscape
+            // (verrebbe scartato: logo baked-in + Nuvio overlay).
+            const logo = rowLogoSuppressed(posterAndShape.posterShape, posterAndShape.landscapePoster)
               ? undefined
               : await (apiKey
                 ? catalogLogo(stType === "movie" ? "movie" : "tv", tmdbId, apiKey, tmdbLang).catch(() => undefined)
@@ -1571,7 +1606,7 @@ export async function pictoriumCatalog(
               posterShape: posterAndShape.posterShape,
               banner: posterAndShape.banner,
               landscapePoster: posterAndShape.landscapePoster,
-              logo: catalogLogoForShape(posterAndShape.posterShape, logo ?? base.logo),
+              logo: catalogLogoForShape(posterAndShape.posterShape, logo ?? base.logo, posterAndShape.landscapePoster),
             }
           } catch {
             return base
@@ -1782,7 +1817,7 @@ export async function pictoriumCatalog(
           const posterAndShape = await buildPosterRowUrls(posterCtx, stType, r.tmdbId)
           const [imdbId, logo] = await Promise.all([
             r.imdb ? Promise.resolve(r.imdb) : (appendedImdb ?? resolveImdbId(stType === "movie" ? "movie" : "tv", r.tmdbId, apiKey, CATALOG_TMDB_TIMEOUT_MS, enrichSignal)),
-            posterAndShape.posterShape === "landscape"
+            rowLogoSuppressed(posterAndShape.posterShape, posterAndShape.landscapePoster)
               ? Promise.resolve(undefined)
               : (apiKey ? catalogLogo(stType === "movie" ? "movie" : "tv", r.tmdbId, apiKey, tmdbLang, customBudgetSignal) : Promise.resolve(undefined)),
           ])
@@ -1797,7 +1832,7 @@ export async function pictoriumCatalog(
             background,
             banner,
             landscapePoster,
-            logo: catalogLogoForShape(posterShape, logo),
+            logo: catalogLogoForShape(posterShape, logo, landscapePoster),
             releaseInfo: r.releaseInfo,
             imdbRating: r.voteAverage ? r.voteAverage.toFixed(1) : undefined,
             genres: r.genres,
@@ -2035,7 +2070,7 @@ export async function pictoriumCatalog(
         }
         if (!d && !(row.title && row.title.length > 0)) return null
         const posterAndShape = await buildPosterRowUrls(posterCtx, stType, row.tmdbId)
-        const logo = posterAndShape.posterShape === "landscape" || !apiKey
+        const logo = rowLogoSuppressed(posterAndShape.posterShape, posterAndShape.landscapePoster) || !apiKey
           ? undefined
           : await catalogLogo(rowMedia, row.tmdbId, apiKey, tmdbLang)
         const imdbId = row.imdbId || d?.external_ids?.imdb_id || null
@@ -2050,7 +2085,7 @@ export async function pictoriumCatalog(
           background,
           banner,
           landscapePoster,
-          logo: catalogLogoForShape(posterShape, logo),
+          logo: catalogLogoForShape(posterShape, logo, landscapePoster),
           releaseInfo: (d?.release_date || d?.first_air_date || "").slice(0, 4) || undefined,
           imdbRating: d?.vote_average ? d.vote_average.toFixed(1) : undefined,
           genres: (d?.genres || []).map((g) => g.name).filter(Boolean),
@@ -2126,7 +2161,7 @@ export async function pictoriumCatalog(
         const posterAndShape = await buildPosterRowUrls(posterCtx, stType, tmdbId, rank)
         const [imdbId, logo] = await Promise.all([
           item.imdb ? Promise.resolve(item.imdb) : (appendedImdb ?? resolveImdbId(mediaType, tmdbId, apiKey, CATALOG_TMDB_TIMEOUT_MS)),
-          posterAndShape.posterShape === "landscape" || !apiKey
+          rowLogoSuppressed(posterAndShape.posterShape, posterAndShape.landscapePoster) || !apiKey
             ? Promise.resolve(undefined)
             : catalogLogo(mediaType, tmdbId, apiKey, tmdbLang),
         ])
@@ -2143,7 +2178,7 @@ export async function pictoriumCatalog(
           background,
           banner,
           landscapePoster,
-          logo: catalogLogoForShape(posterShape, logo),
+          logo: catalogLogoForShape(posterShape, logo, landscapePoster),
           releaseInfo,
           imdbRating: d?.vote_average ? d.vote_average.toFixed(1) : undefined,
           genres: (d?.genres || []).map((g) => g.name).filter(Boolean),
@@ -2202,7 +2237,7 @@ export async function pictoriumCatalog(
               }
             }
           }
-          if (posterAndShape.posterShape !== "landscape") {
+          if (!rowLogoSuppressed(posterAndShape.posterShape, posterAndShape.landscapePoster)) {
             try {
               logo = await catalogLogo(itemType, row.tmdbId, apiKey, tmdbLang)
             } catch {
@@ -2223,7 +2258,7 @@ export async function pictoriumCatalog(
           background: catalogBackground(details?.backdrop_path ?? null),
           banner,
           landscapePoster,
-          logo: catalogLogoForShape(posterShape, logo),
+          logo: catalogLogoForShape(posterShape, logo, landscapePoster),
           releaseInfo: (details?.release_date || details?.first_air_date || "").slice(0, 4) || undefined,
           imdbRating: details?.vote_average ? details.vote_average.toFixed(1) : undefined,
           genres: (details?.genres || []).map((g) => g.name).filter(Boolean),
@@ -2362,7 +2397,7 @@ export async function pictoriumCatalog(
             const title = details?.title || details?.name || row.title || ""
             if (title.length === 0) return null
             const posterAndShape = await buildPosterRowUrls(posterCtx, stType, row.tmdbId)
-            const logo = !apiKey || posterAndShape.posterShape === "landscape"
+            const logo = !apiKey || rowLogoSuppressed(posterAndShape.posterShape, posterAndShape.landscapePoster)
               ? undefined
               : await catalogLogo(rowMedia, row.tmdbId, apiKey, tmdbLang)
             const imdbId = row.imdbId || details?.external_ids?.imdb_id || null
@@ -2377,7 +2412,7 @@ export async function pictoriumCatalog(
               background,
               banner,
               landscapePoster,
-              logo: catalogLogoForShape(posterShape, logo),
+              logo: catalogLogoForShape(posterShape, logo, landscapePoster),
               releaseInfo: (details?.release_date || details?.first_air_date || "").slice(0, 4) || undefined,
               imdbRating: details?.vote_average ? details.vote_average.toFixed(1) : undefined,
               genres: (details?.genres || []).map((g) => g.name).filter(Boolean),
@@ -2446,7 +2481,7 @@ export async function pictoriumCatalog(
               const [imdbId, details, logo] = await Promise.all([
                 resolveImdbId(stType === "movie" ? "movie" : "tv", item.tmdbId, apiKey, CATALOG_TMDB_TIMEOUT_MS),
                 getDetails(stType === "movie" ? "movie" : "tv", item.tmdbId, tmdbLang, apiKey, catalogTimeoutSignal(), CATALOG_TMDB_TIMEOUT_MS).catch(() => null),
-                posterAndShape.posterShape === "landscape"
+                rowLogoSuppressed(posterAndShape.posterShape, posterAndShape.landscapePoster)
                   ? Promise.resolve(undefined)
                   : catalogLogo(stType === "movie" ? "movie" : "tv", item.tmdbId, apiKey, tmdbLang),
               ])
@@ -2462,7 +2497,7 @@ export async function pictoriumCatalog(
                 background,
                 banner,
                 landscapePoster,
-                logo: catalogLogoForShape(posterShape, logo),
+                logo: catalogLogoForShape(posterShape, logo, landscapePoster),
                 releaseInfo: (details?.release_date || details?.first_air_date || item.releaseDate)?.slice(0, 4) || undefined,
                 imdbRating: details?.vote_average ? details.vote_average.toFixed(1) : undefined,
                 genres: (details?.genres || []).map((g) => g.name).filter(Boolean),

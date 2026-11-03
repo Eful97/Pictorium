@@ -28,6 +28,7 @@ import { isSupportedUiLang, contentLanguageForUiLang } from "@/lib/regions"
 import { getScopedUserId, userExists, userRateLimitKey } from "@/lib/user-auth"
 import { touchUserActivity } from "@/lib/user-activity"
 import { buildStremioPosterUrl, stremioPosterShape } from "@/lib/stremio-poster-url"
+import { mappingHasBothShapeBases } from "@/lib/catalog-shape"
 import { normalizeSeasonalTheme, resolveEffectiveSeasonalTheme } from "@/lib/seasonal-theme"
 import { getOriginFromRequest } from "@/lib/poster-public-url"
 import { enrichVideosWithTvdbDetailed } from "@/lib/tvdb"
@@ -132,14 +133,30 @@ async function pictoriumPosterUrl(
   posterLang = "it",
   posterRegion?: string,
   seasonalTheme?: string | null,
-): Promise<{ poster: string; posterShape: "poster" | "landscape" }> {
+): Promise<{ poster: string; landscapePoster?: string; posterShape: "poster" | "landscape" }> {
   const scopedUser = getScopedUserId(userParam)
   const serverDefaults = scopedUser ? await getServerDefaultsForUser(scopedUser) : await getServerDefaultsChecked()
   const userConfig = configParam ? decodeConfig(configParam) : null
   const defaults = userConfig ? { ...serverDefaults, ...userConfig } : serverDefaults
   const mapping = await getById(type === "series" ? "tv" : "movie", id, scopedUser)
-  const posterShape = stremioPosterShape(mapping, defaults)
-  const poster = buildStremioPosterUrl({
+  // Dual-format saved title (both base families): serve both canvases,
+  // `poster` = portrait (same contract as the catalogs). Single-format
+  // titles keep the historical shape resolution byte-identically.
+  const dualBase = mappingHasBothShapeBases(mapping)
+  const posterShape: "poster" | "landscape" = dualBase ? "poster" : stremioPosterShape(mapping, defaults)
+  // Ephemeral originating-catalog context (explicit `theme=` only) under
+  // the saved per-title choice: explicit themed choice follows the title
+  // across catalogs and meta (generic meta with no list = query absent =
+  // unframed unless the mapping sets it), explicit `none` suppresses an
+  // inherited list theme, absent (Automatic) follows the list. Both
+  // canvases render their own frame asset; the clean banner never
+  // receives a theme (hideLogo gate in the shared builder), so it stays
+  // byte-identical and absent/invalid stays unframed.
+  const effectiveTheme = resolveEffectiveSeasonalTheme(
+    mapping?.seasonalTheme ?? null,
+    normalizeSeasonalTheme(seasonalTheme),
+  )
+  const posterUrl = (shape: "poster" | "landscape"): string => buildStremioPosterUrl({
     origin: getOriginFromRequest(req),
     type,
     id,
@@ -149,21 +166,14 @@ async function pictoriumPosterUrl(
     region: posterRegion,
     config: configParam || undefined,
     user: userParam || undefined,
-    forceShape: posterShape,
-    // Ephemeral originating-catalog context (explicit `theme=` only) under
-    // the saved per-title choice: explicit themed choice follows the title
-    // across catalogs and meta (generic meta with no list = query absent =
-    // unframed unless the mapping sets it), explicit `none` suppresses an
-    // inherited list theme, absent (Automatic) follows the list. Both
-    // canvases render their own frame asset; the clean banner never
-    // receives a theme (hideLogo gate in the shared builder), so it stays
-    // byte-identical and absent/invalid stays unframed.
-    seasonalTheme: resolveEffectiveSeasonalTheme(
-      mapping?.seasonalTheme ?? null,
-      normalizeSeasonalTheme(seasonalTheme),
-    ) ?? undefined,
+    forceShape: shape,
+    seasonalTheme: effectiveTheme ?? undefined,
   }).toString()
-  return { poster, posterShape }
+  const poster = posterUrl(posterShape)
+  const landscapePoster = dualBase
+    ? posterUrl("landscape")
+    : posterShape === "landscape" ? poster : undefined
+  return { poster, landscapePoster, posterShape }
 }
 
 
@@ -316,7 +326,9 @@ export async function pictoriumMeta(
   const epoch = await getCatalogEpoch(scopedUser)
   const sdHash = hashFragment(JSON.stringify(effectiveDefaults))
   const freshness = `:e${epoch}:sd${sdHash}`
-  const cacheKey = `stremio:meta:${stType}:${cleanId}:pv${POSTER_URL_VERSION}${scopedUser ? `:u${hashUserFragment(scopedUser)}` : ""}:ak${apiKey ? hashFragment(apiKey) : "none"}${configParam ? `:cfg${hashFragment(configParam)}` : ""}${mdblistKey ? `:mk${hashFragment(mdblistKey)}` : ""}${tvdbApiKey ? `:tk${hashFragment(tvdbApiKey)}` : ""}:es${episodeMetadataSource}:eg${hashFragment(egKey)}:r${region.code}:l${posterLang}${stType === "series" ? ":eo2" : ""}${metaThemeFragment}:mhv1${freshness}`
+  // mhv2: dual-format saved titles emit `landscapePoster` beside the
+  // portrait `poster` (mhv1 bodies served the single collapsed shape).
+  const cacheKey = `stremio:meta:${stType}:${cleanId}:pv${POSTER_URL_VERSION}${scopedUser ? `:u${hashUserFragment(scopedUser)}` : ""}:ak${apiKey ? hashFragment(apiKey) : "none"}${configParam ? `:cfg${hashFragment(configParam)}` : ""}${mdblistKey ? `:mk${hashFragment(mdblistKey)}` : ""}${tvdbApiKey ? `:tk${hashFragment(tvdbApiKey)}` : ""}:es${episodeMetadataSource}:eg${hashFragment(egKey)}:r${region.code}:l${posterLang}${stType === "series" ? ":eo2" : ""}${metaThemeFragment}:mhv2${freshness}`
   const cached = await cacheGetShared<{ meta: StremioMetaDetail; __partial?: boolean }>(cacheKey, ["stremio", "meta"])
   // __partial is only an internal signal for the hit HTTP header: never in the JSON.
   if (cached) return metaResponse({ meta: cached.meta }, cached.__partial === true)
@@ -335,10 +347,10 @@ export async function pictoriumMeta(
     }
 
     const primaryId = imdbId || `tmdb:${tmdbId}`
-    const { poster, posterShape } = await pictoriumPosterUrl(req, stType, tmdbId, configParam, userParam, posterLang, region.code, metaSeasonalTheme)
-    // NuvioTV: per i titoli landscape, URL del render con logo baked-in
-    // (stesso profilo del poster), inclusi i titoli forzati dal default.
-    const landscapePoster = posterShape === "landscape" ? poster : undefined
+    const { poster, landscapePoster, posterShape } = await pictoriumPosterUrl(req, stType, tmdbId, configParam, userParam, posterLang, region.code, metaSeasonalTheme)
+    // NuvioTV: URL del render con logo baked-in (stesso profilo del poster
+    // della sua forma), inclusi i titoli forzati dal default; dual-format:
+    // canvas landscape dalla propria base.
     const background = details.backdrop_path ? posterUrlOriginal(details.backdrop_path) : undefined
 
     // Risoluzione Logo
@@ -516,10 +528,11 @@ export async function pictoriumMeta(
       posterShape,
       background,
       landscapePoster,
-      // Titoli landscape: il logo è già baked-in nel landscapePoster —
-      // esporlo separato farebbe sovrapporre a Nuvio un secondo logo
-      // (anche via arricchimento card dal dettaglio).
-      logo: posterShape === "landscape" ? undefined : logo,
+      // Titoli con canvas landscape esposto (landscape o dual-format): il
+      // logo è già baked-in nel rendering — esporlo separato farebbe
+      // sovrapporre a Nuvio un secondo logo (anche via arricchimento card
+      // dal dettaglio).
+      logo: landscapePoster ? undefined : logo,
       description: details.overview || details.tagline || undefined,
       releaseInfo: (details.release_date || details.first_air_date || "").slice(0, 4) || undefined,
       released: details.release_date ? `${details.release_date}T00:00:00.000Z` : undefined,

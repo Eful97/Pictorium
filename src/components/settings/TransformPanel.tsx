@@ -489,23 +489,27 @@ export function TransformPanel({ active, previewShape, onPreviewShapeChange, onP
   const { freezing: netFreezing, freezeOff: freezeNetworkOff, turnOn: turnNetworkOn } = useNetworkFreeze()
   const tmdbKey = usePSelector((v) => v.tmdbKey)
   const userId = usePSelector((v) => v.currentUserId)
+  // Same device config the displayed preview carries (profileless spaces):
+  // the frozen network geometry must come from the SAME render.
+  const localConfigToken = usePSelector((v) => v.localConfigToken)
   const freezeLiveRef = useRef({
     ed, demoMedia: demoMedia ?? null,
     previewShape: trasformaShape,
     previewFamily: previewFamily ?? null,
-    tmdbKey, userId, lang,
+    tmdbKey, userId, localConfigToken, lang,
   })
   freezeLiveRef.current = {
     ed, demoMedia: demoMedia ?? null,
     previewShape: trasformaShape,
     previewFamily: previewFamily ?? null,
-    tmdbKey, userId, lang,
+    tmdbKey, userId, localConfigToken, lang,
   }
   const buildFreezePreview = () => {
     const L = freezeLiveRef.current
     return buildDefaultsPreviewUrlFromEditor(L.ed, {
       tmdbKey: L.tmdbKey,
       userId: L.userId,
+      configToken: L.localConfigToken,
       lang: L.lang,
       demoMedia: L.demoMedia,
       previewShape: L.previewShape,

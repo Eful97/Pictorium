@@ -537,6 +537,46 @@ export function usePosterSave(deps: PosterSaveDeps) {
     // il 16:9 (oggi removeBackdrop + save portrait = backdrop perso).
     const prevMapping = mappingsMap.get(`${selected.media_type}:${selected.id}`) ?? null
     const isLandscapeMode = posterShape === "landscape"
+    // Rotation opt-in metadata (portrait flat). The rotation pool reuses
+    // `cleanPosters`, so a language poster the user added to the rotation is
+    // only identifiable through the TMDB image list (`iso_639_1`): record the
+    // non-clean subset + path->language so the renderer can filter the pool
+    // and suppress the logo on a rotated language base without a TMDB fetch.
+    // No non-clean path in the pool = legacy clean-only: the keys are omitted
+    // and the full-replace POST clears any stale opt-in (never resurrected).
+    const posterLanguageByPath = new Map<string, string>()
+    for (const image of posters) {
+      if (typeof image.iso_639_1 === "string" && image.iso_639_1) {
+        posterLanguageByPath.set(image.file_path, image.iso_639_1)
+      }
+    }
+    const rotationNonCleanPosters: string[] = []
+    const rotationPosterLanguages: Record<string, string> = {}
+    for (const path of effectiveRotationPosters) {
+      // Custom URLs are not TMDB posters and never carry a language.
+      if (isCustomPosterUrl(path)) continue
+      // Bounded like mappingSchema (path 1..160, code 1..8, max 200 entries):
+      // an unexpected path can never make the save payload fail validation.
+      if (!path || path.length > 160) continue
+      if (rotationNonCleanPosters.length >= 200) break
+      if (path === "__proto__" || path === "constructor" || path === "prototype") continue
+      const inCurrentList = posterLanguageByPath.has(path)
+      const currentLang = posterLanguageByPath.get(path)
+      // Present in the current TMDB list is authoritative: a clean image is
+      // never resurrected from previous opt-in metadata.
+      if (inCurrentList && !currentLang) continue
+      const previousLang = prevMapping?.rotationPosterLanguages?.[path]
+      const previousFlagged = prevMapping?.rotationNonCleanPosters?.includes(path) ?? false
+      // Path no longer returned by TMDB (e.g. filtered list): keep the saved
+      // classification only while it is still in the rotation pool.
+      const isNonClean = inCurrentList ? !!currentLang : (!!previousLang || previousFlagged)
+      if (!isNonClean) continue
+      rotationNonCleanPosters.push(path)
+      const lang = inCurrentList ? currentLang : previousLang
+      if (typeof lang === "string" && lang.length > 0 && lang.length <= 8) {
+        rotationPosterLanguages[path] = lang
+      }
+    }
     // Flat defaults for the independence boundary, in mapping-bare names
     // (`showBadges`, `badgeStyle`, …): the chain-effective freeze for
     // inherit-null/absent saved flats. A level the caller did not pass stays
@@ -989,6 +1029,12 @@ export function usePosterSave(deps: PosterSaveDeps) {
           cleanPosterIndex: 0,
           cleanPosterUpdatedAt: new Date().toISOString(),
           autoRotateClean: effectiveRotationPosters.length > 1 ? autoRotateClean : undefined,
+          // Opt-in rotation metadata derived from the effective pool above.
+          // Absent (no non-clean path in the pool) = legacy clean-only; this
+          // full-replace POST then clears any previously saved opt-in.
+          rotationIncludeNonClean: rotationNonCleanPosters.length > 0 ? true : undefined,
+          rotationNonCleanPosters: rotationNonCleanPosters.length > 0 ? rotationNonCleanPosters : undefined,
+          rotationPosterLanguages: Object.keys(rotationPosterLanguages).length > 0 ? rotationPosterLanguages : undefined,
           excludedPosters: nextExcludedPosters.length > 0 ? nextExcludedPosters : undefined,
           cleanBackdrops: effectiveRotationBackdrops.length > 0 ? effectiveRotationBackdrops : undefined,
           cleanBackdropIndex: isLandscapeMode ? 0 : (prevMapping?.cleanBackdropIndex ?? undefined),

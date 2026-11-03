@@ -140,6 +140,13 @@ request overrides the stored space default and per-title shape: Pictorium
 renders the requested shape with the matching shape-profile settings for
 that slot.
 
+Title-specific exception (both covers saved): when a title has BOTH a
+portrait cover and a landscape cover saved, the catalog entry carries both
+canvases at once — `poster` is the portrait render and `landscapePoster`
+the landscape one — so Nuvio's own **Landscape Posters** setting decides
+which one a row shows. The last saved shape no longer collapses the two
+into a single image.
+
 There is deliberately no per-catalog shape recipe in this guide: no
 Nuvio-side per-catalog shape control has been verified for current builds,
 so none is documented here (a copied AIO-style gear-dialog recipe would be

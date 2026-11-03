@@ -16,6 +16,11 @@ import { useTvdbArtworks } from "@/lib/useTvdbArtworks"
 import { RatingSourceIcon } from "@/components/RatingSourceIcon"
 import { RotateCcw, Check, Clock, Sparkles, ArrowUpDown, EyeOff, ChevronDown, X, Loader2 } from "lucide-react"
 
+/** Primary BCP-47/ISO subtag ("pt-br" -> "pt") for TMDB `iso_639_1` matching. */
+function primaryLangCode(value: string | null | undefined): string {
+  return (value || "").trim().toLowerCase().split(/[-_]/)[0] || ""
+}
+
 interface Props {
   posters: TMDBImage[]
   posterActivePath: string | null
@@ -61,6 +66,35 @@ export function PosterOptions({ posters, posterActivePath, lang, selectPoster, a
   const [internalActiveGroup, setInternalActiveGroup] = useState("clean")
   const activeGroup = controlledActiveGroup ?? internalActiveGroup
   const setActiveGroup = onActiveGroupChange ?? setInternalActiveGroup
+
+  // "Mia lingua": solo i poster del gruppo lingua corrente possono entrare
+  // nel pool di rotazione opt-in. Le altre lingue non vengono MAI servite dal
+  // filtro server (poster-rotation.ts), quindi non hanno controlli rotazione.
+  const currentLangImgs = useMemo(
+    () => langGroups.find(([group]) => primaryLangCode(group) === primaryLangCode(lang))?.[1] ?? [],
+    [langGroups, lang],
+  )
+  // Tutti i path non-clean del titolo (qualsiasi lingua): spegnere l'opt-in
+  // deve lasciare nel pool SOLO i clean, mai poster di lingua residue. Include
+  // la metadata salvata, così un path non più restituito da TMDB (o non
+  // presente nella lista corrente) non può resurrectare al save successivo.
+  const nonCleanPaths = useMemo(() => {
+    const paths = new Set(posters.filter((img) => img.iso_639_1 !== null && !isCustomPosterUrl(img.file_path)).map((img) => img.file_path))
+    if (selected) {
+      const cleanNow = new Set(posters.filter((img) => img.iso_639_1 === null).map((img) => img.file_path))
+      const saved = mappingsMap.get(`${selected.media_type === "tv" ? "tv" : "movie"}:${selected.id}`)
+      // La lista TMDB corrente è autoritativa: un path oggi clean non viene
+      // rimosso dalla metadata vecchia (nessun falso negativo).
+      const remember = (path: string) => { if (!cleanNow.has(path)) paths.add(path) }
+      for (const path of saved?.rotationNonCleanPosters || []) remember(path)
+      for (const path of Object.keys(saved?.rotationPosterLanguages || {})) remember(path)
+    }
+    return paths
+  }, [posters, selected, mappingsMap])
+  const activeIsLanguageTab = activeGroup !== "clean" && activeGroup !== "fanart" && activeGroup !== "tvdb"
+  const langRotationEnabled = ed.rotationIncludeNonClean
+    && activeIsLanguageTab
+    && primaryLangCode(activeGroup) === primaryLangCode(lang)
 
   // Fanart.tv: fetch lazy solo a tab aperta (mai all'apertura del titolo).
   const fanart = useFanartPosters(activeGroup === "fanart")
@@ -219,6 +253,16 @@ export function PosterOptions({ posters, posterActivePath, lang, selectPoster, a
     })
   }
 
+  // Two-state opt-in (default Solo clean). OFF rimuove subito i non-clean dal
+  // pool live: il save deriva la metadata persistita dal pool effettivo,
+  // quindi un path rimasto qui verrebbe risalvato (mai resurrect).
+  const setRotationScope = (includeNonClean: boolean) => {
+    if (!includeNonClean) {
+      ed.setRotationPosters((prev) => prev.filter((path) => !nonCleanPaths.has(path)))
+    }
+    ed.setRotationIncludeNonClean(includeNonClean)
+  }
+
   const toggleAutoRotateClean = () => {
     const next = !ed.autoRotateClean
     if (next && topFitRotationPosters.length > 0) {
@@ -282,6 +326,20 @@ export function PosterOptions({ posters, posterActivePath, lang, selectPoster, a
           {isBestSelected && (
             <div className="editor-pill">
               <Check className="w-3 h-3" />{t("ui.bestFitSelected")}
+            </div>
+          )}
+          {currentLangImgs.length > 0 && (
+            <div className="flex items-center justify-between gap-2">
+              <span className="text-[11px] text-muted flex items-center gap-1">
+                <RotateCcw className="w-3 h-3" />{t("ui.rotationScope")}
+              </span>
+              <button type="button"
+                aria-pressed={ed.rotationIncludeNonClean}
+                onClick={() => setRotationScope(!ed.rotationIncludeNonClean)}
+                className={`px-2 py-1 text-[11px] font-semibold rounded-lg border transition-all ${ed.rotationIncludeNonClean ? "bg-accent-orange/20 text-accent-orange border-accent-orange/25" : "bg-white/5 text-muted border-white/10"}`}
+              >
+                {ed.rotationIncludeNonClean ? t("ui.rotationScopeWithLanguage") : t("ui.rotationScopeNoLanguage")}
+              </button>
             </div>
           )}
           {ed.rotationPosters.length > 1 && (
@@ -444,7 +502,24 @@ export function PosterOptions({ posters, posterActivePath, lang, selectPoster, a
           <div className="grid grid-cols-3 gap-2">
             {visibleLangImgs.map((img) => {
               const stagger = idx++
-              return <PosterBtn key={img.file_path} staggerIndex={stagger} img={img} active={posterActivePath === img.file_path} onSelect={selectPoster} />
+              const inRotation = ed.rotationPosters.includes(img.file_path)
+              return (
+                <div key={img.file_path} className="relative group rounded-xl overflow-hidden">
+                  <PosterBtn staggerIndex={stagger} img={img} active={posterActivePath === img.file_path} onSelect={selectPoster} />
+                  {langRotationEnabled && (
+                    <div className="absolute top-1.5 right-1.5 z-20 opacity-100 sm:opacity-0 sm:group-hover:opacity-100 transition-opacity">
+                      <button type="button"
+                        aria-label={inRotation ? t("ui.removeFromRotation") : t("ui.addToRotation")}
+                        onClick={(e) => { e.stopPropagation(); toggleRotation(img.file_path) }}
+                        className={`poster-image-action w-6 h-6 rounded-lg flex items-center justify-center backdrop-blur-md border transition-all duration-150 ${inRotation ? "bg-accent-orange text-white border-accent-orange shadow-sm shadow-accent-orange/40" : "bg-black/55 border-white/10 text-zinc-200 hover:bg-accent-orange/90 hover:text-white hover:border-accent-orange/60"}`}
+                        title={inRotation ? t("ui.removeFromRotation") : t("ui.addToRotation")}
+                      >
+                        {inRotation ? <Check className="w-3.5 h-3.5" /> : <RotateCcw className="w-3.5 h-3.5" />}
+                      </button>
+                    </div>
+                  )}
+                </div>
+              )
             })}
           </div>
 

@@ -559,6 +559,15 @@ export interface PosterEditorCtx {
   // ---- Rotation / esclusioni ----
   rotationPosters: string[]
   setRotationPosters: (v: string[] | ((prev: string[]) => string[])) => void
+  /**
+   * Opt-in per-title del pool di rotazione portrait: true = clean + i poster
+   * della lingua corrente, false (default) = Solo clean (comportamento
+   * storico). È solo stato di editing: il save deriva la metadata persistita
+   * dal pool effettivo (`rotationPosters`), quindi spegnerlo deve rimuovere i
+   * path non-clean dal pool (mai resurrect).
+   */
+  rotationIncludeNonClean: boolean
+  setRotationIncludeNonClean: (v: boolean | ((prev: boolean) => boolean)) => void
   autoRotateClean: boolean
   setAutoRotateClean: (v: boolean | ((prev: boolean) => boolean)) => void
   excludedPosters: string[]
@@ -660,6 +669,10 @@ export function PosterEditorProvider({
 
   // ---- Rotation / esclusioni ----
   const [rotationPosters, setRotationPosters] = useState<string[]>([])
+  // Opt-in rotazione portrait (Solo clean = false, default). Stato live
+  // per-titolo: l'apertura lo riallinea al mapping salvato, il save deriva la
+  // metadata dal pool effettivo (vedi usePosterSave).
+  const [rotationIncludeNonClean, setRotationIncludeNonClean] = useState(false)
   const [autoRotateClean, setAutoRotateClean] = useState(false)
   const [excludedPosters, setExcludedPosters] = useState<string[]>([])
   const [rotationBackdrops, setRotationBackdrops] = useState<string[]>([])
@@ -2221,6 +2234,8 @@ export function PosterEditorProvider({
       // Rotation
       rotationPosters,
       setRotationPosters,
+      rotationIncludeNonClean,
+      setRotationIncludeNonClean,
       autoRotateClean,
       setAutoRotateClean,
       excludedPosters,
@@ -2430,6 +2445,7 @@ export function PosterEditorProvider({
 
       // Rotation
       rotationPosters, setRotationPosters,
+      rotationIncludeNonClean, setRotationIncludeNonClean,
       autoRotateClean, setAutoRotateClean,
       excludedPosters, setExcludedPosters,
       rotationBackdrops, setRotationBackdrops,

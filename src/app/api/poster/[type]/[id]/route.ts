@@ -7,7 +7,7 @@ import { resolveRankingSource } from "@/lib/ranking-source"
 import { customRankingRemainingMs, fetchCustomRankingTop20, findRankingCustomCatalog } from "@/lib/custom-ranking"
 import { extractDigitalReleaseDate, isDigitalPreRelease } from "@/lib/pre-release"
 import { getAll, getById, getImdbAlias } from "@/lib/store"
-import { getScopedUserId, userExists } from "@/lib/user-auth"
+import { checkUserAuth, getScopedUserId, userExists } from "@/lib/user-auth"
 import { verifySessionFromRequestSync } from "@/lib/pin-auth"
 import { checkAdminToken } from "@/lib/auth"
 import { userRateLimitKey } from "@/lib/user-auth"
@@ -29,7 +29,7 @@ import { createT } from "@/lib/i18n-server"
 import { mdblistRemainingMs } from "@/lib/mdblist"
 import { fetchAggregatedRating, isMdbTmdbIdentityUsable, pickSeparateRatings, resolveRatingSources, type SeparateRating } from "@/lib/ratings"
 import { isImdbTop100 } from "@/lib/imdb-top250"
-import { getEffectiveRotationState, tryRotatePoster, getEffectiveBackdropRotationState, tryRotateBackdrop, getDynamicRotationBucket, rotationIndexFor, secondsUntilDynamicRotationCut } from "@/lib/poster-rotation"
+import { getEffectiveRotationState, tryRotatePoster, getEffectiveBackdropRotationState, tryRotateBackdrop, getDynamicRotationBucket, rotationIndexFor, secondsUntilDynamicRotationCut, isRotatedNonCleanPoster } from "@/lib/poster-rotation"
 import { getTMDBSessionCache, setTMDBSessionCache } from "@/lib/tmdb-session-cache"
 import { mappingVersionParam } from "@/lib/stremio-poster-url"
 import { RENDER_VERSION } from "@/lib/render-version"
@@ -269,14 +269,23 @@ function posterErrorResponse(status: PosterErrorStatus): Response {
 }
 
 /**
- * Sessione preview sbloccata: cookie PIN/admin o admin token. Prima il check
- * sync sulla config cachata (sicuro sull'hot path, mai throw), poi il check
- * async che legge la KV su istanza fredda (cold cache → fallthrough, non
- * fail-closed locale). Mai throw.
+ * Sessione preview sbloccata: cookie PIN/admin, admin token o credenziale
+ * verificata dello spazio richiesto. Prima il check sync sulla config cachata
+ * (sicuro sull'hot path, mai throw), poi il check async che legge la KV su
+ * istanza fredda (cold cache → fallthrough, non fail-closed locale). Mai throw.
+ *
+ * Multi-user: l'editor delle impostazioni è sbloccato dalla password/secret
+ * dello SPAZIO, non dal PIN d'istanza. La credenziale verificata è la stessa
+ * prova richiesta da ogni scrittura scoped, quindi il proprietario mantiene la
+ * preview live (campioni demo + geometria per il drag). Un `?u=` nudo resta
+ * declassato: nessuna credenziale, nessuna prova (contratto F4 invariato).
  */
-async function hasUnlockedPreviewSession(req: NextRequest): Promise<boolean> {
+async function hasUnlockedPreviewSession(req: NextRequest, scopedUser: string | null): Promise<boolean> {
   try {
-    return verifySessionFromRequestSync(req) || (await checkAdminToken(req))
+    if (verifySessionFromRequestSync(req)) return true
+    if (await checkAdminToken(req)) return true
+    if (scopedUser && (await checkUserAuth(req, scopedUser))) return true
+    return false
   } catch {
     return false
   }
@@ -313,7 +322,7 @@ export async function GET(req: NextRequest, { params }: { params: Promise<RouteP
   const rawPreview = req.nextUrl.searchParams.has("preview")
   // Session unlocked (PIN cookie / admin token) computed once: it gates both
   // the preview downgrade and the owner-only diagnostics below.
-  const previewUnlocked = await hasUnlockedPreviewSession(req)
+  const previewUnlocked = await hasUnlockedPreviewSession(req, scopedUser)
   let isPreview = rawPreview
   if (
     rawPreview &&
@@ -455,6 +464,11 @@ export async function GET(req: NextRequest, { params }: { params: Promise<RouteP
   const langParam = canonicalLang || mapping?.language
   const langRegion = langParam ? (parseRegion(langParam) ?? defaultRegionForLang(langParam)) : null
   const posterRegion = getRegionDef(qRegion ?? configRegion ?? langRegion ?? normalizeRegion(sd.region))
+  // "My language" for the portrait 24h rotation: the SAME canonical chain the
+  // render/UI use (`?lang=` > saved mapping language > region language), never
+  // a new setting. Only filters the opted-in non-clean rotation posters; the
+  // clean pool is language-independent.
+  const rotationSelectedLang = canonicalLang || mapping?.language || posterRegion.lang2
 
   // Formato canvas PRIMA della rotazione: in landscape ruota il backdrop
   // (cleanBackdrops), in portrait il poster (cleanPosters). Stessa catena
@@ -475,9 +489,9 @@ export async function GET(req: NextRequest, { params }: { params: Promise<RouteP
         const rotated = await tryRotateBackdrop(mapping, backdropState, scopedUser)
         if (rotated) mapping = rotated
       } else {
-        const posterState = getEffectiveRotationState(mapping)
+        const posterState = getEffectiveRotationState(mapping, rotationSelectedLang)
         isRotating = posterState.isRotating
-        const rotated = await tryRotatePoster(mapping, posterState, scopedUser)
+        const rotated = await tryRotatePoster(mapping, posterState, scopedUser, rotationSelectedLang)
         if (rotated) mapping = rotated
       }
     } catch (error) {
@@ -2314,6 +2328,27 @@ export async function GET(req: NextRequest, { params }: { params: Promise<RouteP
       mappingCustomUrl,
       isPreview: hardenedParams.get("preview") === "1",
     })
+
+    // Opt-in portrait rotation: a non-clean poster of the selected language
+    // already has its title baked in. Suppress the logo image and the text /
+    // automatic wordmark (never draw a second title). Clean bases, custom
+    // bases and the `portraitBackdropPath` crop (textless backdrop) stay
+    // historical. Landscape rotation is backdrop-based: untouched.
+    // Cache: the flag/language live in the mapping metadata covered by
+    // `mapVersion` (`:mu<updatedAt>`), and an explicit `?lang=` is already in
+    // `cacheParams`; the same `posterPath` + rest therefore cannot serve
+    // suppressed and unsuppressed bytes from one entry.
+    if (
+      !isLandscape
+      && !effectiveCustomUrl
+      && mappingPortraitBackdropPath === null
+      && isRotatedNonCleanPoster(mapping, posterPath, rotationSelectedLang)
+    ) {
+      logoPath = null
+      logoPathBuffer = null
+      textLogo = null
+      textLogoAuto = false
+    }
 
     // 5. Fetch all data in parallel: images + rankings + quality + wikidata + keywords + imdbTop250
     //    All dependencies are available before this point — no Block B depends on Block A
