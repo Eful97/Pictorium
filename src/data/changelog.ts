@@ -30,6 +30,16 @@ export interface ChangelogRelease {
  *  (which bumps on every commit and would leave the dot permanently on). */
 export const CHANGELOG: ChangelogRelease[] = [
   {
+    version: "1.26.7",
+    date: "2026-11-03",
+    title: "Release 1.26.7",
+    items: [
+      { type: "feature", text: "Show both portrait and landscape posters when a title has both saved" },
+      { type: "feature", text: "Add posters in your language to the daily poster rotation" },
+      { type: "fix", text: "Keep the Settings preview in sync with your profile and space on shared instances" },
+    ],
+  },
+  {
     version: "1.26.6",
     date: "2026-11-03",
     title: "Release 1.26.6",
