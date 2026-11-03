@@ -101,9 +101,6 @@ export function usePosterPreview() {
       return
     }
 
-    // Show loading bar only if request takes >200ms
-    loadDelayRef.current = setTimeout(() => setPreviewLoading(true), 200)
-
     // Keep old img visible while new one loads — no flicker
     const url = previewUrl
     // H1: identical URL within TTL serves cached bytes with no request at
@@ -142,6 +139,10 @@ export function usePosterPreview() {
     const generation = accentGenerationRef.current + 1
     accentGenerationRef.current = generation
     publishEffectiveAccentDisplay({ status: "loading", meta: null, previewUrl: url, generation })
+    // Show loading bar only if the network request takes >200ms. Armed ONLY on
+    // this path: a cache hit returns above, so no timer can outlive the effect
+    // (it would fire after unmount, or paint a spinner over cached bytes).
+    loadDelayRef.current = setTimeout(() => setPreviewLoading(true), 200)
     const xhr = new XMLHttpRequest()
     xhrRef.current = xhr
     xhr.open("GET", url, true)
