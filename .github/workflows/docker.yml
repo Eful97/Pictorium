@@ -3,28 +3,14 @@ name: Build and Publish Docker Image
 on:
   # Branch pushes only VERIFY the build (push: false below): publishing is
   # green-gated via workflow_run (CI success) and release (published), so red
-  # CI can never push images. PRs always stay build-only.
+  # CI can never push images.
   push:
     branches: [master, main]
     # Docs-only master pushes need no image: skip the build entirely (CI itself
     # is skipped too, so the workflow_run publish path does not fire either).
     paths-ignore: ['**.md', 'docs/**', 'LICENSE']
-  # The image is still built and published on master pushes and on releases.
-  # PRs build it only when the inputs that can break it change, so an
-  # unrelated PR no longer pays the ~12-17 min multi-arch build twice. This
-  # check is not required, so filtering it can never block a merge.
-  pull_request:
-    branches: [master, main]
-    paths:
-      - 'Dockerfile'
-      - '.dockerignore'
-      - 'entrypoint.sh'
-      - 'docker-compose*.yml'
-      - 'next.config.*'
-      - 'package.json'
-      - 'package-lock.json'
-      - 'tsconfig.json'
-      - '.github/workflows/docker.yml'
+  # PRs never build the image: it is built and published on master pushes and
+  # on releases only.
   workflow_run:
     workflows: [CI]
     types: [completed]
