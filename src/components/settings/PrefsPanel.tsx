@@ -1,6 +1,6 @@
 "use client"
 
-import { Globe, Palette, RectangleHorizontal, RectangleVertical, Sliders, Sparkles, Tv, Sun } from "lucide-react"
+import { Globe, Palette, RectangleHorizontal, RectangleVertical, Sliders, Sparkles, Tv, Sun, Type } from "lucide-react"
 import { usePSelector } from "@/lib/context"
 import { useT } from "@/lib/contexts/TranslationContext"
 import { usePosterEditor } from "@/lib/contexts/PosterEditorContext"
@@ -167,6 +167,42 @@ export function PrefsPanel({ active }: { active: boolean }) {
             </div>
             <p className="text-xs text-zinc-400 leading-relaxed pl-6">
               {t("ui.disableCleanPostersHint")}
+            </p>
+          </div>
+          <div className="py-1.5 space-y-1">
+            <div className="flex items-center justify-between">
+              <span className="text-zinc-200 text-xs sm:text-sm font-medium flex items-center gap-2">
+                <RectangleHorizontal className="w-4 h-4 text-zinc-400 shrink-0" />
+                <span>{t("ui.portraitBackdropFallback")}</span>
+              </span>
+              <Toggle
+                value={ed.defaultPortraitBackdropFallback}
+                onChange={(v) => {
+                  ed.setDefaultPortraitBackdropFallback(v)
+                }}
+                label={t("ui.portraitBackdropFallback")}
+              />
+            </div>
+            <p className="text-xs text-zinc-400 leading-relaxed pl-6">
+              {t("ui.portraitBackdropFallbackHint")}
+            </p>
+          </div>
+          <div className="py-1.5 space-y-1">
+            <div className="flex items-center justify-between">
+              <span className="text-zinc-200 text-xs sm:text-sm font-medium flex items-center gap-2">
+                <Type className="w-4 h-4 text-zinc-400 shrink-0" />
+                <span>{t("ui.autoWordmark")}</span>
+              </span>
+              <Toggle
+                value={ed.defaultAutoWordmark}
+                onChange={(v) => {
+                  ed.setDefaultAutoWordmark(v)
+                }}
+                label={t("ui.autoWordmark")}
+              />
+            </div>
+            <p className="text-xs text-zinc-400 leading-relaxed pl-6">
+              {t("ui.autoWordmarkHint")}
             </p>
           </div>
           <div className="flex items-center justify-between py-1.5">

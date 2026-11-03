@@ -281,6 +281,14 @@ describe("auto wordmark — clean poster base", () => {
     expect(input.logoSrc).toBeNull()
     expect(input.posterSrc).toBe("/lang-it.jpg")
   })
+
+  it("global autoWordmark OFF: clean base without logo falls back to the language poster", async () => {
+    serverDefaults = { ...serverDefaults, autoWordmark: false }
+    posterList = [img("/clean.jpg", null), img("/lang-it.jpg", "it")]
+    const input = await get(`${BASE_URL}&lang=it`)
+    expect(input.logoSrc).toBeNull()
+    expect(input.posterSrc).toBe("/lang-it.jpg")
+  })
 })
 
 describe("auto wordmark — portrait backdrop-crop base", () => {
@@ -345,6 +353,15 @@ describe("auto wordmark — saved mapping", () => {
     mockedGetById.mockResolvedValue(savedMapping({ title: "Il signore degli anelli" }) as never)
     const input = await get(BASE_URL)
     expect(input.logoSrc).toBe(`text-logo-auto:${AUTO_WORDMARK_FONT}:IL SIGNORE DEGLI ANELLI`)
+  })
+
+  it("global autoWordmark OFF also disables it on a saved textless base", async () => {
+    serverDefaults = { ...serverDefaults, autoWordmark: false }
+    mockedGetById.mockResolvedValue(savedMapping() as never)
+    const input = await get(BASE_URL)
+    expect(input.logoSrc).toBeNull()
+    // The saved base is still honored: only the automatic wordmark is gone.
+    expect(input.posterSrc).toBe("/clean.jpg")
   })
 })
 

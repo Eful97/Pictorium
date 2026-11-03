@@ -657,6 +657,9 @@ export function useSettingsSession(): SettingsSessionResult {
       setDefaultDisabledNetworks: makeSimpleSetter(updateSession, "defaultDisabledNetworks"),
       setDefaultAutoRotateClean: makeSimpleSetter(updateSession, "defaultAutoRotateClean"),
       setDefaultDisableCleanPosters: makeSimpleSetter(updateSession, "defaultDisableCleanPosters"),
+      // Automazioni globali (flat condivisi, default ON).
+      setDefaultPortraitBackdropFallback: makeSimpleSetter(updateSession, "defaultPortraitBackdropFallback"),
+      setDefaultAutoWordmark: makeSimpleSetter(updateSession, "defaultAutoWordmark"),
       setDefaultAutoRotateBackdrop: makeSimpleSetter(updateSession, "defaultAutoRotateBackdrop"),
       setDefaultPortraitFitEnabled: makeSimpleSetter(updateSession, "defaultPortraitFitEnabled"),
       setDefaultLandscapeFitEnabled: makeSimpleSetter(updateSession, "defaultLandscapeFitEnabled"),

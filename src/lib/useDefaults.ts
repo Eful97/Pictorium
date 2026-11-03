@@ -150,6 +150,10 @@ export interface DefaultsState {
   defaultAutoRotateBackdrop: boolean
   /** Disattiva i poster clean TMDB nella selezione automatica (default OFF = priorità ai clean). */
   defaultDisableCleanPosters: boolean
+  /** Automazione base portrait da backdrop quando manca un clean (default ON). */
+  defaultPortraitBackdropFallback: boolean
+  /** Automazione wordmark dal titolo quando manca un logo (default ON). */
+  defaultAutoWordmark: boolean
   /** Best-fit automatico per formato (sdoppiato da defaultLogoFitEnabled). */
   defaultPortraitFitEnabled: boolean
   defaultLandscapeFitEnabled: boolean
@@ -340,6 +344,8 @@ const DEFAULT_FLAT_DEFAULTS: Omit<DefaultsState, "landscape"> = {
   defaultAutoRotateClean: false,
   defaultAutoRotateBackdrop: false,
   defaultDisableCleanPosters: false,
+  defaultPortraitBackdropFallback: true,
+  defaultAutoWordmark: true,
   defaultPortraitFitEnabled: true,
   defaultLandscapeFitEnabled: true,
   defaultNetworkLogo: true,
@@ -564,6 +570,14 @@ interface StoredDefaults {
   defaultDisableCleanPosters?: boolean
   /** Chiave flat server (ServerDefaults.disableCleanPosters): fallback di lettura. */
   disableCleanPosters?: boolean
+  /** Automazione base portrait da backdrop (default ON): chiave local/server. */
+  defaultPortraitBackdropFallback?: boolean
+  /** Automazione wordmark dal titolo (default ON): chiave local/server. */
+  defaultAutoWordmark?: boolean
+  /** Chiave flat server (ServerDefaults.portraitBackdropFallback): assente = ON. */
+  portraitBackdropFallback?: boolean
+  /** Chiave flat server (ServerDefaults.autoWordmark): assente = ON. */
+  autoWordmark?: boolean
   defaultPortraitFitEnabled?: boolean
   defaultLandscapeFitEnabled?: boolean
   /** Deprecato (migrazione): il flag unico alimenta entrambi i formati. */
@@ -899,6 +913,9 @@ function buildFromStored(d: StoredDefaults | null): DefaultsState {
     defaultAutoRotateClean: d.defaultAutoRotateClean ?? d.autoRotateClean ?? false,
     defaultAutoRotateBackdrop: d.defaultAutoRotateBackdrop ?? false,
     defaultDisableCleanPosters: d.defaultDisableCleanPosters ?? d.disableCleanPosters ?? false,
+    // Automazioni (default ON): chiave assente = comportamento storico.
+    defaultPortraitBackdropFallback: d.defaultPortraitBackdropFallback ?? d.portraitBackdropFallback ?? true,
+    defaultAutoWordmark: d.defaultAutoWordmark ?? d.autoWordmark ?? true,
     // Migrazione: il vecchio flag unico alimenta entrambi i formati.
     defaultPortraitFitEnabled: d.defaultPortraitFitEnabled ?? d.defaultLogoFitEnabled ?? true,
     defaultLandscapeFitEnabled: d.defaultLandscapeFitEnabled ?? d.defaultLogoFitEnabled ?? true,
@@ -1099,6 +1116,10 @@ export function defaultsToPayload(d: DefaultsState): Record<string, unknown> {
     autoRotateClean: d.defaultAutoRotateClean,
     defaultAutoRotateBackdrop: d.defaultAutoRotateBackdrop,
     disableCleanPosters: d.defaultDisableCleanPosters,
+    // Sempre emessi: la PUT fa merge, omettere al toggle-back-ON lascerebbe un
+    // `false` memorizzato.
+    portraitBackdropFallback: d.defaultPortraitBackdropFallback,
+    autoWordmark: d.defaultAutoWordmark,
     defaultPortraitFitEnabled: d.defaultPortraitFitEnabled,
     defaultLandscapeFitEnabled: d.defaultLandscapeFitEnabled,
     networkLogo: d.defaultNetworkLogo,

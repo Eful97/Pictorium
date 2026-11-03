@@ -164,6 +164,11 @@ export const configTokenSchema = z.object({
   // (best-fit) non devono fallire il safeParse — il render usa il default del
   // server quando il campo è assente.
   logoFitEnabled: z.boolean().optional(),
+  // Automazioni globali (default ON): opzionali per back-compat (i token
+  // vecchi restano validi, assente = ON come i defaults). Nessun override
+  // per-titolo o per-forma: valgono per l'intero spazio.
+  portraitBackdropFallback: z.boolean().optional(),
+  autoWordmark: z.boolean().optional(),
   // customBadge con limite di lunghezza (finding 8): un valore illimitato
   // gonfierebbe il token firmato (URL condivise) e la label SVG del badge.
   customBadge: z.string().max(40).optional(),

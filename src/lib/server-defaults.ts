@@ -242,6 +242,21 @@ export interface ServerDefaults {
   defaultAutoRotateBackdrop?: boolean
   /** Esclude i poster clean TMDB dalla selezione automatica (catena lingua -> originale -> primo). Default OFF. */
   disableCleanPosters?: boolean
+  /**
+   * Automatic portrait base fallback: when a title has no clean TMDB poster
+   * but has backdrops, the base is a 2:3 cover-crop of a landscape backdrop.
+   * Absent/true = current behavior; false = skip only the automatic branch
+   * (explicit saved `portraitBackdropPath` / live `pbase` stay honored).
+   * Global only, never per-title or per-shape.
+   */
+  portraitBackdropFallback?: boolean
+  /**
+   * Automatic title wordmark (title written as the logo) when a title has no
+   * TMDB logo and the base is textless. Absent/true = current behavior;
+   * false = never compose the automatic wordmark (saved mappings included).
+   * Global only, never per-title or per-shape.
+   */
+  autoWordmark?: boolean
   defaultLogoFitEnabled?: boolean
   /** Fit logo per-shape (toggle UI Impostazioni): vince sul legacy qui sopra.
    *  Già accettati dallo schema PUT e persistiti — mancava solo il tipo. */

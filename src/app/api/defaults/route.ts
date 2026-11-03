@@ -157,6 +157,10 @@ const defaultsSchema = z.object({
   autoRotateClean: z.boolean().optional(),
   defaultAutoRotateBackdrop: z.boolean().optional(),
   disableCleanPosters: z.boolean().optional(),
+  // Automazioni globali (default ON): flat names on the wire; absent = ON so
+  // existing spaces keep current behavior (PUT merges).
+  portraitBackdropFallback: z.boolean().optional(),
+  autoWordmark: z.boolean().optional(),
   defaultLogoFitEnabled: z.boolean().optional(),
   defaultPortraitFitEnabled: z.boolean().optional(),
   defaultLandscapeFitEnabled: z.boolean().optional(),

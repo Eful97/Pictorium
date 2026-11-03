@@ -90,6 +90,8 @@ const USER_SAVED = {
   autoRotateClean: false,
   defaultAutoRotateBackdrop: false,
   disableCleanPosters: false,
+  portraitBackdropFallback: true,
+  autoWordmark: true,
   disabledContentTags: [],
   disabledNetworks: [],
   defaultPortraitFitEnabled: true,

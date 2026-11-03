@@ -72,6 +72,7 @@ describe("auto wordmark truncation", () => {
 
 describe("auto wordmark gating and precedence", () => {
   const base = {
+    enabled: true,
     title: "Dune",
     hasImageLogo: false,
     hasTypedText: false,
@@ -82,6 +83,12 @@ describe("auto wordmark gating and precedence", () => {
   it("generates the wordmark from the title on a textless base", () => {
     expect(resolveAutoWordmark(base)).toEqual({ text: "DUNE", font: AUTO_WORDMARK_FONT })
     expect(AUTO_WORDMARK_FONT).toBe("barlow-condensed")
+  })
+
+  it("the global opt-out disables the automatic wordmark everywhere", () => {
+    // `autoWordmark` global default OFF: no wordmark on any base, including
+    // the saved-mapping branch (the helper gate is the single source of truth).
+    expect(resolveAutoWordmark({ ...base, enabled: false })).toBeNull()
   })
 
   it("a real TMDB logo always wins", () => {

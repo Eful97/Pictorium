@@ -439,6 +439,11 @@ export async function GET(req: NextRequest, { params }: { params: Promise<RouteP
   ])
   let mapping = mappingRow
   const sd = sdRow
+  // Automazioni globali (solo default/space, mai per-titolo o per-forma):
+  // catena config token > server defaults > ON. La chiave assente significa ON,
+  // quindi spazi esistenti e vecchi config token restano byte-identici.
+  const portraitBackdropFallback = configOverride?.portraitBackdropFallback ?? sd.portraitBackdropFallback ?? true
+  const autoWordmarkEnabled = configOverride?.autoWordmark ?? sd.autoWordmark ?? true
   const qRegion = parseRegion(req.nextUrl.searchParams.get("region") ?? req.nextUrl.searchParams.get("country"))
   const configRegion = parseRegion(configOverride?.region)
   // `quality`/`lang` canonical values: the SAME value feeds the cache key
@@ -1630,6 +1635,7 @@ export async function GET(req: NextRequest, { params }: { params: Promise<RouteP
       const mappingCustomPoster = !!(mapping.customPosterUrl && isCustomPosterUrl(mapping.customPosterUrl))
       const mappingCustomBackdrop = !!(mapping.customBackdropUrl && isCustomPosterUrl(mapping.customBackdropUrl))
       const auto = resolveAutoWordmark({
+        enabled: autoWordmarkEnabled,
         title: mapping.title,
         hasImageLogo: false,
         hasTypedText: false,
@@ -1834,6 +1840,7 @@ export async function GET(req: NextRequest, { params }: { params: Promise<RouteP
       // lingua" resta storica (poster col titolo stampato, nessun wordmark).
       if (!logoPath && !textLogo && cleanEnabled) {
         const auto = resolveAutoWordmark({
+          enabled: autoWordmarkEnabled,
           title: autoTitle,
           hasImageLogo: false,
           hasTypedText: false,
@@ -1974,11 +1981,16 @@ export async function GET(req: NextRequest, { params }: { params: Promise<RouteP
         // cover-crop 2:3 del PRIMO backdrop clean (iso_639_1 === null), poi
         // del primo backdrop in qualsiasi lingua; senza backdrops la catena
         // in lingua resta intatta (logo tolto, comportamento storico).
-        // Solo con clean ABILITATI (`disableCleanPosters` OFF): il flag è una
-        // scelta esplicita dell'utente per la catena in lingua, mai scavalcata.
+        // Solo con clean ABILITATI (`disableCleanPosters` OFF) e automazione
+        // `portraitBackdropFallback` ON (default globale): entrambe sono scelte
+        // esplicite dell'utente, mai scavalcate.
+        // La base ESPLICITA (mapping `portraitBackdropPath` o `pbase` live) resta
+        // onorata anche con il toggle OFF: è una scelta manuale dell'utente,
+        // stesso contratto di `disableCleanPosters` (mapping e pick manuali non
+        // subiscono il flag). Solo questo ramo AUTOMATICO viene saltato.
         // Il crop usa lo stesso helper della rescue B2 (unico renderer):
         // nessun secondo percorso di rendering.
-        if (cleanEnabled && !isLandscape && hasTitleLogo && (images.backdrops?.length ?? 0) > 0) {
+        if (cleanEnabled && portraitBackdropFallback && !isLandscape && hasTitleLogo && (images.backdrops?.length ?? 0) > 0) {
           // Scelta esplicita dell'editor (`pbase`): vale SOLO se è un backdrop
           // clean della galleria del titolo — un path sconosciuto o non-clean
           // non scavalca mai la catena storica (primo clean, poi primo in
@@ -2200,6 +2212,7 @@ export async function GET(req: NextRequest, { params }: { params: Promise<RouteP
         ? !!backdropPath && !isCustomPosterUrl(backdropPath)
         : !!posterPath && !isCustomPosterUrl(posterPath)
       const auto = resolveAutoWordmark({
+        enabled: autoWordmarkEnabled,
         title: hardenedParams.get("title"),
         hasImageLogo: !!logoPath,
         hasTypedText: false,
