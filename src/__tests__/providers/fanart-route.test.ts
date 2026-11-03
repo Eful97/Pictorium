@@ -66,6 +66,8 @@ describe("GET /api/fanart/[id]/images", () => {
     expect(res.status).toBe(200)
     expect(await res.json()).toEqual({
       posters: [{ url: "https://assets.fanart.tv/fanart/movies/322/movieposter/a.jpg", lang: "it", likes: 5 }],
+      sections: { backgrounds: [], thumbs: [], logos: [], clearart: [] },
+      landscapeCandidates: [],
       source: "fanart",
     })
   })

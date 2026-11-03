@@ -14,6 +14,7 @@ import {
   normalizeCatalogShapeKeys,
   sanitizeCatalogShapes,
 } from "@/lib/catalog-shape"
+import { normalizeCatalogRating, normalizeCatalogRatingString } from "@/lib/catalog-handler"
 import { collectLocalBackup, applyLocalBackup } from "@/lib/backup-local"
 
 vi.mock("@/lib/store", () => ({
@@ -448,5 +449,135 @@ describe("catalogShapes transport validation", () => {
     const res = applyLocalBackup(freshStore, null, { catalogs: { shapes: { a: "bogus" } } })
     expect(res.skipped).toContain("catalogs.shapes")
     expect(JSON.parse(fresh.get("pictorium_catalog_shapes")!)).toEqual({ "pictorium-jw-series": "landscape" })
+  })
+})
+
+describe("universal catalog fields (poster / background / logo)", () => {
+  beforeEach(() => {
+    mockedGetById.mockResolvedValue(null)
+  })
+
+  afterEach(() => {
+    vi.mocked(getServerDefaults).mockReturnValue({})
+    vi.restoreAllMocks()
+    mockedGetById.mockReset()
+    __resetJWRankingsCache()
+    cacheClear()
+    __clearTMDBCache()
+    __resetChartGenerationForTest()
+  })
+
+  function showWithBackdrop(tmdbId: number, voteAverage = 8.4): Response {
+    return Response.json({
+      id: tmdbId,
+      name: "House of the Dragon",
+      poster_path: "/house-of-the-dragon.jpg",
+      backdrop_path: "/house-of-the-dragon-backdrop.jpg",
+      first_air_date: "2022-08-21",
+      vote_average: voteAverage,
+    })
+  }
+
+  it("background is always the raw TMDB original path, never the poster render", async () => {
+    mockedGetById.mockResolvedValue(portraitMapping() as never)
+    vi.spyOn(globalThis, "fetch")
+      .mockResolvedValueOnce(justWatchResponse(94997, "tt11198330"))
+      .mockResolvedValueOnce(showWithBackdrop(94997))
+      .mockResolvedValueOnce(Response.json({ id: 94997, logos: [] }))
+    const item = await getCatalogItem("pictorium-jw-series")
+    expect(item.poster).toContain("/api/poster/series/94997")
+    expect(item.background).toContain("/t/p/original/house-of-the-dragon-backdrop.jpg")
+    // Raw TMDB hero art: never a Pictorium render, never the logo render.
+    expect(item.background).not.toContain("/api/poster")
+  })
+
+  it("dual-format rows keep the portrait poster plus the landscape canvas and the raw background", async () => {
+    // Both base families saved: `poster` stays portrait (the universal card
+    // field), `landscapePoster` is additive Nuvio art, background is raw.
+    mockedGetById.mockResolvedValue(dualBaseMapping({ posterShape: "landscape" }) as never)
+    vi.spyOn(globalThis, "fetch")
+      .mockResolvedValueOnce(justWatchResponse(94997, "tt11198330"))
+      .mockResolvedValueOnce(showWithBackdrop(94997))
+    const item = await getCatalogItem("pictorium-jw-series")
+    expect(new URL(item.poster).searchParams.get("shape")).toBe(null)
+    expect(new URL(item.poster).searchParams.has("hideLogo")).toBe(false)
+    expect(new URL(item.landscapePoster).searchParams.get("shape")).toBe("landscape")
+    expect(item.background).toContain("/t/p/original/house-of-the-dragon-backdrop.jpg")
+    expect(item.background).not.toContain("/api/poster")
+    // Nuvio overlays `logo` on the baked-in landscape canvas: omit it.
+    expect(item.logo).toBeUndefined()
+  })
+
+  it("single-base landscape rows keep a valid poster URL and raw background while advertising their shape", async () => {
+    // Historical contract (unchanged): a single-base title forced to
+    // landscape by the global default serves a 16:9 `poster` and declares
+    // `posterShape=landscape`; vertical clients must honor that hint or pin
+    // the catalog to poster. The tradeoff is documented in .agents/catalog.md.
+    vi.mocked(getServerDefaults).mockReturnValue({ posterShape: "landscape" })
+    mockedGetById.mockResolvedValue(portraitMapping() as never)
+    vi.spyOn(globalThis, "fetch")
+      .mockResolvedValueOnce(justWatchResponse(94997, "tt11198330"))
+      .mockResolvedValueOnce(showWithBackdrop(94997))
+    const item = await getCatalogItem("pictorium-jw-series")
+    expect(item.posterShape).toBe("landscape")
+    expect(item.poster).toContain("/api/poster/series/94997")
+    expect(new URL(item.poster).searchParams.get("shape")).toBe("landscape")
+    expect(item.background).toContain("/t/p/original/house-of-the-dragon-backdrop.jpg")
+    expect(item.background).not.toContain("/api/poster")
+    // The baked-in landscape canvas suppresses the separate logo (Nuvio).
+    expect(item.logo).toBeUndefined()
+  })
+
+  it("keeps landscapePoster/banner additive: portrait rows only carry the clean banner", async () => {
+    mockedGetById.mockResolvedValue(portraitMapping() as never)
+    vi.spyOn(globalThis, "fetch")
+      .mockResolvedValueOnce(justWatchResponse(94997, "tt11198330"))
+      .mockResolvedValueOnce(showWithBackdrop(94997))
+      .mockResolvedValueOnce(Response.json({
+        id: 94997,
+        logos: [{ file_path: "/hotd-logo.png", iso_639_1: "it" }],
+      }))
+    const item = await getCatalogItem("pictorium-jw-series")
+    // Universal fields present for every client.
+    expect(item.poster).toContain("/api/poster/series/94997")
+    expect(item.background).toContain("/t/p/original/")
+    expect(item.logo).toContain("/hotd-logo.png")
+    // Nuvio-only fields: banner is always the clean landscape canvas,
+    // landscapePoster only exists when a landscape canvas is served.
+    expect(item.banner).toContain("hideLogo=1")
+    expect(item.landscapePoster).toBeUndefined()
+  })
+
+  it("never leaks a percent rating into imdbRating", async () => {
+    mockedGetById.mockResolvedValue(null)
+    vi.spyOn(globalThis, "fetch")
+      .mockResolvedValueOnce(justWatchResponse(94997, "tt11198330"))
+      // A percent-style upstream value (e.g. 88%) must never reach the
+      // Stremio item: imdbRating is a 0-10 value only.
+      .mockResolvedValueOnce(showWithBackdrop(94997, 88))
+    const item = await getCatalogItem("pictorium-jw-series")
+    expect(item.imdbRating).toBeUndefined()
+    // The row is still served with its universal fields.
+    expect(item.poster).toContain("/api/poster/series/94997")
+    expect(item.background).toContain("/t/p/original/")
+  })
+
+  it("normalizeCatalogRating guards the 0.1..10 decimal contract", () => {
+    expect(normalizeCatalogRating(8.4)).toBe("8.4")
+    expect(normalizeCatalogRating(10)).toBe("10.0")
+    expect(normalizeCatalogRating(0.1)).toBe("0.1")
+    expect(normalizeCatalogRating(0)).toBeUndefined()
+    expect(normalizeCatalogRating(0.05)).toBeUndefined()
+    expect(normalizeCatalogRating(-1)).toBeUndefined()
+    expect(normalizeCatalogRating(10.01)).toBeUndefined()
+    expect(normalizeCatalogRating(88)).toBeUndefined()
+    expect(normalizeCatalogRating(Number.NaN)).toBeUndefined()
+    expect(normalizeCatalogRating(undefined)).toBeUndefined()
+    expect(normalizeCatalogRating(null)).toBeUndefined()
+    // Cached raw bodies go through the same guard.
+    expect(normalizeCatalogRatingString("8.4")).toBe("8.4")
+    expect(normalizeCatalogRatingString("88")).toBeUndefined()
+    expect(normalizeCatalogRatingString("")).toBeUndefined()
+    expect(normalizeCatalogRatingString(8.4)).toBeUndefined()
   })
 })

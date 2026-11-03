@@ -35,7 +35,8 @@ const _idT: T = (k) => k
  * Default sash-bucket priority — identical to the former if-chain
  * (upcoming > animeRank > trendRank > isNewMovie >
  * isNewSeries > newSeason > nextEpisode > award > imdbTop250 > nomination >
- * subGenre > trueStory > basedOnBook >
+ * imdbTopRanking > certifiedFresh > verifiedHot > mustSee > subGenre >
+ * trueStory > basedOnBook >
  * isKDrama > director > studio > extra). Order inside each bucket is fixed;
  * the list is steerable (subset/reorder) via `sash` query or global
  * defaults — never a DSL.
@@ -154,6 +155,18 @@ export interface BadgeParams {
   isKDrama?: boolean
   /** Serie finita da poco (status Ended + ultima puntata recente). */
   seriesEnded?: string | null
+  /**
+   * MDBList/WhatsOn feature badges (same-response `whatson_features`, zero
+   * extra fetch). Bucket `extra`, ordered before sub-genres:
+   * IMDb Top-250 position > Certified Fresh > Verified Hot > Must-See.
+   * Each candidate yields to the next enabled one when its canonical tag
+   * (`imdbTopRanking`/`certifiedFresh`/`verifiedHot`/`mustSee`) is disabled
+   * space-wide, then to the next bucket.
+   */
+  imdbTopRanking?: number | null
+  certifiedFresh?: boolean
+  verifiedHot?: boolean
+  mustSee?: boolean
   imdbTop250?: boolean
   extra: string | null
   /**
@@ -210,6 +223,14 @@ function resolveBucket(bucket: SashBucket, params: BadgeParams, t: T): BadgeResu
       if (params.nomination && !off("nomination")) return { type: "extra", label: params.nomination }
       return null
     case "extra":
+      // MDBList/WhatsOn features first (most specific accolade): each one
+      // respects its own canonical content-tag opt-out.
+      if (params.imdbTopRanking && !off("imdbTopRanking")) {
+        return { type: "extra", label: t("badge.imdbTopRanking", { rank: params.imdbTopRanking }) }
+      }
+      if (params.certifiedFresh && !off("certifiedFresh")) return { type: "extra", label: t("badge.certifiedFresh") }
+      if (params.verifiedHot && !off("verifiedHot")) return { type: "extra", label: t("badge.verifiedHot") }
+      if (params.mustSee && !off("mustSee")) return { type: "extra", label: t("badge.mustSee") }
       if (params.subGenre && !off("subgenre")) return { type: "extra", label: params.subGenre }
       // Permanent content below news/rank/awards: true story before book
       // (deterministic documented order, both below sub-genre).

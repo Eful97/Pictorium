@@ -39,10 +39,13 @@ the manifest (no `kitsu:`/`anilist:`/`mal:`/`anidb:` meta prefixes advertised).
     informational season only — episode offsets are NOT stored (artwork mapping
     never establishes season/episode numbering).
 - **Conflicts**: 1,245 of 4,280 TMDB-tv keys are shared by several anime
-  (e.g. tmdb tv `26209` ← 7 AniList seasons of one show); 68 forward keys map
-  one anime id to several TMDB targets. Policy: keep every row, never
-  first-pick — forward lookups report `ambiguous`, reverse lookups return all
-  matches and callers require uniqueness.
+  (e.g. tmdb tv `26209` ← 7 AniList seasons of one show). Forward keys
+  (`namespace:id:side`) that map one anime id to several TMDB targets are
+  counted by the generator in `meta.counts.ambiguity` (current snapshot: 55
+  keys — 8 AniList, 7 Kitsu, 10 MAL, 30 AniDB — plus 17 TMDB ids used on both
+  the movie and the tv side). Policy: keep every row, never first-pick —
+  forward lookups report `ambiguous`, reverse lookups return all matches and
+  callers require uniqueness.
 - **Storage**: bundled versioned snapshot `src/generated/anime-id-map.json`
   (**678 KB, 8,552 records**) + indices built in-memory at import (~ms).
   Chosen over KV because the data is static, read-heavy and needed
@@ -53,13 +56,16 @@ the manifest (no `kitsu:`/`anilist:`/`mal:`/`anidb:` meta prefixes advertised).
 ## Runtime behavior
 
 - **Proxy rewrite** (`animeArtworkPosterId` in `src/lib/addon-proxy.ts`):
-  only `anilist:`/`kitsu:` + explicit item type (`movie`/`anime.movie` →
-  movie, `series`/`anime.series`/`tv`/`show` → tv). Unique side-compatible
-  match → `/api/poster/{movie|series}/{tmdbId}` via the existing URL builder
-  (same `rv`/`u`/`dv` propagation). Anything else — miss, ambiguity,
-  media-type mismatch, bare `anime` type, `mal:`/`anidb:`, malformed id —
-  keeps the original artwork. No title search, no enrichment calls, zero
-  network (the rewrite stays synchronous).
+  `anilist:`/`kitsu:`/`mal:`/`anidb:` + explicit item type
+  (`movie`/`anime.movie` → movie, `series`/`anime.series`/`tv`/`show` → tv).
+  Unique side-compatible match → `/api/poster/{movie|series}/{tmdbId}` via the
+  existing URL builder (same `rv`/`u`/`dv` propagation). Anything else — miss,
+  ambiguity, media-type mismatch, bare `anime` type, malformed id — keeps the
+  original artwork. All four namespaces share the exact same rule: a forward
+  key that points to more than one TMDB target on that side is `ambiguous`,
+  never a first-pick, and an id present only on the other TMDB side is
+  `missing`. No title search, no enrichment calls, zero network (the rewrite
+  stays synchronous).
 - **Season limit**: a unique season→show match reuses *series* artwork; it
   does not promise season-specific artwork and never merges seasons.
 - **Ratings** (`resolveAnimeIds` in `src/lib/anime-ratings.ts`): local reverse
@@ -89,27 +95,84 @@ the manifest (no `kitsu:`/`anilist:`/`mal:`/`anidb:` meta prefixes advertised).
   mapping-version cache component was needed. Poster pixels/render params
   unchanged (`RENDER_VERSION` untouched).
 
-## Update commands
+## Snapshot maintenance (repin procedure)
+
+The snapshot is a **pinned** artifact: nothing fetches at build/run time. Two
+dev-only commands keep the pin honest (`scripts/build-anime-id-map.mjs`; no
+runtime network, no new dependency, no scheduler).
+
+### Staleness gate (`--check`)
+
+Read-only: compares `meta.sourceRevision` of the bundled snapshot with the
+upstream branch revision and **never writes**.
 
 ```bash
-# 1. Fetch the upstream file (manual step, never automatic at build):
-curl -o /tmp/anime-list-full.json \
-  https://raw.githubusercontent.com/Fribb/anime-lists/master/anime-list-full.json
+# CI/cron friendly: exit 0 = aligned, 1 = STALE (repin needed),
+# 2 = cannot be verified (missing snapshot/revision, upstream unreachable)
+node scripts/build-anime-id-map.mjs --check
 
-# 2. Pin the revision you downloaded:
-#    https://api.github.com/repos/Fribb/anime-lists/commits/master  →  sha
+# Offline deterministic comparison (tests/CI, no network):
+node scripts/build-anime-id-map.mjs --check --upstream-sha <40-hex-sha>
+```
 
-# 3. Regenerate (validates fully, then atomically replaces):
+- Default probe: `GET https://api.github.com/repos/Fribb/anime-lists/commits/master`
+  (`--upstream-api <url>` override) reading `sha` (also accepted: `object.sha`).
+- ETag signal: when the snapshot carries `meta.sourceETag` (or
+  `--upstream-etag <etag>` is passed) the request sends `If-None-Match`; a
+  `304`, or an unchanged ETag when the body has no sha, counts as **fresh**.
+- An unreachable upstream or an unreadable/unsourced snapshot is **never**
+  reported as fresh: exit 2 with the reason on stderr.
+- Exit codes are part of the contract: a wrapper that treats any non-zero as
+  "network error" would mask a stale pin (1) as unverifiable (2).
+
+### Repin (`--fetch`)
+
+`--fetch` resolves the revision (current branch HEAD, or the explicit
+`--revision`), downloads `anime-list-full.json`, validates that it is a
+non-empty JSON array and writes it atomically — then continues with the normal
+build, so one invocation repins end-to-end:
+
+```bash
+# One-shot repin (branch HEAD -> downloaded input -> regenerated snapshot)
+node scripts/build-anime-id-map.mjs --fetch --input /tmp/anime-list-full.json
+
+# Reproduce/refresh a specific pin (no revision API call)
+node scripts/build-anime-id-map.mjs --fetch \
+  --input /tmp/anime-list-full.json --revision <40-hex-sha>
+
+# Manual equivalent (no --fetch): download the file yourself, then
 node scripts/build-anime-id-map.mjs \
   --input /tmp/anime-list-full.json --revision <40-hex-sha>
 
-# 4. Verify + commit the regenerated snapshot:
-npx vitest run anime-id-map
+# Verify + commit the regenerated snapshot:
+npx vitest run src/__tests__/catalogs/anime-id-map
+node scripts/build-anime-id-map.mjs --check
 ```
 
 Rules: never hand-edit `src/generated/anime-id-map.json`; a failed/invalid
-build keeps the previous file (non-zero exit, no partial write); record counts
-and skips are printed by the generator and stored under `meta`.
+build (or a failed fetch) keeps the previous file (non-zero exit, no partial
+write); record counts, skip reasons and ambiguity stats are printed by the
+generator and stored under `meta`.
+
+### Published metadata (`meta`)
+
+| Field | Meaning |
+|---|---|
+| `schemaVersion` | Compact-snapshot schema (currently 1). |
+| `sourceRepo` / `sourceRevision` | Pinned upstream repo + revision (what `--check` compares). |
+| `generatedAt` | Build timestamp (informational; `--generated-at` pins it for reproducible fixtures). |
+| `sourceETag` | Optional: ETag of the upstream revision-discovery response captured by `--fetch` when it resolves the revision via the API (`--revision` skips that call); used only by `--check` (`If-None-Match`). |
+| `counts.records` / `with*` / `movie` / `tv` / `multiMovieRow` | Coverage counters (per emitted record). |
+| `counts.skipped` | Input rows **not** emitted, by reason: `noTmdbTarget` (no usable TMDB id), `noAnimeId` (no AniList/Kitsu/MAL/AniDB id), `invalidRow` (not an object). |
+| `counts.ambiguity.forwardKeys` | Forward lookup keys indexed per namespace (`namespace:id:side`). |
+| `counts.ambiguity.forwardConflicts` | Keys pointing to more than one TMDB target on that side → `ambiguous` at runtime. |
+| `counts.ambiguity.forwardConflictTotal` | Sum of the four namespaces. |
+| `counts.ambiguity.tmdbSideCollisions` | TMDB ids used on both the movie and the tv side (ids are shared across sides; the side is part of the identity). |
+
+`meta.counts.ambiguity` is **diagnostic**: it describes the dataset, it does not
+relax the runtime rule (conflicts stay `ambiguous`, never first-pick). Older
+bundled snapshots without the field remain valid — the resolver does not read
+`meta.counts`; the field appears on the next repin.
 
 ## Coverage limits & known issues
 
@@ -118,9 +181,48 @@ and skips are printed by the generator and stored under `meta`.
 - Multi-movie rows (one anime → 2–3 TMDB movies) are always `ambiguous`.
 - Multi-season shows are unusable for *ratings* (ambiguity → AniZip fallback)
   but usable for *artwork* (unique anime→TMDB direction).
-- `mal:`/`anidb:` are indexed by the resolver but not wired into the proxy;
-  enabling them needs the same fixture proof as AniList/Kitsu.
+- `mal:`/`anidb:` are wired into the proxy with the same uniqueness rule as
+  `anilist:`/`kitsu:` (no per-namespace heuristic). They are indexed from the
+  same rows, so an id that only appears on rows without a TMDB target has no
+  artwork target, and a key shared by several TMDB targets stays `ambiguous`
+  (AniDB carries the largest share of forward conflicts because one AniDB id
+  can own several TMDB movies).
 - Phase 5 (native AniList catalogs) is a separate follow-up, not started.
+
+## AniBridge evaluation (docs only, not implemented)
+
+AniBridge (an external anime ↔ TMDB/IMDb bridging source surfaced in the
+CrossWatch analysis) was evaluated as a possible **secondary** resolver on top
+of the bundled snapshot. Decision: **not integrated** — no runtime dependency,
+no additional network call, no change to the resolver contract.
+
+Reasons, scoped to this codebase's actual use (proxy artwork rewrite and the
+local ratings mapping hop):
+
+1. **It would not fix the gap we have.** The uncovered cases are (a) upstream
+   rows without a TMDB id and (b) forward keys with several TMDB targets. A
+   secondary source can only "help" (b) by *choosing* one target — exactly the
+   first-pick policy this mapping rejects. Improving (a) means repairing the
+   upstream dataset, not adding a second opinion at request time.
+2. **Runtime shape.** The current design is a bundled, versioned snapshot with
+   in-memory indices: synchronous, zero network, Docker/serverless-safe, no
+   timeout/concurrency/TTL budget. A secondary service adds a new network
+   dependency (latency, failure mode, rate limits, caching) to a path that
+   currently cannot fail.
+3. **Provenance not reviewed.** Adopting another dataset requires the same
+   source/attribution/license review already tracked below for Fribb's inputs;
+   that has not been done for AniBridge, so it cannot be redistributed here.
+4. **No measurable win.** `meta.counts.ambiguity` (above) now quantifies the
+   conflicts directly from the snapshot; a secondary source would be adopted
+   only if it measurably reduced those numbers or the `noTmdbTarget` rows on
+   the pinned revision — not on a general claim of "better coverage".
+
+Revisit criteria (any one): a measured drop in `counts.skipped.noTmdbTarget`
+or in `counts.ambiguity.*` attributable to the secondary source on the same
+pinned upstream revision; a documented, redistribution-compatible license for
+its data; and a failure-isolated, fixture-backed integration that keeps the
+current synchronous zero-network path as the primary. Until then this section
+is the record of the evaluation — there is no code, flag or env var for it.
 
 ## Source attribution and license review
 

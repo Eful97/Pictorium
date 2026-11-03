@@ -9,6 +9,7 @@ import { usePosterEditor } from "@/lib/contexts/PosterEditorContext"
 import { useT } from "@/lib/contexts/TranslationContext"
 import { usePosterFit } from "@/lib/usePosterFit"
 import { useTvdbArtworks } from "@/lib/useTvdbArtworks"
+import { useFanartPosters } from "@/lib/useFanartPosters"
 import { RatingSourceIcon } from "@/components/RatingSourceIcon"
 import { ArrowUpDown, Check, ChevronDown, Clock, EyeOff, Loader2, RotateCcw, Sparkles, X } from "lucide-react"
 
@@ -248,8 +249,12 @@ export function BackdropOptions({ backdrops, backdropActivePath, selectBackdrop,
   // all'apertura, fetch condivisa con le altre gallery (vedi useTvdbArtworks).
   // I tile TVDB riusano `handleSelect` (stessa semantica manuale toggle) ma
   // restano fuori da best-fit/rotazione/esclusioni (solo path TMDB).
-  const [source, setSource] = useState<"tmdb" | "tvdb">("tmdb")
+  const [source, setSource] = useState<"tmdb" | "tvdb" | "fanart">("tmdb")
   const tvdb = useTvdbArtworks(source === "tvdb" && !!selected, "backdrops")
+  // Fanart.tv: backgrounds + thumbs (already landscape) as explicit base
+  // candidates — lazy, only when the tab is open (same contract as posters).
+  const fanart = useFanartPosters(source === "fanart" && !!selected)
+  const fanartBackdrops = [...fanart.sections.backgrounds, ...fanart.sections.thumbs]
 
   if (backdrops.length === 0 && !selected) {
     return (
@@ -324,9 +329,67 @@ export function BackdropOptions({ backdrops, backdropActivePath, selectBackdrop,
             {t("ui.tvdbTitle")}
             <span className="ml-1 text-[10px] opacity-60">{tvdb.items.length}</span>
           </button>
+          <button type="button"
+            aria-label={t("ui.fanartTitle")}
+            onClick={() => setSource("fanart")}
+            className={`tab-chip h-7 px-2.5 rounded-lg text-[11px] font-semibold border transition-all shrink-0 ${source === "fanart" ? "tab-chip-active bg-accent-orange/15 text-accent-orange border-accent-orange/35" : "bg-white/5 text-muted border-white/10 hover:text-zinc-200 hover:bg-white/10"}`}
+          >
+            {t("ui.fanartTitle")}
+            <span className="ml-1 text-[10px] opacity-60">{fanartBackdrops.length}</span>
+          </button>
         </div>
       )}
-      {source === "tvdb" && selected ? (
+      {source === "fanart" && selected ? (
+        <div data-testid="fanart-backdrops-panel">
+          {(fanart.status === "idle" || fanart.status === "loading") && (
+            <p className="flex items-center justify-center gap-1.5 py-12 text-[11px] text-zinc-500" role="status">
+              <Loader2 className="w-3.5 h-3.5 animate-spin" aria-hidden="true" />
+              {t("ui.fanartLoading")}
+            </p>
+          )}
+          {fanart.status === "empty" && (
+            <p className="py-12 text-center text-[11px] text-zinc-500">{t("ui.fanartEmpty")}</p>
+          )}
+          {fanart.status === "not_configured" && (
+            <p className="py-12 px-2 text-center text-[11px] text-zinc-500 leading-relaxed">{t("ui.fanartNotConfigured")}</p>
+          )}
+          {fanart.status === "unavailable" && (
+            <div className="py-8 text-center">
+              <p className="text-[11px] text-zinc-500">{t("ui.fanartUnavailable")}</p>
+              <button
+                type="button"
+                onClick={() => fanart.reload()}
+                className="mt-2 px-3 py-1.5 rounded-lg bg-white/5 border border-white/10 text-[11px] font-semibold text-zinc-300 hover:text-white hover:bg-white/10 transition-all"
+              >
+                {t("ui.retry")}
+              </button>
+            </div>
+          )}
+          {fanart.status === "ready" && fanartBackdrops.length === 0 && (
+            <p className="py-12 text-center text-[11px] text-zinc-500">{t("ui.fanartEmpty")}</p>
+          )}
+          {fanart.status === "ready" && fanartBackdrops.length > 0 && (
+            <div className="grid grid-cols-2 gap-2">
+              {fanartBackdrops.map((img, idx) => (
+                <div key={img.file_path} className="relative group rounded-xl overflow-hidden">
+                  <PosterBtn
+                    staggerIndex={idx}
+                    img={img}
+                    landscape
+                    imgSize="w300"
+                    active={backdropActivePath === img.file_path}
+                    onSelect={handleSelect}
+                    title={t("ui.fanartTitle")}
+                  />
+                  <span className="absolute top-1 left-1 z-20 flex items-center gap-1 rounded-md bg-black/60 px-1.5 py-0.5 text-[10px] font-semibold text-zinc-200 backdrop-blur-md border border-white/10 pointer-events-none">
+                    {t("ui.fanartTitle")}
+                  </span>
+                </div>
+              ))}
+            </div>
+          )}
+        </div>
+      ) : source === "tvdb" && selected ? (
         <div data-testid="tvdb-backdrops-panel">
           {(tvdb.status === "idle" || tvdb.status === "loading") && (
             <p className="flex items-center justify-center gap-1.5 py-12 text-[11px] text-zinc-500" role="status">

@@ -96,6 +96,9 @@ const SHARED_RESOLVE_TIMEOUT_MS = 30_000
 export interface CustomRankingSourceRef {
   readonly url: string
   readonly datasetId?: string
+  /** Explicit provider sort (validated allowlist at fetch time). */
+  readonly sortBy?: string
+  readonly sortHow?: "asc" | "desc"
 }
 
 export interface CustomRankingItem {
@@ -144,6 +147,11 @@ function hashFragment(value: string | undefined): string {
 
 function rankingCacheKey(input: FetchCustomRankingInput): string {
   const urlHash = crypto.createHash("sha1").update(input.custom.url.trim()).digest("hex").slice(0, 10)
+  // An explicit sort changes the order the ranks derive from: it must not
+  // share the 30min derived layer with a differently sorted config.
+  const sortFragment = input.custom.sortBy
+    ? `:so${input.custom.sortBy}:${input.custom.sortHow ?? "asc"}`
+    : ""
   return [
     "custom_rank",
     urlHash,
@@ -154,7 +162,7 @@ function rankingCacheKey(input: FetchCustomRankingInput): string {
     `vk${hashFragment(input.tvdbKey)}`,
     `ds${hashFragment(input.custom.datasetId)}`,
     `u${hashFragment(input.userId ?? undefined)}`,
-  ].join(":")
+  ].join(":") + sortFragment
 }
 
 // In-flight coalescing: concurrent resolutions of the same key share one
@@ -285,6 +293,8 @@ async function resolveTop20(input: FetchCustomRankingInput): Promise<CustomRanki
       limit: RANKING_FETCH_LIMIT,
       datasetId: input.custom.datasetId,
       userId: input.userId ?? null,
+      sortBy: input.custom.sortBy,
+      sortHow: input.custom.sortHow,
     }),
     input.signal,
   )

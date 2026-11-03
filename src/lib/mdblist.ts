@@ -4,6 +4,8 @@ import { envWithFallback } from "./env-compat"
 import { combineAbortSignals, raceWithAbort } from "./abort-signal"
 import { timedFetch } from "./outbound-stats"
 import { isMdbKeyParked, noteMdbQuotaExhausted429, noteMdbQuotaSuccess } from "./mdblist-quota"
+import { buildMDBListListUrl } from "./catalog-provider-detect"
+import type { CustomCatalogSortOrder } from "./types"
 
 export interface MDBListEntry {
   imdb: string
@@ -311,16 +313,30 @@ export function parseMDBListTarget(input: string): { user?: string; slug?: strin
   return null
 }
 
-export async function fetchCustomMDBList(urlOrSlug: string, apiKey?: string, limit: number = 500, signal?: AbortSignal): Promise<MDBListEntry[]> {
+export async function fetchCustomMDBList(
+  urlOrSlug: string,
+  apiKey?: string,
+  limit: number = 500,
+  signal?: AbortSignal,
+  sort?: { sortBy: string; sortHow: CustomCatalogSortOrder } | null,
+): Promise<MDBListEntry[]> {
   const target = parseMDBListTarget(urlOrSlug)
   if (!target) return []
 
   const key = apiKey || envWithFallback("MDBLIST_KEY") || process.env.MDBLIST_KEY || process.env.MDBLIST_API_KEY
   const keyHash = key ? crypto.createHash("sha1").update(key).digest("hex").slice(0, 8) : "none"
   const targetHash = crypto.createHash("sha1").update(urlOrSlug.trim()).digest("hex").slice(0, 8)
-  const cacheKey = `mdblist:custom:${targetHash}:${keyHash}`
+  // The explicit sort changes the payload, so it is part of the 12h source
+  // key (legacy unsorted keys stay byte-identical).
+  const sortFragment = sort ? `:so${sort.sortBy}:${sort.sortHow}` : ""
+  const cacheKey = `mdblist:custom:${targetHash}:${keyHash}${sortFragment}`
   const cached = cacheGet<MDBListEntry[]>(cacheKey)
   if (cached) return cached
+
+  // MDBList item sort query: `sort` field allowlist + `order` direction.
+  // Applied to the keyed endpoint only (the public JSON fallback ignores
+  // unknown query params and keeps its documented shape).
+  const sortQuery = sort ? `&sort=${encodeURIComponent(sort.sortBy)}&order=${sort.sortHow}` : ""
 
   try {
     const explicitUrl = process.env.MDBLIST_API_URL
@@ -328,7 +344,7 @@ export async function fetchCustomMDBList(urlOrSlug: string, apiKey?: string, lim
 
     if (explicitUrl) {
       const slug = target.slug || target.id || "custom"
-      res = await timedFetch(`${explicitUrl}/lists/custom/${slug}`, { signal: combineAbortSignals(signal, 10000) }).catch(() => null)
+      res = await timedFetch(`${explicitUrl}/lists/custom/${slug}${sortQuery ? `?${sortQuery.slice(1)}` : ""}`, { signal: combineAbortSignals(signal, 10000) }).catch(() => null)
     } else if (key) {
       // Same daily-quota parking as fetchMDBList above: a parked key skips
       // the keyed fetch and uses the public fallback below (zero quota
@@ -336,11 +352,11 @@ export async function fetchCustomMDBList(urlOrSlug: string, apiKey?: string, lim
       let keyUrl = ""
       if (!isMdbKeyParked(key)) {
         if (target.id) {
-          keyUrl = `https://api.mdblist.com/lists/${target.id}/items?apikey=${encodeURIComponent(key)}&limit=${limit}`
+          keyUrl = `https://api.mdblist.com/lists/${target.id}/items?apikey=${encodeURIComponent(key)}&limit=${limit}${sortQuery}`
         } else if (target.user && target.slug) {
-          keyUrl = `https://api.mdblist.com/lists/${encodeURIComponent(target.user)}/${encodeURIComponent(target.slug)}/items?apikey=${encodeURIComponent(key)}&limit=${limit}`
+          keyUrl = `https://api.mdblist.com/lists/${encodeURIComponent(target.user)}/${encodeURIComponent(target.slug)}/items?apikey=${encodeURIComponent(key)}&limit=${limit}${sortQuery}`
         } else if (target.slug) {
-          keyUrl = `https://api.mdblist.com/lists/${encodeURIComponent(target.slug)}/items?apikey=${encodeURIComponent(key)}&limit=${limit}`
+          keyUrl = `https://api.mdblist.com/lists/${encodeURIComponent(target.slug)}/items?apikey=${encodeURIComponent(key)}&limit=${limit}${sortQuery}`
         }
       }
       if (keyUrl) {
@@ -434,6 +450,192 @@ export async function fetchCustomMDBList(urlOrSlug: string, apiKey?: string, lim
     cacheSet(cacheKey, [], ["mdblist"], 60_000)
     return []
   }
+}
+
+// ---------------------------------------------------------------------------
+// MDBList browse (read-only): top lists, list search, user lists.
+//
+// Read-only picker support for the "New catalog" dialog. Same key handling as
+// the list fetch above: the key never enters a cache key, log, or response
+// (only a short sha1 hash in the key), the daily-quota parking gate from
+// `mdblist-quota.ts` skips the keyed fetch while exhausted (zero quota spend),
+// and results are cached 60 minutes. No public fallback: browsing is a keyed
+// feature (without a key the caller gets an empty list, never a guessed feed).
+// ---------------------------------------------------------------------------
+
+/** Browse cache lifetime (top/search/user lists). */
+export const MDBLIST_BROWSE_TTL_MS = 60 * 60 * 1000
+export const MDBLIST_BROWSE_MAX_LIMIT = 50
+
+export interface MDBListSummary {
+  readonly id: number | null
+  readonly name: string
+  readonly slug: string | null
+  readonly userName: string | null
+  readonly mediaType: "movie" | "show" | "anime" | "tv" | null
+  readonly itemCount: number | null
+  readonly likes: number
+  readonly description: string | null
+  /** Canonical import URL (`https://mdblist.com/lists/...`), null if unusable. */
+  readonly url: string | null
+}
+
+/** Tolerant parser for the three browse payload shapes (array or envelope). */
+export function parseMDBListSummaries(data: unknown): MDBListSummary[] {
+  const envelope = data && typeof data === "object" ? (data as Record<string, unknown>) : null
+  const raw = Array.isArray(data)
+    ? data
+    : Array.isArray(envelope?.lists)
+      ? envelope?.lists
+      : Array.isArray(envelope?.data)
+        ? envelope?.data
+        : Array.isArray(envelope?.items)
+          ? envelope?.items
+          : []
+  const out: MDBListSummary[] = []
+  const seen = new Set<string>()
+  for (const item of raw as Array<Record<string, unknown>>) {
+    if (!item || typeof item !== "object") continue
+    const name = typeof item.name === "string" ? item.name.trim() : typeof item.title === "string" ? item.title.trim() : ""
+    if (!name) continue
+    const slugRaw = item.slug ?? item.list_slug
+    const slug = typeof slugRaw === "string" && slugRaw.trim() ? slugRaw.trim() : null
+    const rawId = item.id ?? item.list_id
+    const idNum = Number(rawId)
+    const id = Number.isFinite(idNum) && idNum > 0 ? Math.floor(idNum) : null
+    if (!slug && id === null) continue
+    const userRaw = item.user_name ?? item.username ?? item.user
+    const userName =
+      typeof userRaw === "string" && userRaw.trim()
+        ? userRaw.trim()
+        : userRaw && typeof userRaw === "object"
+          ? (() => {
+              const u = userRaw as Record<string, unknown>
+              const v = u.username ?? u.name ?? u.user_name
+              return typeof v === "string" && v.trim() ? v.trim() : null
+            })()
+          : null
+    const mediaRaw = item.mediatype ?? item.media_type ?? item.type
+    const mediaType =
+      mediaRaw === "movie" || mediaRaw === "show" || mediaRaw === "anime" || mediaRaw === "tv"
+        ? mediaRaw
+        : null
+    const rawCount = item.items_count ?? item.items
+    const itemCount =
+      typeof rawCount === "number" && Number.isFinite(rawCount) && rawCount >= 0
+        ? Math.floor(rawCount)
+        : Array.isArray(rawCount)
+          ? rawCount.length
+          : null
+    const likesRaw = Number(item.likes)
+    const likes = Number.isFinite(likesRaw) && likesRaw > 0 ? Math.floor(likesRaw) : 0
+    const description = typeof item.description === "string" && item.description.trim() ? item.description.trim() : null
+    const dedupeKey = `${userName ?? ""}:${slug ?? ""}:${id ?? ""}`
+    if (seen.has(dedupeKey)) continue
+    seen.add(dedupeKey)
+    out.push({
+      id,
+      name,
+      slug,
+      userName,
+      mediaType,
+      itemCount,
+      likes,
+      description,
+      url: buildMDBListListUrl({ userName, slug, id }),
+    })
+  }
+  return out
+}
+
+function mdbListApiBase(): string {
+  return (process.env.MDBLIST_API_URL || "https://api.mdblist.com").replace(/\/+$/, "")
+}
+
+function browseLimit(limit: number): number {
+  if (!Number.isFinite(limit)) return 30
+  return Math.max(1, Math.min(MDBLIST_BROWSE_MAX_LIMIT, Math.floor(limit)))
+}
+
+async function fetchMDBListBrowse(
+  cacheNamespace: string,
+  apiKey: string | undefined,
+  path: string,
+  signal?: AbortSignal,
+): Promise<MDBListSummary[]> {
+  if (!apiKey) return []
+  const keyHash = crypto.createHash("sha1").update(apiKey).digest("hex").slice(0, 8)
+  const cacheKey = `mdblist:browse:${cacheNamespace}:${keyHash}`
+  const cached = cacheGet<MDBListSummary[]>(cacheKey)
+  if (cached) return cached
+  // Exhausted key: cached results above are still served, the fresh keyed
+  // fetch is skipped (zero quota spend until reset).
+  if (isMdbKeyParked(apiKey)) return []
+  const url = `${mdbListApiBase()}${path}${path.includes("?") ? "&" : "?"}apikey=${encodeURIComponent(apiKey)}`
+  const res = await timedFetch(url, {
+    headers: { "User-Agent": "Mozilla/5.0 Pictorium" },
+    signal: combineAbortSignals(signal, 8000),
+  }).catch(() => null)
+  if (!res) return []
+  if (!res.ok) {
+    if (res.status === 429) noteMdbQuotaExhausted429(res.headers, apiKey)
+    return []
+  }
+  noteMdbQuotaSuccess(res.headers, apiKey)
+  const data = await res.json().catch(() => null)
+  if (data === null) return []
+  const lists = parseMDBListSummaries(data)
+  cacheSet(cacheKey, lists, ["mdblist"], MDBLIST_BROWSE_TTL_MS)
+  return lists
+}
+
+/** Top MDBList lists (`GET /lists/top`). Empty without a key. */
+export async function fetchMDBListTopLists(
+  apiKey?: string,
+  limit: number = 30,
+  signal?: AbortSignal,
+): Promise<MDBListSummary[]> {
+  const bounded = browseLimit(limit)
+  return fetchMDBListBrowse(`top:${bounded}`, apiKey, `/lists/top?limit=${bounded}`, signal)
+}
+
+/** Search MDBList lists (`GET /lists/search?query=`). Empty query = no I/O. */
+export async function fetchMDBListListSearch(
+  query: string,
+  apiKey?: string,
+  limit: number = 30,
+  signal?: AbortSignal,
+): Promise<MDBListSummary[]> {
+  const q = query.trim().slice(0, 80)
+  if (!q) return []
+  const bounded = browseLimit(limit)
+  const qHash = crypto.createHash("sha1").update(q).digest("hex").slice(0, 10)
+  return fetchMDBListBrowse(
+    `search:${qHash}:${bounded}`,
+    apiKey,
+    `/lists/search?query=${encodeURIComponent(q)}&limit=${bounded}`,
+    signal,
+  )
+}
+
+/** Lists owned by one MDBList user (`GET /lists/user/{username}`). */
+export async function fetchMDBListUserLists(
+  userName: string,
+  apiKey?: string,
+  limit: number = 30,
+  signal?: AbortSignal,
+): Promise<MDBListSummary[]> {
+  const user = userName.trim()
+  if (!user) return []
+  if (!/^[A-Za-z0-9_.-]+$/.test(user)) return []
+  const bounded = browseLimit(limit)
+  const userHash = crypto.createHash("sha1").update(user).digest("hex").slice(0, 10)
+  return fetchMDBListBrowse(
+    `user:${userHash}:${bounded}`,
+    apiKey,
+    `/lists/user/${encodeURIComponent(user)}?limit=${bounded}`,
+    signal,
+  )
 }
 
 export async function checkMDBLists(imdbId: string): Promise<{ key: string; rank: number } | null> {

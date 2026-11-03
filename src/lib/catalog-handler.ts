@@ -51,6 +51,7 @@ import { CHART_LIVE_PIN_ID, chartPinCacheFragment, familySlotEndMs, familySlotFl
 import { CHART_PLATFORM_SOURCES, ensureFreshChartFamily } from "@/lib/chart-renewal"
 import { getExplicitCatalogShape, mappingHasBothShapeBases, normalizeCatalogShapeKeys } from "@/lib/catalog-shape"
 import type { PosterShape, CustomCatalogConfig } from "@/lib/types"
+import { customCatalogSortFragment } from "@/lib/types"
 
 const log = createLogger("catalog")
 
@@ -531,6 +532,26 @@ async function buildPosterRowUrls(
 
 function catalogBackground(backdropPath: string | null | undefined): string | undefined {
   return backdropPath ? posterUrlOriginal(backdropPath) : undefined
+}
+
+/**
+ * Catalog `imdbRating` contract: always a 0-10 scale decimal string, never a
+ * percentage. Percent-based providers (Rotten Tomatoes, MDBList percent rows,
+ * custom rating percent values) must never leak here: TMDB `vote_average` is
+ * 0-10, so anything outside `(0.1, 10]` is fail-closed like a missing vote.
+ * `0` keeps the historical "no vote" semantics.
+ */
+export function normalizeCatalogRating(value: number | null | undefined): string | undefined {
+  if (typeof value !== "number" || !Number.isFinite(value) || value < 0.1 || value > 10) return undefined
+  return value.toFixed(1)
+}
+
+/** Same guard for a cached raw body field (persisted `imdbRating` string). */
+export function normalizeCatalogRatingString(value: unknown): string | undefined {
+  if (typeof value !== "string" || value.trim() === "") return undefined
+  const parsed = Number(value)
+  if (!Number.isFinite(parsed)) return undefined
+  return normalizeCatalogRating(parsed)
 }
 
 /**
@@ -1273,7 +1294,7 @@ export async function pictoriumCatalog(
             landscapePoster,
             background: catalogBackground(item.backdrop_path),
             releaseInfo,
-            imdbRating: item.vote_average ? item.vote_average.toFixed(1) : undefined,
+            imdbRating: normalizeCatalogRating(item.vote_average),
             genres: genreNamesFromIds(item.genre_ids, genreNames),
             description: item.overview ?? undefined,
           }
@@ -1330,7 +1351,7 @@ export async function pictoriumCatalog(
               landscapePoster,
               background: catalogBackground(d?.backdrop_path ?? null),
               releaseInfo: (d?.release_date || d?.first_air_date || "").slice(0, 4) || undefined,
-              imdbRating: d?.vote_average ? d.vote_average.toFixed(1) : undefined,
+              imdbRating: normalizeCatalogRating(d?.vote_average),
               genres: genreNamesFromIds(d?.genres?.map((g) => g.id), genreNames),
               description: d?.overview ?? undefined,
             },
@@ -1373,7 +1394,7 @@ export async function pictoriumCatalog(
           landscapePoster,
           background: catalogBackground(item.backdrop_path),
           releaseInfo,
-          imdbRating: item.vote_average ? item.vote_average.toFixed(1) : undefined,
+          imdbRating: normalizeCatalogRating(item.vote_average),
           genres: genreNamesFromIds(item.genre_ids, genreNames),
           description: item.overview ?? undefined,
         }
@@ -1448,10 +1469,29 @@ export async function pictoriumCatalog(
       }
     }
   }
+  // Custom list explicit sort (MDBList/Trakt allowlists): a differently
+  // sorted config must not share the outer body key even when the token hash
+  // happens to collide. Provider-validated fragment (legacy unsorted configs
+  // keep byte-identical keys), other catalog families carry no fragment.
+  let customSortFragment = ""
+  if (catalogId.startsWith("pictorium-custom-")) {
+    let customIdForSort = catalogId.replace(/^pictorium-custom-/, "")
+    if (customIdForSort.startsWith("movie-")) customIdForSort = customIdForSort.slice(6)
+    else if (customIdForSort.startsWith("series-")) customIdForSort = customIdForSort.slice(7)
+    const sortCat = (userConfig?.customCatalogs as CustomCatalogConfig[] | undefined)
+      ?.find((c) => c.id === customIdForSort)
+    if (sortCat && !sortCat.addon) {
+      customSortFragment = customCatalogSortFragment(
+        detectCatalogProvider(sortCat.url)?.provider,
+        sortCat.sortBy,
+        sortCat.sortHow,
+      )
+    }
+  }
   // v5: dual-format saved titles emit BOTH `poster` (portrait) and
   // `landscapePoster` (landscape) — the v4 body served a single collapsed
   // shape, so old entries must not be reused.
-  const cacheKey = `stremio:catalog:v5:${stType}:${catalogId}:pv${POSTER_URL_VERSION}${scopedUser ? `:u${hashUserFragment(scopedUser)}` : ""}:ak${apiKey ? hashFragment(apiKey) : "none"}${configParam ? `:cfg${hashFragment(configParam)}` : ""}${mdblistKey ? `:mk${hashFragment(mdblistKey)}` : ""}${tvdbKey ? `:tv${hashFragment(tvdbKey)}` : ""}${genreFragment}${skipFragment}${searchFragment}${regionFragment}${rankingFragment}${chartCgFragment}${streamingRankingCgFragment}${traktGenFragment}${themeFragment}${freshness}`
+  const cacheKey = `stremio:catalog:v5:${stType}:${catalogId}:pv${POSTER_URL_VERSION}${scopedUser ? `:u${hashUserFragment(scopedUser)}` : ""}:ak${apiKey ? hashFragment(apiKey) : "none"}${configParam ? `:cfg${hashFragment(configParam)}` : ""}${mdblistKey ? `:mk${hashFragment(mdblistKey)}` : ""}${tvdbKey ? `:tv${hashFragment(tvdbKey)}` : ""}${genreFragment}${skipFragment}${searchFragment}${regionFragment}${rankingFragment}${chartCgFragment}${streamingRankingCgFragment}${traktGenFragment}${themeFragment}${customSortFragment}${freshness}`
   // C1: L1 + L2 condivisa (KV su multi-istanza, no-op locale/VPS).
   // Il selettore conserva il TTL originale anche dopo il ripopolamento L1
   // da KV (il payload KV non trasporta la scadenza): pieno → 1h, vuoto → 60s.
@@ -1524,7 +1564,16 @@ export async function pictoriumCatalog(
       else if (customId.startsWith("series-")) customId = customId.slice(7)
 
       const customCat = userConfig?.customCatalogs?.find((c: { id: string }) => c.id === customId) as
-        | { id: string; url: string; type?: string; enabled?: boolean; datasetId?: string; addon?: import("./stremio-addon").StremioAddonSource }
+        | {
+          id: string
+          url: string
+          type?: string
+          enabled?: boolean
+          datasetId?: string
+          sortBy?: string
+          sortHow?: "asc" | "desc"
+          addon?: import("./stremio-addon").StremioAddonSource
+        }
         | undefined
       // Ramo dedicato addon Stremio: preserva ordine, duplicati, ID e metadati
       // originali; arricchisce best-effort col poster Pictorium esistente.
@@ -1573,7 +1622,7 @@ export async function pictoriumCatalog(
             logo: typeof raw.logo === "string" ? raw.logo : undefined,
             releaseInfo: typeof raw.releaseInfo === "string" ? raw.releaseInfo
               : typeof raw.year === "string" || typeof raw.year === "number" ? String(raw.year).slice(0, 4) || undefined : undefined,
-            imdbRating: typeof raw.imdbRating === "string" && raw.imdbRating ? raw.imdbRating : undefined,
+            imdbRating: normalizeCatalogRatingString(raw.imdbRating),
             genres: Array.isArray(raw.genres)
               ? (raw.genres as unknown[]).filter((g): g is string => typeof g === "string").slice(0, 10)
               : Array.isArray(raw.genre)
@@ -1623,7 +1672,7 @@ export async function pictoriumCatalog(
         })
       }
       const customCat2 = customCat as
-        | { id: string; url: string; type?: string; enabled?: boolean; datasetId?: string }
+        | { id: string; url: string; type?: string; enabled?: boolean; datasetId?: string; sortBy?: string; sortHow?: "asc" | "desc" }
         | undefined
       if (customCat2 && customCat2.enabled !== false) {
         // TVDB senza chiave: notice esplicita invece di item rotti o vuoto
@@ -1648,7 +1697,7 @@ export async function pictoriumCatalog(
         const incomingSignal = (req as unknown as { signal?: AbortSignal }).signal ?? undefined
         const customBudgetSignal = combineAbortSignals(incomingSignal, CATALOG_CUSTOM_BUDGET_MS)
 
-        const providerResult = await fetchUnifiedCatalogResult(customCat2.url, { apiKey, mdblistKey, tvdbKey, limit: 500, datasetId: customCat2.datasetId, userId: scopedUser, traktUserId: scopedUser, signal: customBudgetSignal })
+        const providerResult = await fetchUnifiedCatalogResult(customCat2.url, { apiKey, mdblistKey, tvdbKey, limit: 500, datasetId: customCat2.datasetId, userId: scopedUser, traktUserId: scopedUser, sortBy: customCat2.sortBy, sortHow: customCat2.sortHow, signal: customBudgetSignal })
         // Interrupted provider pagination (abort/page error) is servable
         // but partial: flag it so the body caches short (60s) and the retry
         // refetches instead of freezing a shifted window for an hour.
@@ -1834,7 +1883,7 @@ export async function pictoriumCatalog(
             landscapePoster,
             logo: catalogLogoForShape(posterShape, logo, landscapePoster),
             releaseInfo: r.releaseInfo,
-            imdbRating: r.voteAverage ? r.voteAverage.toFixed(1) : undefined,
+            imdbRating: normalizeCatalogRating(r.voteAverage),
             genres: r.genres,
             description: r.description,
           }
@@ -2087,7 +2136,7 @@ export async function pictoriumCatalog(
           landscapePoster,
           logo: catalogLogoForShape(posterShape, logo, landscapePoster),
           releaseInfo: (d?.release_date || d?.first_air_date || "").slice(0, 4) || undefined,
-          imdbRating: d?.vote_average ? d.vote_average.toFixed(1) : undefined,
+          imdbRating: normalizeCatalogRating(d?.vote_average),
           genres: (d?.genres || []).map((g) => g.name).filter(Boolean),
           description: d?.overview ?? undefined,
         }
@@ -2180,7 +2229,7 @@ export async function pictoriumCatalog(
           landscapePoster,
           logo: catalogLogoForShape(posterShape, logo, landscapePoster),
           releaseInfo,
-          imdbRating: d?.vote_average ? d.vote_average.toFixed(1) : undefined,
+          imdbRating: normalizeCatalogRating(d?.vote_average),
           genres: (d?.genres || []).map((g) => g.name).filter(Boolean),
           description: d?.overview ?? undefined,
         }
@@ -2260,7 +2309,7 @@ export async function pictoriumCatalog(
           landscapePoster,
           logo: catalogLogoForShape(posterShape, logo, landscapePoster),
           releaseInfo: (details?.release_date || details?.first_air_date || "").slice(0, 4) || undefined,
-          imdbRating: details?.vote_average ? details.vote_average.toFixed(1) : undefined,
+          imdbRating: normalizeCatalogRating(details?.vote_average),
           genres: (details?.genres || []).map((g) => g.name).filter(Boolean),
           description: details?.overview ?? undefined,
           // Video navigation parity for movie items in mixed lists (same
@@ -2414,7 +2463,7 @@ export async function pictoriumCatalog(
               landscapePoster,
               logo: catalogLogoForShape(posterShape, logo, landscapePoster),
               releaseInfo: (details?.release_date || details?.first_air_date || "").slice(0, 4) || undefined,
-              imdbRating: details?.vote_average ? details.vote_average.toFixed(1) : undefined,
+              imdbRating: normalizeCatalogRating(details?.vote_average),
               genres: (details?.genres || []).map((g) => g.name).filter(Boolean),
               description: details?.overview ?? undefined,
             }
@@ -2499,7 +2548,7 @@ export async function pictoriumCatalog(
                 landscapePoster,
                 logo: catalogLogoForShape(posterShape, logo, landscapePoster),
                 releaseInfo: (details?.release_date || details?.first_air_date || item.releaseDate)?.slice(0, 4) || undefined,
-                imdbRating: details?.vote_average ? details.vote_average.toFixed(1) : undefined,
+                imdbRating: normalizeCatalogRating(details?.vote_average),
                 genres: (details?.genres || []).map((g) => g.name).filter(Boolean),
                 description: details?.overview ?? undefined,
               }

@@ -722,4 +722,43 @@ describe("GET /meta/[type]/[id]", () => {
     // Cache verification: cache exists but was not written with 12h
     // (verified through logic: isPartialSeasonData writes with 60_000ms TTL)
   })
+
+  it("keeps background raw while the separate logo stays suppressed for dual/landscape meta (universal-field contract)", async () => {
+    // ynotv/Glassio read only poster/background/logo and ignore
+    // landscapePoster/banner. The hero background must stay the RAW TMDB art
+    // (never the Pictorium render) for every shape. The separate `logo`
+    // stays suppressed when a baked-in landscape canvas is served: emitting
+    // it would let Nuvio overlay a second logo on `landscapePoster`. This is
+    // the accepted limitation for the Glassio/ynotv hero (a client signal
+    // would be required to serve both audiences from one /meta body).
+    mockedGetById.mockResolvedValue({
+      tmdbId: 550, mediaType: "movie", title: "Fight Club",
+      posterPath: "/fight-club.jpg", backdropPath: "/fight-club-backdrop.jpg",
+      logoPath: null, originalPosterPath: null, language: null,
+      posterShape: "landscape", updatedAt: "2026-07-16T10:15:30.000Z",
+    })
+    vi.spyOn(globalThis, "fetch")
+      .mockResolvedValueOnce(Response.json({
+        id: 550,
+        title: "Fight Club",
+        backdrop_path: "/fight-club-backdrop.jpg",
+        external_ids: { imdb_id: "tt0137523" },
+      }))
+      .mockResolvedValueOnce(Response.json({
+        id: 550,
+        logos: [{ file_path: "/fight-club-logo.png", iso_639_1: "it" }],
+      }))
+    const req = new NextRequest("http://localhost:3000/meta/movie/tmdb:550.json?api_key=settings-key")
+    const res = await GET(req, { params: Promise.resolve({ type: "movie", id: "tmdb:550.json" }) })
+    const { meta } = await res.json()
+
+    expect(meta.poster).toContain("/api/poster/movie/550")
+    // Universal field: raw TMDB hero art, never the rendered poster.
+    expect(meta.background).toContain("/t/p/original/fight-club-backdrop.jpg")
+    expect(meta.background).not.toContain("/api/poster")
+    // Nuvio-only art is additive.
+    expect(new URL(meta.landscapePoster).searchParams.get("shape")).toBe("landscape")
+    // Baked-in landscape canvas: no separate logo (Nuvio overlay guard).
+    expect(meta.logo).toBeUndefined()
+  })
 })

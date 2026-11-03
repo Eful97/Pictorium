@@ -46,6 +46,47 @@ describe("fetchCustomRankingTop20", () => {
     expect(res.items.map((i) => i.tmdbId)).toEqual(items.slice(0, 20).map((_, i) => 1000 + i))
   })
 
+  it("keeps the Trakt curated order and forwards the configured sort", async () => {
+    process.env.PICTORIUM_TRAKT_CLIENT_ID = "test-client-id"
+    try {
+      const seen: string[] = []
+      vi.spyOn(globalThis, "fetch").mockImplementation(async (input: RequestInfo | URL) => {
+        seen.push(String(input))
+        return Response.json([
+          { type: "movie", movie: { title: "First", year: 2020, ids: { tmdb: 101, imdb: "tt0000101" } } },
+          { type: "movie", movie: { title: "Second", year: 2021, ids: { tmdb: 202, imdb: "tt0000202" } } },
+          { type: "movie", movie: { title: "Third", year: 2022, ids: { tmdb: 303, imdb: "tt0000303" } } },
+        ])
+      })
+      const input = {
+        custom: { url: "https://trakt.tv/users/u/lists/curated-order", sortBy: "rank", sortHow: "asc" as const },
+        slot: "movie" as const,
+      }
+      const first = await fetchCustomRankingTop20(input)
+      expect(first.status).toBe("ok")
+      // Provider order is the curated rank: never re-sorted or numbered here.
+      expect(first.items.map((i) => i.tmdbId)).toEqual([101, 202, 303])
+      expect(seen[0]).toContain("sort_by=rank")
+      expect(seen[0]).toContain("sort_how=asc")
+
+      // Same config uses the derived cache (one upstream).
+      await fetchCustomRankingTop20(input)
+      expect(seen).toHaveLength(1)
+
+      // A different sort is a different derived key, never a cache collision.
+      const other = await fetchCustomRankingTop20({
+        custom: { url: input.custom.url, sortBy: "title", sortHow: "desc" },
+        slot: "movie",
+      })
+      expect(other.status).toBe("ok")
+      expect(seen).toHaveLength(2)
+      expect(seen[1]).toContain("sort_by=title")
+      expect(seen[1]).toContain("sort_how=desc")
+    } finally {
+      delete process.env.PICTORIUM_TRAKT_CLIENT_ID
+    }
+  })
+
   it("dedupes repeated TMDB ids keeping the first position", async () => {
     vi.spyOn(globalThis, "fetch").mockResolvedValueOnce(
       mdblistItems([entry(11, "A"), entry(22, "B"), entry(11, "A dup")]),

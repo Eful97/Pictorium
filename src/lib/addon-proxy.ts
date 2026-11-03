@@ -72,11 +72,14 @@ export function proxyDefaultsSignature(sd: ServerDefaults | null | undefined): s
 
 /**
  * Namespace anime-native supportati dal rewrite proxy (snapshot locale
- * `anime-id-map`). Solo AniList e Kitsu in questa delivery: `mal:`/`anidb:`
- * restano non riscrivibili finché fixture dedicate non ne provano la
- * sicurezza (il resolver li indicizza già, il proxy non li usa).
+ * `anime-id-map`). Tutti e quattro gli id anime-native indicizzati dal
+ * resolver sono riscrivibili: la regola di sicurezza è la stessa per ogni
+ * namespace (match UNICO e lato-compatibile, altrimenti artwork originale).
+ * `mal:`/`anidb:` non aggiungono euristiche proprie: un id condiviso da più
+ * target TMDB resta `ambiguous` (mai first-pick), un id presente solo
+ * sull'altro lato TMDB resta `missing`.
  */
-const ANIME_PROXY_NAMESPACES = new Set(["anilist", "kitsu"])
+const ANIME_PROXY_NAMESPACES = new Set(["anilist", "kitsu", "mal", "anidb"])
 
 /**
  * Lato TMDB atteso dall'id dell'item esterno. Solo tipi espliciti: un tipo
@@ -91,7 +94,8 @@ function animeMediaSide(itemType: string | undefined): "movie" | "tv" | null {
 }
 
 /**
- * Target artwork TMDB per un id anime-native (`anilist:123`, `kitsu:456`).
+ * Target artwork TMDB per un id anime-native (`anilist:123`, `kitsu:456`,
+ * `mal:789`, `anidb:10`).
  * Ritorna null su namespace non supportato, id non valido, lato ambiguo,
  * mapping assente/ambiguo o incompatibile col media type: in tutti questi
  * casi il poster originale resta intatto (nessuna title-search, nessuna
@@ -124,7 +128,8 @@ function posterUrlFor(domain: string, mediaType: "movie" | "series", id: string,
 
 /**
  * Target poster per un item esterno: id nativi (tt/numerici/tmdb:) prima,
- * poi mapping anime locale (anilist:/kitsu: unici e lato-compatibili).
+ * poi mapping anime locale (anilist:/kitsu:/mal:/anidb: unici e
+ * lato-compatibili).
  * Null = poster originale intatto. Id, type e tutti gli altri campi
  * dell'item restano invariati: si riscrive solo la poster URL.
  */

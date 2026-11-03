@@ -12,6 +12,7 @@ import { TWO_WEEKS_MS } from "./constants"
 import { fetchAnimeRatings, normalizeAnimeSide } from "./anime-ratings"
 import { fetchTvmazeRating } from "./tvmaze"
 import { fetchCinemetaRating } from "./cinemeta"
+import type { MdbListWhatsonFeatures } from "./content-tags"
 
 const log = createLogger("ratings")
 
@@ -119,6 +120,15 @@ export interface AggregatedRatings {
   sources: Record<string, number>
   average: number
   count: number
+  /**
+   * Normalized MDBList/WhatsOn feature flags when they arrived with the SAME
+   * successful MDBList response (zero extra fetch). Optional: cache entries
+   * written before this field existed carry no features until the next fresh
+   * upstream fetch; raw-cache rows now persist them alongside the sources.
+   * Consumers must treat absence as "no automatic feature badge", never as a
+   * negative certification.
+   */
+  whatsonFeatures?: MdbListWhatsonFeatures
 }
 
 /**
@@ -161,6 +171,78 @@ function parseStrictNative(raw: unknown): number | null {
   }
   if (!Number.isFinite(n)) return null
   return n
+}
+
+/**
+ * Lenient integer parse for MDBList/WhatsOn numeric flags. Accepts finite
+ * numbers and strictly-numeric strings in integer or integer-valued decimal
+ * form ("123", "123.0" — observed payload shape) and the documented missing
+ * tokens ("N/A", "na", empty). Non-integer values (e.g. "12.5") are refused:
+ * a chart position is never rounded or reinterpreted. Returns null when the
+ * value is missing/malformed.
+ */
+function parseLenientInteger(raw: unknown): number | null {
+  let n: number
+  if (typeof raw === "number") {
+    n = raw
+  } else if (typeof raw === "string") {
+    const s = raw.trim()
+    if (!s || /^n\/?a$/i.test(s)) return null
+    if (!/^-?\d+(\.\d+)?$/.test(s)) return null
+    n = Number(s)
+  } else {
+    return null
+  }
+  if (!Number.isFinite(n) || !Number.isInteger(n)) return null
+  return n
+}
+
+/** IMDb Top-250 window: only real chart positions badge, never clamped. */
+const IMDB_TOP_RANKING_MAX = 250
+
+/**
+ * Parse the top-level MDBList `whatson_features` object (also served by the
+ * Jellyfin MDBList plugin contract):
+ *
+ * `{ imdb_top_ranking, metacritic_must_see,
+ *    rotten_tomatoes_critics_certified, rotten_tomatoes_users_certified }`
+ *
+ * Lenient on the wire, strict on the meaning:
+ * - booleans only badge on an explicit `true` (null/false/"true"/junk never
+ *   invent a certification);
+ * - `imdb_top_ranking` accepts numbers and numeric strings ("123.0"), only
+ *   integer positions 1..250 (out of range/malformed = none);
+ * - anything that is not a plain object yields null.
+ *
+ * Returns null when nothing is renderable, so callers never carry an empty
+ * flag object. Zero network/cache side effects: pure function of the already
+ * fetched payload.
+ */
+export function parseMdbWhatsOnFeatures(raw: unknown): MdbListWhatsonFeatures | null {
+  if (typeof raw !== "object" || raw === null || Array.isArray(raw)) return null
+  const rec = raw as Record<string, unknown>
+  const ranking = parseLenientInteger(rec.imdb_top_ranking)
+  const features: MdbListWhatsonFeatures = {
+    imdbTopRanking: ranking !== null && ranking >= 1 && ranking <= IMDB_TOP_RANKING_MAX ? ranking : null,
+    metacriticMustSee: rec.metacritic_must_see === true,
+    rottenTomatoesCriticsCertified: rec.rotten_tomatoes_critics_certified === true,
+    rottenTomatoesUsersCertified: rec.rotten_tomatoes_users_certified === true,
+  }
+  const any =
+    features.imdbTopRanking !== null ||
+    features.metacriticMustSee ||
+    features.rottenTomatoesCriticsCertified ||
+    features.rottenTomatoesUsersCertified
+  return any ? features : null
+}
+
+/**
+ * New-API normalized score with the `score_average` alias: both fields carry
+ * the same 0-100 contract. `score` keeps precedence; `score_average` is only
+ * consulted when `score` is missing or malformed (never a second scale).
+ */
+function parseMdbScore(raw: { score?: unknown; score_average?: unknown } | null | undefined): number | null {
+  return parseStrictScore(raw?.score) ?? parseStrictScore(raw?.score_average)
 }
 
 function avg(values: number[]): number {
@@ -303,6 +385,13 @@ interface MdbListFetchResult {
    * must be skipped for hydrated results (serve without new writes).
    */
   hydrated?: boolean
+  /**
+   * Normalized `whatson_features` from the SAME successful response (null
+   * when absent/empty). Raw-cache hits carry them when the row was written by
+   * the current version; legacy rows omit them and no extra fetch is ever
+   * made to recover a flag.
+   */
+  whatsonFeatures?: MdbListWhatsonFeatures | null
 }
 
 // Fonti servite SOLO dai direct provider condizionali (Simkl diretto,
@@ -476,7 +565,11 @@ function averageFor(sources: Record<string, number>): number {
 function withDirectTmdbOverlay(base: AggregatedRatings, vote: number | null): AggregatedRatings {
   if (vote === null || base.sources.tmdb === roundVote(vote)) return base
   const sources = { ...base.sources, tmdb: roundVote(vote) }
-  return { sources, average: averageFor(sources), count: Object.keys(sources).length }
+  const next: AggregatedRatings = { sources, average: averageFor(sources), count: Object.keys(sources).length }
+  // Feature flags are request-independent payload data: the direct TMDB
+  // overlay only touches the numeric rating and must never drop them.
+  if (base.whatsonFeatures) next.whatsonFeatures = base.whatsonFeatures
+  return next
 }
 
 /**
@@ -632,10 +725,11 @@ async function fetchMdbListSourcesUpstream(
     const sources: Record<string, number> = {}
     const minVotes = resolveRatingMinVotes()
 
-    // Root mdblist score: 0-100 on the new API, always /10. Strict:
+    // Root mdblist score: 0-100 on the new API (either `score` or its
+    // `score_average` alias — same strict contract), always /10. Strict:
     // only finite numbers (or strictly-numeric strings) in 0-100 count;
     // Infinity/>100/junk partials are unavailable, never normalized.
-    const rootScore = parseStrictScore(data?.score)
+    const rootScore = parseMdbScore(data)
     if (rootScore !== null && rootScore > 0) {
       sources.mdblist = Math.round((rootScore / 10) * 10) / 10
     }
@@ -669,7 +763,7 @@ async function fetchMdbListSourcesUpstream(
         // for other sources (a missing-score trakt value in 100-scale must
         // never be reinterpreted as x/10).
         let normalized: number | null = null
-        const scoreNum = parseStrictScore(item?.score)
+        const scoreNum = parseMdbScore(item)
         if (scoreNum !== null && scoreNum > 0) {
           // New-API score is ALWAYS 0-100 (even below 10): unconditional /10,
           // never the legacy >10 heuristic.
@@ -689,7 +783,17 @@ async function fetchMdbListSourcesUpstream(
 
     const hasSources = Object.keys(sources).length > 0
     const observed = observeMdbCounterparts(data)
-    return { sources: hasSources ? sources : null, isGenuineMiss: !hasSources, rawTtlMs: mdbRawTtlForData(data), observedImdb: observed.imdb, observedTmdb: observed.tmdb }
+    const whatsonFeatures = parseMdbWhatsOnFeatures(data?.whatson_features)
+    return {
+      sources: hasSources ? sources : null,
+      isGenuineMiss: !hasSources,
+      rawTtlMs: mdbRawTtlForData(data),
+      observedImdb: observed.imdb,
+      observedTmdb: observed.tmdb,
+      // Features travel only with a usable source map: a response without
+      // ratings never produces an aggregated result to badge.
+      whatsonFeatures: hasSources ? whatsonFeatures : null,
+    }
   } catch (e) {
     if (!signal?.aborted) mdbBreakerFor(key).recordFailure()
     log.error("MDBList fetch failed", { error: e instanceof Error ? e.message : String(e) })
@@ -882,6 +986,64 @@ function transientMdbResult(): MdbListFetchResult {
 }
 
 /**
+ * L1/L2 raw cache payload (v2): sources plus the same-response feature flags.
+ * Legacy entries written before this shape are plain numeric maps and are
+ * still read fail-closed (sources served, features omitted) — no row is ever
+ * discarded for lacking features, and no feature is ever invented.
+ */
+interface MdbRawCacheValue {
+  s: Record<string, number>
+  f?: MdbListWhatsonFeatures
+}
+
+function writeRawCacheValue(sources: Record<string, number>, features?: MdbListWhatsonFeatures | null): MdbRawCacheValue {
+  return features ? { s: { ...sources }, f: features } : { s: { ...sources } }
+}
+
+function isNumericSources(raw: unknown): raw is Record<string, number> {
+  if (typeof raw !== "object" || raw === null || Array.isArray(raw)) return false
+  const entries = Object.entries(raw)
+  if (entries.length === 0) return false
+  for (const [, v] of entries) {
+    if (typeof v !== "number" || !Number.isFinite(v) || v <= 0) return false
+  }
+  return true
+}
+
+function readRawCacheValue(raw: unknown): { sources: Record<string, number>; whatsonFeatures?: MdbListWhatsonFeatures } | null {
+  if (typeof raw !== "object" || raw === null || Array.isArray(raw)) return null
+  const rec = raw as Record<string, unknown>
+  if (rec.s !== undefined) {
+    if (!isNumericSources(rec.s)) return null
+    const rawFeatures = rec.f
+    if (typeof rawFeatures !== "object" || rawFeatures === null || Array.isArray(rawFeatures)) {
+      return { sources: { ...rec.s } }
+    }
+    const f = rawFeatures as Record<string, unknown>
+    const rank = typeof f.imdbTopRanking === "number" && Number.isInteger(f.imdbTopRanking)
+      && f.imdbTopRanking >= 1 && f.imdbTopRanking <= 250
+      ? f.imdbTopRanking
+      : null
+    const features: MdbListWhatsonFeatures = {
+      imdbTopRanking: rank,
+      metacriticMustSee: f.metacriticMustSee === true,
+      rottenTomatoesCriticsCertified: f.rottenTomatoesCriticsCertified === true,
+      rottenTomatoesUsersCertified: f.rottenTomatoesUsersCertified === true,
+    }
+    const any = features.imdbTopRanking !== null
+      || features.metacriticMustSee
+      || features.rottenTomatoesCriticsCertified
+      || features.rottenTomatoesUsersCertified
+    return any
+      ? { sources: { ...rec.s }, whatsonFeatures: features }
+      : { sources: { ...rec.s } }
+  }
+  // Legacy shape: bare numeric source map.
+  if (isNumericSources(raw)) return { sources: { ...raw } }
+  return null
+}
+
+/**
  * Task C — chiavi grezze alias per una coppia IMDb+TMDB affidabile. Ritorna al
  * massimo la chiave della controparte (mai la primaria stessa). Regole:
  * - primaria IMDb: alias `tmdb{n}` sotto tmdbSeg (richiede tipo esplicito);
@@ -955,8 +1117,9 @@ async function fetchMdbListSources(
   // authentication): skip upstream, keep Cinemeta/native fallbacks. Mock
   // runs (MDBLIST_API_URL set) stay deterministic and are still served.
   if (!key && !process.env.MDBLIST_API_URL) return transientMdbResult()
-  const hit = cacheGet<Record<string, number>>(rawKey)
-  if (hit) return { sources: { ...hit }, isGenuineMiss: false, rawTtlMs: MDB_RAW_TTL_MS, hydrated: true }
+  const hitRaw = cacheGet<unknown>(rawKey)
+  const hit = hitRaw ? readRawCacheValue(hitRaw) : null
+  if (hit) return { sources: { ...hit.sources }, isGenuineMiss: false, rawTtlMs: MDB_RAW_TTL_MS, hydrated: true, whatsonFeatures: hit.whatsonFeatures ?? null }
   if (signal?.aborted) return transientMdbResult()
 
   // Controparte caller-known (coppia IMDb+TMDB GIÀ nota al caller, nessuna
@@ -979,9 +1142,10 @@ async function fetchMdbListSources(
   // Bounded to the caller-known typed counterpart (same key/policy/type
   // isolation as the simultaneous pre-registration below).
   if (counterpartKey !== null) {
-    const counterpartHit = cacheGet<Record<string, number>>(counterpartKey)
+    const counterpartRaw = cacheGet<unknown>(counterpartKey)
+    const counterpartHit = counterpartRaw ? readRawCacheValue(counterpartRaw) : null
     if (counterpartHit) {
-      return { sources: { ...counterpartHit }, isGenuineMiss: false, rawTtlMs: MDB_RAW_TTL_MS, hydrated: true }
+      return { sources: { ...counterpartHit.sources }, isGenuineMiss: false, rawTtlMs: MDB_RAW_TTL_MS, hydrated: true, whatsonFeatures: counterpartHit.whatsonFeatures ?? null }
     }
   }
 
@@ -1041,8 +1205,8 @@ async function fetchMdbListSources(
             (obsTmdb !== null && lookup.tmdbId !== null && obsTmdb !== lookup.tmdbId) ||
             (obsImdb !== null && lookup.imdbId !== null && obsImdb !== lookup.imdbId)
           if (!conflicts && shared.sources && lookup.imdbId !== null && !shared.hydrated) {
-            cacheSet(rawKey, { ...shared.sources }, ["mdb"], shared.rawTtlMs)
-            void setPersistedMdbRaw(rawKey, shared.sources, shared.rawTtlMs).catch(() => {})
+            cacheSet(rawKey, writeRawCacheValue(shared.sources, shared.whatsonFeatures), ["mdb"], shared.rawTtlMs)
+            void setPersistedMdbRaw(rawKey, shared.sources, shared.rawTtlMs, shared.whatsonFeatures).catch(() => {})
           }
         }
         if (!conflicts) return shared
@@ -1072,10 +1236,11 @@ async function fetchMdbListSources(
       // Recheck L1 dentro l'operazione posseduta: la lookup veloce
       // pre-inflight resta, ma un'altra path può aver popolato la L1 nel
       // frattempo — mai rifetchare ciò che è già cachato.
-      const innerHit = cacheGet<Record<string, number>>(rawKey)
+      const innerRaw = cacheGet<unknown>(rawKey)
+      const innerHit = innerRaw ? readRawCacheValue(innerRaw) : null
       if (innerHit) {
         entry.settled = true
-        resolveShared({ sources: { ...innerHit }, isGenuineMiss: false, rawTtlMs: MDB_RAW_TTL_MS, hydrated: true })
+        resolveShared({ sources: { ...innerHit.sources }, isGenuineMiss: false, rawTtlMs: MDB_RAW_TTL_MS, hydrated: true, whatsonFeatures: innerHit.whatsonFeatures ?? null })
         return
       }
       // Idratazione L2 POSSEDUTA dall'operazione condivisa (mai prima della
@@ -1089,28 +1254,30 @@ async function fetchMdbListSources(
         resolveShared(transientMdbResult())
         return
       }
-      const l2 = await cacheGetShared<Record<string, number>>(rawKey, ["mdb"])
+      const l2Raw = await cacheGetShared<unknown>(rawKey, ["mdb"])
+      const l2 = l2Raw ? readRawCacheValue(l2Raw) : null
       // Dopo la KV: niente richiesta MDB senza subscriber attivi. Una hit L2
       // ha già ripopolato la L1 per i caller futuri; una miss si risolve
       // transient senza toccare l'upstream.
       if (controller.signal.aborted || entry.subscribers <= 0) {
         entry.settled = true
-        if (l2) resolveShared({ sources: { ...l2 }, isGenuineMiss: false, rawTtlMs: MDB_RAW_TTL_MS, hydrated: true })
+        if (l2) resolveShared({ sources: { ...l2.sources }, isGenuineMiss: false, rawTtlMs: MDB_RAW_TTL_MS, hydrated: true, whatsonFeatures: l2.whatsonFeatures ?? null })
         else resolveShared(transientMdbResult())
         return
       }
       if (l2) {
         entry.settled = true
-        resolveShared({ sources: { ...l2 }, isGenuineMiss: false, rawTtlMs: MDB_RAW_TTL_MS, hydrated: true })
+        resolveShared({ sources: { ...l2.sources }, isGenuineMiss: false, rawTtlMs: MDB_RAW_TTL_MS, hydrated: true, whatsonFeatures: l2.whatsonFeatures ?? null })
         return
       }
       // Recheck L1 post-idratazione: la read KV ripopola la L1 su hit (caso
       // già ritornato sopra); su miss un'altra operazione settled nel
       // frattempo può aver cachato — mai duplicare una fetch riuscita.
-      const afterHydration = cacheGet<Record<string, number>>(rawKey)
+      const afterRaw = cacheGet<unknown>(rawKey)
+      const afterHydration = afterRaw ? readRawCacheValue(afterRaw) : null
       if (afterHydration) {
         entry.settled = true
-        resolveShared({ sources: { ...afterHydration }, isGenuineMiss: false, rawTtlMs: MDB_RAW_TTL_MS, hydrated: true })
+        resolveShared({ sources: { ...afterHydration.sources }, isGenuineMiss: false, rawTtlMs: MDB_RAW_TTL_MS, hydrated: true, whatsonFeatures: afterHydration.whatsonFeatures ?? null })
         return
       }
       // Persistenza locale L2 (solo file-mode: in KV è un no-op immediato,
@@ -1130,17 +1297,17 @@ async function fetchMdbListSources(
         // convergenza — non poison. Il poison (risultati upstream orfani) non
         // scrive mai: vedi guardia sotto.
         if (persisted) {
-          cacheSet(rawKey, { ...persisted.sources }, ["mdb"], persisted.remainingTtlMs)
-          resolveShared({ sources: { ...persisted.sources }, isGenuineMiss: false, rawTtlMs: MDB_RAW_TTL_MS, hydrated: true })
+          cacheSet(rawKey, writeRawCacheValue(persisted.sources, persisted.whatsonFeatures), ["mdb"], persisted.remainingTtlMs)
+          resolveShared({ sources: { ...persisted.sources }, isGenuineMiss: false, rawTtlMs: MDB_RAW_TTL_MS, hydrated: true, whatsonFeatures: persisted.whatsonFeatures ?? null })
         } else {
           resolveShared(transientMdbResult())
         }
         return
       }
       if (persisted) {
-        cacheSet(rawKey, { ...persisted.sources }, ["mdb"], persisted.remainingTtlMs)
+        cacheSet(rawKey, writeRawCacheValue(persisted.sources, persisted.whatsonFeatures), ["mdb"], persisted.remainingTtlMs)
         entry.settled = true
-        resolveShared({ sources: { ...persisted.sources }, isGenuineMiss: false, rawTtlMs: MDB_RAW_TTL_MS, hydrated: true })
+        resolveShared({ sources: { ...persisted.sources }, isGenuineMiss: false, rawTtlMs: MDB_RAW_TTL_MS, hydrated: true, whatsonFeatures: persisted.whatsonFeatures ?? null })
         return
       }
       // Daily-quota parking sits BEHIND every cache layer above (L1, KV L2,
@@ -1158,18 +1325,18 @@ async function fetchMdbListSources(
       // risultato orfano si risolve solo sulla vecchia promise (nessun nuovo
       // waiter lo riceve: il retry usa già una entry fresca) senza scrivere.
       if (result.sources && !controller.signal.aborted && entry.subscribers > 0) {
-        cacheSet(rawKey, { ...result.sources }, ["mdb"], result.rawTtlMs)
+        cacheSet(rawKey, writeRawCacheValue(result.sources, result.whatsonFeatures), ["mdb"], result.rawTtlMs)
         // L2 locale fire-and-forget (solo file-mode, no-op in KV): mai attesa
         // sul path caldo; i risultati abbandonati non arrivano mai qui (zero
         // subscriber = niente scrittura), solo successi con TTL assoluto.
-        void setPersistedMdbRaw(rawKey, result.sources, result.rawTtlMs).catch(() => {})
+        void setPersistedMdbRaw(rawKey, result.sources, result.rawTtlMs, result.whatsonFeatures).catch(() => {})
         // Alias-dedup (task C): solo successi, stessa key/policy/TTL, nessuna
         // fetch extra. Evidenza unanime: il caller conosceva già la coppia
         // (imdbId + tmdbId con tipo esplicito) e/o il corpo risposta osserva la
         // controparte; in caso di conflitto le entry restano separate.
         for (const aliasKey of mdbAliasRawKeys(useImdb ? "imdb" : "tmdb", lookup, mdbSeg, tmdbSeg, minVotes, key, result, rawKey)) {
-          cacheSet(aliasKey, { ...result.sources }, ["mdb"], result.rawTtlMs)
-          void setPersistedMdbRaw(aliasKey, result.sources, result.rawTtlMs).catch(() => {})
+          cacheSet(aliasKey, writeRawCacheValue(result.sources, result.whatsonFeatures), ["mdb"], result.rawTtlMs)
+          void setPersistedMdbRaw(aliasKey, result.sources, result.rawTtlMs, result.whatsonFeatures).catch(() => {})
         }
       }
       entry.settled = true
@@ -1378,6 +1545,7 @@ export async function fetchAggregatedRating(
         }
       }
       let mdbGenuineMiss = false
+      let mdbFeatures: MdbListWhatsonFeatures | null = null
       // tmdb diretto già risolto via overlay: non richiede fallback MDBList.
       const needFallback =
         (selSet!.has("imdb") && base.imdb === undefined) ||
@@ -1388,6 +1556,7 @@ export async function fetchAggregatedRating(
           const ph = phaseSignal(upstream, rem)
           try {
             const mdbResult = await fetchMdbListSources({ imdbId: cleanImdb, tmdbId: tmdbNum }, key, ph.signal, opts?.mediaType ?? null)
+            if (mdbResult.whatsonFeatures) mdbFeatures = mdbResult.whatsonFeatures
             if (mdbResult.sources) {
               for (const s of selection!) {
                 if (DIRECT_ONLY_SOURCES.has(s)) continue
@@ -1425,9 +1594,11 @@ export async function fetchAggregatedRating(
         // servirebbe la parziale anche alle chiamate senza nativo.
         if (effectiveDirectVote !== null && selSet!.has("tmdb")) {
           const uncached: AggregatedRatings = { sources: { ...base }, average: averageFor(base), count: Object.keys(base).length }
+          if (mdbFeatures) uncached.whatsonFeatures = mdbFeatures
           return withDirectTmdbOverlay(uncached, effectiveDirectVote)
         }
         const cachedBase: AggregatedRatings = { sources: { ...base }, average: averageFor(base), count: Object.keys(base).length }
+        if (mdbFeatures) cachedBase.whatsonFeatures = mdbFeatures
         cacheSet(cacheKey, cachedBase, ["mdb", "simkl", "anime"], RATINGS_SUCCESS_TTL_MS)
         return effectiveDirectVote !== null ? withDirectTmdbOverlay(cachedBase, effectiveDirectVote) : cachedBase
       }
@@ -1548,6 +1719,9 @@ export async function fetchAggregatedRating(
         average: averageFor(sources),
         count: Object.keys(sources).length,
       }
+      // Same-response feature flags (zero extra fetch): cached with the
+      // aggregate so the 6h TTL serves them; raw-cache hits may lack them.
+      if (mdbResult.whatsonFeatures) result.whatsonFeatures = mdbResult.whatsonFeatures
       cacheSet(cacheKey, result, effWantAnime ? ["mdb", "simkl", "anime"] : ["mdb", "simkl"], RATINGS_SUCCESS_TTL_MS)
       return effectiveDirectVote !== null ? withDirectTmdbOverlay(result, effectiveDirectVote) : result
     }

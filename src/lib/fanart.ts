@@ -39,6 +39,28 @@ export interface FanartPoster {
 
 export type FanartMediaType = "movie" | "tv"
 
+/**
+ * All artwork sections served by the Fanart client. `posters` is the original
+ * vertical-poster contract; the other sections are additive landscape/logo/
+ * thumbnail candidates (used by the landscape-base candidates helper and the
+ * artwork pickers). Every entry carries the same normalized shape.
+ */
+export interface FanartSections {
+  readonly posters: FanartPoster[]
+  readonly backgrounds: FanartPoster[]
+  readonly thumbs: FanartPoster[]
+  readonly logos: FanartPoster[]
+  readonly clearart: FanartPoster[]
+}
+
+const EMPTY_SECTIONS: FanartSections = {
+  posters: [],
+  backgrounds: [],
+  thumbs: [],
+  logos: [],
+  clearart: [],
+}
+
 /** Errori tipizzati: solo questi distinguono "assenza" da "guasto". */
 export class FanartError extends Error {
   readonly code: "not_configured" | "auth" | "upstream" | "timeout"
@@ -57,10 +79,18 @@ const fanartItemSchema = z.object({
 
 const fanartMovieSchema = z.object({
   movieposter: z.array(fanartItemSchema).optional(),
+  moviebackground: z.array(fanartItemSchema).optional(),
+  moviethumb: z.array(fanartItemSchema).optional(),
+  hdmovielogo: z.array(fanartItemSchema).optional(),
+  hdmovieclearart: z.array(fanartItemSchema).optional(),
 }).passthrough()
 
 const fanartTvSchema = z.object({
   tvposter: z.array(fanartItemSchema).optional(),
+  tvbackground: z.array(fanartItemSchema).optional(),
+  tvthumb: z.array(fanartItemSchema).optional(),
+  hdtvlogo: z.array(fanartItemSchema).optional(),
+  hdclearart: z.array(fanartItemSchema).optional(),
 }).passthrough()
 
 function toLikes(raw: string | number | null | undefined): number {
@@ -109,7 +139,7 @@ export interface FanartFetchOpts {
 }
 
 interface FanartCacheEntry {
-  posters: FanartPoster[]
+  sections: FanartSections
   expiry: number
 }
 
@@ -120,19 +150,19 @@ function cacheKeyFor(type: FanartMediaType, id: number): string {
   return `${type}:${id}`
 }
 
-function cacheGetValid(key: string): FanartPoster[] | null {
+function cacheGetValid(key: string): FanartSections | null {
   const entry = fanartCache.get(key)
   if (!entry) return null
   if (Date.now() > entry.expiry) {
     fanartCache.delete(key)
     return null
   }
-  return entry.posters
+  return entry.sections
 }
 
-function cacheSetBounded(key: string, posters: FanartPoster[], ttlMs: number): void {
+function cacheSetBounded(key: string, sections: FanartSections, ttlMs: number): void {
   if (fanartCache.size >= FANART_CACHE_MAX) fanartCache.delete(fanartCache.keys().next().value!)
-  fanartCache.set(key, { posters, expiry: Date.now() + ttlMs })
+  fanartCache.set(key, { sections, expiry: Date.now() + ttlMs })
 }
 
 /** Solo per i test. */
@@ -156,38 +186,48 @@ async function fetchFanartJson(path: string, apiKey: string, signal: AbortSignal
 }
 
 /**
- * Poster verticali Fanart per un titolo TMDB.
+ * Artwork Fanart (tutte le sezioni) per un titolo TMDB.
  * - movie: `/movies/{tmdbId}` diretto.
  * - tv: risolve `tvdb_id` via TMDB external_ids (serve `opts.tmdbApiKey`), poi
- *   `/tv/{tvdbId}`. Senza tvdb_id → [] (titolo non interrogabile, non un
- *   guasto). Il TMDB-id della serie non viene MAI passato a Fanart.
+ *   `/tv/{tvdbId}`. Senza tvdb_id → sezioni vuote (titolo non interrogabile,
+ *   non un guasto). Il TMDB-id della serie non viene MAI passato a Fanart.
+ *
+ * Sezioni: poster (contratto storico), background/thumb/logo/clearart (extra
+ * additive: candidati per la base landscape e per le gallery). Ogni sezione è
+ * normalizzata e ordinata per likes.
  *
  * Chiave effettiva: `opts.fanartKey` (spazio utente) > env d'istanza. La cache
  * resta globale per titolo (come il neutral-cache TMDB): i risultati non
  * contengono segreti, solo URL CDN — nessuno spazio vede la chiave altrui.
  *
  * Lancia FanartError su: chiave mancante, auth (401/403), timeout, guasti
- * (429/5xx/rete). Solo 404 e 200-senza-poster ritornano [] (e solo quelli
- * finiscono nella negative cache da 10 minuti).
+ * (429/5xx/rete). Solo 404 e 200-senza-artwork ritornano sezioni vuote (e solo
+ * quelli finiscono nella negative cache da 10 minuti).
  */
-export async function getFanartPosters(
+export async function getFanartImages(
   type: FanartMediaType,
   tmdbId: number,
   opts?: FanartFetchOpts,
   signal?: AbortSignal,
-): Promise<FanartPoster[]> {
+): Promise<FanartSections> {
   const apiKey = opts?.fanartKey?.trim() || fanartProjectKey()
   if (!apiKey) throw new FanartError("not_configured", "Fanart.tv project key is not configured")
-  if (!Number.isInteger(tmdbId) || tmdbId <= 0) return []
+  if (!Number.isInteger(tmdbId) || tmdbId <= 0) return EMPTY_SECTIONS
 
   const key = cacheKeyFor(type, tmdbId)
   const hit = cacheGetValid(key)
   if (hit) return hit
 
-  const work = async (): Promise<FanartPoster[]> => {
+  const work = async (): Promise<FanartSections> => {
     if (type === "movie") {
       const res = await fetchFanartJson(`/movies/${tmdbId}`, apiKey, signal ?? AbortSignal.timeout(FANART_TIMEOUT_MS))
-      return await readPosterList(res, fanartMovieSchema, "movieposter")
+      return await readSections(res, fanartMovieSchema, {
+        posters: "movieposter",
+        backgrounds: "moviebackground",
+        thumbs: "moviethumb",
+        logos: "hdmovielogo",
+        clearart: "hdmovieclearart",
+      })
     }
     // Serie: serve il TVDB id.
     let tvdbId: number | null = null
@@ -199,14 +239,20 @@ export async function getFanartPosters(
       // external_ids fallito = guasto upstream, non "nessun artwork".
       throw new FanartError("upstream", "TMDB external_ids unavailable")
     }
-    if (!tvdbId) return []
+    if (!tvdbId) return EMPTY_SECTIONS
     const res = await fetchFanartJson(`/tv/${tvdbId}`, apiKey, signal ?? AbortSignal.timeout(FANART_TIMEOUT_MS))
-    return await readPosterList(res, fanartTvSchema, "tvposter")
+    return await readSections(res, fanartTvSchema, {
+      posters: "tvposter",
+      backgrounds: "tvbackground",
+      thumbs: "tvthumb",
+      logos: "hdtvlogo",
+      clearart: "hdclearart",
+    })
   }
 
-  let posters: FanartPoster[]
+  let sections: FanartSections
   try {
-    posters = await work()
+    sections = await work()
   } catch (e) {
     if (e instanceof FanartError) throw e
     if (isTimeoutError(e) || signal?.aborted) throw new FanartError("timeout", "Fanart.tv request timed out")
@@ -214,26 +260,51 @@ export async function getFanartPosters(
     throw new FanartError("upstream", "Fanart.tv unavailable")
   }
   // Cache: hit 24h, assenza confermata 10min. Guasti non arrivano qui.
-  cacheSetBounded(key, posters, posters.length > 0 ? FANART_CACHE_TTL_MS : FANART_EMPTY_TTL_MS)
-  return posters
+  const hasAny = Object.values(sections).some((list) => list.length > 0)
+  cacheSetBounded(key, sections, hasAny ? FANART_CACHE_TTL_MS : FANART_EMPTY_TTL_MS)
+  return sections
 }
 
-async function readPosterList(
+/**
+ * Poster verticali Fanart per un titolo TMDB (contratto storico).
+ * Delega a `getFanartImages` (una sola fetch/cache condivisa): le altre
+ * sezioni restano disponibili additivamente.
+ */
+export async function getFanartPosters(
+  type: FanartMediaType,
+  tmdbId: number,
+  opts?: FanartFetchOpts,
+  signal?: AbortSignal,
+): Promise<FanartPoster[]> {
+  return (await getFanartImages(type, tmdbId, opts, signal)).posters
+}
+
+async function readSections(
   res: Response,
   schema: typeof fanartMovieSchema | typeof fanartTvSchema,
-  field: "movieposter" | "tvposter",
-): Promise<FanartPoster[]> {
+  fields: Record<keyof FanartSections, string>,
+): Promise<FanartSections> {
   // 404 Fanart = voce assente: assenza confermata, non guasto.
-  if (res.status === 404) return []
+  if (res.status === 404) return EMPTY_SECTIONS
   if (res.status === 401 || res.status === 403) throw new FanartError("auth", "Fanart.tv rejected the project key")
   if (res.status === 429 || res.status >= 500) throw new FanartError("upstream", `Fanart.tv responded with status ${res.status}`)
   if (!res.ok) throw new FanartError("upstream", `Fanart.tv responded with status ${res.status}`)
   const json = (await res.json().catch(() => null)) as unknown
   const parsed = schema.safeParse(json)
   if (!parsed.success) {
-    log.warn("Fanart response shape changed", { field })
+    log.warn("Fanart response shape changed", { field: fields.posters })
     throw new FanartError("upstream", "Fanart.tv returned an unexpected response")
   }
-  const raw = (parsed.data as Record<string, unknown[]>)[field]
-  return normalizeFanartPosters(Array.isArray(raw) ? raw : [])
+  const record = parsed.data as Record<string, unknown>
+  const read = (field: string): FanartPoster[] => {
+    const raw = record[field]
+    return normalizeFanartPosters(Array.isArray(raw) ? raw : [])
+  }
+  return {
+    posters: read(fields.posters),
+    backgrounds: read(fields.backgrounds),
+    thumbs: read(fields.thumbs),
+    logos: read(fields.logos),
+    clearart: read(fields.clearart),
+  }
 }

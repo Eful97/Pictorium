@@ -137,11 +137,12 @@ describe("MDBList raw KV persistence (task 2)", () => {
     }
     const oldSet = sets.find((s) => s.key.includes("tt_kv_old"))!
     const newSet = sets.find((s) => s.key.includes("tt_kv_new"))!
-    // Envelope: dati in `d`, timestamp+TTL originali, EX coerente.
-    expect(JSON.parse(oldSet.envelope).d).toEqual({ imdb: 8.7 })
+    // Envelope: data payload in `d` (v2 `{ s }` sources wrapper, features
+    // optionally under `f`), timestamp+TTL originali, EX coerente.
+    expect(JSON.parse(oldSet.envelope).d).toEqual({ s: { imdb: 8.7 } })
     expect(JSON.parse(oldSet.envelope).ttl).toBe(7 * 24 * 60 * 60 * 1000)
     expect(oldSet.ex).toBe(7 * 24 * 60 * 60)
-    expect(JSON.parse(newSet.envelope).d).toEqual({ imdb: 7.2 })
+    expect(JSON.parse(newSet.envelope).d).toEqual({ s: { imdb: 7.2 } })
     expect(JSON.parse(newSet.envelope).ttl).toBe(24 * 60 * 60 * 1000)
     expect(newSet.ex).toBe(24 * 60 * 60)
 

@@ -21,6 +21,7 @@ import {
   evictTVSeasonCache,
 } from "@/lib/tmdb"
 import { resolveImdbId } from "@/lib/imdb-cache"
+import { isValidImdbId } from "@/lib/imdb-csv"
 import { getCatalogEpoch } from "@/lib/catalog-epoch"
 import { buildNoticeDetail, NOTICE_ID_PREFIX } from "@/lib/notice-meta"
 import { resolveCatalogRegionWithDefaults } from "@/lib/catalog-handler"
@@ -58,6 +59,17 @@ export interface StremioTrailer {
   type: string
 }
 
+/**
+ * Stremio `meta.links` entry. Categories mirror stremio-core constants
+ * (`GENRES_LINK_CATEGORY` / `IMDB_LINK_CATEGORY`): "Genres" opens the
+ * discover view on our own Top catalog, "imdb" opens the title page.
+ */
+export interface StremioLink {
+  name: string
+  category: "Genres" | "imdb"
+  url: string
+}
+
 export interface StremioMetaDetail {
   id: string
   imdb_id?: string
@@ -80,6 +92,7 @@ export interface StremioMetaDetail {
   director?: string[]
   writer?: string[]
   trailers?: StremioTrailer[]
+  links?: StremioLink[]
   behaviorHints?: {
     defaultVideoId?: string
     hasScheduledVideos?: boolean
@@ -108,6 +121,42 @@ function metaResponse(body: { meta: StremioMetaDetail | null }, isPartial = fals
 
 function hashFragment(value: string): string {
   return crypto.createHash("sha1").update(value).digest("hex").slice(0, 8)
+}
+
+/**
+ * `meta.links` (categories from stremio-core constants.rs): genre chips open
+ * Stremio discover on our own Top catalog (the only built-in catalog with a
+ * genre extra that always has rows), the IMDb chip opens the title page.
+ * Same URL shape Cinemeta uses (`stremio:///discover/<encoded manifest>/...`).
+ */
+function buildMetaLinks(
+  origin: string,
+  stType: "movie" | "series",
+  genres: string[],
+  imdbId: string | null,
+): StremioLink[] {
+  const links: StremioLink[] = []
+  const catalogId = stType === "movie" ? "pictorium-jw-movies" : "pictorium-jw-series"
+  const manifestUrl = `${origin}/manifest.json`
+  const seen = new Set<string>()
+  for (const genre of genres) {
+    const name = genre.trim()
+    if (!name || seen.has(name.toLowerCase())) continue
+    seen.add(name.toLowerCase())
+    links.push({
+      name,
+      category: "Genres",
+      url: `stremio:///discover/${encodeURIComponent(manifestUrl)}/${stType}/${catalogId}?genre=${encodeURIComponent(name)}`,
+    })
+  }
+  if (imdbId && isValidImdbId(imdbId)) {
+    links.push({
+      name: "IMDb",
+      category: "imdb",
+      url: `https://www.imdb.com/title/${encodeURIComponent(imdbId.trim().toLowerCase())}/`,
+    })
+  }
+  return links
 }
 
 const KNOWN_META_TYPES = new Set([
@@ -328,7 +377,9 @@ export async function pictoriumMeta(
   const freshness = `:e${epoch}:sd${sdHash}`
   // mhv2: dual-format saved titles emit `landscapePoster` beside the
   // portrait `poster` (mhv1 bodies served the single collapsed shape).
-  const cacheKey = `stremio:meta:${stType}:${cleanId}:pv${POSTER_URL_VERSION}${scopedUser ? `:u${hashUserFragment(scopedUser)}` : ""}:ak${apiKey ? hashFragment(apiKey) : "none"}${configParam ? `:cfg${hashFragment(configParam)}` : ""}${mdblistKey ? `:mk${hashFragment(mdblistKey)}` : ""}${tvdbApiKey ? `:tk${hashFragment(tvdbApiKey)}` : ""}:es${episodeMetadataSource}:eg${hashFragment(egKey)}:r${region.code}:l${posterLang}${stType === "series" ? ":eo2" : ""}${metaThemeFragment}:mhv2${freshness}`
+  // lk1: bodies without `links` (pre-manifest-health) must not be served for
+  // another 12h after deploy.
+  const cacheKey = `stremio:meta:${stType}:${cleanId}:pv${POSTER_URL_VERSION}${scopedUser ? `:u${hashUserFragment(scopedUser)}` : ""}:ak${apiKey ? hashFragment(apiKey) : "none"}${configParam ? `:cfg${hashFragment(configParam)}` : ""}${mdblistKey ? `:mk${hashFragment(mdblistKey)}` : ""}${tvdbApiKey ? `:tk${hashFragment(tvdbApiKey)}` : ""}:es${episodeMetadataSource}:eg${hashFragment(egKey)}:r${region.code}:l${posterLang}${stType === "series" ? ":eo2" : ""}${metaThemeFragment}:mhv2:lk1${freshness}`
   const cached = await cacheGetShared<{ meta: StremioMetaDetail; __partial?: boolean }>(cacheKey, ["stremio", "meta"])
   // __partial is only an internal signal for the hit HTTP header: never in the JSON.
   if (cached) return metaResponse({ meta: cached.meta }, cached.__partial === true)
@@ -518,12 +569,14 @@ export async function pictoriumMeta(
       }
     }
 
+    const genres = (details.genres || []).map((g) => g.name)
+    const metaLinks = buildMetaLinks(getOriginFromRequest(req), stType, genres, imdbId)
     const meta: StremioMetaDetail = {
       id: cleanId,
       imdb_id: imdbId || undefined,
       type: stType,
       name: details.title || details.name || "",
-      genres: (details.genres || []).map((g) => g.name),
+      genres,
       poster,
       posterShape,
       background,
@@ -542,6 +595,7 @@ export async function pictoriumMeta(
       director: director.length > 0 ? director : undefined,
       writer: writers.length > 0 ? writers : undefined,
       trailers: trailers.length > 0 ? trailers : undefined,
+      links: metaLinks.length > 0 ? metaLinks : undefined,
       behaviorHints: stType === "movie" ? { defaultVideoId: primaryId, hasScheduledVideos: false } : undefined,
       videos: stType === "movie" ? [] : (videos && videos.length > 0 ? videos : undefined),
     }
