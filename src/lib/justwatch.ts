@@ -4,6 +4,7 @@ import { timedFetch } from "./outbound-stats"
 import { envWithFallback } from "@/lib/env-compat"
 import { createCircuitBreaker } from "@/lib/circuit-breaker"
 import { GLOBAL_REGION_CODE } from "./regions"
+import { cacheGetSharedUpstream, cacheSetSharedUpstream } from "./cache"
 
 // Sovrascrivibile via env: nei test E2E punta al mock server locale.
 const JW_API = process.env.JUSTWATCH_API_URL || "https://apis.justwatch.com/graphql"
@@ -251,6 +252,27 @@ function cacheRankingsResult(cacheKey: string, result: JWRankEntry[]): void {
   if (rankingsCache.size >= CACHE_MAX) rankingsCache.delete(rankingsCache.keys().next().value!)
   const timestamp = result.length > 0 ? Date.now() : Date.now() - CACHE_TTL + NEGATIVE_TTL
   rankingsCache.set(cacheKey, { data: result, timestamp })
+  // Fase 4: L2 condivisa (chiave hashata da cache.ts). Un vuoto è un negative
+  // cache e viaggia con la sua TTL reale di 60s, mai con il timestamp
+  // retrodatato usato localmente (l'envelope deve scadere davvero).
+  cacheSetSharedUpstream(`jw:${cacheKey}`, result, result.length > 0 ? CACHE_TTL : NEGATIVE_TTL)
+}
+
+/**
+ * Fase 4: fallback sullo shared layer prima di breaker/upstream. Rispetta la
+ * provenienza assoluta del writer (timestamp + TTL dell'envelope) e ripopola
+ * la L1 locale con lo stesso timestamp (no sliding expiration). Un vuoto
+ * condiviso resta soggetto alla regola strict dei chiamanti.
+ */
+async function readSharedRankings(
+  cacheKey: string,
+): Promise<{ data: JWRankEntry[]; timestamp: number } | null> {
+  const shared = await cacheGetSharedUpstream<JWRankEntry[]>(`jw:${cacheKey}`)
+  if (!shared || !Array.isArray(shared.data)) return null
+  if (Date.now() - shared.timestamp >= (shared.ttlMs ?? CACHE_TTL)) return null
+  if (rankingsCache.size >= CACHE_MAX) rankingsCache.delete(rankingsCache.keys().next().value!)
+  rankingsCache.set(cacheKey, { data: shared.data, timestamp: shared.timestamp })
+  return { data: shared.data, timestamp: shared.timestamp }
 }
 
 const UA =
@@ -519,6 +541,17 @@ export async function getJWRankings(
     if (!strict || cached.data.length > 0) return cached.data
   }
 
+  // Fase 4: hit L2 condivisa (altra replica) prima di breaker/upstream, con le
+  // stesse regole di freschezza/floor/strict della L1.
+  const shared = await readSharedRankings(cacheKey)
+  if (
+    shared &&
+    (minFetchedAtMs === undefined || shared.timestamp >= minFetchedAtMs) &&
+    (!strict || shared.data.length > 0)
+  ) {
+    return shared.data
+  }
+
   if (isCircuitOpen()) {
     if (strict) throw new Error(`JustWatch circuit open (${objectType})`)
     return []
@@ -777,6 +810,16 @@ export async function getJWTitles(opts: JWTitleOptions): Promise<JWRankEntry[]> 
     // Strict never trusts a cached empty (legacy unvalidated [] must not
     // poison a strict snapshot as a successful empty).
     if (!strict || cached.data.length > 0) return cached.data
+  }
+
+  // Fase 4: hit L2 condivisa prima di breaker/upstream (stesse regole di L1).
+  const shared = await readSharedRankings(cacheKey)
+  if (
+    shared &&
+    (minFetchedAtMs === undefined || shared.timestamp >= minFetchedAtMs) &&
+    (!strict || shared.data.length > 0)
+  ) {
+    return shared.data
   }
 
   if (isCircuitOpen()) {

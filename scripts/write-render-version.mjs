@@ -96,6 +96,7 @@ const RENDER_FILES = [
   "public/quality-badges/color/sd-label-color-icon.svg",
   "public/quality-badges/video/dolby-vision.svg",
   "public/quality-badges/video/dolby-atmos.svg",
+  "public/quality-badges/video/dolby-vision-atmos.svg",
   "public/quality-badges/video/imax.svg",
   "public/quality-badges/video/hdr.svg",
   "public/quality-badges/video/hdr10-plus.svg",

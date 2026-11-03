@@ -109,20 +109,27 @@ describe("Addon Proxy Helpers", () => {
     expect(single.logo).toBe("https://original.logo/1.png")
   })
 
-  it("leaves unsupported third-party provider IDs untouched (no 400, no corrupt URLs)", () => {
-    // anilist:/kitsu: RISOLVIBILI sono riscritti dal mapping locale (vedi
-    // anime-id-map-proxy.test.ts): qui solo namespace non abilitati (mal:,
-    // anidb:) + tmdb: restano coperti — l'artwork originale resta intatto.
+  it("rewrites supported provider IDs and leaves unsupported ones untouched (no 400, no corrupt URLs)", () => {
+    // Tutti e quattro i namespace anime (anilist:/kitsu:/mal:/anidb:) sono
+    // indicizzati dal mapping locale (vedi anime-id-map-proxy.test.ts): un
+    // match unico lato-compatibile viene riscritto. Restano intatti i
+    // namespace non indicizzati (tvdb:) e gli id senza mapping, mai un 400.
     const metas: StremioItemMeta[] = [
       { id: "mal:145", type: "series", name: "Anime", poster: "https://original.poster/k.jpg" },
       { id: "anidb:456", type: "series", name: "Anime 2", poster: "https://original.poster/a.jpg" },
+      { id: "tvdb:789", type: "series", name: "Unsupported", poster: "https://original.poster/u.jpg" },
+      { id: "mal:99999999", type: "series", name: "No mapping", poster: "https://original.poster/n.jpg" },
       { id: "tmdb:550", type: "movie", name: "TMDB prefixed", poster: "https://original.poster/t.jpg" },
     ]
     const rewritten = rewriteMetasPosters(metas, "https://pictorium.app")
-    expect(rewritten[0].poster).toBe("https://original.poster/k.jpg")
-    expect(rewritten[1].poster).toBe("https://original.poster/a.jpg")
+    // mal 145 / anidb 456 puntano a serie TMDB indicizzate.
+    expect(rewritten[0].poster).toContain("https://pictorium.app/api/poster/series/36837")
+    expect(rewritten[1].poster).toContain("https://pictorium.app/api/poster/series/43417")
+    // Namespace non indicizzato / id senza mapping: artwork originale intatto.
+    expect(rewritten[2].poster).toBe("https://original.poster/u.jpg")
+    expect(rewritten[3].poster).toBe("https://original.poster/n.jpg")
     // tmdb: prefisso risolvibile → parte numerica
-    expect(rewritten[2].poster).toContain("https://pictorium.app/api/poster/movie/550")
+    expect(rewritten[4].poster).toContain("https://pictorium.app/api/poster/movie/550")
   })
 })
 

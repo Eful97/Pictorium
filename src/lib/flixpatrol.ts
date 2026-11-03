@@ -7,6 +7,7 @@ import { createLogger } from "@/lib/logger"
 import { getJWRankings, getJWTitles, PLATFORM_JW_PACKAGES, type JWRankEntry } from "@/lib/justwatch"
 import { flixSlugToRegionCode, getRegionDef, GLOBAL_REGION } from "@/lib/regions"
 import { timedFetch } from "./outbound-stats"
+import { cacheGetSharedUpstream, cacheSetSharedUpstream } from "./cache"
 
 const log = createLogger("flixpatrol")
 
@@ -205,12 +206,22 @@ async function tmdbCachedFetch(url: string): Promise<unknown | null> {
     tmdbCache.set(cacheKey, cached)
     return cached.data
   }
+  // Fase 4: L2 condivisa dei metadati TMDB (chiave hashata da cache.ts, mai
+  // URL/chiave API). Stessa TTL 5min; timestamp del writer preservato.
+  const shared = await cacheGetSharedUpstream<unknown>(`fp:tmdb:${cacheKey}`)
+  if (shared && Date.now() - shared.timestamp < (shared.ttlMs ?? TMDB_CACHE_TTL)) {
+    if (tmdbCache.size >= TMDB_CACHE_MAX) tmdbCache.delete(tmdbCache.keys().next().value!)
+    tmdbCache.set(cacheKey, { data: shared.data, timestamp: shared.timestamp })
+    return shared.data
+  }
   try {
     const res = await timedFetch(url, { signal: AbortSignal.timeout(15000) })
     if (!res.ok) return null
     const data = await res.json()
     if (tmdbCache.size >= TMDB_CACHE_MAX) tmdbCache.delete(tmdbCache.keys().next().value!)
-    tmdbCache.set(cacheKey, { data, timestamp: Date.now() })
+    const timestamp = Date.now()
+    tmdbCache.set(cacheKey, { data, timestamp })
+    cacheSetSharedUpstream(`fp:tmdb:${cacheKey}`, data, TMDB_CACHE_TTL, timestamp)
     return data
   } catch {
     return null
@@ -494,6 +505,22 @@ async function loadFlixCatalogDoc(
       memCache.set(country, cached)
     }
   }
+  // Fase 4: shared layer multi-replica, dopo memoria e disco. Vince solo un
+  // documento FRESCO, VALIDO e non vuoto: un last-good stantio resta quello
+  // locale (retention invariata) e il documento condiviso conserva la
+  // provenienza assoluta del writer (timestamp dell'envelope, 12h).
+  if (!cached?.catalog || !freshSinceOk(cached.timestamp)) {
+    const shared = await cacheGetSharedUpstream<CatalogData>(`fp:country:${country}`)
+    if (
+      shared &&
+      isValidFlixCatalogDoc(shared.data) &&
+      !isEmptyCountryDocument(shared.data) &&
+      freshSinceOk(shared.timestamp)
+    ) {
+      cached = { catalog: shared.data, timestamp: shared.timestamp }
+      memCache.set(country, cached)
+    }
+  }
   let catalog = cached?.catalog
 
   // Cycle-3: a cached malformed document must never serve as a successful
@@ -586,6 +613,9 @@ async function loadFlixCatalogDoc(
       cached = { catalog, timestamp: now }
       memCache.set(country, cached)
       saveCache(country, cached)
+      // Fase 4: pubblica sullo shared layer con la stessa provenienza assoluta
+      // (guardia 64KB: i documenti troppo grandi restano locali).
+      cacheSetSharedUpstream(`fp:country:${country}`, catalog, TWELVE_HOURS, cached.timestamp)
       // A bounded refetch that STILL carries no fresh chart for the requested
       // side arms the shared 60s cooldown: the retry stays one upstream read
       // per window (never a per-request storm) while the stale payload keeps

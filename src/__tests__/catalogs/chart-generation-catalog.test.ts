@@ -33,6 +33,11 @@ vi.mock("@/lib/cache", () => ({
     cacheGets.push(k)
     return (cacheStore.get(k) as unknown) ?? null
   }),
+  // L2 upstream (shared-cache): simulate KV not configured so the adapters
+  // always fall through to their local Maps/upstream, exactly like the
+  // pre-shared-cache behavior these tests pin. No envelope is ever served.
+  cacheGetSharedUpstream: vi.fn(async () => null),
+  cacheSetSharedUpstream: vi.fn(),
   cacheClear: vi.fn(() => {
     cacheStore.clear()
   }),

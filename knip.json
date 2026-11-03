@@ -1,0 +1,10 @@
+{
+  "$schema": "https://unpkg.com/knip@6.44.1/schema.json",
+  "ignoreExportsUsedInFile": true,
+  "entry": [
+    "scripts/**/*.mjs"
+  ],
+  "next": {},
+  "vitest": {},
+  "playwright": {}
+}

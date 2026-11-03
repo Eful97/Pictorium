@@ -173,6 +173,46 @@ export async function cacheGetShared<T>(key: string, tags: string[] = [], ttlMs?
   return cacheGet<T>(key)
 }
 
+// ---------------------------------------------------------------------------
+// Fase 4: L2 condivisa per i METADATI upstream (TMDB/JustWatch/FlixPatrol).
+// Gli adapter mantengono la propria Map L1 (capacità, LRU, TTL e negative
+// cache restano invariati: nessun cambio di comportamento a KV assente); qui
+// viaggiano SOLO i payload JSON piccoli, con la stessa guardia 64KB/no-Buffer
+// della cache di risposta. Chiavi HASH-ONLY (sha256 dell'identità adapter):
+// URL, testo di ricerca e segreti non raggiungono mai il namespace KV.
+// L'envelope trasporta il timestamp del writer: la replica che ripopola la L1
+// conserva la scadenza assoluta (no sliding expiration, stesso contratto di
+// `cacheGetShared`). Miss/errore/timeout = miss, mai hang (kvReadThrough).
+// ---------------------------------------------------------------------------
+const KV_L2_UPSTREAM_PREFIX = "src:"
+
+function upstreamKey(key: string): string {
+  return `${KV_L2_UPSTREAM_PREFIX}${crypto.createHash("sha256").update(key).digest("hex")}`
+}
+
+/** L2-only read: non tocca la L1 di risposta. Envelope-only (un payload senza
+ *  provenienza non ha una scadenza assoluta: meglio un miss che un dato di età
+ *  sconosciuta). */
+export async function cacheGetSharedUpstream<T>(
+  key: string,
+): Promise<{ data: T; timestamp: number; ttlMs?: number } | null> {
+  if (!isKvL2()) return null
+  const raw = await kvReadThrough<unknown>(upstreamKey(key))
+  if (raw === null || !isKvEnvelope(raw)) return null
+  return { data: raw.d as T, timestamp: raw.t, ttlMs: raw.ttl }
+}
+
+/** L2-only write (fire-and-forget): stessa guardia 64KB/no-Buffer. */
+export function cacheSetSharedUpstream<T>(
+  key: string,
+  data: T,
+  ttlMs: number,
+  timestamp: number = Date.now(),
+): void {
+  if (!isKvL2()) return
+  kvWriteThrough(upstreamKey(key), data, ttlMs, [], timestamp)
+}
+
 const MAX_TTL = 30 * 60 * 1000
 const rawMaxEntries = envWithFallback("CACHE_MAX")
 const ENV_MAX_ENTRIES = rawMaxEntries ? parseInt(rawMaxEntries, 10) : 2000

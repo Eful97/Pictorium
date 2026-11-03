@@ -98,6 +98,65 @@ export async function renderSVG(svgStr: string, w: number): Promise<Buffer> {
   return Buffer.from(resvg.render().asPng())
 }
 
+// --- Single-pass composition (Fase 2) ---
+
+/** One standalone badge SVG placed on a shared composed canvas. */
+export interface SvgLayerPlacement {
+  /** Full standalone SVG (own `<svg>` root, width/height/viewBox). */
+  readonly svg: string
+  readonly left: number
+  readonly top: number
+  readonly width: number
+  readonly height: number
+}
+
+/** Inner markup of a standalone SVG (no XML prolog, no root `<svg>` tags). */
+function svgInnerMarkup(svg: string): string {
+  return svg
+    .replace(/<\?xml[^>]*\?>/g, "")
+    .replace(/<svg\b[^>]*>/, "")
+    .replace(/<\/svg>\s*$/, "")
+}
+
+/**
+ * Namespace every id defined/referenced by one layer. Badge recipes reuse
+ * fixed ids (`tds`, `qg`, `akm`, `avkm`, …); on a shared canvas duplicate ids
+ * would make one layer's filter/gradient/mask win over the others, so each
+ * layer gets its own prefix. Pure string rewrite: same geometry, same paint,
+ * only the ids change.
+ */
+function namespaceSvgIds(markup: string, prefix: string): string {
+  const ids = new Set<string>()
+  for (const match of markup.matchAll(/\sid="([^"]+)"/g)) ids.add(match[1])
+  if (ids.size === 0) return markup
+  return markup
+    .replace(/url\(#([^)]+)\)/g, (full, id: string) => (ids.has(id) ? `url(#${prefix}${id})` : full))
+    .replace(/(\sxlink:href)="#([^"]+)"/g, (full, attr: string, id: string) => (ids.has(id) ? `${attr}="#${prefix}${id}"` : full))
+    .replace(/(\shref)="#([^"]+)"/g, (full, attr: string, id: string) => (ids.has(id) ? `${attr}="#${prefix}${id}"` : full))
+    .replace(/(\sid)="([^"]+)"/g, (full, attr: string, id: string) => (ids.has(id) ? `${attr}="${prefix}${id}"` : full))
+}
+
+/**
+ * Rasterize several badge SVGs as ONE composed canvas with a single resvg
+ * instance (one fontdb load instead of one per mark). Each layer keeps its
+ * exact intrinsic size/position (nested `<svg>` at 1:1, no scaling), so the
+ * composed output is the same stack the per-mark composite would paint.
+ */
+export async function renderComposedSvg(
+  layers: readonly SvgLayerPlacement[],
+  width: number,
+  height: number,
+): Promise<Buffer> {
+  const markup = layers
+    .map((layer, index) => {
+      const inner = namespaceSvgIds(svgInnerMarkup(layer.svg), `l${index}-`)
+      return `<svg x="${layer.left}" y="${layer.top}" width="${layer.width}" height="${layer.height}" viewBox="0 0 ${layer.width} ${layer.height}" xmlns="http://www.w3.org/2000/svg">${inner}</svg>`
+    })
+    .join("")
+  const svg = `<svg xmlns="http://www.w3.org/2000/svg" width="${width}" height="${height}" viewBox="0 0 ${width} ${height}">${markup}</svg>`
+  return renderSVG(svg, width)
+}
+
 // --- Text-as-logo (font del bundle, nessun upload) ---
 
 /**

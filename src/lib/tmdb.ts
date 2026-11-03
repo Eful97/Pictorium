@@ -5,6 +5,7 @@ import { envWithFallback } from "@/lib/env-compat"
 import { isMultiUserEnabled } from "@/lib/user-auth"
 import { combineAbortSignals, raceWithAbort } from "./abort-signal"
 import { timedFetch } from "./outbound-stats"
+import { cacheGetSharedUpstream, cacheSetSharedUpstream } from "./cache"
 
 const log = createLogger("tmdb")
 
@@ -583,6 +584,19 @@ async function tmdbFetch(path: string, apiKey?: string, signal?: AbortSignal, ti
   }
   const current: { promise?: Promise<unknown> } = {}
   const work = (async () => {
+    // Fase 4: L2 condivisa dei metadati (chiave hashata, mai URL/chiave API).
+    // La Map locale resta autoritativa per capacità/LRU/TTL; la L2 evita che
+    // una replica con L1 fredda rifaccia lo stesso upstream. Il timestamp del
+    // writer conserva la scadenza assoluta nella L1 ripopolata.
+    const shared = await cacheGetSharedUpstream<unknown>(`tmdb:${cacheKey}`)
+    if (shared && Date.now() - shared.timestamp < (shared.ttlMs ?? CACHE_TTL)) {
+      tmdbStats.cacheHits++
+      if (inflight.get(cacheKey) === current.promise) {
+        if (fetchCache.size >= CACHE_MAX) fetchCache.delete(fetchCache.keys().next().value!)
+        fetchCache.set(cacheKey, { data: shared.data, timestamp: shared.timestamp })
+      }
+      return shared.data
+    }
     tmdbStats.networkCalls++
     tmdbStats.lastCallTime = new Date().toISOString()
     // D5: tetto interno combinato col signal esterno (default 30s). Il path
@@ -603,7 +617,12 @@ async function tmdbFetch(path: string, apiKey?: string, signal?: AbortSignal, ti
       if (inflight.get(cacheKey) !== current.promise) return data
       // Evict LRU (first key = least-recently-used) when at capacity
       if (fetchCache.size >= CACHE_MAX) fetchCache.delete(fetchCache.keys().next().value!)
-      fetchCache.set(cacheKey, { data, timestamp: Date.now() })
+      const timestamp = Date.now()
+      fetchCache.set(cacheKey, { data, timestamp })
+      // Fase 4: pubblica sullo shared layer con la stessa TTL (5 min). La
+      // guardia 64KB/no-Buffer di cache.ts scarta i payload grandi (es.
+      // immagini/crediti): restano locali, nessun cambio di resa.
+      cacheSetSharedUpstream(`tmdb:${cacheKey}`, data, CACHE_TTL, timestamp)
       return data
     } finally {
       if (inflight.get(cacheKey) === current.promise) inflight.delete(cacheKey)

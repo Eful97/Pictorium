@@ -32,14 +32,14 @@ import { normalizeAutomaticAccentHex } from "./accent-color"
 import type { EffectiveAccentMeta } from "./effective-accent"
 import { renderAwardLogoBadge } from "./award-logos"
 import { awardShortName, type AwardBadgeKey } from "./badge-labels"
-import { renderGenreBadge, renderRankingBadge, renderExtraBadge, renderQualityBadge, renderQualityKnockoutBadge, renderQualityNakedBadge, renderAgeKnockoutBadge, renderAgeEmphasisBadge, renderGradientMarkBadge, renderComingSoonRibbon, comingSoonRibbonLayout, renderSVG } from "./svg-badge"
+import { renderGenreBadge, renderRankingBadge, renderExtraBadge, renderComingSoonRibbon, comingSoonRibbonLayout, renderSVG, renderComposedSvg } from "./svg-badge"
 import { buildLogoScrim, logoContrast, logoInkLuminance, logoScrimStrength, posterLogoZoneLuminance } from "./logo-contrast"
 import { renderFirstMatchingNetworkLogoBadge, renderFirstMatchingNetworkRawBadge, renderFirstMatchingNetworkLogoBadgeHybrid, renderFirstMatchingNetworkRawBadgeHybrid, type NetworkCandidate } from "./network-svgs"
 import { computeLogoLayout, logoAlignPadX, PORTRAIT_LOGO_MAX_HEIGHT_PCT, PORTRAIT_LOGO_TOP_OFFSET, LANDSCAPE_LOGO_MAX_WIDTH_PCT, LANDSCAPE_LOGO_MAX_HEIGHT_PCT, LANDSCAPE_LOGO_BOTTOM_MARGIN_PCT, LANDSCAPE_LOGO_TOP_OFFSET, LANDSCAPE_LOGO_SHIFT_X, LANDSCAPE_LOGO_SHIFT_Y } from "./logo-layout"
 import { logoDefaultScaleFromAspect, FRESH_TITLE_LOGO_DEFAULT_SCALE } from "./logo-selection"
 import fs from "fs"
 import path from "path"
-import { buildQualityBadgeSvg, buildQualityKnockoutSvg, buildAgeEmphasisSvg, buildGradientMarkSvg, buildStripBadgeSvg, QUALITY_GROUP_ROW_MAX_ITEMS, badgeBoxHeight, TOP_SHADOW_PAD, TOP_SHADOW_FILTER, KNOCKOUT_SHADOW_FILTER, KNOCKOUT_INK_OPACITY, knockoutOuterShadow, AGE_KNOCKOUT_RADIUS_FACTOR, AGE_MONO_STROKE_FACTOR, AGE_MONO_STROKE_MIN, AGE_MONO_INK_DARK, AGE_MONO_INK_LIGHT, SATIN_PILL_INK_DARK, SATIN_PILL_INK_LIGHT, SATIN_PILL_STROKE_DARK, SATIN_PILL_STROKE_LIGHT, SATIN_PILL_STROKE_WIDTH, satinPillStops } from "./badge-svg-shared"
+import { buildQualityBadgeSvg, buildQualityKnockoutSvg, buildQualityNakedSvg, buildAgeKnockoutSvg, buildAgeEmphasisSvg, buildGradientMarkSvg, buildStripBadgeSvg, QUALITY_GROUP_ROW_MAX_ITEMS, badgeBoxHeight, TOP_SHADOW_PAD, TOP_SHADOW_FILTER, KNOCKOUT_SHADOW_FILTER, KNOCKOUT_INK_OPACITY, knockoutOuterShadow, AGE_KNOCKOUT_RADIUS_FACTOR, AGE_MONO_STROKE_FACTOR, AGE_MONO_STROKE_MIN, AGE_MONO_INK_DARK, AGE_MONO_INK_LIGHT, SATIN_PILL_INK_DARK, SATIN_PILL_INK_LIGHT, SATIN_PILL_STROKE_DARK, SATIN_PILL_STROKE_LIGHT, SATIN_PILL_STROKE_WIDTH, satinPillStops } from "./badge-svg-shared"
 import { computeTopBadge, getNextEpisodeLabel, isNetworkStudio, shouldSuppressExtraTopBadgeForNetwork, type BadgeInput } from "./poster-badge"
 import type { MdbListWhatsonFeatures } from "./content-tags"
 import { isNextEpisodeBadgeKey, DEFAULT_SASH_ORDER } from "./badge-priority"
@@ -724,12 +724,42 @@ export async function renderQualityIconBadge(
   inkWidth?: number,
 ): Promise<{ png: Buffer; w: number; h: number } | null> {
   try {
+    const built = await buildQualityIconSvg(iconPath, pw, topLight, inkWidth)
+    if (!built) return null
+    const png = await renderSVG(built.svg, built.w)
+    return { png, w: built.w, h: built.h }
+  } catch {
+    return null
+  }
+}
+
+/**
+ * SVG spec of a single quality/AV mark (canvas + intrinsic size), WITHOUT
+ * rasterizing it. The group renderer composes every spec into one SVG so a
+ * multi-mark stack costs ONE resvg instance instead of one per mark; the
+ * public `render*` wrappers rasterize a spec exactly like before (same
+ * `renderSVG(svg, w)` call → byte-identical single-mark output).
+ */
+interface BadgeSvgSpec {
+  readonly svg: string
+  readonly w: number
+  readonly h: number
+}
+
+async function buildQualityIconSvg(
+  iconPath: string,
+  pw: number,
+  topLight?: boolean,
+  /** Larghezza d'inchiostro imposta ai marchi A/V (default: larghezza 4K). */
+  inkWidth?: number,
+): Promise<BadgeSvgSpec | null> {
+  try {
     const src = await loadQualityIconSvg(iconPath)
     if (!src) return null
     // Marchio A/V: viewBox ritagliato sull'inchiostro e larghezza normalizzata.
     // Il tier (mono/color) non entra qui: percorso storico byte-identico.
     const ink = avMarkInkBox(iconPath)
-    if (ink) return await renderBareAvIcon(src, ink, pw, topLight, inkWidth)
+    if (ink) return buildBareAvIconSvg(src, ink, pw, topLight, inkWidth)
     const vb = qualityIconViewBox(src)
     if (!vb) return null
     const isMono = !/(^|\/)color\//.test(iconPath)
@@ -752,8 +782,7 @@ export async function renderQualityIconBadge(
       `<g filter="url(#tds)">` +
       `<svg x="${TOP_SHADOW_PAD}" y="${TOP_SHADOW_PAD}" width="${w}" height="${h}" viewBox="0 0 ${vb.w} ${vb.h}"${fillAttr}>${innerContent}</svg>` +
       `</g></svg>`
-    const png = await renderSVG(compositeSvg, totalW)
-    return { png, w: totalW, h: totalH }
+    return { svg: compositeSvg, w: totalW, h: totalH }
   } catch {
     return null
   }
@@ -772,13 +801,13 @@ function svgInnerContent(src: string): string {
  * la larghezza visibile diversa da quella nominale. L'altezza segue l'aspect
  * naturale dell'ink: nessuna distorsione, nessuno stretch a altezza uguale.
  */
-async function renderBareAvIcon(
+async function buildBareAvIconSvg(
   src: string,
   ink: AvMarkInkBox,
   pw: number,
   topLight: boolean | undefined,
   inkWidth: number | undefined,
-): Promise<{ png: Buffer; w: number; h: number }> {
+): Promise<BadgeSvgSpec> {
   const fs = Math.round(Math.max(17 * pw / 380, 10))
   const w = Math.max(1, Math.round(inkWidth ?? qualityIconReferenceWidth(badgeBoxHeight(fs))))
   const h = Math.max(1, Math.round(w * (ink.h / ink.w)))
@@ -790,8 +819,7 @@ async function renderBareAvIcon(
     `<g filter="url(#tds)">` +
     `<svg x="${TOP_SHADOW_PAD}" y="${TOP_SHADOW_PAD}" width="${w}" height="${h}" viewBox="${ink.x} ${ink.y} ${ink.w} ${ink.h}" fill="${fill}" color="${fill}">${svgInnerContent(src)}</svg>` +
     `</g></svg>`
-  const png = await renderSVG(compositeSvg, totalW)
-  return { png, w: totalW, h: totalH }
+  return { svg: compositeSvg, w: totalW, h: totalH }
 }
 
 /**
@@ -804,14 +832,14 @@ async function renderBareAvIcon(
  * ignora la polarità del fondo (i colori restano leggibili su top chiari e
  * scuri).
  */
-async function renderPlatedAvBadge(
+async function buildPlatedAvBadgeSvg(
   iconPath: string,
   pw: number,
   plateWidth: number,
   glyphHex: string,
   plateBg: string,
   plateStroke: string,
-): Promise<{ png: Buffer; w: number; h: number } | null> {
+): Promise<BadgeSvgSpec | null> {
   try {
     const src = await loadQualityIconSvg(iconPath)
     if (!src) return null
@@ -847,8 +875,7 @@ async function renderPlatedAvBadge(
       `<rect x="${rectX}" y="${rectY}" width="${rectW}" height="${rectH}" rx="${r}" fill="${plateBg}" stroke="${plateStroke}" stroke-width="${strokeW}"/>` +
       `<svg x="${gx}" y="${gy}" width="${glyph.w}" height="${glyph.h}" viewBox="${ink.x} ${ink.y} ${ink.w} ${ink.h}" fill="${glyphHex}" color="${glyphHex}">${svgInnerContent(src)}</svg>` +
       `</g></svg>`
-    const png = await renderSVG(compositeSvg, totalW)
-    return { png, w: totalW, h: totalH }
+    return { svg: compositeSvg, w: totalW, h: totalH }
   } catch {
     return null
   }
@@ -874,13 +901,13 @@ async function renderPlatedAvBadge(
  * ogni tacca della colonna ha lo stesso box. `color`/`premium` restano sulle
  * placche esistenti, `knockout` sul tag bianco.
  */
-async function renderFramedAvBadge(
+async function buildFramedAvBadgeSvg(
   iconPath: string,
   pw: number,
   frameWidth: number,
   frame: "satin" | "mono",
   topLight: boolean | undefined,
-): Promise<{ png: Buffer; w: number; h: number } | null> {
+): Promise<BadgeSvgSpec | null> {
   try {
     const src = await loadQualityIconSvg(iconPath)
     if (!src) return null
@@ -920,8 +947,7 @@ async function renderFramedAvBadge(
       ? `<defs><linearGradient id="qg" x1="0" y1="0" x2="0" y2="1">${satinPillStops(!!topLight)}</linearGradient>${TOP_SHADOW_FILTER}</defs>`
       : `<defs>${TOP_SHADOW_FILTER}</defs>`
     const compositeSvg = `<svg xmlns="http://www.w3.org/2000/svg" width="${totalW}" height="${totalH}" viewBox="0 0 ${totalW} ${totalH}">${defs}${body}</svg>`
-    const png = await renderSVG(compositeSvg, totalW)
-    return { png, w: totalW, h: totalH }
+    return { svg: compositeSvg, w: totalW, h: totalH }
   } catch {
     return null
   }
@@ -939,7 +965,7 @@ export async function renderColorIconBadge(
   plateWidth?: number,
 ): Promise<{ png: Buffer; w: number; h: number } | null> {
   const fs = Math.round(Math.max(17 * pw / 380, 10))
-  return renderPlatedAvBadge(
+  const built = await buildPlatedAvBadgeSvg(
     iconPath,
     pw,
     plateWidth ?? qualityIconReferenceWidth(badgeBoxHeight(fs)),
@@ -947,6 +973,13 @@ export async function renderColorIconBadge(
     COLOR_MARK_PLATE_BG,
     COLOR_MARK_PLATE_STROKE,
   )
+  if (!built) return null
+  try {
+    const png = await renderSVG(built.svg, built.w)
+    return { png, w: built.w, h: built.h }
+  } catch {
+    return null
+  }
 }
 
 /**
@@ -963,7 +996,7 @@ export async function renderPremiumIconBadge(
   plateWidth?: number,
 ): Promise<{ png: Buffer; w: number; h: number } | null> {
   const fs = Math.round(Math.max(17 * pw / 380, 10))
-  return renderPlatedAvBadge(
+  const built = await buildPlatedAvBadgeSvg(
     iconPath,
     pw,
     plateWidth ?? qualityIconReferenceWidth(badgeBoxHeight(fs)),
@@ -971,6 +1004,13 @@ export async function renderPremiumIconBadge(
     PREMIUM_PLATE_BG,
     PREMIUM_PLATE_STROKE,
   )
+  if (!built) return null
+  try {
+    const png = await renderSVG(built.svg, built.w)
+    return { png, w: built.w, h: built.h }
+  } catch {
+    return null
+  }
 }
 
 /**
@@ -987,6 +1027,22 @@ export async function renderAvKnockoutBadge(
   tagWidth: number,
   inkWidth: number,
 ): Promise<{ png: Buffer; w: number; h: number } | null> {
+  const built = await buildAvKnockoutBadgeSvg(iconPath, pw, tagWidth, inkWidth)
+  if (!built) return null
+  try {
+    const png = await renderSVG(built.svg, built.w)
+    return { png, w: built.w, h: built.h }
+  } catch {
+    return null
+  }
+}
+
+async function buildAvKnockoutBadgeSvg(
+  iconPath: string,
+  pw: number,
+  tagWidth: number,
+  inkWidth: number,
+): Promise<BadgeSvgSpec | null> {
   try {
     const src = await loadQualityIconSvg(iconPath)
     if (!src) return null
@@ -1026,8 +1082,7 @@ export async function renderAvKnockoutBadge(
       `<rect x="${ox}" y="${oy}" width="${tagW}" height="${boxH}" rx="${r}" fill="#ffffff" mask="url(#avkm)" filter="url(#tds)"/>` +
       inkEl +
       `</svg>`
-    const png = await renderSVG(compositeSvg, totalW)
-    return { png, w: totalW, h: totalH }
+    return { svg: compositeSvg, w: totalW, h: totalH }
   } catch {
     return null
   }
@@ -1301,19 +1356,15 @@ export async function renderQualityBadgeGroup(
    * larghezza VISIBILE alla colonna comune (font ridotto per stare dentro,
    * mai glifi stirati).
    */
-  const renderStripMark = async (
+  const buildStripMark = (
     label: string,
     columnW?: number,
-  ): Promise<{ png: Buffer; w: number; h: number }> => {
-    const built = buildStripBadgeSvg(
-      [label],
-      markFs,
-      markFont,
-      columnW != null ? Math.max(1, Math.round(columnW)) : undefined,
-    )
-    const png = await renderSVG(built.svg, built.w)
-    return { png, w: built.w, h: built.h }
-  }
+  ): BadgeSvgSpec => buildStripBadgeSvg(
+    [label],
+    markFs,
+    markFont,
+    columnW != null ? Math.max(1, Math.round(columnW)) : undefined,
+  )
   /**
    * Un marchio A/V, con la stessa larghezza visibile in ogni stile:
    * standard = glifo dentro la pill satinata del tier/età; mono = glifo dentro
@@ -1323,25 +1374,28 @@ export async function renderQualityBadgeGroup(
    * l'etichetta breve del formato (nessun artwork per formato); gradient =
    * glifo nudo con il gradiente orizzontale del formato (stessa etichetta
    * breve, nessun artwork).
+   *
+   * Ritorna lo SVG spec (nessuna rasterizzazione): il gruppo compone tutti i
+   * marchi in un solo SVG, il percorso legacy li rasterizza singolarmente.
    */
-  const renderFormatMark = async (
+  const buildFormatMark = async (
     iconPath: string,
     topLightForMark: boolean | undefined,
     accentHex: string,
     /** Etichetta breve della lastra Nova / del marchio nudo `gradient`
      *  (usata solo dagli stili dinamici `nova` e `gradient`). */
     novaLabel: string,
-  ): Promise<{ png: Buffer; w: number; h: number } | null> => {
+  ): Promise<BadgeSvgSpec | null> => {
     if (isStripStyle) {
       // Placca scura singola condivisa: un marchio A/V per placca (nessun
       // artwork per formato, l'etichetta breve è il glifo).
-      return renderStripMark(novaLabel, markRefWidth)
+      return buildStripMark(novaLabel, markRefWidth)
     }
     if (isNova) {
       // Lastra dinamica condivisa: stessa ricetta di tier ed età, larghezza
       // pinnata alla colonna (`markRefWidth`) e font ridotto per stare dentro
       // (`fitBadgeGlyphFs` nel builder). Nessun asset per formato.
-      return renderAgeEmphasisBadge(novaLabel, pw, "nova", topLightForMark, normalizeBadgeFont(font), markRefWidth)
+      return buildAgeEmphasisSvg(novaLabel, markFs, "nova", topLightForMark, markFont, markRefWidth)
     }
     if (isGradient) {
       // Glifo nudo con gradiente orizzontale del formato, risolto dal path
@@ -1349,21 +1403,21 @@ export async function renderQualityBadgeGroup(
       // colonna e font ridotto per stare dentro, mai glifi stirati. Path non
       // registrato → inchiostro bianco (fail-safe: mai un gradiente di un
       // formato inventato).
-      return renderGradientMarkBadge(novaLabel, pw, gradientMarkStops(iconPath) ?? GRADIENT_TIER_INK, normalizeBadgeFont(font), markRefWidth)
+      return buildGradientMarkSvg(novaLabel, markFs, gradientMarkStops(iconPath) ?? GRADIENT_TIER_INK, markFont, markRefWidth)
     }
     if (isOutline) {
       // Wireframe dinamico condiviso: l'etichetta breve del formato dentro la
       // stessa cornice di tier/età, larghezza pinnata alla colonna.
-      return renderAgeEmphasisBadge(novaLabel, pw, "outline", topLightForMark, normalizeBadgeFont(font), markRefWidth)
+      return buildAgeEmphasisSvg(novaLabel, markFs, "outline", topLightForMark, markFont, markRefWidth)
     }
     if (isPremium) {
-      return renderPlatedAvBadge(iconPath, pw, markRefWidth, accentHex, PREMIUM_PLATE_BG, PREMIUM_PLATE_STROKE)
+      return buildPlatedAvBadgeSvg(iconPath, pw, markRefWidth, accentHex, PREMIUM_PLATE_BG, PREMIUM_PLATE_STROKE)
     }
     if (isColor) {
-      return renderPlatedAvBadge(iconPath, pw, markRefWidth, COLOR_MARK_GLYPH, COLOR_MARK_PLATE_BG, COLOR_MARK_PLATE_STROKE)
+      return buildPlatedAvBadgeSvg(iconPath, pw, markRefWidth, COLOR_MARK_GLYPH, COLOR_MARK_PLATE_BG, COLOR_MARK_PLATE_STROKE)
     }
     if (isKnockout) {
-      return renderAvKnockoutBadge(iconPath, pw, markRefWidth, markInkWidth)
+      return buildAvKnockoutBadgeSvg(iconPath, pw, markRefWidth, markInkWidth)
     }
     if (isNaked) {
       // Naked full group: reuse the EXISTING bare A/V path
@@ -1374,10 +1428,10 @@ export async function renderQualityBadgeGroup(
       // to the tier box height): a wide wordmark is honestly shorter than the
       // text boxes, so the stack (and a HOME frame) center it instead of
       // faking an equal height.
-      return renderQualityIconBadge(iconPath, pw, topLightForMark, markRefWidth)
+      return buildQualityIconSvg(iconPath, pw, topLightForMark, markRefWidth)
     }
     // standard / mono: stessa cornice del tier e dell'età (mai un marchio nudo).
-    return renderFramedAvBadge(iconPath, pw, markRefWidth, isMono ? "mono" : "satin", topLightForMark)
+    return buildFramedAvBadgeSvg(iconPath, pw, markRefWidth, isMono ? "mono" : "satin", topLightForMark)
   }
   // The MONO tier is the shared dynamic frame (age mono recipe): no static
   // mono asset — the renderer must never mix the two materials.
@@ -1445,12 +1499,12 @@ export async function renderQualityBadgeGroup(
   const hasDV = validFormats.includes("dv")
   const hasAtmos = validFormats.includes("atmos")
   let useCombo = hasDV && hasAtmos
-  let comboIcon: { png: Buffer; w: number; h: number } | null = null
+  let comboIcon: BadgeSvgSpec | null = null
   if (useCombo) {
     // Premium/color: single Dolby accent/glyph on the uniform plate (one
     // merged lockup). Knockout renders its own white tag (polarity moot).
     const comboAccent = premiumAccentHex(PREMIUM_COMBO_ACCENT)
-    comboIcon = await renderFormatMark(
+    comboIcon = await buildFormatMark(
       "quality-badges/video/dolby-vision-atmos.svg",
       topLight,
       comboAccent,
@@ -1462,7 +1516,7 @@ export async function renderQualityBadgeGroup(
   // One entry per PAINTED mark, with its stable identity. The merged Dolby
   // combo owns its own identity: the two singles it replaces are never drawn,
   // so their stored corrections stay inert (never transferred).
-  const formatItems: { id: string; badge: { png: Buffer; w: number; h: number } }[] = []
+  const formatItems: { id: string; badge: BadgeSvgSpec }[] = []
   if (comboIcon) {
     formatItems.push({ id: BADGE_ITEM_QUALITY_COMBO, badge: comboIcon })
   }
@@ -1471,7 +1525,7 @@ export async function renderQualityBadgeGroup(
     if (useCombo && (fmt === "dv" || fmt === "atmos")) {
       continue
     }
-    const icon = await renderFormatMark(
+    const icon = await buildFormatMark(
       FORMAT_ICON_PATHS[fmt],
       topLight,
       premiumAccentHex(premiumFormatAccent(fmt)),
@@ -1491,12 +1545,12 @@ export async function renderQualityBadgeGroup(
   // Nova plate shared with the quality tier and the A/V marks).
   // Sanitized text maiuscolo-minuscolo preservato (escSvg nel builder, mai
   // HTML grezzo).
-  const renderAgePill = async (columnW?: number): Promise<{ png: Buffer; w: number; h: number } | null> => {
+  const buildAgePill = (columnW?: number): BadgeSvgSpec | null => {
     if (ageText === "") return null
     // Strip: lo stile possiede il materiale dei suoi marchi (placca scura
     // singola), come nella strip merged dove l'età è un semplice run di glifi:
     // gli stili età restano attivi per gli altri stili qualità.
-    if (isStripStyle) return renderStripMark(ageText, columnW)
+    if (isStripStyle) return buildStripMark(ageText, columnW)
     // standard = neutral satin pill; knockout = age-only white tag;
     // mono/color/premium/nova = shared emphasis recipe in `badge-svg-shared.ts`
     // (mono is the same material as the quality mono tier); gradient = bare
@@ -1504,10 +1558,10 @@ export async function renderQualityBadgeGroup(
     // Every branch keeps the age family box/height; `columnW` pins the VISIBLE
     // box to the common group width (glyph font reduced to fit, never a
     // stretched label).
-    if (effAgeStyle === "knockout") return renderAgeKnockoutBadge(ageText, pw, normalizeBadgeFont(font), columnW)
-    if (effAgeStyle === "gradient") return renderGradientMarkBadge(ageText, pw, GRADIENT_TIER_INK, normalizeBadgeFont(font), columnW)
+    if (effAgeStyle === "knockout") return buildAgeKnockoutSvg(ageText, markFs, markFont, columnW)
+    if (effAgeStyle === "gradient") return buildGradientMarkSvg(ageText, markFs, GRADIENT_TIER_INK, markFont, columnW)
     if (effAgeStyle === "mono" || effAgeStyle === "color" || effAgeStyle === "premium" || effAgeStyle === "nova" || effAgeStyle === "outline") {
-      return renderAgeEmphasisBadge(ageText, pw, effAgeStyle, !!topLight, normalizeBadgeFont(font), columnW)
+      return buildAgeEmphasisSvg(ageText, markFs, effAgeStyle, !!topLight, markFont, columnW)
     }
     if (isNaked) {
       // Naked full group: the default age pill loses its satin plate too,
@@ -1515,9 +1569,17 @@ export async function renderQualityBadgeGroup(
       // polarity ink + background-tone halo, shared 3D shadow on the glyphs).
       // Only the default `standard` age material is replaced: an explicit
       // non-standard `agebs` already returned above (independent control wins).
-      return renderQualityNakedBadge(ageText, pw, topLight, normalizeBadgeFont(font), columnW)
+      return buildQualityNakedSvg(ageText, markFs, !!topLight, markFont, columnW)
     }
-    return renderQualityBadge(ageText, pw, topLight, normalizeBadgeFont(font), columnW)
+    return buildQualityBadgeSvg(
+      ageText,
+      markFs,
+      topLight ? "rgba(255,255,255,0.80)" : "rgba(0,0,0,0.80)",
+      topLight ? "rgba(0,0,0,0.80)" : "rgba(255,255,255,0.80)",
+      !!topLight,
+      markFont,
+      columnW,
+    )
   }
 
   // One VISIBLE column width for every painted element: the canonical 4K mark
@@ -1532,26 +1594,26 @@ export async function renderQualityBadgeGroup(
   const tierTargetW = groupTargetW ?? (homeTransform(BADGE_ITEM_QUALITY_TIER) ? markRefWidth : undefined)
   const ageTargetW = groupTargetW ?? (homeTransform(BADGE_ITEM_QUALITY_AGE) ? markRefWidth : undefined)
 
-  let resBadge: { png: Buffer; w: number; h: number } | null = null
+  let resBadge: BadgeSvgSpec | null = null
   if (hasQuality) {
     if (isStripStyle) {
       // Placca scura singola (stesso materiale della strip merged): l'etichetta
       // reale del tier, un marchio per placca.
-      resBadge = await renderStripMark(qualityText, tierTargetW)
+      resBadge = buildStripMark(qualityText, tierTargetW)
     } else if (isNova) {
       // Lastra dinamica condivisa (stessa ricetta di età e marchi A/V). SD è
       // incluso: nessun asset esterno, l'etichetta è sempre un parametro.
-      resBadge = await renderAgeEmphasisBadge(qualityText, pw, "nova", topLight, normalizeBadgeFont(font), tierTargetW)
+      resBadge = buildAgeEmphasisSvg(qualityText, markFs, "nova", topLight, markFont, tierTargetW)
     } else if (isGradient) {
       // Glifi nudi bianchi: stessa ricetta condivisa di età e marchi A/V, nessun
       // asset (anche SD: l'etichetta è un parametro).
-      resBadge = await renderGradientMarkBadge(qualityText, pw, GRADIENT_TIER_INK, normalizeBadgeFont(font), tierTargetW)
+      resBadge = buildGradientMarkSvg(qualityText, markFs, GRADIENT_TIER_INK, markFont, tierTargetW)
     } else if (isOutline) {
       // Wireframe condiviso (stessa ricetta di età e marchi A/V): l'etichetta
       // reale del tier dentro cornice+scrim, nessun asset.
-      resBadge = await renderAgeEmphasisBadge(qualityText, pw, "outline", topLight, normalizeBadgeFont(font), tierTargetW)
+      resBadge = buildAgeEmphasisSvg(qualityText, markFs, "outline", topLight, markFont, tierTargetW)
     } else if (qualityIconPath) {
-      resBadge = await renderQualityIconBadge(qualityIconPath, pw, topLight)
+      resBadge = await buildQualityIconSvg(qualityIconPath, pw, topLight)
     }
     if (!resBadge) {
       // Standard tier = the SAME neutral satin pill as the age standard
@@ -1561,18 +1623,26 @@ export async function renderQualityBadgeGroup(
       // static icon. In a real stack the group column pins every tier label to
       // the 4K box (font reduced to fit, never a stretched box).
       resBadge = isKnockout
-        ? await renderQualityKnockoutBadge(qualityText, pw, normalizeBadgeFont(font), tierTargetW)
+        ? buildQualityKnockoutSvg(qualityText, markFs, markFont, tierTargetW)
         : isMono
-          ? await renderAgeEmphasisBadge(qualityText, pw, "mono", !!topLight, normalizeBadgeFont(font), tierTargetW)
+          ? buildAgeEmphasisSvg(qualityText, markFs, "mono", !!topLight, markFont, tierTargetW)
           : isNaked
-            ? await renderQualityNakedBadge(qualityText, pw, topLight, normalizeBadgeFont(font), tierTargetW)
-            : await renderQualityBadge(qualityText, pw, topLight, normalizeBadgeFont(font), tierTargetW)
+            ? buildQualityNakedSvg(qualityText, markFs, !!topLight, markFont, tierTargetW)
+            : buildQualityBadgeSvg(
+                qualityText,
+                markFs,
+                topLight ? "rgba(255,255,255,0.80)" : "rgba(0,0,0,0.80)",
+                topLight ? "rgba(0,0,0,0.80)" : "rgba(255,255,255,0.80)",
+                !!topLight,
+                markFont,
+                tierTargetW,
+              )
     }
   }
   if (!resBadge && ageText === "") return null
-  const agePill = await renderAgePill(ageTargetW)
+  const agePill = buildAgePill(ageTargetW)
   // Every painted element with its identity, in fixed paint order.
-  const identified: { id: string; badge: { png: Buffer; w: number; h: number } }[] = []
+  const identified: { id: string; badge: BadgeSvgSpec }[] = []
   if (resBadge) identified.push({ id: BADGE_ITEM_QUALITY_TIER, badge: resBadge })
   if (agePill) identified.push({ id: BADGE_ITEM_QUALITY_AGE, badge: agePill })
   identified.push(...formatItems)
@@ -1580,6 +1650,8 @@ export async function renderQualityBadgeGroup(
     const t = badgeItemTransform(itemTransforms ?? null, id)
     return !!t && !isNeutralBadgeItemTransform(t)
   }
+  /** Rasterizza lo spec di UN marchio (percorso storico, chiamata 1:1). */
+  const renderMark = async (spec: BadgeSvgSpec): Promise<Buffer> => renderSVG(spec.svg, spec.w)
   /**
    * Single painted element = the group itself (no recomposition): its own
    * bitmap IS the group canvas. A DETACHED element must not be painted there
@@ -1595,7 +1667,7 @@ export async function renderQualityBadgeGroup(
    * column at the group anchor) and the canvas grows only to keep the
    * transformed box inside, never to invent geometry.
    */
-  const singleItem = async (badge: { png: Buffer; w: number; h: number }): Promise<QualityBadgeGroupResult> => {
+  const singleItem = async (badge: BadgeSvgSpec): Promise<QualityBadgeGroupResult> => {
     const homeT = homeTransform(identified[0].id)
     const box = homeT
       ? applyBadgeItemTransform(homeReference(badge), homeT)
@@ -1612,29 +1684,30 @@ export async function renderQualityBadgeGroup(
       w: box.w,
       h: box.h,
     }
+    // The single mark bitmap is needed either for the group itself or (when
+    // detached) as the caller-composited copy: one rasterization as before.
+    const markPng = await renderMark(badge)
     const items = identified.map((entry, index) => ({
       id: entry.id,
       top: index === 0 ? placed.top : 0,
       left: index === 0 ? placed.left : 0,
       w: index === 0 ? placed.w : entry.badge.w,
       h: index === 0 ? placed.h : entry.badge.h,
-      ...(detachItem(entry.id) ? { png: entry.badge.png } : {}),
+      ...(detachItem(entry.id) ? { png: entry.badge === badge ? markPng : undefined } : {}),
     }))
     const detached = items.some((item) => item.png != null)
-    const blankCanvas = () =>
-      sharp({
-        create: { width: canvasW, height: canvasH, channels: 4, background: { r: 0, g: 0, b: 0, alpha: 0 } },
-      }).png().toBuffer()
     let png: Buffer
     if (detached) {
-      png = await blankCanvas()
+      png = await sharp({
+        create: { width: canvasW, height: canvasH, channels: 4, background: { r: 0, g: 0, b: 0, alpha: 0 } },
+      }).png().toBuffer()
     } else if (placed.top === 0 && placed.left === 0 && placed.w === badge.w && placed.h === badge.h) {
-      png = badge.png
+      png = markPng
     } else {
       // Same resize path as an attached scaled element (no second resize rule).
       const scaled = placed.w === badge.w && placed.h === badge.h
-        ? badge.png
-        : await sharp(badge.png).resize(placed.w, placed.h).toBuffer()
+        ? markPng
+        : await sharp(markPng).resize(placed.w, placed.h).toBuffer()
       png = await sharp({
         create: { width: canvasW, height: canvasH, channels: 4, background: { r: 0, g: 0, b: 0, alpha: 0 } },
       })
@@ -1727,8 +1800,58 @@ export async function renderQualityBadgeGroup(
   const canvasW = Math.max(totalW, ...boxes.map((b) => b.left + b.w)) - originLeft
   const canvasH = Math.max(totalH, ...boxes.map((b) => b.top + b.h)) - originTop
 
-  const composites: { input: Buffer; left: number; top: number }[] = []
+  // -------------------------------------------------------------------
+  // SINGLE-PASS COMPOSITION (the common path).
+  //
+  // When no element carries a per-item correction (no IDENTITY detach, no
+  // HOME transform) every mark sits at its natural size, so the whole stack
+  // is ONE composed SVG rasterized by ONE resvg instance instead of one per
+  // mark (tier + age + every A/V mark). Ids are namespaced per layer, the
+  // geometry/paint order are the exact same ones the bitmap path uses, and
+  // the per-mark bitmaps are never materialized. A correction (rare) keeps
+  // the historic per-mark render + sharp composite path below, byte-identical.
+  // -------------------------------------------------------------------
+  const needsLegacyComposite = identified.some((entry) => detachItem(entry.id) || homeTransform(entry.id) != null)
   const items: QualityBadgeItem[] = []
+  if (!needsLegacyComposite) {
+    for (let i = 0; i < allBadges.length; i++) {
+      items.push({
+        id: identified[i].id,
+        top: boxes[i].top - originTop,
+        left: boxes[i].left - originLeft,
+        w: boxes[i].w,
+        h: boxes[i].h,
+      })
+    }
+    const groupPng = await renderComposedSvg(
+      allBadges.map((badge, i) => ({
+        svg: badge.svg,
+        left: boxes[i].left - originLeft,
+        top: boxes[i].top - originTop,
+        width: badge.w,
+        height: badge.h,
+      })),
+      canvasW,
+      canvasH,
+    )
+    return {
+      png: groupPng,
+      w: canvasW,
+      h: canvasH,
+      items,
+      homeGhosts: collectHomeGhosts(identified.map((entry) => entry.id)).map((ghost) => ({
+        ...ghost,
+        top: ghost.top - originTop,
+        left: ghost.left - originLeft,
+      })),
+    }
+  }
+
+  // -------------------------------------------------------------------
+  // LEGACY per-mark composition: only for stored corrections, so a corrected
+  // stack keeps its exact historic pixels (per-mark render + sharp composite).
+  // -------------------------------------------------------------------
+  const composites: { input: Buffer; left: number; top: number }[] = []
   for (let i = 0; i < allBadges.length; i++) {
     const badge = allBadges[i]
     const placed = {
@@ -1741,20 +1864,21 @@ export async function renderQualityBadgeGroup(
     // painted element); only an IDENTITY-corrected element is detached from
     // the bitmap and composited by the caller at its transformed box.
     const detached = detachItem(identified[i].id)
+    const markPng = await renderMark(badge)
     items.push({
       id: identified[i].id,
       top: placed.top,
       left: placed.left,
       w: placed.w,
       h: placed.h,
-      ...(detached ? { png: badge.png } : {}),
+      ...(detached ? { png: markPng } : {}),
     })
     if (detached) continue
     // A home-scaled element is resized exactly like an attached identity-scaled
     // one (same sharp resize, no second rule) and stays in the group bitmap.
     const input = placed.w === badge.w && placed.h === badge.h
-      ? badge.png
-      : await sharp(badge.png).resize(placed.w, placed.h).toBuffer()
+      ? markPng
+      : await sharp(markPng).resize(placed.w, placed.h).toBuffer()
     composites.push({ input, left: placed.left, top: placed.top })
   }
 

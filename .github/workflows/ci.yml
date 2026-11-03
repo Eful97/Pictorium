@@ -36,6 +36,23 @@ jobs:
       - run: npm ci
       - run: npx tsc --noEmit
       - run: npx eslint .
+      # Fase 5 guardrails: dead code / unused deps (knip) and architectural
+      # dependency boundaries (dependency-cruiser: @resvg/resvg-js only from
+      # src/lib/svg-badge.ts, no server-only runtimes in components, no
+      # src/lib <-> src/app cycles).
+      #
+      # WARN-ONLY on purpose: the first baseline is non-empty (pre-existing
+      # dead exports/dead files) and must not block unrelated WIP. Both tools
+      # exit non-zero on findings (dependency-cruiser only for error-severity
+      # rules, which is every rule in the config), so making them blocking =
+      # delete the two `continue-on-error` lines below once the baseline is
+      # triaged.
+      - name: Dead code and unused dependencies (knip, warn-only)
+        continue-on-error: true
+        run: npx knip --no-progress
+      - name: Dependency boundaries (dependency-cruiser, warn-only)
+        continue-on-error: true
+        run: npx depcruise src --output-type err
 
   # Decide se la suite pesante ha qualcosa da verificare. Un `paths-ignore` a
   # livello workflow lascerebbe i check richiesti verify/visual PENDING per
