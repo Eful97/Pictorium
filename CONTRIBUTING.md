@@ -106,6 +106,22 @@ The comparison base is the last **published** release, so a tag whose release fa
 
 If a release fails, do not move or delete the tag: fix the cause and cut the next patch version.
 
+## Working in parallel (agents and humans)
+
+More than one session may touch this repository at the same time, and the checkout's current branch is shared state. To avoid mixed work:
+
+- One session, one worktree. Each agent works in its own `git worktree` on its own branch; the main checkout stays on `master`.
+- Never switch branches with modified files: `git status` must be clean before any `git switch`; otherwise stop and ask.
+- Never edit on a branch that is the base of an open pull request.
+- Commit before handing over: no uncommitted work left on a shared checkout.
+- Releases stay serialized: version and notes pull request, wait for green, merge, then the annotated tag and the redeploy. The tag never precedes the merges.
+
+```bash
+git worktree add ../pictorium-feat -b feat/name master
+# ... work, commit, push, open the pull request ...
+git worktree remove ../pictorium-feat
+```
+
 ## Files that matter
 
 - `src/data/changelog.ts` — curated release notes (English only, user-facing).
