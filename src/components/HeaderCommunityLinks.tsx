@@ -1,49 +1,8 @@
 "use client"
 
-import { useEffect, useState } from "react"
 import { DiscordIcon, GithubIcon, KofiIcon } from "@/components/icons/BrandIcons"
 import { ElfHostedMenuPanel, useElfHostedMenu } from "@/components/ElfHostedMenu"
 import { useT } from "@/lib/contexts/TranslationContext"
-
-interface GoalState {
-  current: number
-  target: number
-  percentage: number
-}
-
-const DEFAULT_GOAL: GoalState = {
-  current: 0,
-  target: 6,
-  percentage: 0,
-}
-
-export function useKofiGoal(): GoalState {
-  const [goal, setGoal] = useState<GoalState>(DEFAULT_GOAL)
-
-  useEffect(() => {
-    let cancelled = false
-    fetch("/api/kofi/goal")
-      .then((res) => (res.ok ? res.json() : null))
-      .then((data) => {
-        if (!cancelled && data && typeof data.target === "number" && typeof data.current === "number") {
-          setGoal({
-            current: data.current,
-            target: data.target,
-            percentage: data.percentage ?? Math.min(100, Math.round((data.current / data.target) * 100)),
-          })
-        }
-      })
-      .catch(() => {
-        // Fallback silente sui default
-      })
-
-    return () => {
-      cancelled = true
-    }
-  }, [])
-
-  return goal
-}
 
 /**
  * Floating island in alto a sinistra per desktop (speculare alla toolbar di destra).
