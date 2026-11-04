@@ -1287,5 +1287,12 @@
   "ui.badgeDragModeOff": "Mutare: inactiv",
   "ui.visualPresetUpdate": "Actualizează acest preset",
   "ui.visualPresetUpdateConfirm": "Confirmă actualizarea",
-  "ui.visualPresetNameExists": "Există deja un preset cu acest nume."
+  "ui.visualPresetNameExists": "Există deja un preset cu acest nume.",
+  "duckdnsSunset.title": "Această instanță DuckDNS se va închide la sfârșitul lunii 💛",
+  "duckdnsSunset.body1": "Din păcate, ne mai putând acoperi costurile, voi fi nevoit să suspend serviciul din lipsă de buget.",
+  "duckdnsSunset.body2": "Mulțumesc din suflet tuturor celor care au folosit-o până acum! ❤️",
+  "duckdnsSunset.body3": "Pentru a continua fără întreruperi poți {vercel} sau {elfhosted}:",
+  "duckdnsSunset.dismiss": "Închide anunțul",
+  "duckdnsSunset.vercelLabel": "crea gratuit propria instanță privată pe Vercel",
+  "duckdnsSunset.elfhostedLabel": "folosi direct instanța publică de la ElfHosted"
 }

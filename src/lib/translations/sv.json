@@ -1287,5 +1287,12 @@
   "ui.badgeDragModeOff": "Flytta: av",
   "ui.visualPresetUpdate": "Uppdatera denna förinställning",
   "ui.visualPresetUpdateConfirm": "Bekräfta uppdatering",
-  "ui.visualPresetNameExists": "Det finns redan en förinställning med detta namn."
+  "ui.visualPresetNameExists": "Det finns redan en förinställning med detta namn.",
+  "duckdnsSunset.title": "Den här DuckDNS-instansen stänger i slutet av månaden 💛",
+  "duckdnsSunset.body1": "Tyvärr kan jag inte längre täcka kostnaderna och måste därför stänga av tjänsten på grund av budgetbrist.",
+  "duckdnsSunset.body2": "Ett varmt tack till alla som har använt den hittills! ❤️",
+  "duckdnsSunset.body3": "För att fortsätta utan avbrott kan du {vercel} eller {elfhosted}:",
+  "duckdnsSunset.dismiss": "Stäng meddelandet",
+  "duckdnsSunset.vercelLabel": "gratis skapa din egen privata instans på Vercel",
+  "duckdnsSunset.elfhostedLabel": "använda den publika ElfHosted-instansen direkt"
 }

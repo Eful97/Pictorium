@@ -1,6 +1,7 @@
 import type { Metadata, Viewport } from "next";
 import { Geist, Geist_Mono } from "next/font/google";
 import { ResponsiveToaster } from "@/components/ResponsiveToaster";
+import { DuckDnsSunsetBanner } from "@/components/DuckDnsSunsetBanner";
 import "./globals.css";
 
 const geistSans = Geist({
@@ -49,6 +50,12 @@ export default function RootLayout({
 }: Readonly<{
   children: React.ReactNode;
 }>) {
+  // Env-only gate (never hostname sniffing): the sunset notice belongs to the
+  // single DuckDNS deployment. Absent/any other value = no markup at all.
+  const showDuckDnsSunsetNotice =
+    process.env.PICTORIUM_DUCKDNS_NOTICE === "1" ||
+    process.env.NEXT_PUBLIC_DUCKDNS_NOTICE === "1";
+
   return (
     <html lang="it" dir="ltr" suppressHydrationWarning className={`${geistSans.variable} ${geistMono.variable} h-full antialiased`}>
       <head>
@@ -69,6 +76,7 @@ export default function RootLayout({
       </head>
       <body className="min-h-full" suppressHydrationWarning>
         <ThemeProvider>
+          {showDuckDnsSunsetNotice ? <DuckDnsSunsetBanner /> : null}
           <a href="#main-content" className="sr-only focus:not-sr-only focus:absolute focus:top-4 focus:left-4 focus:z-[200] focus:bg-accent-orange focus:text-white focus:px-4 focus:py-2 focus:rounded-xl">
             Skip to main content
           </a>

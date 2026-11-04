@@ -1287,5 +1287,12 @@
   "ui.badgeDragModeOff": "移動: オフ",
   "ui.visualPresetUpdate": "このプリセットを更新",
   "ui.visualPresetUpdateConfirm": "更新を確認",
-  "ui.visualPresetNameExists": "この名前のプリセットは既に存在します。"
+  "ui.visualPresetNameExists": "この名前のプリセットは既に存在します。",
+  "duckdnsSunset.title": "この DuckDNS インスタンスは今月末で終了します 💛",
+  "duckdnsSunset.body1": "残念ながら、費用を負担し続けることができず、予算不足のためサービスを停止せざるを得ません。",
+  "duckdnsSunset.body2": "これまでご利用いただいたすべての皆さま、心より感謝申し上げます！ ❤️",
+  "duckdnsSunset.body3": "中断なく続けるには、{vercel}、または{elfhosted}:",
+  "duckdnsSunset.dismiss": "お知らせを閉じる",
+  "duckdnsSunset.vercelLabel": "Vercel で無料のプライベートインスタンスを作成する",
+  "duckdnsSunset.elfhostedLabel": "ElfHostedの公開インスタンスを直接利用する"
 }

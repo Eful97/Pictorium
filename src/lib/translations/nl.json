@@ -1287,5 +1287,12 @@
   "ui.badgeDragModeOff": "Verplaatsen: uit",
   "ui.visualPresetUpdate": "Deze preset bijwerken",
   "ui.visualPresetUpdateConfirm": "Bijwerken bevestigen",
-  "ui.visualPresetNameExists": "Er bestaat al een preset met deze naam."
+  "ui.visualPresetNameExists": "Er bestaat al een preset met deze naam.",
+  "duckdnsSunset.title": "Deze DuckDNS-instantie sluit eind deze maand 💛",
+  "duckdnsSunset.body1": "Helaas kan ik de kosten niet meer dragen en moet ik de dienst door een tekort aan budget opschorten.",
+  "duckdnsSunset.body2": "Hartelijk dank aan iedereen die hem tot nu toe heeft gebruikt! ❤️",
+  "duckdnsSunset.body3": "Om zonder onderbrekingen verder te gaan kun je {vercel} of {elfhosted}:",
+  "duckdnsSunset.dismiss": "Melding sluiten",
+  "duckdnsSunset.vercelLabel": "gratis je eigen privé-instantie op Vercel aanmaken",
+  "duckdnsSunset.elfhostedLabel": "meteen de publieke instantie van ElfHosted gebruiken"
 }

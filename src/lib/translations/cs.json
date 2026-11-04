@@ -1287,5 +1287,12 @@
   "ui.badgeDragModeOff": "Presun: vyp.",
   "ui.visualPresetUpdate": "Aktualizovat tento preset",
   "ui.visualPresetUpdateConfirm": "Potvrdit aktualizaci",
-  "ui.visualPresetNameExists": "Preset s tímto názvem již existuje."
+  "ui.visualPresetNameExists": "Preset s tímto názvem již existuje.",
+  "duckdnsSunset.title": "Tato instance DuckDNS se na konci měsíce uzavře 💛",
+  "duckdnsSunset.body1": "Bohužel už nedokážu pokrýt její náklady, a tak budu muset službu kvůli nedostatku rozpočtu pozastavit.",
+  "duckdnsSunset.body2": "Upřímné díky všem, kdo ji dosud používali! ❤️",
+  "duckdnsSunset.body3": "Abyste mohli pokračovat bez přerušení, můžete {vercel} nebo {elfhosted}:",
+  "duckdnsSunset.dismiss": "Zavřít oznámení",
+  "duckdnsSunset.vercelLabel": "si zdarma vytvořit vlastní soukromou instanci na Vercelu",
+  "duckdnsSunset.elfhostedLabel": "hned použít tu veřejnou od ElfHosted"
 }

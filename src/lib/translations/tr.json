@@ -1287,5 +1287,12 @@
   "ui.badgeDragModeOff": "Tasima: kapali",
   "ui.visualPresetUpdate": "Bu ön ayarı güncelle",
   "ui.visualPresetUpdateConfirm": "Güncellemeyi onayla",
-  "ui.visualPresetNameExists": "Bu adda bir ön ayar zaten var."
+  "ui.visualPresetNameExists": "Bu adda bir ön ayar zaten var.",
+  "duckdnsSunset.title": "Bu DuckDNS örneği ay sonunda kapanacak 💛",
+  "duckdnsSunset.body1": "Ne yazık ki artık masraflarını karşılayamadığım için bütçe yetersizliğinden hizmeti askıya almak zorunda kalacağım.",
+  "duckdnsSunset.body2": "Şimdiye kadar kullanan herkese yürekten teşekkürler! ❤️",
+  "duckdnsSunset.body3": "Kesintisiz devam etmek için {vercel} ya da {elfhosted}:",
+  "duckdnsSunset.dismiss": "Bildirimi kapat",
+  "duckdnsSunset.vercelLabel": "Vercel'de ücretsiz kendi özel örneğini oluşturabilirsin",
+  "duckdnsSunset.elfhostedLabel": "doğrudan ElfHosted'ın genel örneğini kullanabilirsin"
 }
