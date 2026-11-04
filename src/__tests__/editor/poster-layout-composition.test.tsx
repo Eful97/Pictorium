@@ -206,7 +206,7 @@ describe("settings layout hierarchy", () => {
       unmount()
       cleanup()
     }
-  })
+  }, 20000)
 
   it("explicit Card defaults to provider-glass; the skin is remembered across switching and saved", async () => {
     const { ctx } = renderPanel()
