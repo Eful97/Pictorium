@@ -30,6 +30,26 @@ export interface ChangelogRelease {
  *  (which bumps on every commit and would leave the dot permanently on). */
 export const CHANGELOG: ChangelogRelease[] = [
   {
+    version: "1.26.8",
+    date: "2026-11-04",
+    title: "Release 1.26.8",
+    items: [
+      { type: "feature", text: "Show IMDb, Rotten Tomatoes and Metacritic review badges when a title earns one" },
+      { type: "feature", text: "Browse MDBList top lists and choose the sort order for MDBList and Trakt lists" },
+      { type: "feature", text: "Give anime items from your imported addons Pictorium posters, including MAL and AniDB ids" },
+      { type: "feature", text: "Pick a Fanart backdrop as the base of your landscape poster" },
+      { type: "feature", text: "Find settings in clearer tabs, with preferences first and API keys under Data" },
+      { type: "feature", text: "Choose one default for the daily rotation, clean only or clean plus your language, and let new titles inherit it" },
+      { type: "feature", text: "A slimmer header with a compact Ko-fi icon and sponsor panel" },
+      { type: "feature", text: "Show a dismissible notice on the DuckDNS instance before it closes, with where to move" },
+      { type: "fix", text: "See your staged badges in the title preview on shared instances" },
+      { type: "fix", text: "Keep badge sizes stable when you move a logo or a badge" },
+      { type: "fix", text: "Keep stacked notifications aligned and visible after repeated clicks" },
+      { type: "fix", text: "Keep shared instances safe with stricter rate limits and cache handling" },
+      { type: "perf", text: "Load posters with fewer repeated upstream calls" },
+    ],
+  },
+  {
     version: "1.26.7",
     date: "2026-11-03",
     title: "Release 1.26.7",
