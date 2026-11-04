@@ -11,6 +11,11 @@ export interface RecentChange {
 }
 
 export const RECENT_CHANGES: RecentChange[] = [
+  { type: "feature", text: "Show a dismissible closing notice on the DuckDNS instance", sha: "f5cd6b7", date: "2026-11-04" },
+  { type: "fix", text: "Keep the ElfHosted sponsor panel compact and tappable", sha: "0eff0ce", date: "2026-11-04" },
+  { type: "feature", text: "Replace the Ko-fi goal bar with a compact icon button", sha: "67d5844", date: "2026-11-04" },
+  { type: "fix", text: "Keep stacked toasts aligned and visible on repeated clicks", sha: "6a67e8e", date: "2026-11-04" },
+  { type: "fix", text: "Keep badge sizes stable when moving logos or badges", sha: "1dad3c2", date: "2026-11-04" },
   { type: "fix", text: "Close cache-poisoning, UUID-bypass and rate-limit gaps in poster/edge paths", sha: "5637631", date: "2026-11-04" },
   { type: "perf", text: "Speed up poster renders and cut redundant upstream work", sha: "cd80564", date: "2026-11-04" },
   { type: "feature", text: "instant badge preview, per-poster rotation and settings reorganization", sha: "79b4fab", date: "2026-11-04" },
