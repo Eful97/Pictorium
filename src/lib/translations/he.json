@@ -1287,5 +1287,12 @@
   "ui.badgeDragModeOff": "הזזה: כבוי",
   "ui.visualPresetUpdate": "עדכן פריסט זה",
   "ui.visualPresetUpdateConfirm": "אשר עדכון",
-  "ui.visualPresetNameExists": "כבר קיים פריסט בשם הזה."
+  "ui.visualPresetNameExists": "כבר קיים פריסט בשם הזה.",
+  "duckdnsSunset.title": "מופע ה-DuckDNS הזה ייסגר בסוף החודש 💛",
+  "duckdnsSunset.body1": "למרבה הצער, מכיוון שאיני יכול עוד לשאת בעלויות, אאלץ להשהות את השירות מחוסר תקציב.",
+  "duckdnsSunset.body2": "תודה מקרב לב לכל מי שהשתמש בו עד עכשיו! ❤️",
+  "duckdnsSunset.body3": "כדי להמשיך בלי הפסקות אפשר {vercel} או {elfhosted}:",
+  "duckdnsSunset.dismiss": "סגירת ההודעה",
+  "duckdnsSunset.vercelLabel": "ליצור בחינם מופע פרטי משלך ב-Vercel",
+  "duckdnsSunset.elfhostedLabel": "להשתמש ישירות במופע הציבורי של ElfHosted"
 }

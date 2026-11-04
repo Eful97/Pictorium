@@ -1287,5 +1287,12 @@
   "ui.badgeDragModeOff": "التحريك: متوقف",
   "ui.visualPresetUpdate": "تحديث هذا الإعداد المسبق",
   "ui.visualPresetUpdateConfirm": "تأكيد التحديث",
-  "ui.visualPresetNameExists": "يوجد إعداد مسبق بهذا الاسم بالفعل."
+  "ui.visualPresetNameExists": "يوجد إعداد مسبق بهذا الاسم بالفعل.",
+  "duckdnsSunset.title": "ستُغلق نسخة DuckDNS هذه في نهاية الشهر 💛",
+  "duckdnsSunset.body1": "للأسف، بما أنني لم أعد قادرًا على تغطية تكاليفها، سأضطر إلى تعليق الخدمة بسبب نقص الميزانية.",
+  "duckdnsSunset.body2": "شكرًا من القلب لكل من استخدمها حتى الآن! ❤️",
+  "duckdnsSunset.body3": "للمتابعة دون انقطاع يمكنك {vercel} أو {elfhosted}:",
+  "duckdnsSunset.dismiss": "إغلاق التنبيه",
+  "duckdnsSunset.vercelLabel": "إنشاء نسختك الخاصة المجانية على Vercel",
+  "duckdnsSunset.elfhostedLabel": "استخدام النسخة العامة من ElfHosted مباشرة"
 }

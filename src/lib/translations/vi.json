@@ -1287,5 +1287,12 @@
   "ui.badgeDragModeOff": "Di chuyen: tat",
   "ui.visualPresetUpdate": "Cập nhật preset này",
   "ui.visualPresetUpdateConfirm": "Xác nhận cập nhật",
-  "ui.visualPresetNameExists": "Đã có preset với tên này."
+  "ui.visualPresetNameExists": "Đã có preset với tên này.",
+  "duckdnsSunset.title": "Bản DuckDNS này sẽ đóng cửa vào cuối tháng 💛",
+  "duckdnsSunset.body1": "Rất tiếc, vì không còn đủ khả năng chi trả nên tôi buộc phải tạm ngừng dịch vụ do thiếu ngân sách.",
+  "duckdnsSunset.body2": "Xin chân thành cảm ơn tất cả những ai đã sử dụng đến nay! ❤️",
+  "duckdnsSunset.body3": "Để tiếp tục mà không bị gián đoạn, bạn có thể {vercel} hoặc {elfhosted}:",
+  "duckdnsSunset.dismiss": "Đóng thông báo",
+  "duckdnsSunset.vercelLabel": "tạo miễn phí bản riêng của bạn trên Vercel",
+  "duckdnsSunset.elfhostedLabel": "dùng ngay bản công khai của ElfHosted"
 }

@@ -1287,5 +1287,12 @@
   "ui.badgeDragModeOff": "Przesuwanie: wyl.",
   "ui.visualPresetUpdate": "Zaktualizuj ten preset",
   "ui.visualPresetUpdateConfirm": "Potwierdź aktualizację",
-  "ui.visualPresetNameExists": "Preset o tej nazwie już istnieje."
+  "ui.visualPresetNameExists": "Preset o tej nazwie już istnieje.",
+  "duckdnsSunset.title": "Ta instancja DuckDNS zamknie się pod koniec miesiąca 💛",
+  "duckdnsSunset.body1": "Niestety, ponieważ nie jestem już w stanie pokryć jej kosztów, będę zmuszony zawiesić usługę z powodu braku budżetu.",
+  "duckdnsSunset.body2": "Z całego serca dziękuję wszystkim, którzy z niej korzystali do tej pory! ❤️",
+  "duckdnsSunset.body3": "Aby kontynuować bez przerw, możesz {vercel} lub {elfhosted}:",
+  "duckdnsSunset.dismiss": "Zamknij komunikat",
+  "duckdnsSunset.vercelLabel": "bezpłatnie utworzyć własną prywatną instancję na Vercel",
+  "duckdnsSunset.elfhostedLabel": "od razu skorzystać z publicznej instancji ElfHosted"
 }
