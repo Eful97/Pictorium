@@ -167,6 +167,9 @@ function renderPanel() {
       createElement(OuterProbe),
     ),
   )
+  // Fresh open lands on Preferenze (secondary): the staged badge controls and
+  // preview live on primary tabs.
+  fireEvent.click(screen.getByRole("tab", { name: "ui.settingsTabPreset" }))
   return { ctx: () => ctx as unknown as PosterEditorCtx, unmount: rendered.unmount }
 }
 

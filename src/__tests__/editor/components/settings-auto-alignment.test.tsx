@@ -82,6 +82,9 @@ describe("settings Auto alignment (UI)", () => {
         createElement(Probe),
       ),
     )
+    // Fresh open lands on Preferenze (secondary): the format target and the
+    // badge controls under test live on primary tabs.
+    fireEvent.click(screen.getByRole("tab", { name: "ui.settingsTabPreset" }))
     return { ctx: () => ctx as unknown as PosterEditorCtx }
   }
 

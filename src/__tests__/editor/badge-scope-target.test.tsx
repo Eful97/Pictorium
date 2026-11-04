@@ -330,8 +330,10 @@ describe("badge target scope", () => {
     fireEvent.click(within(screen.getByTestId("format-target-selector")).getByText("ui.posterShapeLandscape"))
     openElement("logo")
     fireEvent.click(badgeSwitch("ui.networkLogo"))
-    // The scoped reset renders in every five-tab instance: scope to the
-    // visible Badge panel (the three instances stay mounted + hidden).
+    // The scoped reset now lives in the Badge (appearance) tab: navigate there
+    // before scoping to its visible panel (hidden instances stay mounted but
+    // are out of the accessibility tree).
+    fireEvent.click(screen.getByRole("tab", { name: "ui.settingsTabBadge" }))
     const panels = screen.getAllByRole("tabpanel", { name: "ui.badgeSection" })
     const panel = panels.find((p) => p.getAttribute("hidden") === null)
     expect(panel).toBeDefined()

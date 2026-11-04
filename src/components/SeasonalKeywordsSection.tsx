@@ -93,11 +93,29 @@ function KeywordField({
   )
 }
 
-export function SeasonalKeywordsSection() {
+export interface SeasonalKeywordsDraft {
+  halloween: string[]
+  christmas: string[]
+}
+
+export interface SeasonalKeywordsSectionProps {
+  /**
+   * Staged mode (settings draft session): edits are buffered in local state
+   * and surfaced through `onStagedChange` instead of the live catalog context,
+   * so no auto-PUT fires; persistence is owned by the parent Save/discard.
+   * Default `false` = immediate commit (catalog manager semantics, unchanged).
+   * Staged drafts are not persisted here: no new storage keys.
+   */
+  staged?: boolean
+  /** Receives the full staged draft (both lists) on every commit/reset. */
+  onStagedChange?: (draft: SeasonalKeywordsDraft) => void
+}
+
+export function SeasonalKeywordsSection({ staged = false, onStagedChange }: SeasonalKeywordsSectionProps) {
   const { t } = useT()
-  const halloween = usePSelector((v) => v.seasonalHalloweenKeywords)
+  const contextHalloween = usePSelector((v) => v.seasonalHalloweenKeywords)
   const setHalloween = usePSelector((v) => v.setSeasonalHalloweenKeywords)
-  const christmas = usePSelector((v) => v.seasonalChristmasKeywords)
+  const contextChristmas = usePSelector((v) => v.seasonalChristmasKeywords)
   const setChristmas = usePSelector((v) => v.setSeasonalChristmasKeywords)
   const resetSeasonalKeywords = usePSelector((v) => v.resetSeasonalKeywords)
   // Unique per mounted instance: Settings and the catalog manager co-mount
@@ -109,6 +127,52 @@ export function SeasonalKeywordsSection() {
   const halloweenId = `seasonal-keywords-halloween-${uid}`
   const christmasId = `seasonal-keywords-christmas-${uid}`
 
+  // Staged buffer (settings draft): starts on the live references, diverges
+  // only on commit/reset, so idle external updates still hydrate it.
+  const [draft, setDraft] = useState<SeasonalKeywordsDraft>(() => ({
+    halloween: contextHalloween,
+    christmas: contextChristmas,
+  }))
+  const draftRef = useRef(draft)
+  draftRef.current = draft
+  const previousContext = useRef<SeasonalKeywordsDraft>({
+    halloween: contextHalloween,
+    christmas: contextChristmas,
+  })
+  useEffect(() => {
+    if (!staged) return
+    const previous = previousContext.current
+    previousContext.current = { halloween: contextHalloween, christmas: contextChristmas }
+    // Adopt the external truth only while the buffer still matches the
+    // previous external values (no local edit to protect).
+    setDraft((current) =>
+      current.halloween === previous.halloween && current.christmas === previous.christmas
+        ? { halloween: contextHalloween, christmas: contextChristmas }
+        : current,
+    )
+  }, [staged, contextHalloween, contextChristmas])
+
+  const commitStaged = (key: keyof SeasonalKeywordsDraft, keywords: string[]) => {
+    const next = { ...draftRef.current, [key]: keywords }
+    draftRef.current = next
+    setDraft(next)
+    onStagedChange?.(next)
+  }
+
+  const reset = () => {
+    if (!staged) {
+      resetSeasonalKeywords()
+      return
+    }
+    const next: SeasonalKeywordsDraft = { halloween: [], christmas: [] }
+    draftRef.current = next
+    setDraft(next)
+    onStagedChange?.(next)
+  }
+
+  const halloween = staged ? draft.halloween : contextHalloween
+  const christmas = staged ? draft.christmas : contextChristmas
+
   return (
     <section aria-labelledby={titleId} className="px-4 py-3 border-b border-white/10 bg-surface2/20 space-y-2.5 shrink-0">
       <div className="flex items-center justify-between gap-2">
@@ -118,7 +182,7 @@ export function SeasonalKeywordsSection() {
         {(halloween.length > 0 || christmas.length > 0) && (
           <button
             type="button"
-            onClick={resetSeasonalKeywords}
+            onClick={reset}
             className="text-[11px] text-muted hover:text-zinc-200 underline transition-colors"
           >
             {t("ui.seasonalKeywordsReset")}
@@ -131,14 +195,14 @@ export function SeasonalKeywordsSection() {
         label={t("ui.seasonalHalloweenKeywords")}
         value={halloween}
         placeholder={t("ui.seasonalKeywordsPlaceholder")}
-        onCommit={setHalloween}
+        onCommit={staged ? (keywords) => commitStaged("halloween", keywords) : setHalloween}
       />
       <KeywordField
         id={christmasId}
         label={t("ui.seasonalChristmasKeywords")}
         value={christmas}
         placeholder={t("ui.seasonalKeywordsPlaceholder")}
-        onCommit={setChristmas}
+        onCommit={staged ? (keywords) => commitStaged("christmas", keywords) : setChristmas}
       />
     </section>
   )

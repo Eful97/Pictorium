@@ -32,7 +32,7 @@ afterEach(() => {
   vi.useRealTimers()
 })
 
-function renderSettings() {
+function renderSettings(options: { openPreset?: boolean } = {}) {
   renderWithCtx(
     createElement(SettingsPanel, {
       setSettingsOpen: () => {},
@@ -40,6 +40,13 @@ function renderSettings() {
       importData: () => {},
     }),
   )
+  // Fresh open lands on Preferenze (secondary): this suite exercises the
+  // Preset primary tab (format target + staged gallery). A pending external
+  // tab request (deep link) must win over this default, so those callers pass
+  // `openPreset: false`.
+  if (options.openPreset !== false) {
+    fireEvent.click(screen.getByRole("tab", { name: "ui.settingsTabPreset" }))
+  }
 }
 
 function renderBadge(shape: "portrait" | "landscape") {
@@ -142,7 +149,7 @@ describe("preset tab (five-tab staged session)", () => {
 
   it("external tab requests still land on the renamed tabs (trasforma preserved)", async () => {
     requestSettingsTab("trasforma")
-    renderSettings()
+    renderSettings({ openPreset: false })
     await act(async () => {
       await vi.advanceTimersByTimeAsync(100)
     })

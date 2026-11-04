@@ -271,6 +271,9 @@ function renderPanel() {
   const rendered = renderWithCtx(
     createElement("div", null, createElement(SettingsPanel, { setSettingsOpen: () => {}, exportData: () => {}, importData: () => {} }), createElement(Probe)),
   )
+  // Fresh open lands on Preferenze (secondary): the gallery + format target
+  // used below live on primary tabs.
+  fireEvent.click(screen.getByRole("tab", { name: "ui.settingsTabPreset" }))
   return { ctx: () => ctx as unknown as PosterEditorCtx, unmount: rendered.unmount }
 }
 

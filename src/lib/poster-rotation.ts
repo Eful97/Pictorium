@@ -86,8 +86,23 @@ export function isRotatedNonCleanPoster(
     === normalizeRotationLanguage(selectedLang)
 }
 
-export function getEffectiveRotationState(mapping: Mapping | null, selectedLang?: string | null): EffectiveRotationState {
-  if (!mapping?.autoRotateClean || !mapping.cleanPosters || mapping.cleanPosters.length < 2) {
+/**
+ * Effective portrait rotation state.
+ *
+ * `defaultEnabled` is the space default (`defaultAutoRotateClean`): it is the
+ * fallback for titles WITHOUT an explicit per-title override (`autoRotateClean`
+ * null/absent = inherit). An explicit `true`/`false` in the mapping always
+ * wins, so saved titles keep their own choice (no migration). Omitting the
+ * argument keeps the historical behavior (absent flag = off), byte-identical
+ * for every existing caller/test.
+ */
+export function getEffectiveRotationState(
+  mapping: Mapping | null,
+  selectedLang?: string | null,
+  defaultEnabled: boolean = false,
+): EffectiveRotationState {
+  const enabled = mapping?.autoRotateClean ?? defaultEnabled
+  if (!enabled || !mapping?.cleanPosters || mapping.cleanPosters.length < 2) {
     return { availablePosters: [], isRotating: false }
   }
 

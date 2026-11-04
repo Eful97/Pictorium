@@ -170,6 +170,13 @@ interface PosterSaveDeps {
   networkLogoOffsetY: number
   rotationPosters: string[]
   autoRotateClean: boolean
+  /**
+   * Per-title rotation override provenance: boolean = explicit (persisted),
+   * null/undefined = inherit the space default (field omitted from the save,
+   * so the global toggle keeps governing this title). Defaults to the legacy
+   * behavior (explicit) for every existing caller/test.
+   */
+  autoRotateCleanOverride?: boolean | null
   defaultAutoRotateClean: boolean
   excludedPosters: string[]
   rotationBackdrops: string[]
@@ -289,7 +296,7 @@ export function usePosterSave(deps: PosterSaveDeps) {
     badgeItemTransforms,
     genreBadgeOffsetX, genreBadgeOffsetY, qualityBadgeOffsetX, qualityBadgeOffsetY,
     networkLogoOffsetX, networkLogoOffsetY,
-    rotationPosters, autoRotateClean, defaultAutoRotateClean, excludedPosters, accentColor, autoAccentColor, logoDisabled, setLogoDisabled,
+    rotationPosters, autoRotateClean, autoRotateCleanOverride, defaultAutoRotateClean, excludedPosters, accentColor, autoAccentColor, logoDisabled, setLogoDisabled,
     portraitBaseBackdropPath, portraitBaseLogoPath,
     logoText, logoFont, setLogoText, setLogoFont,
     rotationBackdrops, autoRotateBackdrop, defaultAutoRotateBackdrop, excludedBackdrops, backdrops,
@@ -490,9 +497,19 @@ export function usePosterSave(deps: PosterSaveDeps) {
     const nextExcludedPosters = overrides.excludedPosters ?? excludedPosters
     const nextRotationPosters = overrides.rotationPosters ?? rotationPosters
     const excludedSet = new Set(nextExcludedPosters)
+    // Per-title rotation override semantics (null = inherit): `undefined` from
+    // legacy callers keeps the historical behavior byte-identical (seed only
+    // on a new mapping off the space default); `null` means the title follows
+    // the space default and the field is omitted on save so the global toggle
+    // keeps governing it (no migration of existing saves).
+    const legacyRotation = autoRotateCleanOverride === undefined
+    const autoRotateExplicit = !legacyRotation
+    const rotationEnabled = legacyRotation
+      ? defaultAutoRotateClean
+      : (autoRotateCleanOverride ?? defaultAutoRotateClean)
     const baseRotationPosters = nextRotationPosters.length > 0
       ? nextRotationPosters
-      : defaultAutoRotateClean && isClean && isNewMapping
+      : rotationEnabled && isClean && (isNewMapping || autoRotateExplicit)
         ? posters.filter(p => p.iso_639_1 === null).map(p => p.file_path)
         : []
     const effectiveRotationPosters = baseRotationPosters.filter((path) => !excludedSet.has(path))
@@ -1028,7 +1045,11 @@ export function usePosterSave(deps: PosterSaveDeps) {
           cleanPosters: effectiveRotationPosters.length > 0 ? effectiveRotationPosters : undefined,
           cleanPosterIndex: 0,
           cleanPosterUpdatedAt: new Date().toISOString(),
-          autoRotateClean: effectiveRotationPosters.length > 1 ? autoRotateClean : undefined,
+          // Explicit override persisted; inherit (null) omits the field so the
+          // space default keeps driving the title after the save.
+          autoRotateClean: effectiveRotationPosters.length > 1
+            ? (autoRotateCleanOverride === undefined ? autoRotateClean : (autoRotateCleanOverride ?? undefined))
+            : undefined,
           // Opt-in rotation metadata derived from the effective pool above.
           // Absent (no non-clean path in the pool) = legacy clean-only; this
           // full-replace POST then clears any previously saved opt-in.
@@ -1100,7 +1121,7 @@ export function usePosterSave(deps: PosterSaveDeps) {
       if (overrides.silent) throw error
       return false
     }
-  }, [selected, previewPoster, selectedLogo, metaInfo, logoScale, logoOffsetX, logoOffsetY, trendRank, globalBadges, rankingBadges, badgeGenre, badgeYear, badgeRating, badgeQuality, ageBadge, ageCountry, ageBadgeStyle, awardBadgeStyle, customRatings, ratingSources, separateRatings, separateRatingsStyle, seasonalTheme, mdblistAnimeList, loadMappings, customBadge, badgeStyle, rankingBadgeStyle, extraBadgeStyle, badgeFont, qualityBadgeStyle, videoFormats, blurEnabled, blurIntensity, blurFade, blurDarkness, landscapeBlur, landscapeBlurDirty, tintStrength, topShade, topShadeHeight, gradientHeight, topBadgeScale, topBadgeOffsetX, topBadgeOffsetY, extraBadgeScale, extraBadgeOffsetX, extraBadgeOffsetY, genreBadgeScale, qualityBadgeScale, separateBadgeScale, separateBadgeOffsetX, separateBadgeOffsetY, badgeItemTransforms, networkLogoScale, genreBadgeOffsetX, genreBadgeOffsetY, qualityBadgeOffsetX, qualityBadgeOffsetY, networkLogoOffsetX, networkLogoOffsetY, rotationPosters, autoRotateClean, defaultAutoRotateClean, excludedPosters, rotationBackdrops, autoRotateBackdrop, defaultAutoRotateBackdrop, excludedBackdrops, backdrops, defaultBadgeStyle, defaultRankingBadgeStyle, defaultExtraBadgeStyle, defaultGlobalBadges, defaultRankingBadges, defaultBadgeGenre, defaultBadgeYear, defaultBadgeRating, defaultBadgeQuality, defaultAgeBadge, defaultAgeCountry, defaultAgeBadgeStyle, defaultAwardBadgeStyle, defaultCustomRatings, defaultSeparateRatings, defaultBadgeFont, defaultQualityBadgeStyle, defaultVideoFormats, defaultNetworkLogo, defaultNetworkLogoPosition, defaultRibbonEnabled, posters, mappingsMap, accentColor, autoAccentColor, backdropOffsetX, backdropOffsetY, backdropScale, selectedBackdrop, networkLogo, networkLogoPosition, networkLogoFollowTitle, ribbonEnabled, episodeGroupId, posterShape, posterLayout, posterFreshScope, portraitBaseBackdropPath, portraitBaseLogoPath, logoText, logoFont]) // eslint-disable-line react-hooks/exhaustive-deps -- intentionally complete to save all poster state
+  }, [selected, previewPoster, selectedLogo, metaInfo, logoScale, logoOffsetX, logoOffsetY, trendRank, globalBadges, rankingBadges, badgeGenre, badgeYear, badgeRating, badgeQuality, ageBadge, ageCountry, ageBadgeStyle, awardBadgeStyle, customRatings, ratingSources, separateRatings, separateRatingsStyle, seasonalTheme, mdblistAnimeList, loadMappings, customBadge, badgeStyle, rankingBadgeStyle, extraBadgeStyle, badgeFont, qualityBadgeStyle, videoFormats, blurEnabled, blurIntensity, blurFade, blurDarkness, landscapeBlur, landscapeBlurDirty, tintStrength, topShade, topShadeHeight, gradientHeight, topBadgeScale, topBadgeOffsetX, topBadgeOffsetY, extraBadgeScale, extraBadgeOffsetX, extraBadgeOffsetY, genreBadgeScale, qualityBadgeScale, separateBadgeScale, separateBadgeOffsetX, separateBadgeOffsetY, badgeItemTransforms, networkLogoScale, genreBadgeOffsetX, genreBadgeOffsetY, qualityBadgeOffsetX, qualityBadgeOffsetY, networkLogoOffsetX, networkLogoOffsetY, rotationPosters, autoRotateClean, autoRotateCleanOverride, defaultAutoRotateClean, excludedPosters, rotationBackdrops, autoRotateBackdrop, defaultAutoRotateBackdrop, excludedBackdrops, backdrops, defaultBadgeStyle, defaultRankingBadgeStyle, defaultExtraBadgeStyle, defaultGlobalBadges, defaultRankingBadges, defaultBadgeGenre, defaultBadgeYear, defaultBadgeRating, defaultBadgeQuality, defaultAgeBadge, defaultAgeCountry, defaultAgeBadgeStyle, defaultAwardBadgeStyle, defaultCustomRatings, defaultSeparateRatings, defaultBadgeFont, defaultQualityBadgeStyle, defaultVideoFormats, defaultNetworkLogo, defaultNetworkLogoPosition, defaultRibbonEnabled, posters, mappingsMap, accentColor, autoAccentColor, backdropOffsetX, backdropOffsetY, backdropScale, selectedBackdrop, networkLogo, networkLogoPosition, networkLogoFollowTitle, ribbonEnabled, episodeGroupId, posterShape, posterLayout, posterFreshScope, portraitBaseBackdropPath, portraitBaseLogoPath, logoText, logoFont]) // eslint-disable-line react-hooks/exhaustive-deps -- intentionally complete to save all poster state
 
   /**
    * Cover-only save ("Salva solo poster" / "Save poster only"): persists

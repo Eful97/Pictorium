@@ -92,13 +92,17 @@ beforeEach(() => {
 })
 
 function renderPanel() {
-  return renderWithCtx(
+  const view = renderWithCtx(
     createElement(SettingsPanel, {
       setSettingsOpen: () => {},
       exportData: () => {},
       importData: () => {},
     }),
   )
+  // Fresh open lands on Preferenze (secondary): open Preset so the primary
+  // controls (format target, preview, badge defaults) are available.
+  fireEvent.click(screen.getByRole("tab", { name: "ui.settingsTabPreset" }))
+  return view
 }
 
 function openBadgeTab() {

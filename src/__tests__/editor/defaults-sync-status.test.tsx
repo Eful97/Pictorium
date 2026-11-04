@@ -547,7 +547,7 @@ describe("footer explicit save (staged session)", () => {
   }
 
   function informationPanel(): HTMLElement {
-    return screen.getByRole("tabpanel", { name: "ui.badgeSection" })
+    return screen.getByRole("tabpanel", { name: "ui.settingsTabInformation" })
   }
 
   // Mount barrier for this fake-timer suite. The panel (and its

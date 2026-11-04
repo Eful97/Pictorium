@@ -427,20 +427,32 @@ describe("BadgeDefaultsSection per-shape age UI", () => {
     expect(ctx().defaultAgeBadgeStyle).toBe("standard")
   })
 
-  it("tab reset restores independent original age defaults (never clear-to-follow)", async () => {
+  it("tab reset restores the portrait age effective for explicit overrides (never OFF/IT/standard)", async () => {
     localStorage.setItem(
       "badgeDefaults",
-      JSON.stringify({ ageBadge: true, ageCountry: "US", ageBadgeStyle: "knockout" }),
+      JSON.stringify({
+        ageBadge: true,
+        ageCountry: "US",
+        ageBadgeStyle: "knockout",
+        // Explicit landscape age-country override diverges (drives the reset);
+        // the absent ageBadge/style keys inherit the portrait flats.
+        landscape: { ageCountry: "DE" },
+      }),
     )
     const { ctx } = renderBadge("landscape")
     await act(async () => {})
-    // Seeded legacy appearance: the profile follows the old ON/US/knockout.
+    // The explicit profile override wins; the absent keys follow the flats.
+    expect(ctx().landscape.ageCountry).toBe("DE")
     expect(ctx().landscape.ageBadge).toBe(true)
+    expect(ctx().landscape.ageBadgeStyle).toBe("knockout")
 
-    fireEvent.click(screen.getByTitle("ui.formatTargetHint"))
-    expect(ctx().landscape.ageBadge).toBe(false)
-    expect(ctx().landscape.ageCountry).toBe("IT")
-    expect(ctx().landscape.ageBadgeStyle).toBe("standard")
+    fireEvent.click(screen.getByTitle("ui.landscapeDefaultsHint"))
+    // Explicit-only reset: the diverging country is restored to the portrait
+    // effective (never forced to IT); the absent age keys stay inherited
+    // (never forced to OFF/standard).
+    expect(ctx().landscape.ageCountry).toBe("US")
+    expect(ctx().landscape.ageBadge).toBe(true)
+    expect(ctx().landscape.ageBadgeStyle).toBe("knockout")
     // Portrait flats untouched by the landscape reset.
     expect(ctx().defaultAgeBadge).toBe(true)
     expect(ctx().defaultAgeCountry).toBe("US")

@@ -287,7 +287,9 @@ describe("rankings layout draft staging", () => {
       JSON.stringify({ defaultPosterShape: "poster", defaultPosterLayout: "standard", landscape: { minQuality: "1080p" } }),
     )
     const { ctx } = renderPanel()
-    await screen.findByTestId("poster-style-apple")
+    // Open a primary tab first (fresh open lands on Preferenze, secondary):
+    // the format target only exists on primary tabs.
+    await openRankings()
     // Switch the edit target to landscape (preview-only; delivery preserved).
     fireEvent.click(within(screen.getByTestId("format-target-selector")).getByText("ui.posterShapeLandscape"))
     await openRankings()

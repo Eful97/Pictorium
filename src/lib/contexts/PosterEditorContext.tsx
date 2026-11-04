@@ -573,6 +573,23 @@ export interface PosterEditorCtx {
   setRotationIncludeNonClean: (v: boolean | ((prev: boolean) => boolean)) => void
   autoRotateClean: boolean
   setAutoRotateClean: (v: boolean | ((prev: boolean) => boolean)) => void
+  /**
+   * Provenance of the per-title rotation flag: true = the user explicitly
+   * overrode it (the save persists the boolean), false = the title inherits
+   * the space default (the save omits the field, so the global toggle keeps
+   * governing it — `null` on the wire).
+   */
+  autoRotateCleanExplicit: boolean
+  /** Explicit per-poster ON/OFF: sets the effective value and marks it as an override. */
+  setAutoRotateCleanOverride: (v: boolean) => void
+  /** Back to inherit: effective value follows the space default, override cleared. */
+  resetAutoRotateCleanOverride: () => void
+  /**
+   * Hydration/reset helper: sets effective value + provenance together.
+   * Opening a saved title passes `explicit = mapping.autoRotateClean != null`;
+   * a brand-new title passes `explicit = false` (inherit).
+   */
+  setAutoRotateCleanState: (value: boolean, explicit: boolean) => void
   excludedPosters: string[]
   setExcludedPosters: (v: string[] | ((prev: string[]) => string[])) => void
   /** Rotazione 24h sfondi landscape (mirror verticale, stato per-titolo). */
@@ -677,6 +694,10 @@ export function PosterEditorProvider({
   // metadata dal pool effettivo (vedi usePosterSave).
   const [rotationIncludeNonClean, setRotationIncludeNonClean] = useState(false)
   const [autoRotateClean, setAutoRotateClean] = useState(false)
+  // Per-title override provenance: null/absent on the wire = inherit the
+  // space default (`defaultAutoRotateClean`). Explicit ON/OFF is persisted by
+  // the save; an untouched title keeps inheriting (no migration of saves).
+  const [autoRotateCleanExplicit, setAutoRotateCleanExplicit] = useState(false)
   const [excludedPosters, setExcludedPosters] = useState<string[]>([])
   const [rotationBackdrops, setRotationBackdrops] = useState<string[]>([])
   const [autoRotateBackdrop, setAutoRotateBackdrop] = useState(false)
@@ -770,6 +791,21 @@ export function PosterEditorProvider({
     loadDefaultsToState, update,
   } = defaults
   const { defaultSyncStatus, retryDefaultSync, saveStagedDefaults } = defaults
+
+  // Per-title rotation override (see interface contract): explicit values are
+  // saved, the reset returns to inherit so the space default keeps governing.
+  const setAutoRotateCleanOverride = useCallback((v: boolean) => {
+    setAutoRotateClean(v)
+    setAutoRotateCleanExplicit(true)
+  }, [])
+  const resetAutoRotateCleanOverride = useCallback(() => {
+    setAutoRotateClean(defaultAutoRotateClean)
+    setAutoRotateCleanExplicit(false)
+  }, [defaultAutoRotateClean])
+  const setAutoRotateCleanState = useCallback((value: boolean, explicit: boolean) => {
+    setAutoRotateClean(value)
+    setAutoRotateCleanExplicit(explicit)
+  }, [])
 
   const setGlobalBadges = useCallback(
     (v: boolean | ((prev: boolean) => boolean)) => {
@@ -2248,6 +2284,10 @@ export function PosterEditorProvider({
       setRotationIncludeNonClean,
       autoRotateClean,
       setAutoRotateClean,
+      autoRotateCleanExplicit,
+      setAutoRotateCleanOverride,
+      resetAutoRotateCleanOverride,
+      setAutoRotateCleanState,
       excludedPosters,
       setExcludedPosters,
       rotationBackdrops,
@@ -2458,6 +2498,7 @@ export function PosterEditorProvider({
       rotationPosters, setRotationPosters,
       rotationIncludeNonClean, setRotationIncludeNonClean,
       autoRotateClean, setAutoRotateClean,
+      autoRotateCleanExplicit, setAutoRotateCleanOverride, resetAutoRotateCleanOverride, setAutoRotateCleanState,
       excludedPosters, setExcludedPosters,
       rotationBackdrops, setRotationBackdrops,
       autoRotateBackdrop, setAutoRotateBackdrop,

@@ -615,6 +615,9 @@ describe("SettingsPanel real-switch availability (both shapes, staged)", () => {
         createElement(Probe),
       ),
     )
+    // Fresh open lands on Preferenze (secondary): these tests drive the
+    // primary-only controls (format target + badge defaults), so open Preset.
+    fireEvent.click(screen.getByRole("tab", { name: "ui.settingsTabPreset" }))
     return { ctx: () => ctx as unknown as PosterEditorCtx }
   }
 

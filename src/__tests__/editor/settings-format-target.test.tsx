@@ -83,6 +83,9 @@ describe("format target selector", () => {
       ),
     )
     const lastParams = () => paramsOf(opened[opened.length - 1])
+    // Fresh open lands on Preferenze (secondary): open the Badge primary tab
+    // so the format target and controls are rendered.
+    fireEvent.click(screen.getByRole("tab", { name: "ui.settingsTabBadge" }))
     await act(async () => {
       await vi.advanceTimersByTimeAsync(600)
     })

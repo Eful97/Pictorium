@@ -135,12 +135,16 @@ export function DataPanel({ active, exportData, importData, setSettingsOpen, mul
       aria-label={t("ui.settingsTabData")}
       className={`space-y-4 text-xs ${active ? "block animate-tab-fade-in" : "hidden"}`}
     >
-      {/* Backup & Configurazione */}
+      {/* Backup & Configurazione — backup/diagnostics scope, separate from the
+          API keys panel above (keys have their own Save). */}
       <div className="bg-surface/50 border border-surface2/60 rounded-xl p-4 space-y-3.5 shadow-sm">
         <span className="font-semibold text-zinc-100 text-sm flex items-center gap-2">
           <Database className="w-4 h-4 text-accent-orange" />
-          <span>{t("ui.settingsTabData")}</span>
+          <span>{t("ui.statusDataFile")}</span>
         </span>
+        <p data-testid="data-panel-scope" className="text-[11px] text-muted leading-relaxed">
+          {t("ui.backupKeysPlaintextWarn")}
+        </p>
         {/* Personal API keys (device only, never server keys): consent first,
             separate opt-ins, all OFF by default. Overwrite is only meaningful
             with import enabled and resets when import is unchecked. */}
@@ -177,7 +181,6 @@ export function DataPanel({ active, exportData, importData, setSettingsOpen, mul
             />
             <span className="text-xs text-zinc-300 leading-relaxed">{t("ui.backupOverwritePersonalKeys")}</span>
           </label>
-          <p className="text-[10px] text-zinc-500 leading-relaxed">{t("ui.backupKeysPlaintextWarn")}</p>
         </div>
         <div className="grid grid-cols-2 gap-2.5 pt-1">
           <MenuItem

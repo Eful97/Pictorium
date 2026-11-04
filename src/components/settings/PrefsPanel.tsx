@@ -1,6 +1,6 @@
 "use client"
 
-import { Globe, Palette, RectangleHorizontal, RectangleVertical, RotateCcw, Sliders, Sparkles, Tv, Sun, Type } from "lucide-react"
+import { Globe, Palette, RectangleHorizontal, RectangleVertical, RotateCcw, Sparkles, Sun, Tv, Type } from "lucide-react"
 import { usePSelector } from "@/lib/context"
 import { useT } from "@/lib/contexts/TranslationContext"
 import { usePosterEditor } from "@/lib/contexts/PosterEditorContext"
@@ -9,7 +9,7 @@ import { ThemeToggle } from "@/components/ThemeToggle"
 import { CHART_REGIONS, GLOBAL_REGION_CODE } from "@/lib/regions"
 import { UI_LANGUAGES } from "@/lib/utils"
 
-/** Scheda Prefs (localizzazione, metadati episodi, automazioni). Estratta da SettingsPanel: solo JSX + context. */
+/** Scheda Prefs (localizzazione, metadati episodi, default rotazione/poster, aspetto). Estratta da SettingsPanel: solo JSX + context. */
 export function PrefsPanel({ active }: { active: boolean }) {
   const lang = usePSelector((v) => v.lang)
   const pickLang = usePSelector((v) => v.pickLang)
@@ -24,11 +24,14 @@ export function PrefsPanel({ active }: { active: boolean }) {
       className={`space-y-4 text-xs ${active ? "block animate-tab-fade-in" : "hidden"}`}
     >
       {/* Gruppo 1: Lingua & Localizzazione */}
-      <div className="bg-surface/50 border border-surface2/60 rounded-xl p-4 space-y-3.5 shadow-sm">
-        <span className="font-semibold text-zinc-100 text-sm flex items-center gap-2">
+      <section
+        aria-labelledby="prefs-language-title"
+        className="bg-surface/50 border border-surface2/60 rounded-xl p-4 space-y-3.5 shadow-sm"
+      >
+        <h3 id="prefs-language-title" className="font-semibold text-zinc-100 text-sm flex items-center gap-2">
           <Globe className="w-4 h-4 text-accent-orange" />
           <span>{t("ui.chooseLanguage")} & {t("ui.region")}</span>
-        </span>
+        </h3>
         <div className="space-y-3 pt-1">
           <div className="flex items-center justify-between gap-3">
             <span className="text-zinc-200 text-xs sm:text-sm font-medium">{t("ui.chooseLanguage")}</span>
@@ -85,14 +88,17 @@ export function PrefsPanel({ active }: { active: boolean }) {
           <p className="text-xs text-zinc-400 leading-relaxed">{t("ui.regionHint")}</p>
           <p className="text-xs text-zinc-400 leading-relaxed">{t("ui.dateFormatHint")}</p>
         </div>
-      </div>
+      </section>
 
       {/* Gruppo 2: Fonte Metadati Serie & Episodi */}
-      <div className="bg-surface/50 border border-surface2/60 rounded-xl p-4 space-y-3.5 shadow-sm">
-        <span className="font-semibold text-zinc-100 text-sm flex items-center gap-2">
+      <section
+        aria-labelledby="prefs-episode-metadata-title"
+        className="bg-surface/50 border border-surface2/60 rounded-xl p-4 space-y-3.5 shadow-sm"
+      >
+        <h3 id="prefs-episode-metadata-title" className="font-semibold text-zinc-100 text-sm flex items-center gap-2">
           <Tv className="w-4 h-4 text-sky-400" />
           <span>{t("ui.episodeMetadataSource")}</span>
-        </span>
+        </h3>
         <div className="flex items-center justify-between gap-3 pt-0.5">
           <span className="text-zinc-200 text-xs sm:text-sm font-medium">Provider</span>
           <div className="flex gap-2">
@@ -100,7 +106,6 @@ export function PrefsPanel({ active }: { active: boolean }) {
               type="button"
               onClick={() => {
                 ed.setDefaultEpisodeMetadataSource("tmdb")
-                ed.setEpisodeMetadataSource("tmdb")
               }}
               className={`px-4 py-2 min-h-[40px] rounded-xl text-xs sm:text-sm font-semibold transition-all duration-150 cursor-pointer touch-manipulation ${
                 (ed.defaultEpisodeMetadataSource ?? ed.episodeMetadataSource) === "tmdb"
@@ -114,7 +119,6 @@ export function PrefsPanel({ active }: { active: boolean }) {
               type="button"
               onClick={() => {
                 ed.setDefaultEpisodeMetadataSource("tvdb")
-                ed.setEpisodeMetadataSource("tvdb")
               }}
               className={`px-4 py-2 min-h-[40px] rounded-xl text-xs sm:text-sm font-semibold transition-all duration-150 cursor-pointer touch-manipulation ${
                 (ed.defaultEpisodeMetadataSource ?? ed.episodeMetadataSource) === "tvdb"
@@ -129,212 +133,240 @@ export function PrefsPanel({ active }: { active: boolean }) {
         <p className="text-xs text-zinc-400 leading-relaxed pt-1 border-t border-white/[0.04]">
           {t("ui.episodeMetadataSourceHint")}
         </p>
-      </div>
+      </section>
 
-      {/* Gruppo 3: Automazioni Generazione */}
-      <div className="bg-surface/50 border border-surface2/60 rounded-xl p-4 space-y-3.5 shadow-sm">
-        <span className="font-semibold text-zinc-100 text-sm flex items-center gap-2">
-          <Sliders className="w-4 h-4 text-accent-orange" />
-          <span>{t("ui.settingsAutomationTitle")}</span>
-        </span>
-        <div className="space-y-1 divide-y divide-white/[0.04]">
-          <div className="flex items-center justify-between py-1.5">
-            <span className="text-zinc-200 text-xs sm:text-sm font-medium flex items-center gap-2">
-              <RectangleVertical className="w-4 h-4 text-emerald-400 shrink-0" />
-              <span>{t("ui.autoRotateDefaultPortrait")}</span>
-            </span>
-            <Toggle
-              value={ed.defaultAutoRotateClean}
-              onChange={(v) => {
-                ed.setDefaultAutoRotateClean(v)
-              }}
-              label={t("ui.autoRotateDefaultPortrait")}
-            />
-          </div>
-          {ed.defaultAutoRotateClean && (
-            <div className="py-1.5 space-y-1">
-              <div className="flex items-center justify-between gap-2">
-                <span className="text-zinc-200 text-xs sm:text-sm font-medium flex items-center gap-2">
-                  <RotateCcw className="w-4 h-4 text-zinc-400 shrink-0" />
-                  <span>{t("ui.rotationScope")}</span>
-                </span>
-                <button
-                  type="button"
-                  aria-pressed={ed.defaultRotationIncludeNonClean}
-                  onClick={() => ed.setDefaultRotationIncludeNonClean(!ed.defaultRotationIncludeNonClean)}
-                  className={`px-2 py-1 text-[11px] font-semibold rounded-lg border transition-all ${
-                    ed.defaultRotationIncludeNonClean
-                      ? "bg-accent-orange/20 text-accent-orange border-accent-orange/25"
-                      : "bg-white/5 text-muted border-white/10"
-                  }`}
-                >
-                  {ed.defaultRotationIncludeNonClean
-                    ? t("ui.rotationScopeWithLanguage")
-                    : t("ui.rotationScopeNoLanguage")}
-                </button>
+      {/* Gruppo 3: Default Rotazione — portrait, scope e landscape in un'unica card */}
+      <section
+        aria-labelledby="prefs-rotation-title"
+        className="bg-surface/50 border border-surface2/60 rounded-xl p-4 space-y-3.5 shadow-sm"
+      >
+        <h3 id="prefs-rotation-title" className="font-semibold text-zinc-100 text-sm flex items-center gap-2">
+          <RotateCcw className="w-4 h-4 text-emerald-400" />
+          <span>{t("ui.autoRotate")}</span>
+        </h3>
+        <fieldset className="min-w-0 border-0 p-0 m-0">
+          <legend className="sr-only">{t("ui.autoRotate")}</legend>
+          <div className="space-y-1 divide-y divide-white/[0.04]">
+            <div className="flex items-center justify-between py-1.5">
+              <span className="text-zinc-200 text-xs sm:text-sm font-medium flex items-center gap-2">
+                <RectangleVertical className="w-4 h-4 text-emerald-400 shrink-0" />
+                <span>{t("ui.autoRotateDefaultPortrait")}</span>
+              </span>
+              <Toggle
+                value={ed.defaultAutoRotateClean}
+                onChange={(v) => {
+                  ed.setDefaultAutoRotateClean(v)
+                }}
+                label={t("ui.autoRotateDefaultPortrait")}
+              />
+            </div>
+            {ed.defaultAutoRotateClean && (
+              <div className="py-1.5 space-y-1">
+                <div className="flex items-center justify-between gap-2">
+                  <span className="text-zinc-200 text-xs sm:text-sm font-medium flex items-center gap-2">
+                    <RotateCcw className="w-4 h-4 text-zinc-400 shrink-0" />
+                    <span>{t("ui.rotationScope")}</span>
+                  </span>
+                  <button
+                    type="button"
+                    aria-pressed={ed.defaultRotationIncludeNonClean}
+                    onClick={() => ed.setDefaultRotationIncludeNonClean(!ed.defaultRotationIncludeNonClean)}
+                    className={`px-2 py-1 text-[11px] font-semibold rounded-lg border transition-all ${
+                      ed.defaultRotationIncludeNonClean
+                        ? "bg-accent-orange/20 text-accent-orange border-accent-orange/25"
+                        : "bg-white/5 text-muted border-white/10"
+                    }`}
+                  >
+                    {ed.defaultRotationIncludeNonClean
+                      ? t("ui.rotationScopeWithLanguage")
+                      : t("ui.rotationScopeNoLanguage")}
+                  </button>
+                </div>
+                <p className="text-xs text-zinc-400 leading-relaxed pl-6">
+                  {t("ui.rotationScopeDefaultHint")}
+                </p>
               </div>
-              <p className="text-xs text-zinc-400 leading-relaxed pl-6">
-                {t("ui.rotationScopeDefaultHint")}
-              </p>
-            </div>
-          )}
-          <div className="py-1.5 space-y-1">
-            <div className="flex items-center justify-between">
+            )}
+            <div className="flex items-center justify-between py-1.5">
               <span className="text-zinc-200 text-xs sm:text-sm font-medium flex items-center gap-2">
-                <RectangleVertical className="w-4 h-4 text-zinc-400 shrink-0" />
-                <span>{t("ui.disableCleanPosters")}</span>
+                <RectangleHorizontal className="w-4 h-4 text-emerald-400 shrink-0" />
+                <span>{t("ui.autoRotateDefaultLandscape")}</span>
               </span>
               <Toggle
-                value={ed.defaultDisableCleanPosters}
+                value={ed.defaultAutoRotateBackdrop}
                 onChange={(v) => {
-                  ed.setDefaultDisableCleanPosters(v)
+                  ed.setDefaultAutoRotateBackdrop(v)
                 }}
-                label={t("ui.disableCleanPosters")}
+                label={t("ui.autoRotateDefaultLandscape")}
               />
             </div>
-            <p className="text-xs text-zinc-400 leading-relaxed pl-6">
-              {t("ui.disableCleanPostersHint")}
-            </p>
           </div>
-          <div className="py-1.5 space-y-1">
-            <div className="flex items-center justify-between">
-              <span className="text-zinc-200 text-xs sm:text-sm font-medium flex items-center gap-2">
-                <RectangleHorizontal className="w-4 h-4 text-zinc-400 shrink-0" />
-                <span>{t("ui.portraitBackdropFallback")}</span>
-              </span>
-              <Toggle
-                value={ed.defaultPortraitBackdropFallback}
-                onChange={(v) => {
-                  ed.setDefaultPortraitBackdropFallback(v)
-                }}
-                label={t("ui.portraitBackdropFallback")}
-              />
-            </div>
-            <p className="text-xs text-zinc-400 leading-relaxed pl-6">
-              {t("ui.portraitBackdropFallbackHint")}
-            </p>
-          </div>
-          <div className="py-1.5 space-y-1">
-            <div className="flex items-center justify-between">
-              <span className="text-zinc-200 text-xs sm:text-sm font-medium flex items-center gap-2">
-                <Type className="w-4 h-4 text-zinc-400 shrink-0" />
-                <span>{t("ui.autoWordmark")}</span>
-              </span>
-              <Toggle
-                value={ed.defaultAutoWordmark}
-                onChange={(v) => {
-                  ed.setDefaultAutoWordmark(v)
-                }}
-                label={t("ui.autoWordmark")}
-              />
-            </div>
-            <p className="text-xs text-zinc-400 leading-relaxed pl-6">
-              {t("ui.autoWordmarkHint")}
-            </p>
-          </div>
-          <div className="flex items-center justify-between py-1.5">
-            <span className="text-zinc-200 text-xs sm:text-sm font-medium flex items-center gap-2">
-              <RectangleHorizontal className="w-4 h-4 text-emerald-400 shrink-0" />
-              <span>{t("ui.autoRotateDefaultLandscape")}</span>
-            </span>
-            <Toggle
-              value={ed.defaultAutoRotateBackdrop}
-              onChange={(v) => {
-                ed.setDefaultAutoRotateBackdrop(v)
-              }}
-              label={t("ui.autoRotateDefaultLandscape")}
-            />
-          </div>
-          <div className="flex items-center justify-between py-1.5">
-            <span className="text-zinc-200 text-xs sm:text-sm font-medium flex items-center gap-2">
-              <Sparkles className="w-4 h-4 text-amber-400 shrink-0" />
-              <span>{t("ui.logoFitPortrait")}</span>
-            </span>
-            <Toggle
-              value={ed.defaultPortraitFitEnabled}
-              onChange={ed.setDefaultPortraitFitEnabled}
-              label={t("ui.logoFitPortrait")}
-            />
-          </div>
-          <div className="flex items-center justify-between py-1.5">
-            <span className="text-zinc-200 text-xs sm:text-sm font-medium flex items-center gap-2">
-              <Sparkles className="w-4 h-4 text-amber-400 shrink-0" />
-              <span>{t("ui.logoFitLandscape")}</span>
-            </span>
-            <Toggle
-              value={ed.defaultLandscapeFitEnabled}
-              onChange={ed.setDefaultLandscapeFitEnabled}
-              label={t("ui.logoFitLandscape")}
-            />
-          </div>
-        </div>
-      </div>
+        </fieldset>
+      </section>
 
-      {/* Gruppo 4: Aspetto & Formato Predefinito */}
-      <div className="bg-surface/50 border border-surface2/60 rounded-xl p-4 space-y-3.5 shadow-sm">
-        <span className="font-semibold text-zinc-100 text-sm flex items-center gap-2">
+      {/* Gruppo 4: Default Poster — formato di consegna, basi automatiche, compatibilità logo */}
+      <section
+        aria-labelledby="prefs-poster-defaults-title"
+        className="bg-surface/50 border border-surface2/60 rounded-xl p-4 space-y-3.5 shadow-sm"
+      >
+        <h3 id="prefs-poster-defaults-title" className="font-semibold text-zinc-100 text-sm flex items-center gap-2">
           <Palette className="w-4 h-4 text-purple-400" />
           <span>{t("ui.settingsTabStyle")}</span>
-        </span>
-        <div className="space-y-1 divide-y divide-white/[0.04]">
-          <div className="flex items-center justify-between py-1.5">
-            <span className="text-zinc-200 text-xs sm:text-sm font-medium flex items-center gap-2">
-              <RectangleHorizontal className="w-4 h-4 text-accent-orange shrink-0" />
-              <span>{t("ui.posterShape")}</span>
-            </span>
-            <div className="flex gap-2">
-              <button
-                type="button"
-                title={t("ui.posterShapePortrait")}
-                aria-label={t("ui.posterShapePortrait")}
-                aria-pressed={ed.defaultPosterShape !== "landscape"}
-                onClick={() => {
-                  ed.setDefaultPosterShape("poster")
-                }}
-                className={`px-3.5 py-2 min-h-[40px] rounded-xl text-xs sm:text-sm font-semibold transition-all duration-150 cursor-pointer flex items-center gap-1.5 touch-manipulation ${
-                  ed.defaultPosterShape !== "landscape"
-                    ? "bg-white/20 text-white shadow-sm"
-                    : "bg-white/5 text-muted hover:bg-white/10 hover:text-zinc-200"
-                }`}
-              >
-                <RectangleVertical className="w-4 h-4" />
-                <span>{t("ui.posterShapePortrait")}</span>
-              </button>
-              <button
-                type="button"
-                title={t("ui.posterShapeLandscape")}
-                aria-label={t("ui.posterShapeLandscape")}
-                aria-pressed={ed.defaultPosterShape === "landscape"}
-                onClick={() => {
-                  ed.setDefaultPosterShape("landscape")
-                }}
-                className={`px-3.5 py-2 min-h-[40px] rounded-xl text-xs sm:text-sm font-semibold transition-all duration-150 cursor-pointer flex items-center gap-1.5 touch-manipulation ${
-                  ed.defaultPosterShape === "landscape"
-                    ? "bg-white/20 text-white shadow-sm"
-                    : "bg-white/5 text-muted hover:bg-white/10 hover:text-zinc-200"
-                }`}
-              >
-                <RectangleHorizontal className="w-4 h-4" />
-                <span>{t("ui.posterShapeLandscape")}</span>
-              </button>
+        </h3>
+        <fieldset className="min-w-0 border-0 p-0 m-0">
+          <legend className="sr-only">{t("ui.settingsTabStyle")}</legend>
+          <div className="space-y-1 divide-y divide-white/[0.04]">
+            <div className="flex items-center justify-between py-1.5">
+              <span className="text-zinc-200 text-xs sm:text-sm font-medium flex items-center gap-2">
+                <RectangleHorizontal className="w-4 h-4 text-accent-orange shrink-0" />
+                <span>{t("ui.posterShape")} ({t("ui.posterLayoutStremio")})</span>
+              </span>
+              <div className="flex gap-2">
+                <button
+                  type="button"
+                  title={t("ui.posterShapePortrait")}
+                  aria-label={t("ui.posterShapePortrait")}
+                  aria-pressed={ed.defaultPosterShape !== "landscape"}
+                  onClick={() => {
+                    ed.setDefaultPosterShape("poster")
+                  }}
+                  className={`px-3.5 py-2 min-h-[40px] rounded-xl text-xs sm:text-sm font-semibold transition-all duration-150 cursor-pointer flex items-center gap-1.5 touch-manipulation ${
+                    ed.defaultPosterShape !== "landscape"
+                      ? "bg-white/20 text-white shadow-sm"
+                      : "bg-white/5 text-muted hover:bg-white/10 hover:text-zinc-200"
+                  }`}
+                >
+                  <RectangleVertical className="w-4 h-4" />
+                  <span>{t("ui.posterShapePortrait")}</span>
+                </button>
+                <button
+                  type="button"
+                  title={t("ui.posterShapeLandscape")}
+                  aria-label={t("ui.posterShapeLandscape")}
+                  aria-pressed={ed.defaultPosterShape === "landscape"}
+                  onClick={() => {
+                    ed.setDefaultPosterShape("landscape")
+                  }}
+                  className={`px-3.5 py-2 min-h-[40px] rounded-xl text-xs sm:text-sm font-semibold transition-all duration-150 cursor-pointer flex items-center gap-1.5 touch-manipulation ${
+                    ed.defaultPosterShape === "landscape"
+                      ? "bg-white/20 text-white shadow-sm"
+                      : "bg-white/5 text-muted hover:bg-white/10 hover:text-zinc-200"
+                  }`}
+                >
+                  <RectangleHorizontal className="w-4 h-4" />
+                  <span>{t("ui.posterShapeLandscape")}</span>
+                </button>
+              </div>
+            </div>
+            <div className="py-1.5 space-y-1">
+              <div className="flex items-center justify-between">
+                <span className="text-zinc-200 text-xs sm:text-sm font-medium flex items-center gap-2">
+                  <RectangleVertical className="w-4 h-4 text-zinc-400 shrink-0" />
+                  <span>{t("ui.disableCleanPosters")}</span>
+                </span>
+                <Toggle
+                  value={ed.defaultDisableCleanPosters}
+                  onChange={(v) => {
+                    ed.setDefaultDisableCleanPosters(v)
+                  }}
+                  label={t("ui.disableCleanPosters")}
+                />
+              </div>
+              <p className="text-xs text-zinc-400 leading-relaxed pl-6">
+                {t("ui.disableCleanPostersHint")}
+              </p>
+            </div>
+            <div className="py-1.5 space-y-1">
+              <div className="flex items-center justify-between">
+                <span className="text-zinc-200 text-xs sm:text-sm font-medium flex items-center gap-2">
+                  <RectangleHorizontal className="w-4 h-4 text-zinc-400 shrink-0" />
+                  <span>{t("ui.portraitBackdropFallback")}</span>
+                </span>
+                <Toggle
+                  value={ed.defaultPortraitBackdropFallback}
+                  onChange={(v) => {
+                    ed.setDefaultPortraitBackdropFallback(v)
+                  }}
+                  label={t("ui.portraitBackdropFallback")}
+                />
+              </div>
+              <p className="text-xs text-zinc-400 leading-relaxed pl-6">
+                {t("ui.portraitBackdropFallbackHint")}
+              </p>
+            </div>
+            <div className="py-1.5 space-y-1">
+              <div className="flex items-center justify-between">
+                <span className="text-zinc-200 text-xs sm:text-sm font-medium flex items-center gap-2">
+                  <Type className="w-4 h-4 text-zinc-400 shrink-0" />
+                  <span>{t("ui.autoWordmark")}</span>
+                </span>
+                <Toggle
+                  value={ed.defaultAutoWordmark}
+                  onChange={(v) => {
+                    ed.setDefaultAutoWordmark(v)
+                  }}
+                  label={t("ui.autoWordmark")}
+                />
+              </div>
+              <p className="text-xs text-zinc-400 leading-relaxed pl-6">
+                {t("ui.autoWordmarkHint")}
+              </p>
+            </div>
+            <div className="flex items-center justify-between py-1.5">
+              <span className="text-zinc-200 text-xs sm:text-sm font-medium flex items-center gap-2">
+                <Sparkles className="w-4 h-4 text-amber-400 shrink-0" />
+                <span>{t("ui.logoFitPortrait")}</span>
+              </span>
+              <Toggle
+                value={ed.defaultPortraitFitEnabled}
+                onChange={ed.setDefaultPortraitFitEnabled}
+                label={t("ui.logoFitPortrait")}
+              />
+            </div>
+            <div className="flex items-center justify-between py-1.5">
+              <span className="text-zinc-200 text-xs sm:text-sm font-medium flex items-center gap-2">
+                <Sparkles className="w-4 h-4 text-amber-400 shrink-0" />
+                <span>{t("ui.logoFitLandscape")}</span>
+              </span>
+              <Toggle
+                value={ed.defaultLandscapeFitEnabled}
+                onChange={ed.setDefaultLandscapeFitEnabled}
+                label={t("ui.logoFitLandscape")}
+              />
             </div>
           </div>
-          <div className="flex items-center justify-between py-1.5">
-            <span className="text-zinc-200 text-xs sm:text-sm font-medium flex items-center gap-2">
-              <Sun className="w-4 h-4 text-accent-orange shrink-0" />
-              <span>{t("ui.theme") || "Tema"}</span>
-            </span>
-            <ThemeToggle showLabels />
+        </fieldset>
+      </section>
+
+      {/* Gruppo 5: Aspetto dell'interfaccia — tema e tinta dinamica */}
+      <section
+        aria-labelledby="prefs-appearance-title"
+        className="bg-surface/50 border border-surface2/60 rounded-xl p-4 space-y-3.5 shadow-sm"
+      >
+        <h3 id="prefs-appearance-title" className="font-semibold text-zinc-100 text-sm flex items-center gap-2">
+          <Sun className="w-4 h-4 text-accent-orange" />
+          <span>{t("ui.commonAppearance")}</span>
+        </h3>
+        <fieldset className="min-w-0 border-0 p-0 m-0">
+          <legend className="sr-only">{t("ui.commonAppearance")}</legend>
+          <div className="space-y-1 divide-y divide-white/[0.04]">
+            <div className="flex items-center justify-between py-1.5">
+              <span className="text-zinc-200 text-xs sm:text-sm font-medium flex items-center gap-2">
+                <Sun className="w-4 h-4 text-accent-orange shrink-0" />
+                <span>{t("ui.theme") || "Tema"}</span>
+              </span>
+              <ThemeToggle showLabels />
+            </div>
+            <div className="flex items-center justify-between py-1.5">
+              <span className="text-zinc-200 text-xs sm:text-sm font-medium flex items-center gap-2">
+                <Palette className="w-4 h-4 text-purple-400 shrink-0" />
+                <span>{t("ui.uiAccentDynamic")}</span>
+              </span>
+              <Toggle value={uiAccent} onChange={setUiAccent} label={t("ui.uiAccentDynamic")} />
+            </div>
           </div>
-          <div className="flex items-center justify-between py-1.5">
-            <span className="text-zinc-200 text-xs sm:text-sm font-medium flex items-center gap-2">
-              <Palette className="w-4 h-4 text-purple-400 shrink-0" />
-              <span>{t("ui.uiAccentDynamic")}</span>
-            </span>
-            <Toggle value={uiAccent} onChange={setUiAccent} label={t("ui.uiAccentDynamic")} />
-          </div>
-        </div>
-      </div>
+        </fieldset>
+      </section>
     </div>
   )
 }

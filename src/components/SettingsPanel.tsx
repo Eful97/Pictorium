@@ -15,7 +15,10 @@ import { DataPanel } from "@/components/settings/DataPanel"
 import { ApiKeysSection } from "@/components/settings/ApiKeysSection"
 import { PrefsPanel } from "@/components/settings/PrefsPanel"
 import { PresetsPanel } from "@/components/settings/PresetsPanel"
-import { SeasonalKeywordsSection } from "@/components/SeasonalKeywordsSection"
+import {
+  SeasonalKeywordsSection,
+  type SeasonalKeywordsDraft,
+} from "@/components/SeasonalKeywordsSection"
 import { isMultiUserServer } from "@/lib/guest-guard"
 import { currentPathUuid } from "@/lib/user-token"
 import { consumeSettingsTab } from "@/lib/settings-tab"
@@ -43,6 +46,11 @@ type PrimaryTabId = "preset" | "information" | "badge" | "tags" | "transform"
 type SecondaryTabId = "prefs" | "data" | "catalogs" | "spazio"
 type TabId = PrimaryTabId | SecondaryTabId
 
+/** Ordered keyword-list equality (draft vs live) for staged dirtiness. */
+function sameKeywordList(a: readonly string[], b: readonly string[]): boolean {
+  return a.length === b.length && a.every((value, index) => value === b[index])
+}
+
 const PRIMARY_TABS: ReadonlyArray<{ id: PrimaryTabId; labelKey: string; icon: typeof Sparkles }> = [
   { id: "preset", labelKey: "ui.settingsTabPreset", icon: Sparkles },
   // The former Classifiche tab was folded into the two tabs that own its
@@ -55,10 +63,10 @@ const PRIMARY_TABS: ReadonlyArray<{ id: PrimaryTabId; labelKey: string; icon: ty
 ]
 
 const SECONDARY_TABS: ReadonlyArray<{ id: SecondaryTabId; labelKey: string; icon: typeof SlidersHorizontal }> = [
-  { id: "catalogs", labelKey: "ui.catalogsTitle", icon: SlidersHorizontal },
   { id: "prefs", labelKey: "ui.settingsTabPrefs", icon: SlidersHorizontal },
-  { id: "data", labelKey: "ui.settingsTabData", icon: Database },
+  { id: "catalogs", labelKey: "ui.catalogsTitle", icon: SlidersHorizontal },
   { id: "spazio", labelKey: "ui.settingsTabSpace", icon: KeyRound },
+  { id: "data", labelKey: "ui.settingsTabData", icon: Database },
 ]
 
 function normalizeTab(tab: string | null): TabId | null {
@@ -108,6 +116,49 @@ export function SettingsPanel({ setSettingsOpen, exportData, importData, mobile,
   const session = useSettingsSession()
   const [mobileViewport, setMobileViewport] = useState<boolean | null>(null)
 
+  // Staged seasonal keywords (Catalogs tab): the draft lives here so the
+  // canonical persistence (useCustomCatalogs setters → the same /api/defaults
+  // PUT the footer Save uses) fires only on the single footer Save. Closing
+  // without saving drops the draft: local state only, no storage write, no
+  // second writer and no new storage key.
+  const seasonalHalloween = usePSelector((v) => v.seasonalHalloweenKeywords)
+  const seasonalChristmas = usePSelector((v) => v.seasonalChristmasKeywords)
+  const setSeasonalHalloweenKeywords = usePSelector((v) => v.setSeasonalHalloweenKeywords)
+  const setSeasonalChristmasKeywords = usePSelector((v) => v.setSeasonalChristmasKeywords)
+  const [seasonalDraft, setSeasonalDraft] = useState<SeasonalKeywordsDraft | null>(null)
+  // Remount token: a discard must also reset the section's own input buffers
+  // (it owns local text state that cannot be reverted from the outside).
+  const [seasonalResetNonce, setSeasonalResetNonce] = useState(0)
+  const [seasonalSaved, setSeasonalSaved] = useState(false)
+  const seasonalDirty =
+    seasonalDraft !== null &&
+    !(
+      sameKeywordList(seasonalDraft.halloween, seasonalHalloween) &&
+      sameKeywordList(seasonalDraft.christmas, seasonalChristmas)
+    )
+
+  const handleSeasonalStagedChange = useCallback((draft: SeasonalKeywordsDraft) => {
+    setSeasonalDraft(draft)
+    setSeasonalSaved(false)
+  }, [])
+
+  // Persist the staged draft through the canonical seasonal-keywords owner
+  // (useCustomCatalogs' setters): it writes localStorage and syncs the same
+  // /api/defaults endpoint as the footer Save. Never called before Save.
+  const applySeasonalDraft = useCallback(
+    (draft: SeasonalKeywordsDraft) => {
+      setSeasonalHalloweenKeywords([...draft.halloween])
+      setSeasonalChristmasKeywords([...draft.christmas])
+    },
+    [setSeasonalHalloweenKeywords, setSeasonalChristmasKeywords],
+  )
+
+  const resetSeasonalDraft = useCallback(() => {
+    setSeasonalDraft(null)
+    setSeasonalSaved(false)
+    setSeasonalResetNonce((nonce) => nonce + 1)
+  }, [])
+
   useEffect(() => {
     const update = () => setMobileViewport(window.innerWidth < 768)
     update()
@@ -115,7 +166,9 @@ export function SettingsPanel({ setSettingsOpen, exportData, importData, mobile,
     return () => window.removeEventListener("resize", update)
   }, [])
 
-  const [activeTab, setActiveTab] = useState<TabId>(() => normalizeTab(consumeSettingsTab()) ?? "preset")
+  // Fresh open (no deep-link request) lands on Preferenze; an explicit
+  // requested tab still wins at mount and through the effect below.
+  const [activeTab, setActiveTab] = useState<TabId>(() => normalizeTab(consumeSettingsTab()) ?? "prefs")
   useEffect(() => {
     const requested = normalizeTab(consumeSettingsTab())
     if (requested) setActiveTab(requested)
@@ -158,7 +211,7 @@ export function SettingsPanel({ setSettingsOpen, exportData, importData, mobile,
   }
   const requestClose = () => {
     if (session.saving) return
-    if (session.dirty) {
+    if (session.dirty || seasonalDirty) {
       setPendingNav({ kind: "close" })
       return
     }
@@ -166,7 +219,7 @@ export function SettingsPanel({ setSettingsOpen, exportData, importData, mobile,
   }
   const requestAction = (run: () => void) => {
     if (session.saving) return
-    if (session.dirty) {
+    if (session.dirty || seasonalDirty) {
       setPendingNav({ kind: "action", run })
       return
     }
@@ -184,6 +237,7 @@ export function SettingsPanel({ setSettingsOpen, exportData, importData, mobile,
     const nav = pendingNav
     setPendingNav(null)
     session.discard()
+    resetSeasonalDraft()
     if (nav.kind === "action") {
       nav.run()
     } else doClose()
@@ -203,17 +257,27 @@ export function SettingsPanel({ setSettingsOpen, exportData, importData, mobile,
   // secretly overwritten — discard/rebase recovers explicitly.
   const handlePendingSave = async () => {
     if (session.saving || session.conflict || !pendingNav) return
-    const res = await session.save()
-    if (res.ok) {
-      toast.success(t("ui.saved"))
-      const nav = pendingNav
-      setPendingNav(null)
-      if (nav.kind === "action") {
-        nav.run()
-      } else doClose()
-    } else {
-      toast.error(t("ui.saveError"))
+    // Nothing to PUT when only the staged seasonal draft is dirty: the
+    // session save stays skipped and the canonical seasonal persistence runs
+    // below (same endpoint, same Save action).
+    if (session.dirty) {
+      const res = await session.save()
+      if (!res.ok) {
+        toast.error(t("ui.saveError"))
+        return
+      }
     }
+    if (seasonalDirty && seasonalDraft) {
+      applySeasonalDraft(seasonalDraft)
+      setSeasonalDraft(null)
+      setSeasonalSaved(true)
+    }
+    toast.success(t("ui.saved"))
+    const nav = pendingNav
+    setPendingNav(null)
+    if (nav.kind === "action") {
+      nav.run()
+    } else doClose()
   }
 
   // External close requests (toolbar toggle): every close path goes through
@@ -396,22 +460,35 @@ export function SettingsPanel({ setSettingsOpen, exportData, importData, mobile,
   }, [])
 
   // Single global Save: one staged PUT, stays on the page, short toasts.
-  // Error retains the editable draft (session-owned).
+  // Error retains the editable draft (session-owned). A seasonal-only draft
+  // skips the session PUT and lands through the canonical catalog writer.
   const handleSave = async () => {
-    const res = await session.save()
-    if (res.ok) toast.success(t("ui.saved"))
-    else toast.error(t("ui.saveError"))
+    if (session.saving) return
+    if (session.dirty) {
+      const res = await session.save()
+      if (!res.ok) {
+        toast.error(t("ui.saveError"))
+        return
+      }
+    }
+    if (seasonalDirty && seasonalDraft) {
+      applySeasonalDraft(seasonalDraft)
+      setSeasonalDraft(null)
+      setSeasonalSaved(true)
+    }
+    toast.success(t("ui.saved"))
   }
-  const saveDisabled = !session.dirty || session.saving || session.conflict
+  const statusDirty = session.dirty || seasonalDirty
+  const saveDisabled = !statusDirty || session.saving || session.conflict
   const syncStatusText = session.saving
     ? t("ui.syncing")
     : session.conflict
       ? t("ui.settingsConflict")
       : session.result !== null && !session.result.ok
         ? t("ui.saveError")
-        : session.dirty
+        : statusDirty
           ? t("ui.unsavedChanges")
-          : session.result?.ok
+          : session.result?.ok || seasonalSaved
             ? t("ui.synced")
             : t("ui.settingsNotSavedYet")
 
@@ -477,7 +554,7 @@ export function SettingsPanel({ setSettingsOpen, exportData, importData, mobile,
           )
         })}
       </div>
-      {/* Desktop secondary nav (Catalogs/Prefs/Data/Space): compact links, never equal tabs */}
+      {/* Desktop secondary nav (Prefs/Catalogs/Space/Data): compact links, never equal tabs */}
       <div
         aria-label={t("ui.settingsGroupSecondary")}
         className="hidden sm:flex items-center gap-1 px-3 sm:px-6 py-1.5 bg-white/[0.01] border-b border-white/5"
@@ -510,7 +587,8 @@ export function SettingsPanel({ setSettingsOpen, exportData, importData, mobile,
     </div>
   )
 
-  // Compact format selector (no explanatory paragraph): edit target only.
+  // Compact format selector: edit target only, plus the existing
+  // `ui.formatTargetHint` explanation (display-only, never persisted).
   // 44px touch targets are mobile-only (md:min-h-0 restores the natural
   // desktop height); desktop geometry is otherwise unchanged.
   const formatTargetSelector = (
@@ -540,6 +618,16 @@ export function SettingsPanel({ setSettingsOpen, exportData, importData, mobile,
             ))}
           </div>
         </div>
+        {/* Editing-target explanation (existing key, display-only): it was
+            previously withheld to keep the compact header; the hint now
+            documents that delivery format and shared data sources never
+            change with this selector. */}
+        <p
+          data-testid="format-target-hint"
+          className="mt-1 text-[10px] text-muted leading-snug"
+        >
+          {t("ui.formatTargetHint")}
+        </p>
       </div>
     </div>
   )
@@ -557,6 +645,15 @@ export function SettingsPanel({ setSettingsOpen, exportData, importData, mobile,
               <ActiveSecondaryIcon className="w-3.5 h-3.5 text-accent-orange shrink-0" />
               {activeSecondaryDef ? t(activeSecondaryDef.labelKey) : ""}
             </span>
+            {/* API keys live on this tab: state it at tab level (existing
+                keys, no new i18n) so the instance keys are discoverable
+                without opening the panel. The keys keep their own Save, as
+                the section's scope block explains. */}
+            {activeTab === "data" && (
+              <span data-testid="settings-data-keys-hint" className="text-[10px] text-muted leading-snug">
+                {t("ui.configureKeys")}
+              </span>
+            )}
           </div>
         </div>
       )}
@@ -651,7 +748,10 @@ export function SettingsPanel({ setSettingsOpen, exportData, importData, mobile,
         type="button"
         data-testid="settings-conflict-discard"
         disabled={session.saving}
-        onClick={() => session.discard()}
+        onClick={() => {
+          session.discard()
+          resetSeasonalDraft()
+        }}
         className="w-full min-h-[44px] rounded-xl bg-white/10 hover:bg-white/20 disabled:opacity-40 text-xs font-semibold text-zinc-100 cursor-pointer disabled:cursor-not-allowed"
       >
         {t("ui.settingsDiscardAndReload")}
@@ -767,7 +867,49 @@ export function SettingsPanel({ setSettingsOpen, exportData, importData, mobile,
           <PrefsPanel active={activeTab === "prefs"} />
           <div
             role="tabpanel"
-            aria-label={t("ui.configureKeys")}
+            aria-label={t("ui.catalogsTitle")}
+            className={`space-y-3.5 text-xs ${activeTab === "catalogs" ? "block animate-tab-fade-in" : "hidden"}`}
+          >
+            <SeasonalKeywordsSection
+              key={seasonalResetNonce}
+              staged
+              onStagedChange={handleSeasonalStagedChange}
+            />
+            <div className="px-4 py-3">
+              {/* Opens the catalog manager (single owner: CataloghiView); the
+                  visible label stays `ui.priorityNames`, the accessible name
+                  states the destination with existing keys (no new i18n). */}
+              <button
+                type="button"
+                data-testid="settings-open-catalog-manager"
+                aria-label={`${t("ui.priorityNames")} — ${t("ui.catalogsTitle")}`}
+                title={t("ui.catalogsTitle")}
+                onClick={() => requestAction(() => {
+                  doClose()
+                  router.push("cataloghi")
+                })}
+                className="flex items-center gap-2 px-4 py-2.5 min-h-[44px] rounded-xl bg-white/10 hover:bg-white/20 text-xs sm:text-sm font-semibold text-zinc-100 transition-all active:scale-95 cursor-pointer touch-manipulation"
+              >
+                {t("ui.priorityNames")}
+              </button>
+            </div>
+          </div>
+          {showSpaceTab && (
+            <div
+              role="tabpanel"
+              aria-label={t("ui.settingsTabSpace")}
+              className={`space-y-3.5 text-xs ${activeTab === "spazio" ? "block animate-tab-fade-in" : "hidden"}`}
+            >
+              <UserSpaceSection />
+              <UserKeysSection />
+              <TraktAccountSection active={activeTab === "spazio"} onRequestExternalAction={requestAction} />
+            </div>
+          )}
+          {/* API keys: same tab as the backup/diagnostics panel, but the
+              tabpanel role is owned solely by DataPanel below (one tabpanel
+              per tab). ApiKeysSection renders its own labelled <section>. */}
+          <div
+            data-testid="settings-data-keys"
             className={`space-y-3.5 text-xs ${activeTab === "data" ? "block animate-tab-fade-in" : "hidden"}`}
           >
             <ApiKeysSection multiUser={multiUserOn} />
@@ -780,37 +922,6 @@ export function SettingsPanel({ setSettingsOpen, exportData, importData, mobile,
             multiUserOn={multiUserOn}
             requestAction={requestAction}
           />
-          {showSpaceTab && (
-            <div
-              role="tabpanel"
-              aria-label={t("ui.settingsTabSpace")}
-              className={`space-y-3.5 text-xs ${activeTab === "spazio" ? "block animate-tab-fade-in" : "hidden"}`}
-            >
-              <UserSpaceSection />
-              <UserKeysSection />
-              <TraktAccountSection active={activeTab === "spazio"} onRequestExternalAction={requestAction} />
-            </div>
-          )}
-          <div
-            role="tabpanel"
-            aria-label={t("ui.catalogsTitle")}
-            className={`space-y-3.5 text-xs ${activeTab === "catalogs" ? "block animate-tab-fade-in" : "hidden"}`}
-          >
-            <SeasonalKeywordsSection />
-            <div className="px-4 py-3">
-              <button
-                type="button"
-                data-testid="settings-open-catalog-manager"
-                onClick={() => requestAction(() => {
-                  doClose()
-                  router.push("cataloghi")
-                })}
-                className="flex items-center gap-2 px-4 py-2.5 min-h-[44px] rounded-xl bg-white/10 hover:bg-white/20 text-xs sm:text-sm font-semibold text-zinc-100 transition-all active:scale-95 cursor-pointer touch-manipulation"
-              >
-                {t("ui.priorityNames")}
-              </button>
-            </div>
-          </div>
         </div>
       </div>
     </PosterEditorValueOverride>
