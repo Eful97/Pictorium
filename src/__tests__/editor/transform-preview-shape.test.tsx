@@ -400,6 +400,9 @@ describe("SettingsPanel reale: tab Trasforma → Orizzontale → slider live →
       ),
     )
     const lastParams = () => paramsOf(opened[opened.length - 1])
+    // Fresh open lands on Preferenze (secondary): open the Badge primary tab
+    // so the preview and the format target are rendered.
+    fireEvent.click(screen.getByRole("tab", { name: "ui.settingsTabBadge" }))
     await act(async () => {
       await vi.advanceTimersByTimeAsync(600)
     })

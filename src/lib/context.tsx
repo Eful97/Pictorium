@@ -871,7 +871,7 @@ export function usePictorium(): PictoriumCtx {
     // Rotation
     rotationPosters, setRotationPosters,
     setRotationIncludeNonClean,
-    autoRotateClean, setAutoRotateClean,
+    autoRotateClean, autoRotateCleanExplicit, setAutoRotateCleanState,
     excludedPosters, setExcludedPosters,
     rotationBackdrops, setRotationBackdrops,
     autoRotateBackdrop, setAutoRotateBackdrop,
@@ -2075,21 +2075,61 @@ export function usePictorium(): PictoriumCtx {
   // cambia l'identità di buildPreviewUrlCb → senza debounce ogni pixel di
   // drag genera una URL e un render server (storm). Il timer si resetta a
   // ogni tick: solo l'ultimo stato dopo la pausa fa partire XHR + sharp.
+  // Le scelte DISCRETE (poster/backdrop/logo, badge e stili, toggle) cambiano
+  // il render in un colpo solo: bypassano il debounce e aggiornano la preview
+  // subito (nessuna attesa di 200ms). Il tuning continuo (scale/offset/
+  // gradiente/blur/tinta/ombre, drag) resta sul trailing debounce.
   // Cambio di titolo selezionato = fire immediato (niente attesa).
   const lastPreviewSelectedId = useRef<number | null>(null)
+  const lastDiscretePreviewSignature = useRef<string>("")
   useEffect(() => {
-    if (!navigation.selected) { lastPreviewSelectedId.current = null; setPreviewUrl(""); return }
+    if (!navigation.selected) { lastPreviewSelectedId.current = null; lastDiscretePreviewSignature.current = ""; setPreviewUrl(""); return }
     const selectedId = navigation.selected.id
     const openingTitle = lastPreviewSelectedId.current !== selectedId
+    // Firma delle sole scelte discrete: identità (poster/backdrop/logo) e
+    // selettori che cambiano il render in un'unica transizione. Il tuning
+    // continuo è escluso di proposito e resta sul debounce sotto; anche il
+    // testo logo digitato resta sul debounce (è un input per-keystroke).
+    const discreteSignature = [
+      navigation.previewPoster?.file_path ?? "",
+      navigation.selectedLogo?.file_path ?? "",
+      selectedBackdrop?.file_path ?? "",
+      previewBaseAuto ? "1" : "0",
+      portraitBaseChoice ?? "",
+      savedPortraitBase ?? "",
+      logoFont,
+      logoDisabled ? "1" : "0",
+      autoWordmark ? "1" : "0",
+      customBadge,
+      awardBadgeStyle,
+      badgeStyle,
+      rankingBadgeStyle,
+      extraBadgeStyle,
+      ageBadgeStyle,
+      badgeFont,
+      qualityBadgeStyle,
+      separateRatingsStyle,
+      posterLayout,
+      posterFreshScope,
+      videoFormats ? videoFormats.join(",") : "",
+      globalBadges ? "1" : "0",
+      rankingBadges ? "1" : "0",
+      separateRatings ? "1" : "0",
+      customRatings ? "1" : "0",
+      preRelease ? "1" : "0",
+      posterShape,
+    ].join("|")
+    const discreteChanged = discreteSignature !== lastDiscretePreviewSignature.current
+    lastDiscretePreviewSignature.current = discreteSignature
     // H2 gate: aspetta i colori del poster corrente prima di costruire.
     // Senza poster (titolo senza immagini) nessun wait: gateKey null passa.
     const gatePoster = posterShape === "landscape" ? (selectedBackdrop ?? navigation.previewPoster) : navigation.previewPoster
     const gateKey = gatePoster?.file_path ?? null
     // Solo il PRIMO build di un titolo appena aperto aspetta i colori: gli
-    // edit live dello stesso titolo (badge, slider, cambio formato) restano
-    // sul trailing debounce, altrimenti ogni modifica riparte dall'attesa e
-    // la preview non raggiunge lo stato live finché i colori non si
-    // risolvono.
+    // edit live dello stesso titolo (slider continui e scelte discrete)
+    // seguono il ramo sotto (immediato o trailing debounce), altrimenti ogni
+    // modifica riparte dall'attesa e la preview non raggiunge lo stato live
+    // finché i colori non si risolvono.
     if (openingTitle && gateKey && colorsResolvedForRef.current !== gateKey) {
       // Liveness fallback: se il thumb non si carica mai (CDN bloccato,
       // jsdom nei test) i colori non si risolvono e senza questo ramo la
@@ -2110,9 +2150,22 @@ export function usePictorium(): PictoriumCtx {
       buildPreviewUrlCb()
       return
     }
+    // Scelta discreta (badge/stile/toggle/poster): nessuna attesa, il render
+    // parte subito. Solo il tuning continuo resta sul trailing debounce.
+    if (discreteChanged) {
+      buildPreviewUrlCb()
+      return
+    }
     const timer = setTimeout(buildPreviewUrlCb, 200)
     return () => clearTimeout(timer)
-  }, [navigation.selected, navigation.previewPoster, buildPreviewUrlCb, posterShape, selectedBackdrop])
+  }, [navigation.selected, navigation.previewPoster, navigation.selectedLogo, buildPreviewUrlCb, posterShape, selectedBackdrop,
+    // Le scelte discrete sono già deps di buildPreviewUrlCb (l'identità cambia
+    // con loro): dichiararle qui rende esplicita la firma e tiene il lint pulito,
+    // senza aggiungere esecuzioni rispetto a prima.
+    previewBaseAuto, portraitBaseChoice, savedPortraitBase, logoFont, logoDisabled, autoWordmark,
+    customBadge, awardBadgeStyle, badgeStyle, rankingBadgeStyle, extraBadgeStyle, ageBadgeStyle, badgeFont,
+    qualityBadgeStyle, separateRatingsStyle, posterLayout, posterFreshScope, videoFormats,
+    globalBadges, rankingBadges, separateRatings, customRatings, preRelease])
 
   // --- Color detection ---
   // In landscape la base è il backdrop: accent/topLight auto si campionano
@@ -3018,7 +3071,12 @@ export function usePictorium(): PictoriumCtx {
       // save successivo dropperebbe il manuale. Null/assente = automatico in
       // attesa del ricalcolo (mai colori campionati congelati qui).
       setAccentColor(eff?.accentColor ?? null)
-      setAutoRotateClean(existing.autoRotateClean ?? defaultAutoRotateClean)
+      // null/assente = eredita il default globale (nessuna migrazione dei
+      // salvataggi): un booleano salvato resta un override esplicito.
+      setAutoRotateCleanState(
+        existing.autoRotateClean ?? defaultAutoRotateClean,
+        existing.autoRotateClean != null,
+      )
       // Opt-in rotazione portrait: ripristina il flag salvato e, quando è OFF,
       // rimuove dal pool i path non-clean registrati (legacy/opt-out) — il pool
       // live non deve mostrare poster di lingua mai serviti ("mai resurrect").
@@ -3193,7 +3251,9 @@ export function usePictorium(): PictoriumCtx {
       // (OFF = "Solo clean" storico, ON = clean + lingua). Vale SOLO qui: i
       // titoli mappati restano governati dal proprio flag salvato.
       setRotationIncludeNonClean(defaultRotationIncludeNonClean)
-      setAutoRotateClean(defaultAutoRotateClean)
+      // Titolo nuovo: eredita (nessun override esplicito finché l'utente non
+      // tocca il toggle dedicato).
+      setAutoRotateCleanState(defaultAutoRotateClean, false)
       setExcludedPosters([])
       setRotationBackdrops([])
       setAutoRotateBackdrop(defaultAutoRotateBackdrop)
@@ -3364,7 +3424,9 @@ export function usePictorium(): PictoriumCtx {
     genreBadgeOffsetX, genreBadgeOffsetY, qualityBadgeOffsetX, qualityBadgeOffsetY,
     networkLogoOffsetX, networkLogoOffsetY,
     setGradientHeight, setBlurFade,
-    rotationPosters, autoRotateClean, defaultAutoRotateClean, excludedPosters, accentColor, autoAccentColor, logoDisabled, setLogoDisabled,
+    rotationPosters, autoRotateClean, defaultAutoRotateClean,
+    autoRotateCleanOverride: autoRotateCleanExplicit ? autoRotateClean : null,
+    excludedPosters, accentColor, autoAccentColor, logoDisabled, setLogoDisabled,
     logoText, logoFont, setLogoText, setLogoFont,
     rotationBackdrops, autoRotateBackdrop, defaultAutoRotateBackdrop, excludedBackdrops, backdrops,
     setLogoScale, setLogoOffsetX, setLogoOffsetY, networkLogo, networkLogoPosition, networkLogoFollowTitle, ribbonEnabled, lang, episodeGroupId, posterShape, posterLayout, posterFreshScope,
@@ -3447,7 +3509,12 @@ export function usePictorium(): PictoriumCtx {
           )
           setRotationIncludeNonClean(prevIncludeNonClean)
         }
-        setAutoRotateClean(prev?.autoRotateClean ?? false)
+        // Portrait preservato dal salvato: null = eredita (mai un false
+        // congelato), un booleano salvato resta esplicito.
+        setAutoRotateCleanState(
+          prev?.autoRotateClean ?? false,
+          prev?.autoRotateClean != null,
+        )
         setExcludedPosters(prev?.excludedPosters ?? [])
         setExcludedBackdrops(prev?.excludedBackdrops ?? [])
         // Portrait preservato dal salvato (mai preview unsaved): riallinea la
@@ -3475,7 +3542,9 @@ export function usePictorium(): PictoriumCtx {
       } else {
         setRotationPosters([])
         setRotationIncludeNonClean(false)
-        setAutoRotateClean(false)
+        // Cover-only portrait: rotazione del formato azzerata (pool omesso dal
+        // payload), quindi nessun override esplicito da conservare in live.
+        setAutoRotateCleanState(false, false)
         setRotationBackdrops(prev?.cleanBackdrops ?? [])
         setAutoRotateBackdrop(prev?.autoRotateBackdrop ?? false)
         setExcludedPosters(prev?.excludedPosters ?? [])
@@ -3497,7 +3566,7 @@ export function usePictorium(): PictoriumCtx {
       setAccentColor(null)
     }
     return ok
-  }, [saveCoverOnlyPost, editorCtx, navigation, mappingsMap, posterShape, selectedBackdrop, setRotationPosters, setRotationIncludeNonClean, setAutoRotateClean, setExcludedPosters, setRotationBackdrops, setAutoRotateBackdrop, setExcludedBackdrops, setSelectedBackdrop, setAccentColor])
+  }, [saveCoverOnlyPost, editorCtx, navigation, mappingsMap, posterShape, selectedBackdrop, setRotationPosters, setRotationIncludeNonClean, setAutoRotateCleanState, setExcludedPosters, setRotationBackdrops, setAutoRotateBackdrop, setExcludedBackdrops, setSelectedBackdrop, setAccentColor])
 
   const autoSaveExcludedPosters = useCallback(async (nextExcluded: string[], nextRotationPosters?: string[], nextPreviewPoster?: TMDBImage) => {
     await savePosterConfig(withSharedShapeStash({

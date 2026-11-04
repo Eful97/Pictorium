@@ -32,8 +32,7 @@ import { isCardSkin, type CardSkin } from "@/lib/card-layout-skins"
 import { BadgeStyleSelector, BadgeFontSelector, AwardBadgeModeSelector } from "@/components/ui"
 import type { DefaultsPreviewFamily } from "@/lib/poster-url"
 import type { PosterElementId } from "@/components/settings/PosterElementNavigation"
-import { isBottomSeparateRatingsStyle, getSeparateRatingsStyleForShape, AGE_BADGE_STYLES, DEFAULT_AGE_BADGE_STYLE, DEFAULT_AWARD_BADGE_MODE, DEFAULT_BADGE_FONT, DEFAULT_QUALITY_BADGE_STYLE, DEFAULT_QUALITY_GROUP_LAYOUT, DEFAULT_SEPARATE_RATINGS_STYLE, EXTRA_BADGE_FOLLOW_RANK, DEFAULT_QUALITY_BADGE_OFFSET_X, DEFAULT_QUALITY_BADGE_OFFSET_Y, DEFAULT_QUALITY_BADGE_OFFSET_X_LANDSCAPE, DEFAULT_QUALITY_BADGE_OFFSET_Y_LANDSCAPE, getSeparateBadgeDefaultScale } from "@/lib/badge-styles"
-import { DEFAULT_AGE_COUNTRY } from "@/lib/certification"
+import { isBottomSeparateRatingsStyle, getSeparateRatingsStyleForShape, AGE_BADGE_STYLES, DEFAULT_BADGE_FONT, DEFAULT_QUALITY_BADGE_STYLE, DEFAULT_QUALITY_GROUP_LAYOUT, DEFAULT_SEPARATE_RATINGS_STYLE, EXTRA_BADGE_FOLLOW_RANK, DEFAULT_QUALITY_BADGE_OFFSET_X, DEFAULT_QUALITY_BADGE_OFFSET_Y, DEFAULT_QUALITY_BADGE_OFFSET_X_LANDSCAPE, DEFAULT_QUALITY_BADGE_OFFSET_Y_LANDSCAPE, getSeparateBadgeDefaultScale } from "@/lib/badge-styles"
 import { KNOWN_VIDEO_FORMATS } from "@/lib/av-specs"
 import { NATURAL_GRADIENT_DEFAULTS } from "@/lib/gradient-presets"
 import { QUICK_BADGE_PATCHES, quickTransformPatch as sharedQuickTransformPatch, withReadyPresetExtraStyleReset } from "@/lib/quick-visual-presets"
@@ -453,37 +452,46 @@ export function BadgeDefaultsSection({ active, shape, onPreviewFamilyChange, pre
   )
   // Scoped reset (task 3B1): restores this tab's landscape keys to
   // independent shape-appropriate defaults — the current portrait effective
-  // frozen in (same pixels as follow, then decoupled), age forced to the
-  // canonical OFF/IT/standard trio — never clear-to-follow. Numerics and
-  // gradient overrides owned by Transform stay intact. Divergence (not mere
-  // presence) drives the button: a snapshot that still equals the flat is
-  // not an override; null on inherit-keys follows the flat (canonical
-  // NULL_INHERIT contract, same as the render chains).
+  // frozen in (same pixels as follow, then decoupled). Numerics and gradient
+  // overrides owned by Transform stay intact. Divergence (not mere presence)
+  // drives the button: a snapshot that still equals the flat is not an
+  // override; null/undefined on inherit-keys follow the flat (canonical
+  // NULL_INHERIT contract, same as the render chains). Age/award keys are
+  // explicit-only too: an absent profile value inherits the flat and must
+  // never light the button (a fresh landscape profile is not an override),
+  // and the reset restores the portrait effective instead of silently
+  // turning age off.
   const landRec = ed.landscape as unknown as Record<string, unknown>
   const edRec = ed as unknown as Record<string, unknown>
-  const badgeDiverges = (k: (typeof BADGE_VISUAL_LAND_KEYS)[number]): boolean => {
+  const flatLandValue = (k: string): unknown =>
+    edRec[`default${k.charAt(0).toUpperCase()}${k.slice(1)}`]
+  const landKeyDiverges = (k: string): boolean => {
     const lv = landRec[k]
     if (lv === undefined || lv === null) return false
-    const fv = edRec[`default${k.charAt(0).toUpperCase()}${k.slice(1)}`]
-    return JSON.stringify(lv) !== JSON.stringify(fv)
+    return JSON.stringify(lv) !== JSON.stringify(flatLandValue(k))
   }
-  const hasVisualOverrides = isLandscape && (BADGE_VISUAL_LAND_KEYS.some(badgeDiverges)
-    || ed.landscape.ageBadge !== false
-    || ed.landscape.ageCountry !== DEFAULT_AGE_COUNTRY
-    || ed.landscape.ageBadgeStyle !== DEFAULT_AGE_BADGE_STYLE
-    || ed.landscape.awardBadgeStyle !== DEFAULT_AWARD_BADGE_MODE)
+  // Keys outside BADGE_VISUAL_LAND_KEYS that still belong to this tab's
+  // scoped reset (age classification + award badge mode).
+  const AGE_RESET_LAND_KEYS = [
+    "ageBadge",
+    "ageCountry",
+    "ageBadgeStyle",
+    "awardBadgeStyle",
+  ] as const
+  const hasVisualOverrides = isLandscape && (
+    [...BADGE_VISUAL_LAND_KEYS, ...AGE_RESET_LAND_KEYS] as readonly string[]
+  ).some(landKeyDiverges)
   const resetVisualOverrides = () => {
     const full = independentLandscapeDefaults(edRec) as unknown as Record<string, unknown>
-    const patch = Object.fromEntries(
+    const patch: Record<string, unknown> = Object.fromEntries(
       BADGE_VISUAL_LAND_KEYS.map((k) => [k, full[k]]),
-    ) as unknown as Partial<LandscapeServerDefaults>
-    ed.setLandscape({
-      ...patch,
-      ageBadge: false,
-      ageCountry: DEFAULT_AGE_COUNTRY,
-      ageBadgeStyle: DEFAULT_AGE_BADGE_STYLE,
-      awardBadgeStyle: DEFAULT_AWARD_BADGE_MODE,
-    })
+    )
+    // Explicit age/award overrides are restored to the portrait effective
+    // (follow-equivalent); untouched keys stay absent (inherit).
+    for (const k of AGE_RESET_LAND_KEYS) {
+      if (landKeyDiverges(k)) patch[k] = flatLandValue(k)
+    }
+    ed.setLandscape(patch as unknown as Partial<LandscapeServerDefaults>)
   }
 
   // Rank bucket toggle: surgical rank on/off inside sashOrder (extra and the
@@ -1161,11 +1169,27 @@ export function BadgeDefaultsSection({ active, shape, onPreviewFamilyChange, pre
   return (
     <div
       role={familyMode ? undefined : "tabpanel"}
-      aria-label={familyMode ? undefined : t("ui.badgeSection")}
+      aria-label={
+        familyMode
+          ? undefined
+          : mode === "information"
+            ? t("ui.settingsTabInformation")
+            : t("ui.badgeSection")
+      }
       data-testid={familyMode ? "badge-family-content" : undefined}
       hidden={familyMode ? undefined : !active}
       className={`space-y-3.5 text-xs ${active ? "block animate-tab-fade-in" : "hidden"}`}
     >
+      {/* Five-tab presentation: the two instances of this panel must be
+          distinguishable (Information = on/off + categories, Badge = styles).
+          The visible heading and the accessible name use the SAME existing
+          tab keys, so no new strings and no screen-reader ambiguity. Legacy
+          standalone/family views keep their previous layout. */}
+      {mode !== undefined && !familyMode && (
+        <h3 data-testid="badge-mode-heading" className="text-sm font-bold text-zinc-100 px-1">
+          {mode === "information" ? t("ui.settingsTabInformation") : t("ui.settingsTabBadge")}
+        </h3>
+      )}
       {/* Preset-first: global scope, builtin looks, personal presets and
           quick toggles stay always visible; the full detailed controls live
           below inside the Advanced disclosure (legacy) or the unified
@@ -1289,12 +1313,13 @@ export function BadgeDefaultsSection({ active, shape, onPreviewFamilyChange, pre
         </>)}
         {unifiedView !== "summary" && (
         <div id={detailsBodyId} hidden={mode !== undefined ? false : (familyMode ? false : !detailsOpen)} className="space-y-3.5">
-      {hasVisualOverrides && (
+      {(mode === undefined || mode === "appearance") && hasVisualOverrides && (
         <div className="flex items-center justify-end gap-2">
           <button
             type="button"
             onClick={resetVisualOverrides}
-            title={t("ui.formatTargetHint")}
+            aria-label={`${t("ui.reset")} · ${t("ui.posterShapeLandscape")}`}
+            title={t("ui.landscapeDefaultsHint")}
             className="shrink-0 text-[11px] font-semibold text-muted hover:text-zinc-200 bg-white/5 hover:bg-white/10 border border-white/10 rounded-lg px-2.5 py-1 transition-colors cursor-pointer"
           >
             {t("ui.reset")} · {t("ui.posterShapeLandscape")}

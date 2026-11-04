@@ -47,6 +47,25 @@ describe("getEffectiveRotationState", () => {
     expect(state.isRotating).toBe(true)
     expect(state.availablePosters).toEqual(["/a.jpg", "/b.jpg"])
   })
+
+  // Per-poster override: explicit true/false wins, null/absent inherits the
+  // space default (no migration; omitting the argument keeps the legacy off).
+  it("inherits the space default when the per-title flag is null/absent", () => {
+    const m = mapping({ cleanPosters: ["/a.jpg", "/b.jpg"] })
+    expect(m.autoRotateClean).toBeUndefined()
+    expect(getEffectiveRotationState(m).isRotating).toBe(false)
+    expect(getEffectiveRotationState(m, null, false).isRotating).toBe(false)
+    expect(getEffectiveRotationState(m, null, true).isRotating).toBe(true)
+    expect(getEffectiveRotationState(m, null, true).availablePosters).toEqual(["/a.jpg", "/b.jpg"])
+  })
+
+  it("an explicit per-title value wins over the space default", () => {
+    const explicitOn = mapping({ autoRotateClean: true, cleanPosters: ["/a.jpg", "/b.jpg"] })
+    expect(getEffectiveRotationState(explicitOn, null, false).isRotating).toBe(true)
+
+    const explicitOff = mapping({ autoRotateClean: false, cleanPosters: ["/a.jpg", "/b.jpg"] })
+    expect(getEffectiveRotationState(explicitOff, null, true).isRotating).toBe(false)
+  })
 })
 
 // Mixed clean + it + en pool for the portrait rotation language scope

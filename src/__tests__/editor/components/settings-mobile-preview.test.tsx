@@ -94,13 +94,18 @@ class FakeXHR {
 }
 
 function renderPanel() {
-  return renderWithCtx(
+  const view = renderWithCtx(
     createElement(SettingsPanel, {
       setSettingsOpen: () => {},
       exportData: () => {},
       importData: () => {},
     }),
   )
+  // Fresh open lands on Preferenze (secondary): the floating preview, title
+  // search and format target are primary-tab surfaces. Starting on Preset
+  // keeps the previous default and still lets tests switch to secondaries.
+  fireEvent.click(screen.getByRole("tab", { name: "ui.settingsTabPreset" }))
+  return view
 }
 
 function setMobileWidth(w: number) {
@@ -496,6 +501,9 @@ describe("settings mobile floating title search (preview-only dialog)", () => {
       { tmdbKey: "", serverHasTmdbKey: false },
     )
     await screen.findByTestId("presets-panel")
+    // Fresh open lands on Preferenze; the floating preview/search are
+    // primary-tab surfaces.
+    fireEvent.click(screen.getByRole("tab", { name: "ui.settingsTabPreset" }))
     openSearch()
     await screen.findByTestId("floating-preview-search-dialog")
     expect(screen.getByText("ui.noKey")).toBeInTheDocument()

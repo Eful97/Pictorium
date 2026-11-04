@@ -28,7 +28,7 @@ vi.mock("next/navigation", () => ({
   useRouter: () => ({ push: vi.fn(), replace: vi.fn(), back: vi.fn() }),
 }))
 
-function renderSettingsWithProbe() {
+function renderSettingsWithProbe(options: { openPreset?: boolean } = {}) {
   let ctx: PosterEditorCtx | null = null
   function Probe() {
     ctx = usePosterEditor()
@@ -46,6 +46,13 @@ function renderSettingsWithProbe() {
       createElement(Probe),
     ),
   )
+  // Fresh open lands on Preferenze (secondary): these tests drive
+  // primary-only controls (format target, preview, preset gallery). A pending
+  // external tab request (deep link) must win over this default, so callers
+  // exercising it pass `openPreset: false`.
+  if (options.openPreset !== false) {
+    fireEvent.click(screen.getByRole("tab", { name: "ui.settingsTabPreset" }))
+  }
   return { ctx: () => ctx as unknown as PosterEditorCtx }
 }
 
@@ -226,7 +233,7 @@ describe("five-tab homes", () => {
 
   it("requestSettingsTab compatibility: badge remaps to preset, others preserved", () => {
     requestSettingsTab("trasforma")
-    renderSettingsWithProbe()
+    renderSettingsWithProbe({ openPreset: false })
     expect(screen.getByRole("tab", { name: "ui.settingsTabTransform" })).toHaveAttribute(
       "aria-selected",
       "true",

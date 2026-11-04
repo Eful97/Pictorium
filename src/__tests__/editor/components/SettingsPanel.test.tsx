@@ -111,7 +111,7 @@ beforeEach(() => {
 })
 
 describe("SettingsPanel five-tab navigation", () => {
-  it("shows five primary tabs in order with Preset first and selected by default", async () => {
+  it("shows five primary tabs in order with Preset first and Preferenze selected on fresh open", async () => {
     renderPanel()
     await screen.findByTestId("presets-panel")
     const tabs = primaryTabs()
@@ -122,8 +122,10 @@ describe("SettingsPanel five-tab navigation", () => {
       "Tag e Network",
       "ui.settingsTabTransform",
     ])
-    expect(tabs[0]).toHaveAttribute("aria-selected", "true")
-    for (const other of tabs.slice(1)) expect(other).toHaveAttribute("aria-selected", "false")
+    // Fresh open (no deep link) lands on the Preferenze secondary tab.
+    for (const tab of tabs) expect(tab).toHaveAttribute("aria-selected", "false")
+    expect(screen.getByTestId("settings-secondary-prefs")).toHaveAttribute("aria-pressed", "true")
+    expect(screen.getByRole("tabpanel", { name: "ui.settingsTabPrefs" })).toBeInTheDocument()
     // Tags tab (sixth, label resolved by the i18n test mock): opens its own
     // tabpanel and takes selection.
     fireEvent.click(screen.getByRole("tab", { name: "Tag e Network" }))
@@ -140,13 +142,13 @@ describe("SettingsPanel five-tab navigation", () => {
     const { container } = renderPanel()
     await screen.findByTestId("presets-panel")
     expect(primaryTabs()).toHaveLength(5)
-    // Catalogs leads the secondary row, directly after the Transform primary tab.
+    // Preferenze leads the secondary row, directly after the Transform primary tab.
     const secondaryIds = Array.from(
       container.querySelectorAll('[data-testid^="settings-secondary-"]'),
     ).map((el) => el.getAttribute("data-testid"))
     expect(secondaryIds).toEqual([
-      "settings-secondary-catalogs",
       "settings-secondary-prefs",
+      "settings-secondary-catalogs",
       "settings-secondary-data",
     ])
     expect(screen.getByTestId("settings-secondary-prefs")).toBeInTheDocument()
@@ -194,9 +196,9 @@ describe("SettingsPanel five-tab navigation", () => {
     expect(select).toBeInTheDocument()
     const groups = Array.from(select.querySelectorAll("optgroup")).map((g) => g.getAttribute("label"))
     expect(groups).toEqual(["ui.settingsGroupPrimary", "ui.settingsGroupSecondary"])
-    // Full navigation order: Catalogs directly after Transform, before Prefs/Data.
+    // Full navigation order: Preferenze directly after Transform, before Catalogs/Data.
     const values = Array.from(select.querySelectorAll("option")).map((o) => o.getAttribute("value"))
-    expect(values).toEqual(["preset", "information", "badge", "tags", "transform", "catalogs", "prefs", "data"])
+    expect(values).toEqual(["preset", "information", "badge", "tags", "transform", "prefs", "catalogs", "data"])
   })
 
   it("does not render API key inputs", async () => {
@@ -248,6 +250,42 @@ describe("SettingsPanel staged session + global save", () => {
     expect(toast.success).toHaveBeenCalledWith("ui.saved")
     // Outer truth converged on the staged values.
     expect(ctx().defaultBadgeRating).toBe(true)
+  })
+
+  it("stages seasonal keywords until Save, then persists on the single footer Save", async () => {
+    const setHalloween = vi.fn()
+    const setChristmas = vi.fn()
+    renderWithCtx(
+      createElement(SettingsPanel, {
+        setSettingsOpen: () => {},
+        exportData: () => {},
+        importData: () => {},
+      }),
+      {
+        seasonalHalloweenKeywords: [],
+        seasonalChristmasKeywords: [],
+        setSeasonalHalloweenKeywords: setHalloween,
+        setSeasonalChristmasKeywords: setChristmas,
+      } as never,
+    )
+    await screen.findByTestId("presets-panel")
+    fireEvent.click(screen.getByRole("button", { name: "ui.catalogsTitle" }))
+    const input = screen.getByLabelText("ui.seasonalHalloweenKeywords") as HTMLInputElement
+    fireEvent.focus(input)
+    fireEvent.change(input, { target: { value: "spooky night" } })
+    fireEvent.blur(input)
+    // Staged: no live write and no defaults PUT before the footer Save.
+    expect(setHalloween).not.toHaveBeenCalled()
+    expect(setChristmas).not.toHaveBeenCalled()
+    expect(puts).toHaveLength(0)
+    // A keyword-only draft enables the single Save and marks it unsaved.
+    const save = screen.getByTestId("settings-save")
+    expect(save).not.toBeDisabled()
+    expect(screen.getByTestId("settings-save-status")).toHaveTextContent("ui.unsavedChanges")
+    fireEvent.click(save)
+    await vi.waitFor(() => expect(setHalloween).toHaveBeenCalledWith(["spooky night"]))
+    expect(setChristmas).toHaveBeenCalledWith([])
+    expect(toast.success).toHaveBeenCalledWith("ui.saved")
   })
 
   it("failed save keeps the editable draft and the global Save retries on the same page", async () => {
@@ -390,6 +428,8 @@ describe("SettingsPanel shape, resize and tab homes", () => {
   it("edit target survives tab switches and never touches the delivery format", async () => {
     const { ctx } = renderPanel()
     await screen.findByTestId("presets-panel")
+    // Fresh open lands on Preferenze; the format selector belongs to primary tabs.
+    clickTab("ui.settingsTabPreset")
     const deliveryBefore = ctx().defaultPosterShape
     fireEvent.click(within(screen.getByTestId("format-target-selector")).getByText("ui.posterShapeLandscape"))
     // Preset apply on landscape: portrait flats untouched, delivery intact.
@@ -489,10 +529,13 @@ describe("SettingsPanel shape, resize and tab homes", () => {
   it("header slot is shared: selector on primary tabs, title card on secondary", async () => {
     renderPanel()
     await screen.findByTestId("presets-panel")
+    // Fresh open lands on Preferenze; open a primary tab for the selector.
+    clickTab("ui.settingsTabPreset")
     const slot = screen.getByTestId("settings-tab-header-slot")
     expect(screen.getByTestId("format-target-selector")).toBeInTheDocument()
-    // No explanatory paragraph next to the compact selector.
-    expect(screen.queryByText("ui.formatTargetHint")).not.toBeInTheDocument()
+    // The editing-target explanation is visible under the selector (reused
+    // `ui.formatTargetHint`, display-only, no persistence).
+    expect(screen.getByTestId("format-target-hint")).toHaveTextContent("ui.formatTargetHint")
     fireEvent.click(screen.getByTestId("settings-secondary-prefs"))
     expect(screen.queryByTestId("format-target-selector")).not.toBeInTheDocument()
     expect(screen.getByTestId("settings-tab-header-slot")).toBe(slot)

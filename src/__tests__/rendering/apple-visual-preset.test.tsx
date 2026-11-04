@@ -109,6 +109,9 @@ function renderSettings() {
       createElement(Probe),
     ),
   )
+  // Fresh open lands on Preferenze (secondary): the gallery + format target
+  // driven by these tests live on primary tabs.
+  fireEvent.click(screen.getByRole("tab", { name: "ui.settingsTabPreset" }))
   return { ctx: () => ctx as PosterEditorCtx }
 }
 

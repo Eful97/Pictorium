@@ -227,6 +227,47 @@ describe("usePosterSave + saveDefaults separateBadgeOffsetX/Y", () => {
   })
 })
 
+describe("usePosterSave portrait rotation inherit (per-title override)", () => {
+  it("omits autoRotateClean when the title inherits the space default", async () => {
+    const { result } = renderHook(() => usePosterSave(baseDeps({
+      rotationPosters: ["/a.jpg", "/b.jpg"],
+      autoRotateClean: true,
+      autoRotateCleanOverride: null,
+    })))
+    await act(async () => {
+      await result.current.saveConfig({ silent: true })
+    })
+    const post = posted.filter((p) => String(p.url).includes("/api/mappings"))[0]
+    expect(post.body.cleanPosters).toEqual(["/a.jpg", "/b.jpg"])
+    expect(post.body).not.toHaveProperty("autoRotateClean")
+  })
+
+  it("persists an explicit per-title value (including OFF)", async () => {
+    const { result } = renderHook(() => usePosterSave(baseDeps({
+      rotationPosters: ["/a.jpg", "/b.jpg"],
+      autoRotateClean: false,
+      autoRotateCleanOverride: false,
+    })))
+    await act(async () => {
+      await result.current.saveConfig({ silent: true })
+    })
+    const post = posted.filter((p) => String(p.url).includes("/api/mappings"))[0]
+    expect(post.body.autoRotateClean).toBe(false)
+  })
+
+  it("legacy callers without the override flag keep the explicit boolean", async () => {
+    const { result } = renderHook(() => usePosterSave(baseDeps({
+      rotationPosters: ["/a.jpg", "/b.jpg"],
+      autoRotateClean: true,
+    })))
+    await act(async () => {
+      await result.current.saveConfig({ silent: true })
+    })
+    const post = posted.filter((p) => String(p.url).includes("/api/mappings"))[0]
+    expect(post.body.autoRotateClean).toBe(true)
+  })
+})
+
 describe("usePosterSave separateBadgeScale", () => {
   it("portrait: congela il flat per-titolo", async () => {
     const { result } = renderHook(() => usePosterSave(baseDeps()))

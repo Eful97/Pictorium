@@ -4,6 +4,7 @@ import { t } from "@/lib/i18n"
 import { toast } from "sonner"
 import { ACCENT_META_HEADER, parseEffectiveAccentHeader, type EffectiveAccentMeta } from "@/lib/effective-accent"
 import { publishEffectiveAccentDisplay } from "@/lib/effective-accent-display"
+import { previewRequestHeaders } from "@/lib/user-token"
 
 /**
  * H1: bounded in-memory preview cache. Every debounced slider tick rebuilds
@@ -32,8 +33,35 @@ const PREVIEW_CACHE_MAX = 32
 const PREVIEW_CACHE_TTL_MS = 45_000
 const previewMemoryCache = new Map<string, CachedPreview>()
 
-function previewCacheKey(url: string, rankNonce: unknown, catalogNonce: unknown, retryNonce: number): string {
-  return `${url}\n${String(rankNonce)}.${String(catalogNonce)}.${retryNonce}`
+/**
+ * H1 auth-setup signature: the anonymous (pre-unlock) and owner (post-unlock)
+ * responses for the SAME URL are different bytes (the owner's staged `extra`
+ * survives the preview downgrade), so the cached blob must not cross the
+ * unlock boundary. Only a non-reversible FNV-1a digest of the header
+ * name/value pairs enters the key — never the secret itself.
+ */
+function previewAuthSignature(headers: Record<string, string>): string {
+  const names = Object.keys(headers).sort()
+  if (names.length === 0) return "anon"
+  let hash = 0x811c9dc5
+  for (const name of names) {
+    const line = `${name}=${headers[name] ?? ""};`
+    for (let i = 0; i < line.length; i += 1) {
+      hash ^= line.charCodeAt(i)
+      hash = Math.imul(hash, 0x01000193)
+    }
+  }
+  return `auth-${(hash >>> 0).toString(16).padStart(8, "0")}`
+}
+
+function previewCacheKey(
+  url: string,
+  rankNonce: unknown,
+  catalogNonce: unknown,
+  retryNonce: number,
+  authSignature: string,
+): string {
+  return `${url}\n${String(rankNonce)}.${String(catalogNonce)}.${retryNonce}\n${authSignature}`
 }
 
 function prunePreviewCache(now: number): void {
@@ -103,10 +131,22 @@ export function usePosterPreview() {
 
     // Keep old img visible while new one loads — no flicker
     const url = previewUrl
+    // Raw transport: carry the same owner auth every scoped API call sends
+    // (exactly like the Settings preview), so a per-title preview is not
+    // downgraded to anonymous on shared/multi-user instances. Same-origin
+    // `/api/` only; nothing before the session unlock.
+    const authHeaders = previewRequestHeaders(url)
     // H1: identical URL within TTL serves cached bytes with no request at
     // all (same generation plumbing as a fresh load, so the accent picker
-    // can never claim a stale hex).
-    const cacheKey = previewCacheKey(url, rankSourceNonce, catalogsSyncNonce, retryNonce)
+    // can never claim a stale hex). The auth signature keeps an anonymous
+    // blob from being served after unlock (and vice versa).
+    const cacheKey = previewCacheKey(
+      url,
+      rankSourceNonce,
+      catalogsSyncNonce,
+      retryNonce,
+      previewAuthSignature(authHeaders),
+    )
     const now = Date.now()
     const cached = previewMemoryCache.get(cacheKey)
     if (cached && cached.expiresAt > now) {
@@ -159,7 +199,13 @@ export function usePosterPreview() {
     // appeso (Bugonia): peggio dei casi server = slot-wait 15s + watchdog 30s,
     // quindi 45s lascia arrivare il 503 del server prima di dichiarare errore.
     xhr.timeout = 45000
-    
+    // Raw transport: same auth the Settings preview sends, so the owner's
+    // per-title preview keeps its staged badges (free-text `extra`) instead
+    // of being downgraded/anonymized. Same-origin `/api/` only.
+    for (const [name, value] of Object.entries(authHeaders)) {
+      xhr.setRequestHeader(name, value)
+    }
+
     xhr.onprogress = (e) => {
       // Eligibility first: a superseded XHR must never move the new progress.
       if (xhrRef.current !== xhr || accentGenerationRef.current !== generation) return

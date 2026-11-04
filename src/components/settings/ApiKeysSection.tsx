@@ -505,6 +505,17 @@ export function ApiKeysSection({ multiUser }: { multiUser: boolean | null }) {
         )
       })}
 
+      {/* Scope of the local Save: these keys are saved by the button below,
+          independently from the global settings Save in the dialog footer. */}
+      <div
+        data-testid="instance-keys-save-scope"
+        className="pt-2 border-t border-white/[0.06] space-y-1"
+      >
+        <p className="text-[10px] font-semibold uppercase tracking-wide text-zinc-300">
+          {t("ui.configureKeys")}
+        </p>
+        <p className="text-[10px] text-zinc-500 leading-relaxed">{t("ui.rankingSourceKeysNote")}</p>
+      </div>
       <div className="flex flex-col sm:flex-row gap-2 pt-1">
         {anyBrowser && (
           <button

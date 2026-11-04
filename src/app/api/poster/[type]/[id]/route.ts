@@ -489,7 +489,15 @@ export async function GET(req: NextRequest, { params }: { params: Promise<RouteP
         const rotated = await tryRotateBackdrop(mapping, backdropState, scopedUser)
         if (rotated) mapping = rotated
       } else {
-        const posterState = getEffectiveRotationState(mapping, rotationSelectedLang)
+        // Per-title flag wins; null/absent inherits the space default
+        // (config token > server defaults > OFF), mirroring the editor's
+        // `mapping.autoRotateClean ?? defaultAutoRotateClean` resolution.
+        // Saved explicit true/false keeps the historical behavior.
+        const posterState = getEffectiveRotationState(
+          mapping,
+          rotationSelectedLang,
+          configOverride?.autoRotateClean ?? sd.autoRotateClean ?? false,
+        )
         isRotating = posterState.isRotating
         const rotated = await tryRotatePoster(mapping, posterState, scopedUser, rotationSelectedLang)
         if (rotated) mapping = rotated

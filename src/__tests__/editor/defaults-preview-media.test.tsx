@@ -224,9 +224,16 @@ describe("SettingsPanel persisted preview title", () => {
     importData: () => {},
   }
 
+  // Fresh open lands on Preferenze (secondary): the projected preview is a
+  // primary-tab surface, so open Preset before querying it.
+  function openPresetTab() {
+    fireEvent.click(screen.getByRole("tab", { name: "ui.settingsTabPreset" }))
+  }
+
   it("shows the persisted tv title after reopen without crashing", async () => {
     writePreviewDemoMedia("user-1", TV_CASA)
     const { unmount } = renderWithCtx(<SettingsPanel {...panelProps} />, { currentUserId: "user-1" })
+    openPresetTab()
     // Primary draft page owns the single projected preview (parent preview
     // grid serves the advanced tab only).
     await screen.findByTestId("defaults-preview-media")
@@ -234,6 +241,7 @@ describe("SettingsPanel persisted preview title", () => {
     unmount()
     // Reopen (remount): the title is still there (reload persistence).
     renderWithCtx(<SettingsPanel {...panelProps} />, { currentUserId: "user-1" })
+    openPresetTab()
     await screen.findByTestId("defaults-preview-media")
     await waitFor(() => {
       expect(screen.getAllByText("La casa di carta").length).toBeGreaterThan(0)
@@ -244,6 +252,7 @@ describe("SettingsPanel persisted preview title", () => {
     window.localStorage.setItem("previewDemoMedia:user-9", "{broken")
     writePreviewDemoMedia("user-8", MOVIE_AVATAR)
     renderWithCtx(<SettingsPanel {...panelProps} />, { currentUserId: "user-9" })
+    openPresetTab()
     await screen.findByTestId("defaults-preview-media")
     // Corrupt entry: no Avatar demo image assertion possible without a
     // loaded poster, but the panel renders and the search stays usable.
