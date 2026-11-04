@@ -11,5 +11,7 @@ export interface RecentChange {
 }
 
 export const RECENT_CHANGES: RecentChange[] = [
+  { type: "fix", text: "Close cache-poisoning, UUID-bypass and rate-limit gaps in poster/edge paths", sha: "5637631", date: "2026-11-04" },
+  { type: "perf", text: "Speed up poster renders and cut redundant upstream work", sha: "cd80564", date: "2026-11-04" },
   { type: "feature", text: "instant badge preview, per-poster rotation and settings reorganization", sha: "79b4fab", date: "2026-11-04" },
 ]

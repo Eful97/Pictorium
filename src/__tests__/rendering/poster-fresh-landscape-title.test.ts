@@ -103,7 +103,7 @@ const BEFORE_LAND_UNRANKED_100 = "d7cca9877d1cb5c917c74e1fd23bfeb0b7a20b634bc7c7
 const BEFORE_PORTRAIT_RANKED_TASK12 = "4b9eb8bb8dd2ec4383d037cc60ac15601b5f6950af629ac24b5a307e7fd4e218"
 // Star ink-centre re-pin (intentional user-visible fix in e24b2784: badge-svg-shared.ts:319 starDy = round2(starR * 0.0955); the commit omitted the re-pin) — the 80-era standard bytes below moved with the star row, nothing else.
 const BEFORE_STANDARD_PORTRAIT = "8c5f36043e7418b92da5fe24f8f68ad38c46bce03c82010d1fbead3f20c1a338"
-const BEFORE_STANDARD_LANDSCAPE = "3bcb8ad74423f1f0fb370b35947bedac78b50537f92538596c82b757d09340ce"
+const BEFORE_STANDARD_LANDSCAPE = "1641ed80575d4a68567910efd7ddca74bba4ab39a024a4d353fc11bf8b06ee91"
 // F2 re-pin (user-authorized genre clip fix — see poster-fresh-centered-title.test.ts).
 // Explicit topShade 50 pins (demonstrated 50-default bytes for the exact
 // fixtures above — identical inputs/bytes as
@@ -111,7 +111,7 @@ const BEFORE_STANDARD_LANDSCAPE = "3bcb8ad74423f1f0fb370b35947bedac78b50537f9253
 const LEGACY_TOP_SHADE_50_PORTRAIT_RANKED = "4d63ec4be614332c9dbd8d8af48aff95f463d321039b3728e687f2bcb81224b1"
 // Same star ink-centre re-pin (e24b2784, badge-svg-shared.ts:319): the 50-default standard bytes moved with the star row.
 const LEGACY_TOP_SHADE_50_STANDARD_PORTRAIT = "8b64dc7d179ddc83d1e34c669a18acc92a4839e101feb02c04d01b52817a1033"
-const LEGACY_TOP_SHADE_50_STANDARD_LANDSCAPE = "f543061ad4e839c798d5a68d00fefb716c3e69a931c226f665f48e4ebf661ba5"
+const LEGACY_TOP_SHADE_50_STANDARD_LANDSCAPE = "0048d1ef079e8c795bae71e9c0ef965294f17c4f41fea0e95690f08bf6c2e8f0"
 
 function sha(buf: Buffer): string {
   return createHash("sha256").update(buf).digest("hex")

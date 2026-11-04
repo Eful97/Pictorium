@@ -137,10 +137,11 @@ describe("quality -> age -> formats order with the common column", () => {
       BADGE_ITEM_QUALITY_AGE,
       qualityFormatItemId("hdr"),
     ])
-    // Every painted slot (tier pill, age pill, A/V mark) is exactly as wide as
-    // the canonical 4K pill: one real column, not only one canvas.
-    for (const item of group!.items) expect(item.w - PAD * 2, item.id).toBe(REF_W)
-    expect(group!.w).toBe(REF_W + PAD * 2)
+    // Format mark stays pinned to the canonical 4K column; tier/age keep their
+    // OWN natural width (decoupled siblings).
+    const hdrItem = group!.items[2]
+    expect(hdrItem.w - PAD * 2, hdrItem.id).toBe(REF_W)
+    expect(group!.w).toBeGreaterThan(0)
     // Painted slots, top-to-bottom: every box shares the common band (the
     // A/V glyph keeps its native aspect INSIDE its frame).
     const [tier, age, hdr] = group!.items
