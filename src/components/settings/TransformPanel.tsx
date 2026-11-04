@@ -516,7 +516,8 @@ export function TransformPanel({ active, previewShape, onPreviewShapeChange, onP
       previewFamily: L.previewFamily,
     })
   }
-  const freezePreviewUrl = buildFreezePreview().url
+  // Inactive panel: do not build preview URLs / fire renders.
+  const freezePreviewUrl = active ? buildFreezePreview().url : ""
   const portraitFollowOn = ed.defaultNetworkLogoFollowTitle !== false
   const netGeoEnabled = active && trasformaShape === "portrait" && ed.defaultNetworkLogo && portraitFollowOn && !!freezePreviewUrl
   const { geometry: netGeometry, geometryLoading: netGeometryLoading } = useNetworkGeometry(freezePreviewUrl, netGeoEnabled)

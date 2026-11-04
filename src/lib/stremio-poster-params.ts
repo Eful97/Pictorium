@@ -582,6 +582,12 @@ export function buildStremioPosterSearchParams(input: StremioPosterParamsInput):
     params.set("netscale", String(input.networkLogoScale ?? DEFAULT_STREMIO_POSTER_PARAMS.networkLogoScale))
     params.set("nox", String(input.networkLogoOffsetX ?? DEFAULT_STREMIO_POSTER_PARAMS.networkLogoOffsetX))
     params.set("noy", String(input.networkLogoOffsetY ?? DEFAULT_STREMIO_POSTER_PARAMS.networkLogoOffsetY))
+    // Logo film scale/offset: emessi solo quando non-default (null = auto/inherit)
+    // così gli URL legacy restano byte-identici e la cache non si invalida in
+    // massa; in compact coperti da `dv` (firma), vedi tuningSignature sopra.
+    if (input.logoScale != null) params.set("scale", String(input.logoScale))
+    if (input.logoOffsetX != null) params.set("ox", String(input.logoOffsetX))
+    if (input.logoOffsetY != null) params.set("oy", String(input.logoOffsetY))
     // Per-item corrections: same explicit/absent contract as the group offsets
     // (absent = automatic layout, legacy URLs byte-identical).
     const bit = canonicalizeBadgeItemTransforms(input.badgeItemTransforms)

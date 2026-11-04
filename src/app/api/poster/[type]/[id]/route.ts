@@ -96,7 +96,7 @@ import {
 import { computeBottomLight } from "@/lib/accent-color"
 import { normalizeGenreName } from "@/lib/genre-normalize"
 import { NON_CLEAN_BLUR_FADE, NON_CLEAN_GRADIENT_HEIGHT } from "@/lib/gradient-defaults"
-import { LAND_W, LAND_H, landscapeBackdropUrl, pillarboxLandscapeBase, cropBackdropToPortrait, fitPortraitBase } from "@/lib/image-utils"
+import { LAND_W, LAND_H, landscapeBackdropUrl, pillarboxLandscapeBase, cropBackdropToPortrait, fitPortraitBase, fitLandscapeBase } from "@/lib/image-utils"
 import { generatePosterBuffer, type GenerationInput, type NetworkGeometry, type BadgeGeometryReport } from "@/lib/poster-service"
 import { computeTopBadge, isNextEpisodeDisplayed } from "@/lib/poster-badge"
 import { getUpcomingReleaseLabel, parseDateFormat } from "@/lib/release-badge"
@@ -166,6 +166,14 @@ const RATING_WAIT_MS = (() => {
   const raw = envWithFallback("RATING_WAIT_MS")
   const n = raw ? parseInt(raw, 10) : 1500
   return Number.isFinite(n) && n >= 300 && n <= 10000 ? n : 1500
+})()
+
+// Tetto della race Wikidata nel path poster. Lettura a module level (un cambio
+// env richiede restart, non hot-reload), coerente con gli altri cap.
+const WIKIDATA_TIMEOUT = (() => {
+  const raw = process.env.WIKIDATA_TIMEOUT
+  const n = raw ? Number(raw) : 2500
+  return Number.isFinite(n) && n >= 300 && n <= 10000 ? n : 2500
 })()
 
 // TTL effimero (s) per i render degradati da timeout/errore upstream sulla
@@ -2392,7 +2400,6 @@ export async function GET(req: NextRequest, { params }: { params: Promise<RouteP
     // 5. Fetch all data in parallel: images + rankings + quality + wikidata + keywords + imdbTop250
     //    All dependencies are available before this point — no Block B depends on Block A
     const emptyWikidata = { awards: [], nominations: [], studios: [], director: null }
-    const WIKIDATA_TIMEOUT = Number(process.env.WIKIDATA_TIMEOUT) || 2500
     // Esito temporale della race Wikidata, per debug=1 e TTL effimero: la
     // degraded del risultato copre i fallimenti strutturali, questa il timeout.
     let wikidataRaceTimedOut = false
@@ -2851,7 +2858,7 @@ export async function GET(req: NextRequest, { params }: { params: Promise<RouteP
     // intenzionale, nessun cambio di geometria).
     const posterBuf = isLandscape
       ? (backdropFetch
-          ? await sharp(backdropFetch).resize(LAND_W, LAND_H, { fit: 'cover', position: 'centre' }).toBuffer()
+          ? await fitLandscapeBase(backdropFetch)
           : await pillarboxLandscapeBase(baseBuf))
       : await fitPortraitBase(baseBuf)
     const qTopLight = req.nextUrl.searchParams.get("tl")

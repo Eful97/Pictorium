@@ -203,10 +203,10 @@ export async function fetchMDBList(
     }
 
     if (!res || !res.ok) {
-      // Legacy non-strict fail-open: HTTP failure returns [] WITHOUT caching,
-      // so the next access retries immediately. Strict mode still throws via
-      // fail() and lands in the outer catch, which records the 60s strict
-      // negative (coordinator failure gate unchanged).
+      // 60s negative cache on transport failure: stop per-request re-hits to
+      // api.mdblist.com during an outage (mirrors empty-success handling).
+      // Strict mode still throws via fail() (negative cache recorded here too).
+      cacheSet(cacheKey, [], ["mdblist"], 60_000)
       return fail(`http-${res?.status ?? "noresponse"}`)
     }
     let data: unknown
@@ -393,7 +393,11 @@ export async function fetchCustomMDBList(
       }
     }
 
-    if (!res || !res.ok) return []
+    if (!res || !res.ok) {
+      // 60s negative cache on transport failure (mirrors empty-success handling).
+      cacheSet(cacheKey, [], ["mdblist"], 60_000)
+      return []
+    }
     const data = await res.json()
     const payload = Array.isArray(data) ? data : (data?.data || data)
     let rawItems: Array<{

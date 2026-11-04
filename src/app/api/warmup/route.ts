@@ -297,26 +297,39 @@ async function runWarmup(req: NextRequest) {
     // niente segreti in query/log). Senza api_key i cataloghi TMDB tornano
     // vuoti (come da contratto), gli anime/MDBList usano la catena
     // namespace/istanza/env della route catalogo.
+    // Bound catalog fan-out: previously all warmup catalogs (8) were fetched in
+    // parallel, each triggering up to ~5 TMDB calls (~40 concurrent on a cold
+    // instance). Run them in small sequential batches to cap concurrency at 2
+    // while preserving the 50s overall deadline and 20s per-batch cap.
+    const CATALOG_WARMUP_CONCURRENCY = 2
     let catalogResults: WarmupResult[] | undefined
     if (warmCatalogs && Date.now() < deadlineAt) {
-      catalogResults = await Promise.all(getWarmupCatalogs().map(async (def): Promise<WarmupResult> => {
-        const target = { type: def.type, id: 0, source: `catalog:${def.id}` }
-        try {
-          const url = buildPosterPublicUrl(`/catalog/${def.type}/${def.id}.json`, { origin: selfFetchOrigin() })
-          url.searchParams.set("region", warmRegion)
-          const remaining = deadlineAt - Date.now()
-          if (remaining <= 0) return { ...target, status: "fail" }
-          const res = await fetch(url, {
-            signal: AbortSignal.timeout(Math.max(1_000, Math.min(20_000, remaining))),
-            ...(apiKey ? { headers: { "x-api-key": apiKey } } : {}),
-          })
-          if (!res.ok) return { ...target, status: "fail", statusCode: res.status }
-          await res.body?.cancel().catch(() => {})
-          return { ...target, status: "ok" }
-        } catch {
-          return { ...target, status: "fail" }
-        }
-      }))
+      const defs = getWarmupCatalogs()
+      const collected: WarmupResult[] = []
+      for (let i = 0; i < defs.length; i += CATALOG_WARMUP_CONCURRENCY) {
+        if (Date.now() >= deadlineAt) break
+        const batch = defs.slice(i, i + CATALOG_WARMUP_CONCURRENCY)
+        const batchResults = await Promise.all(batch.map(async (def): Promise<WarmupResult> => {
+          const target = { type: def.type, id: 0, source: `catalog:${def.id}` }
+          try {
+            const url = buildPosterPublicUrl(`/catalog/${def.type}/${def.id}.json`, { origin: selfFetchOrigin() })
+            url.searchParams.set("region", warmRegion)
+            const remaining = deadlineAt - Date.now()
+            if (remaining <= 0) return { ...target, status: "fail" }
+            const res = await fetch(url, {
+              signal: AbortSignal.timeout(Math.max(1_000, Math.min(20_000, remaining))),
+              ...(apiKey ? { headers: { "x-api-key": apiKey } } : {}),
+            })
+            if (!res.ok) return { ...target, status: "fail", statusCode: res.status }
+            await res.body?.cancel().catch(() => {})
+            return { ...target, status: "ok" }
+          } catch {
+            return { ...target, status: "fail" }
+          }
+        }))
+        collected.push(...batchResults)
+      }
+      catalogResults = collected
     }
 
     return Response.json({

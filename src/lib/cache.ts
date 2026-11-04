@@ -68,14 +68,44 @@ function secondsUntilScheduledRefresh(): number {
   return secondsUntilScheduledRefreshFrom(Date.now())
 }
 
-/** Serializza per L2 solo se JSON piccolo senza Buffer; null = resta locale. */
-function toKvPayload(data: unknown): string | null {
-  if (Buffer.isBuffer(data)) return null
+/** Rileva ricorsivamente Buffer o forme serializzate di Buffer SENZA fare
+ *  JSON.stringify (evita il costo di espandere un Buffer in un array numerico
+ *  prima di accorgersi che non è ammesso in L2). */
+function containsBuffer(value: unknown, seen?: WeakSet<object>): boolean {
+  if (Buffer.isBuffer(value)) return true
+  if (value === null || typeof value !== "object") return false
+  const obj = value as object
+  if (!seen) seen = new WeakSet()
+  if (seen.has(obj)) return false
+  seen.add(obj)
+  if (Array.isArray(value)) {
+    for (const item of value) {
+      if (containsBuffer(item, seen)) return true
+    }
+    return false
+  }
+  const rec = value as Record<string, unknown>
+  // Forma prodotta da JSON.stringify(Buffer): { type: "Buffer", data: [...] }.
+  if (rec.type === "Buffer" && Array.isArray(rec.data)) return true
+  for (const v of Object.values(rec)) {
+    if (containsBuffer(v, seen)) return true
+  }
+  return false
+}
+
+/** Serializza per L2 solo se JSON piccolo senza Buffer; null = resta locale.
+ *  Buffer (top-level e annidati, incluse forme {type:"Buffer",data:[...]})
+ *  vengono rifiutati PRIMA della serializzazione per evitare il costo di
+ *  espandere array numerici enormi. */
+export function toKvPayload(data: unknown): string | null {
+  // Guardia economica: nessun stringify su Buffer o forme Buffer annidate.
+  if (containsBuffer(data)) return null
   try {
     const json = JSON.stringify(data)
-    if (json.length > KV_L2_MAX_BYTES) return null
-    // Buffer annidati serializzerebbero come {type:"Buffer",data:[...]} con
-    // bloat e revive mancato → solo JSON puro in L2.
+    // Dimensione in byte UTF-8 (non code units UTF-16): i caratteri multi-byte
+    // (accenti, emoji) pesano più di una code unit.
+    if (Buffer.byteLength(json, "utf8") > KV_L2_MAX_BYTES) return null
+    // Difesa in profondità: forma Buffer serializzata sfuggita alla scansione.
     if (json.includes('"type":"Buffer"')) return null
     return json
   } catch {
@@ -85,6 +115,11 @@ function toKvPayload(data: unknown): string | null {
 
 function kvWriteThrough(key: string, data: unknown, ttlMs?: number, tags: string[] = [], timestamp: number = Date.now()): void {
   // Guardia dimensione/contenuto sul payload grezzo (mai Buffer, <=64KB).
+  // toKvPayload è invocato UNA SOLA volta per write: serializza `data` per
+  // validarlo (Buffer/size). La serializzazione dell'envelope qui sotto è la
+  // seconda (inevitabile: l'envelope avvolge `data` con metadati t/ttl) e il
+  // suo size viene verificato a parte; non si può riutilizzare il json di
+  // toKvPayload senza ricostruire l'envelope a mano (fragile).
   if (toKvPayload(data) === null) return
   const ex = ttlMs !== undefined
     ? Math.max(60, Math.round(ttlMs / 1000))
@@ -101,7 +136,8 @@ function kvWriteThrough(key: string, data: unknown, ttlMs?: number, tags: string
       t: timestamp,
       ...(ttlMs !== undefined ? { ttl: ttlMs } : {}),
     })
-    if (envelope.length > KV_L2_MAX_BYTES) return
+    // Dimensione in byte UTF-8 (coerente con toKvPayload e il limite KV).
+    if (Buffer.byteLength(envelope, "utf8") > KV_L2_MAX_BYTES) return
   } catch {
     return
   }

@@ -229,11 +229,13 @@ export function PresetsPanel({
 
   const thumbnails = useMemo(() => {
     const out: Record<string, string | null> = {}
+    // Inactive panel: do not build poster URLs / fire renders.
+    if (!active) return out
     for (const entry of READY_PRESET_ENTRIES) {
       out[entry.id] = thumbUrl(entry.desired(shape === "portrait"), true, true, entry.fresh)
     }
     return out
-  }, [thumbUrl, shape])
+  }, [thumbUrl, shape, active])
 
   // Quick-look identity: the COMPLETE expected post-apply snapshot for
   // the SAME desired values the click stages (isolated projection + the
@@ -259,6 +261,7 @@ export function PresetsPanel({
           thumbnailShape={shape}
           showBadge={false}
           compact
+          active={active}
           options={READY_PRESET_ENTRIES.map((entry) => {
             const desired = entry.desired(shape === "portrait")
             const freshTile = entry.fresh
