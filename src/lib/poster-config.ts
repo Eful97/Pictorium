@@ -726,8 +726,13 @@ export function resolvePosterRenderConfig(input: PosterRenderConfigInput): Poste
   // a come "shadow" lo è per badgeStyle — ECCETTO un `default` landscape-owned
   // esplicito, che vince su token/defaults diversi pur restando auto-detect.)
   const ownedLandscapeRs = ownedLandscapeEnum<RankingBadgeStyle>(mapping, posterShape, "rankingBadgeStyle", isRankingBadgeStyle)
+  // Query `rs` is usable ONLY when it is a valid RankingBadgeStyle: an
+  // invalid/non-empty value must not block the mapping/config/default fallback
+  // (render falls through the chain, identical to an absent query) — otherwise
+  // the cache key (which drops invalid rs) would collide with a different render.
+  const qRsValid = isRankingBadgeStyle(q.get("rs") ?? undefined) ? (q.get("rs") as string) : undefined
   const rawRs =
-    q.get("rs") ||
+    qRsValid ||
     ownedLandscapeRs ||
     (m?.rankingBadgeStyle && m.rankingBadgeStyle !== "default" ? m.rankingBadgeStyle : undefined) ||
     configOverride?.rankingBadgeStyle ||
@@ -1020,7 +1025,12 @@ export function resolvePosterRenderConfig(input: PosterRenderConfigInput): Poste
   // Un `shadow` landscape-owned esplicito vince su token/defaults diversi
   // (resta la resa storica, non un fallback); il flat `shadow` resta assente.
   const ownedLandscapeBs = ownedLandscapeEnum<BadgeStyle>(mapping, posterShape, "badgeStyle", isBadgeStyle)
-  const rawBs = q.get("bs")
+  // Query `bs` is usable ONLY when it is a valid BadgeStyle: an invalid/non-empty
+  // value must not block the mapping/config/default fallback (render falls
+  // through the chain, identical to an absent query) — otherwise the cache key
+  // (which drops invalid bs) would collide with a different render.
+  const qBsValid = isBadgeStyle(q.get("bs") ?? undefined) ? (q.get("bs") as string) : undefined
+  const rawBs = qBsValid
     || ownedLandscapeBs
     || (m?.badgeStyle && m.badgeStyle !== "shadow" ? m.badgeStyle : undefined)
     || configOverride?.badgeStyle

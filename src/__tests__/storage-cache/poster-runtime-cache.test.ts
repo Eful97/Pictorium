@@ -530,4 +530,25 @@ describe("normalizePosterCacheParams", () => {
     expect(normalized.get("qbs")).toBe("standard")
     expect(normalized.get("tint")).toBe("50")
   })
+
+  it("logoFit/age: present '0' stays '0', any other present value becomes '1', absent stays absent", () => {
+    for (const key of ["logoFit", "age"]) {
+      // Exact "0" is the only OFF value (mirrors render `!== "0"`).
+      expect(normalizePosterCacheParams(new URLSearchParams(`${key}=0`)).get(key)).toBe("0")
+      // Present "false"/garbage/"1" all render ON -> "1", distinct from absent.
+      for (const value of ["false", "true", "1", "garbage", ""]) {
+        expect(normalizePosterCacheParams(new URLSearchParams(`${key}=${value}`)).get(key), `${key}=${value}`).toBe("1")
+      }
+      // Absent stays absent.
+      expect(normalizePosterCacheParams(new URLSearchParams("")).get(key)).toBeNull()
+      // Present-ON key != absent key.
+      expect(normalizePosterCacheParams(new URLSearchParams(`${key}=false`)).toString()).not.toBe(
+        normalizePosterCacheParams(new URLSearchParams("")).toString(),
+      )
+      // present-false == present-1
+      expect(normalizePosterCacheParams(new URLSearchParams(`${key}=false`)).toString()).toBe(
+        normalizePosterCacheParams(new URLSearchParams(`${key}=1`)).toString(),
+      )
+    }
+  })
 })

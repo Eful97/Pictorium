@@ -135,14 +135,15 @@ describe("resolvePosterRenderConfig", () => {
     expect(r.rankingBadgeStyle).toBe("colored")
   })
 
-  it("invalid query value does not leak to the renderer (falls back to default rendering)", () => {
-    // Fedele all'originale: la query invalida vince sul `||` e il renderer la
-    // trattava come default — con i tipi union il confine la converte a "shadow".
+  it("invalid query value falls through to mapping/config/default (no leak)", () => {
+    // F1: an invalid (non-empty) query must NOT block the fallback chain.
+    // With no mapping/config override, it resolves to the server default
+    // supplied via sd ("vetro"), identical to an absent query.
     const r = resolvePosterRenderConfig(baseInput({
       searchParams: new URLSearchParams({ bs: "garbage" }),
       sd: { badgeStyle: "vetro" },
     }))
-    expect(r.badgeStyle).toBe("shadow")
+    expect(r.badgeStyle).toBe("vetro")
   })
 
   it("auto-detect: default ranking style becomes netflix when a rank exists", () => {

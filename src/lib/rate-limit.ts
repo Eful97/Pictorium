@@ -142,22 +142,56 @@ function logKvFallback(error: unknown): void {
   })
 }
 
+// Token bucket Lua atomico: replica il ramo in-memory (refill per cicli,
+// cap a maxTokens, decremento, retAfter) in un solo round-trip EVAL, senza
+// INCR+EXPIRE separati (niente chiave orfana su crash). Lo store è un hash
+// `rl:<bucketKey>` con campi `tokens`/`lastRefill`; TTL 30 min come il cleanup
+// in-memory (i bucket inattivi scadono da soli).
+const KV_BUCKET_TTL_SEC = 30 * 60
+const KV_TOKEN_BUCKET_SCRIPT = `
+local key = KEYS[1]
+local maxTokens = tonumber(ARGV[1])
+local refillRate = tonumber(ARGV[2])
+local refillWindow = tonumber(ARGV[3])
+local now = tonumber(ARGV[4])
+local ttlSec = tonumber(ARGV[5])
+local tokens = redis.call('HGET', key, 'tokens')
+local lastRefill = redis.call('HGET', key, 'lastRefill')
+if tokens == false then tokens = maxTokens else tokens = tonumber(tokens) end
+if lastRefill == false then lastRefill = now else lastRefill = tonumber(lastRefill) end
+local elapsed = now - lastRefill
+if elapsed >= refillWindow then
+  local cycles = math.floor(elapsed / refillWindow)
+  local refill = cycles * refillRate
+  tokens = math.min(tokens + refill, maxTokens)
+  lastRefill = lastRefill + cycles * refillWindow
+end
+local ok = 0
+local retAfter = 0
+if tokens > 0 then
+  tokens = tokens - 1
+  ok = 1
+else
+  local waitMs = lastRefill + refillWindow - now
+  retAfter = math.ceil(waitMs / 1000)
+  if retAfter < 1 then retAfter = 1 end
+end
+redis.call('HSET', key, 'tokens', tokens, 'lastRefill', lastRefill)
+redis.call('EXPIRE', key, ttlSec)
+return {ok, retAfter}
+`
+
 async function kvRateLimit(bucketKey: string, cfg: BucketConfig, now: number): Promise<{ ok: boolean; retAfter: number }> {
   const kv = getKv()
-  const windowMs = cfg.refillWindow
-  const win = Math.floor(now / windowMs)
-  const kvKey = `rl:${bucketKey}:${win}`
-  const count = await kv.incr(kvKey)
-  if (count === 1) {
-    // TTL 2× finestra: la chiave scade da sola anche se il processo muore
-    // tra INCR ed EXPIRE (nessuna chiave orfana permanente su Redis).
-    await kv.expire(kvKey, Math.ceil((windowMs * 2) / 1000))
-  }
-  if (count > cfg.maxTokens) {
-    const retAfter = Math.max(1, Math.ceil(((win + 1) * windowMs - now) / 1000))
-    return { ok: false, retAfter }
-  }
-  return { ok: true, retAfter: 0 }
+  const kvKey = `rl:${bucketKey}`
+  const res = await kv.eval<number[]>(
+    KV_TOKEN_BUCKET_SCRIPT,
+    [kvKey],
+    [String(cfg.maxTokens), String(cfg.refillRate), String(cfg.refillWindow), String(now), String(KV_BUCKET_TTL_SEC)],
+  )
+  const ok = Array.isArray(res) ? Number(res[0]) : 0
+  const retAfter = Array.isArray(res) ? Number(res[1]) : 1
+  return { ok: ok === 1, retAfter: ok === 1 ? 0 : (retAfter > 0 ? retAfter : 1) }
 }
 
 /**
@@ -238,13 +272,16 @@ export function rateLimitKey(request: Request): string {
   // scrivibili da chiunque raggiunga l'origin direttamente — fidarsene
   // sempre permette di ruotare bucket falsi ed evadere il rate limit.
   // Dietro Cloudflare/proxy che li sovrascrive, TRUST_PROXY=1 li riabilita.
-  // 1) x-real-ip — Nginx/HF
+  // Cloudflare inoltra un x-real-ip inviato dal client (spoofabile): preferire
+  // cf-connecting-ip (sovrascritto da Cloudflare) quando presente, poi
+  // x-real-ip (Nginx/HF che lo sovrascrivono). x-real-ip da solo resta
+  // valido solo dietro proxy che lo sovrascrivono davvero; altrimenti usare
+  // CLIENT_IP_HEADER per fissare l'header affidabile.
   if (trusted) {
-    const realIp = request.headers.get("x-real-ip")
-    if (realIp) return realIp.trim()
-    // 2) cf-connecting-ip — Cloudflare
     const cfIp = request.headers.get("cf-connecting-ip")
     if (cfIp) return cfIp.trim()
+    const realIp = request.headers.get("x-real-ip")
+    if (realIp) return realIp.trim()
   }
   // 3) x-forwarded-for — solo se trusted, altrimenti spoofabile (H2).
   // Catena "client, proxy1, proxy2": il client è il PRIMO elemento.

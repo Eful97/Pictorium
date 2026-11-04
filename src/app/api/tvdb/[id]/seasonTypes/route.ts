@@ -17,14 +17,19 @@ export async function GET(req: NextRequest, context: { params: Promise<{ id: str
   const rawId = (id || "").trim()
   if (!rawId) return Response.json({ error: "Missing id" }, { status: 400 })
 
-  const rawTvdbKey = req.headers.get("x-api-key") || (await resolveRouteApiKey(req, "tvdb")) || ""
+  // Dedicated TVDB header (x-tvdb-key) — keep x-api-key-tvdb as alias. The
+  // generic x-api-key is reserved for the TMDB fallback below: a bare
+  // x-api-key (TMDB) must never be read as a TVDB key (F5).
+  const rawTvdbKey = req.headers.get("x-tvdb-key") || req.headers.get("x-api-key-tvdb") || (await resolveRouteApiKey(req, "tvdb")) || ""
   const tvdbKey = rawTvdbKey.trim()
   if (!tvdbKey) return Response.json({ results: [], error: "TVDB key missing — imposta in Impostazioni" }, { status: 200 })
 
   // tmdb key opzionale: permette di risolvere tvdb_id via TMDB external_ids (molto più affidabile di search/remoteid per id numerici).
   // resolveRouteApiKey applica la guardia multi-user (scoped `?u=` senza chiave
   // non eredita le chiavi d'istanza/env): nessuna lettura diretta dell'env qui.
-  const tmdbKey = req.headers.get("x-tmdb-key") || req.nextUrl.searchParams.get("tmdb_key") || (await resolveRouteApiKey(req)) || req.headers.get("x-api-key-tvdb") || ""
+  // x-api-key is the TMDB key (global convention); x-api-key-tvdb is reserved
+  // for TVDB and must not feed the TMDB fallback.
+  const tmdbKey = req.headers.get("x-tmdb-key") || req.nextUrl.searchParams.get("tmdb_key") || (await resolveRouteApiKey(req)) || req.headers.get("x-api-key") || ""
   const cacheKey = `tvdb:seasonTypes:raw${rawId}:ak${hashFragment(tvdbKey)}:tk${hashFragment(tmdbKey || "")}`
   const cached = cacheGet<{ results: { id: number; name: string; type: string; alternateName?: string | null }[]; tvdbId?: number | null }>(cacheKey)
   if (cached) return Response.json(cached, { headers: { "Cache-Control": "public, max-age=3600, stale-while-revalidate=3600" } })

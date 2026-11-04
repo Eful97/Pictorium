@@ -563,7 +563,11 @@ export async function GET(req: NextRequest, { params }: { params: Promise<RouteP
   const hardenedParams = hardenPosterSearchParams(req.nextUrl.searchParams, {
     presets: isPresetsPosterMode(),
     preview: isPreview,
-    anonymous: !scopedUser,
+    // F3: strip override keyless su pubbliche anonime. Uno spazio esistente
+    // resta "anonimo" per l'hardening quando la sessione non è sbloccata
+    // (bare ?u= non è prova): stesso predicato usato per il preview downgrade.
+    // Phantom UUID già collassati a null sopra (scopedUser null).
+    anonymous: !scopedUser || !previewUnlocked,
     publicInstance: isPublicPosterInstance(),
     hasMapping: !!mapping,
     mappingCustomBadge: earlyEffMapping?.customBadge ?? null,
@@ -1265,7 +1269,7 @@ export async function GET(req: NextRequest, { params }: { params: Promise<RouteP
       recordPosterLatency("cached", Date.now() - startTime)
       schedulePosterRefresh(req, isPreview)
       log.debug("Poster cache: stale variant hit (refresh scheduled)", { mediaType, tmdbId, ms: Date.now() - startTime })
-      return posterResponse(variantHit.payload, variantHit.immutable ?? immutablePoster, isPreview, dynamicPoster, outputFormat, undefined, undefined, isLive)
+      return posterResponse(variantHit.payload, variantHit.immutable ?? immutablePoster, isPreview, dynamicPoster, outputFormat, undefined, undefined, isLive, undefined, true)
     }
     // Variante assente/scadata con condizionale o live: si prosegue al
     // canonico sotto (fresco → conversione; scaduto/assente → render).
@@ -1300,7 +1304,7 @@ export async function GET(req: NextRequest, { params }: { params: Promise<RouteP
     log.debug("Poster cache: stale hit (refresh scheduled)", { mediaType, tmdbId, ms: Date.now() - startTime })
     if (needsVariant) return serveResponseVariant(cachedPoster.payload, undefined, "cached")
     recordPosterLatency("cached", Date.now() - startTime)
-    return posterResponse(cachedPoster.payload, cachedPoster.immutable ?? immutablePoster, isPreview, dynamicPoster, outputFormat, cachedPoster.factCapped ? httpRemainingSec(cachedPoster.remainingMs, cachedPoster.ttlSec ?? dynamicTtlSec, Date.now(), cachedPoster.expiresAt) : (cachedPoster.ttlSec ?? dynamicTtlSec), undefined, isLive, cachedPoster.factCapped)
+    return posterResponse(cachedPoster.payload, cachedPoster.immutable ?? immutablePoster, isPreview, dynamicPoster, outputFormat, cachedPoster.factCapped ? httpRemainingSec(cachedPoster.remainingMs, cachedPoster.ttlSec ?? dynamicTtlSec, Date.now(), cachedPoster.expiresAt) : (cachedPoster.ttlSec ?? dynamicTtlSec), undefined, isLive, cachedPoster.factCapped, true)
   }
   // Copia scaduta con condizionale o live=1, oppure nessuna copia: si
   // rivalida (deduplicazione inflight sotto, poi confronto sul validatore

@@ -80,7 +80,7 @@ export function EpisodeGroupControls() {
       if (tmdbKey) sp.set("tmdb_key", tmdbKey)
       const query = sp.toString() ? `?${sp.toString()}` : ""
       const headers: Record<string, string> = {}
-      if (tvdbApiKey) headers["x-api-key"] = tvdbApiKey
+      if (tvdbApiKey) headers["x-tvdb-key"] = tvdbApiKey
       if (tmdbKey) headers["x-tmdb-key"] = tmdbKey
       return userFetch(`/api/tvdb/${encodeURIComponent(id)}/seasonTypes${query}`, {
         headers: Object.keys(headers).length > 0 ? headers : undefined,
