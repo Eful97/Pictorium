@@ -189,12 +189,19 @@ export async function selectBestLogoFitPosterPath(input: SelectBestLogoFitPoster
 
   const fallbackResult: PosterFitSelection = { posterPath: firstCandidate }
 
+  // Budget di rete UNICO per logo + candidati: il logo e la wave di candidati
+  // condividono AUTO_FIT_FETCH_TIMEOUT_MS complessivi (non 5s + 5s). Il
+  // deadline è calcolato una sola volta; ogni fetch usa il tempo residuo.
+  const fetchDeadline = Date.now() + AUTO_FIT_FETCH_TIMEOUT_MS
+
   let logoBuffer: Buffer
   try {
+    const logoRemaining = Math.max(0, fetchDeadline - Date.now())
+    if (logoRemaining <= 0) return fallbackResult
     logoBuffer = await withTimeout(
       input.fetchImage(input.logoPath),
       Buffer.alloc(0),
-      AUTO_FIT_FETCH_TIMEOUT_MS,
+      logoRemaining,
     )
     if (logoBuffer.length === 0) {
       return fallbackResult
@@ -208,10 +215,12 @@ export async function selectBestLogoFitPosterPath(input: SelectBestLogoFitPoster
     candidates,
     async (poster): Promise<PosterBufferEntry | null> => {
       try {
+        const remaining = Math.max(0, fetchDeadline - Date.now())
+        if (remaining <= 0) return null
         const buf = await withTimeout(
           fetchPoster(poster.file_path),
           null,
-          AUTO_FIT_FETCH_TIMEOUT_MS,
+          remaining,
         )
         if (!buf) return null
         return { posterPath: poster.file_path, posterBuffer: buf, voteAverage: poster.vote_average ?? 0, width: poster.width ?? 0, height: poster.height ?? 0 }

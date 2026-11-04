@@ -94,17 +94,16 @@ describe("fetchMDBList", () => {
     expect(items).toEqual([{ imdb: "tt0499549", title: "Avatar: The Last Airbender", year: 2024, tmdb: 19995 }])
   })
 
-  it("returns [] on HTTP error (keyless 503) without caching the failure", async () => {
+  it("returns [] on HTTP error (keyless 503) and caches the failure for 60s", async () => {
     fetchSpy.mockResolvedValueOnce(new Response(JSON.stringify({ response: "False", error: "Invalid API key or Rate Limiter Reached!" }), { status: 503 }))
 
     const first = await fetchMDBList("mdblistAnime")
     expect(first).toEqual([])
 
-    // Risultato vuoto NON cachato: il prossimo accesso ritenta il fetch.
-    fetchSpy.mockResolvedValueOnce(Response.json({ items: [{ imdb: "tt1", title: "A", year: 2024, tmdb: 1 }] }))
+    // Risultato vuoto cachato per 60s: il prossimo accesso riusa la cache.
     const second = await fetchMDBList("mdblistAnime")
-    expect(second).toHaveLength(1)
-    expect(fetchSpy).toHaveBeenCalledTimes(2)
+    expect(second).toEqual([])
+    expect(fetchSpy).toHaveBeenCalledTimes(1)
   })
 
   it("caches non-empty results per key (no refetch) and keys differ between keys", async () => {

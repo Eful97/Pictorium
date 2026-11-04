@@ -70,7 +70,7 @@ export async function pillarboxLandscapeBase(portraitBuf: Buffer): Promise<Buffe
   const fg = await sharp(portraitBuf).resize(fw, LAND_H, { fit: "fill" }).toBuffer()
   return sharp(bg)
     .composite([{ input: fg, left: Math.round((LAND_W - fw) / 2), top: 0 }])
-    .jpeg({ quality: 90 })
+    .png({ compressionLevel: 1 })
     .toBuffer()
 }
 
@@ -131,6 +131,22 @@ export async function fitPortraitBase(buf: Buffer): Promise<Buffer> {
   if (meta.width === STD_W && meta.height === STD_H) return buf
   return sharp(buf)
     .resize(STD_W, STD_H, { fit: "cover", position: "centre" })
+    .png({ compressionLevel: 1 })
+    .toBuffer()
+}
+
+/**
+ * Adatta la base landscape al canvas 16:9 (LAND_W × LAND_H). Fast path: se la
+ * sorgente è già esattamente LAND_W × LAND_H torna il buffer invariato (zero
+ * encode/decode). Altrimenti cover-fit con intermedio lossless (PNG) invece
+ * del JPEG q80 di default di sharp: nessuna generazione lossy extra, stessa
+ * geometria. Simmetrico a `fitPortraitBase`.
+ */
+export async function fitLandscapeBase(buf: Buffer): Promise<Buffer> {
+  const meta = await sharp(buf).metadata()
+  if (meta.width === LAND_W && meta.height === LAND_H) return buf
+  return sharp(buf)
+    .resize(LAND_W, LAND_H, { fit: "cover", position: "centre" })
     .png({ compressionLevel: 1 })
     .toBuffer()
 }

@@ -22,8 +22,10 @@ export type PosterStyleThumbnailShape = "portrait" | "landscape"
  * (plain `<img>` cannot send headers → shared instances downgraded the demo).
  * A hook per rendered card: the hook cannot run inside the options map.
  */
-function StyleThumbnail({ url }: { url: string }) {
-  const src = useAuthenticatedPreviewUrl(url)
+function StyleThumbnail({ url, enabled }: { url: string; enabled: boolean }) {
+  // Inactive/hidden panels must not fire poster renders: drop the URL so the
+  // authenticated-preview hook never fetches.
+  const src = useAuthenticatedPreviewUrl(enabled ? url : null)
   if (!src) return null
   return (
     /* eslint-disable-next-line @next/next/no-img-element */
@@ -57,6 +59,7 @@ export function PosterStyleCard({
   thumbnailShape = "portrait",
   showBadge = true,
   compact = false,
+  active = true,
 }: {
   title: string
   desc: string
@@ -67,6 +70,8 @@ export function PosterStyleCard({
   showBadge?: boolean
   /** Compact bounded thumbnails for the Preset gallery. Default legacy unchanged. */
   compact?: boolean
+  /** When false, thumbnails do not fetch/render (inactive panel). */
+  active?: boolean
 }) {
   const landscape = thumbnailShape === "landscape"
   // Compact frames stay measurably smaller than the legacy full-card-width
@@ -107,7 +112,7 @@ export function PosterStyleCard({
                 aria-hidden="true"
                 className={frameClass}
               >
-                {opt.thumbnailUrl ? <StyleThumbnail url={opt.thumbnailUrl} /> : null}
+                {opt.thumbnailUrl ? <StyleThumbnail url={opt.thumbnailUrl} enabled={active} /> : null}
               </span>
             ) : null}
             <div className="flex items-center justify-between w-full">

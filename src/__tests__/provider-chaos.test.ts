@@ -4,7 +4,7 @@
 // A differenza degli *-breaker.test.ts (matematica dei contatori in provetta),
 // qui gira la pipeline REALE (route poster + provider reali) con fetch globale
 // stubbato da un router per host. Timer reali + default di produzione: niente
-// shrinking via env (fragile, tranne WIKIDATA_TIMEOUT che è letto per-request),
+// shrinking via env (fragile; WIKIDATA_TIMEOUT is now module-level, pinned via vi.hoisted),
 // fault immediati per il counting, UN hang reale per provider per il bound.
 // Timeout per-test 30s, durata attesa ~35s totali.
 //
@@ -20,6 +20,12 @@ import path from "node:path"
 import { existsSync } from "node:fs"
 import { NextRequest } from "next/server"
 import { request as undiciRequest } from "undici"
+vi.hoisted(() => {
+  // WIKIDATA_TIMEOUT is now read at module load (clamped 300-10000, default 2500).
+  // Pin it before the route module is imported so the S4 chaos case keeps the
+  // fast 300ms abort and its intent (wdAbort killing zombie award fetches).
+  process.env.WIKIDATA_TIMEOUT = "300"
+})
 import { GET as posterGET } from "@/app/api/poster/[type]/[id]/route"
 import { GET as seasonTypesGET } from "@/app/api/tvdb/[id]/seasonTypes/route"
 import { cacheClear } from "@/lib/cache"
@@ -338,7 +344,8 @@ describe("provider chaos (slot ↔ timeout ↔ race ↔ breaker ↔ render)", ()
   })
 
   it("S4 Wikidata hang ×5 veloci (wdAbort uccide gli zombie), poi short-circuit", { timeout: 30000 }, async () => {
-    vi.stubEnv("WIKIDATA_TIMEOUT", "300")
+    // WIKIDATA_TIMEOUT is pinned to 300ms at module load (see vi.hoisted above);
+    // the runtime stub no longer affects the module-level clamped constant.
     faults.wikidata = "hang"
     // Senza il wdAbort post-race, dalla 3ª request gli slot awards (max 2)
     // sarebbero occupati dagli zombie da 5s e la latenza esploderebbe.
