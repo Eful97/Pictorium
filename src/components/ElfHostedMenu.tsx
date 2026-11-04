@@ -73,15 +73,17 @@ export function useElfHostedMenu(scope: ElfHostedScope): ElfHostedMenu {
 /** Riga link con freccia (deploy / guida). */
 function MenuLink({ href, children }: { href: string; children: ReactNode }) {
   return (
-    <a
-      href={href}
-      target="_blank"
-      rel="noopener noreferrer"
-      className="group flex items-center justify-between gap-2 px-2.5 py-2 rounded-xl text-xs text-zinc-300 hover:text-white hover:bg-white/[0.08] active:scale-[0.98] transition-all duration-150"
-    >
-      <span className="leading-snug">{children}</span>
-      <ArrowUpRight className="w-3.5 h-3.5 shrink-0 text-zinc-500 group-hover:text-amber-300 transition-colors" aria-hidden="true" />
-    </a>
+    <li>
+      <a
+        href={href}
+        target="_blank"
+        rel="noopener noreferrer"
+        className="group flex min-h-8 items-center justify-between gap-2.5 rounded-xl px-2.5 py-1.5 text-xs text-zinc-300 transition-all duration-150 hover:bg-white/[0.08] hover:text-white focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-amber-400/70 active:scale-[0.98]"
+      >
+        <span className="min-w-0 flex-1 leading-snug">{children}</span>
+        <ArrowUpRight className="h-3.5 w-3.5 shrink-0 self-center text-zinc-500 transition-colors group-hover:text-amber-300" aria-hidden="true" />
+      </a>
+    </li>
   )
 }
 
@@ -93,35 +95,38 @@ export function ElfHostedMenuPanel({ onMinimize }: { onMinimize: () => void }) {
   const { t } = useT()
   const name = t("ui.hostedByElfhosted")
   return (
-    <div className="rounded-2xl bg-black/60 backdrop-blur-xl border border-amber-500/20 shadow-2xl shadow-black/50 p-2 w-full">
-      <div className="flex items-center gap-2.5 px-2 pt-1 pb-2">
+    <div className="w-full rounded-2xl border border-amber-500/20 bg-black/60 p-2.5 shadow-2xl shadow-black/50 backdrop-blur-xl">
+      <div className="flex items-start gap-2">
         {/* eslint-disable-next-line @next/next/no-img-element -- local SVG asset */}
-        <img src="/elfhosted.svg" alt="" aria-hidden="true" className="w-9 h-9 shrink-0" />
-        <a
-          href="https://elfhosted.com"
-          target="_blank"
-          rel="noopener noreferrer"
-          className="text-xs font-semibold text-zinc-100 hover:text-amber-200 transition-colors leading-snug"
-        >
-          {t("ui.hostedByTitle", { name })}
-        </a>
+        <img src="/elfhosted.svg" alt="" aria-hidden="true" className="h-8 w-8 shrink-0" />
+        <div className="min-w-0 flex-1">
+          <a
+            href="https://elfhosted.com"
+            target="_blank"
+            rel="noopener noreferrer"
+            className="block break-words rounded text-xs font-semibold leading-snug text-zinc-100 transition-colors hover:text-amber-200 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-amber-400/70"
+          >
+            {t("ui.hostedByTitle", { name })}
+          </a>
+          <p className="mt-1 text-[11px] leading-snug text-zinc-400">{t("ui.hostedByShared")}</p>
+        </div>
         <button
           type="button"
           onClick={onMinimize}
           aria-label={t("ui.hostedByMinimize")}
           title={t("ui.hostedByMinimize")}
-          className="ml-auto p-1 rounded-lg text-zinc-500 hover:text-zinc-200 hover:bg-white/[0.08] active:scale-90 transition-all cursor-pointer shrink-0"
+          className="-mr-1 -mt-1 flex h-8 w-8 shrink-0 cursor-pointer items-center justify-center rounded-lg text-zinc-500 transition-all hover:bg-white/[0.08] hover:text-zinc-200 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-amber-400/70 active:scale-90"
         >
-          <Minus className="w-3.5 h-3.5" />
+          <Minus className="h-4 w-4" aria-hidden="true" />
         </button>
       </div>
-      <p className="px-2 pb-2 text-[11px] leading-snug text-zinc-400">{t("ui.hostedByShared")}</p>
-      <div className="h-px bg-white/10 mx-2 mb-1" aria-hidden="true" />
-      {/* Private-instance row: ElfHosted's Pictorium product page. */}
-      <MenuLink href={DEPLOY_URL}>{t("ui.hostedByDeploy")}</MenuLink>
-      <MenuLink href="https://stremio-addons-guide.elfhosted.com/">
-        {t("ui.hostedByGuideLine", { guide: t("ui.hostedByGuide") })}
-      </MenuLink>
+      <ul className="mt-1.5 space-y-0.5 border-t border-white/10 pt-1">
+        {/* Private-instance row: ElfHosted's Pictorium product page. */}
+        <MenuLink href={DEPLOY_URL}>{t("ui.hostedByDeploy")}</MenuLink>
+        <MenuLink href="https://stremio-addons-guide.elfhosted.com/">
+          {t("ui.hostedByGuideLine", { guide: t("ui.hostedByGuide") })}
+        </MenuLink>
+      </ul>
     </div>
   )
 }

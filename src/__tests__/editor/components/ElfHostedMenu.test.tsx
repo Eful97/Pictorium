@@ -55,6 +55,51 @@ describe("ElfHostedMenu (desktop)", () => {
     expect(deployLink).toHaveAttribute("target", "_blank")
   })
 
+  it("pannello: righe lista con frecce e minimizza ≥32px", async () => {
+    mockApi("elfhosted")
+    renderWithCtx(<DesktopCommunityLinks />)
+    await screen.findByLabelText(/info sponsor/i)
+
+    const list = screen.getByRole("list")
+    const rows = list.querySelectorAll("li")
+    expect(rows).toHaveLength(2)
+    rows.forEach((row) => {
+      const link = row.querySelector("a")
+      expect(link).not.toBeNull()
+      expect(link?.querySelector("span")).not.toBeNull()
+      // righe compatte ma tappabili (>=32px con il padding verticale)
+      expect(link?.className).toContain("min-h-8")
+      // freccia decorativa: allineata a destra nella riga, mai letta dagli screen reader
+      expect(link?.querySelector("svg")).toHaveAttribute("aria-hidden", "true")
+    })
+
+    const minimize = screen.getByRole("button", { name: /riduci a icona/i })
+    expect(minimize.className).toContain("h-8")
+    expect(minimize.className).toContain("w-8")
+    expect(minimize.querySelector("svg")).not.toBeNull()
+  })
+
+  it("pannello aperto: larghezza aderente al contenuto e island compatta", async () => {
+    mockApi("elfhosted")
+    renderWithCtx(<DesktopCommunityLinks />)
+    await screen.findByLabelText(/info sponsor/i)
+
+    // La tendina non usa una larghezza fissa: aderisce al contenuto, con tetto viewport.
+    const dropdown = screen.getByRole("list").closest(".animate-fade-scale-in")
+    expect(dropdown).not.toBeNull()
+    expect(dropdown?.className).toContain("w-max")
+    expect(dropdown?.className).toContain("max-w-")
+    expect(dropdown?.className).not.toContain("w-80")
+
+    // L'island resta alla larghezza dei suoi pulsanti: nessuno stretch a 320px.
+    const island = screen.getByLabelText("GitHub Repository").parentElement
+    expect(island?.className).toContain("w-max")
+    expect(island?.className).not.toContain("flex-col")
+    const column = island?.parentElement
+    expect(column?.className).toContain("items-start")
+    expect(column?.className).not.toContain("items-stretch")
+  })
+
   it("tocco icona chiude e riapre, con persistenza", async () => {
     mockApi("elfhosted")
     renderWithCtx(<DesktopCommunityLinks />)
