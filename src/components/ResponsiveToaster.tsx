@@ -38,6 +38,12 @@ export function ResponsiveToaster() {
       // keeps its header-clearing offset from globals.css untouched.
       position={isDesktop ? "bottom-right" : "top-center"}
       duration={3000}
+      // Gap canonico della pillola (sonner lo scrive come inline `--gap`:
+      // passarlo qui è l'unico punto che vince sulla stylesheet).
+      gap={12}
+      // Burst di click ripetuti: mostra l'intero stack (sonner default 3
+      // nasconderebbe i toast oltre il terzo finché i primi non scadono).
+      visibleToasts={5}
       closeButton={false}
       richColors={false}
       icons={{
