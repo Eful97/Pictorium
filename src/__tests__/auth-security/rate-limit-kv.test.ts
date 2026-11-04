@@ -6,6 +6,7 @@ import { afterEach, beforeEach, describe, expect, it, vi } from "vitest"
 const kvMock = vi.hoisted(() => ({
   incr: vi.fn<(key: string) => Promise<number>>(),
   expire: vi.fn<(key: string, seconds: number) => Promise<number>>(),
+  eval: vi.fn<(script: string, keys: string[], args: string[]) => Promise<unknown>>(),
 }))
 
 vi.mock("@/lib/upstash-kv-client", () => ({ kv: kvMock }))
@@ -16,14 +17,37 @@ const redisCounters = vi.hoisted(() => new Map<string, number>())
 const redisExpireCalls = vi.hoisted((): Array<{ key: string; seconds: number }> => [])
 vi.mock("ioredis", () => ({
   default: class {
-    async incr(key: string): Promise<number> {
-      const next = (redisCounters.get(key) ?? 0) + 1
-      redisCounters.set(key, next)
-      return next
-    }
-    async expire(key: string, seconds: number): Promise<number> {
-      redisExpireCalls.push({ key, seconds })
-      return 1
+    async eval(script: string, numKeys: number, ...rest: string[]): Promise<unknown> {
+      const keys = rest.slice(0, numKeys)
+      const args = rest.slice(numKeys)
+      const key = keys[0]
+      // Minimal token-bucket shim mirroring the Lua for tests.
+      const maxTokens = Number(args[0])
+      const refillRate = Number(args[1])
+      const refillWindow = Number(args[2])
+      const now = Number(args[3])
+      let tokens = redisCounters.get(key + ":tokens")
+      let lastRefill = redisCounters.get(key + ":last")
+      if (tokens === undefined) tokens = maxTokens
+      if (lastRefill === undefined) lastRefill = now
+      const elapsed = now - lastRefill
+      if (elapsed >= refillWindow) {
+        const cycles = Math.floor(elapsed / refillWindow)
+        tokens = Math.min(tokens + cycles * refillRate, maxTokens)
+        lastRefill = lastRefill + cycles * refillWindow
+      }
+      let ok = 0
+      let retAfter = 0
+      if (tokens > 0) { tokens--; ok = 1 }
+      else {
+        const waitMs = lastRefill + refillWindow - now
+        retAfter = Math.ceil(waitMs / 1000)
+        if (retAfter < 1) retAfter = 1
+      }
+      redisCounters.set(key + ":tokens", tokens)
+      redisCounters.set(key + ":last", lastRefill)
+      redisExpireCalls.push({ key, seconds: Number(args[4]) })
+      return [ok, retAfter]
     }
     async quit(): Promise<string> {
       return "OK"
@@ -42,7 +66,8 @@ describe("rateLimit con store KV condiviso (KV_REST_API_URL/TOKEN configurati)",
     process.env.KV_REST_API_TOKEN = "test-token"
     kvMock.incr.mockReset()
     kvMock.expire.mockReset()
-    kvMock.expire.mockResolvedValue(1)
+    kvMock.eval.mockReset()
+    kvMock.eval.mockResolvedValue([1, 0])
   })
 
   afterEach(() => {
@@ -54,31 +79,33 @@ describe("rateLimit con store KV condiviso (KV_REST_API_URL/TOKEN configurati)",
     redisExpireCalls.length = 0
   })
 
-  it("usa kv.incr su una chiave composta (bucket:client:finestra) e impagina maxTokens", async () => {
+  it("usa kv.eval token bucket su una chiave composta (bucket:client) e impagina maxTokens", async () => {
     const { rateLimit } = await importRateLimit()
-    // warmup: maxTokens=5 → count 1..5 ok, 6 bloccato
-    for (let count = 1; count <= 5; count++) {
-      kvMock.incr.mockResolvedValueOnce(count)
+    // warmup: maxTokens=5 → i primi 5 ok, il 6° bloccato
+    for (let i = 0; i < 5; i++) {
+      kvMock.eval.mockResolvedValueOnce([1, 0])
       expect(await rateLimit("client-a", "warmup")).toEqual({ ok: true, retAfter: 0 })
     }
-    // La prima richiesta della finestra imposta il TTL (2× finestra = 2s)
-    expect(kvMock.expire).toHaveBeenCalledTimes(1)
-    expect(kvMock.expire).toHaveBeenCalledWith(expect.stringMatching(/^rl:warmup:client-a:\d+$/), 2)
-
-    kvMock.incr.mockResolvedValueOnce(6)
+    kvMock.eval.mockResolvedValueOnce([0, 1])
     const denied = await rateLimit("client-a", "warmup")
     expect(denied.ok).toBe(false)
     expect(denied.retAfter).toBeGreaterThan(0)
+    // Nessun INCR/EXPIRE separato: un solo EVAL atomico.
+    expect(kvMock.incr).not.toHaveBeenCalled()
+    expect(kvMock.expire).not.toHaveBeenCalled()
+    // La chiave non porta più il numero di finestra.
+    const keys = kvMock.eval.mock.calls.map((c) => (c[1] as string[])[0])
+    expect(keys.every((k) => /^rl:warmup:client-a$/.test(k))).toBe(true)
   })
 
   it("buckets diversi producono chiavi KV diverse (nessun bucket condiviso)", async () => {
     const { rateLimit } = await importRateLimit()
-    kvMock.incr.mockResolvedValue(1)
+    kvMock.eval.mockResolvedValue([1, 0])
     await rateLimit("client-b", "warmup")
     await rateLimit("client-b", "poster")
-    const keys = kvMock.incr.mock.calls.map((call) => call[0] as string)
-    expect(keys.some((k) => k.startsWith("rl:warmup:client-b:"))).toBe(true)
-    expect(keys.some((k) => k.startsWith("rl:poster:client-b:"))).toBe(true)
+    const keys = kvMock.eval.mock.calls.map((call) => (call[1] as string[])[0] as string)
+    expect(keys.some((k) => k === "rl:warmup:client-b")).toBe(true)
+    expect(keys.some((k) => k === "rl:poster:client-b")).toBe(true)
   })
 
   it("POSTERIUM_RATELIMIT_KV=0 forza lo store in-memory (zero chiamate KV)", async () => {
@@ -90,7 +117,7 @@ describe("rateLimit con store KV condiviso (KV_REST_API_URL/TOKEN configurati)",
 
   it("su errore KV degrada al bucket in-memory senza lanciare (fail-open locale)", async () => {
     const { rateLimit } = await importRateLimit()
-    kvMock.incr.mockRejectedValue(new Error("upstash down"))
+    kvMock.eval.mockRejectedValue(new Error("upstash down"))
     // Il fallback in-memory deve comportarsi come il rate limit normale:
     // 5 richieste ok (warmup max 5), la sesta negata dal bucket locale.
     for (let i = 0; i < 5; i++) {
@@ -99,21 +126,21 @@ describe("rateLimit con store KV condiviso (KV_REST_API_URL/TOKEN configurati)",
     expect((await rateLimit("client-d", "warmup")).ok).toBe(false)
   })
 
-  it("backend Redis nativo: fixed-window condiviso con TTL 2x finestra", async () => {
+  it("backend Redis nativo: token bucket condiviso via EVAL", async () => {
     process.env.PICTORIUM_REDIS_URL = "redis://localhost:6379/0"
     const { rateLimit } = await importRateLimit()
     for (let i = 0; i < 5; i++) {
       expect(await rateLimit("client-e", "warmup")).toEqual({ ok: true, retAfter: 0 })
     }
-    // La prima richiesta della finestra imposta il TTL (2× finestra = 2s).
-    expect(redisExpireCalls).toHaveLength(1)
-    expect(redisExpireCalls[0].key).toMatch(/^rl:warmup:client-e:\d+$/)
-    expect(redisExpireCalls[0].seconds).toBe(2)
+    // Un EVAL per richiesta, nessun INCR/EXPIRE separato.
+    expect(redisExpireCalls.length).toBeGreaterThanOrEqual(5)
+    expect(redisExpireCalls[0].key).toBe("rl:warmup:client-e")
+    expect(redisExpireCalls[0].seconds).toBe(30 * 60)
 
     const denied = await rateLimit("client-e", "warmup")
     expect(denied.ok).toBe(false)
     expect(denied.retAfter).toBeGreaterThan(0)
     // Mai toccato Upstash: il backend attivo è Redis.
-    expect(kvMock.incr).not.toHaveBeenCalled()
+    expect(kvMock.eval).not.toHaveBeenCalled()
   })
 })

@@ -21,7 +21,8 @@ import { GENRE_FALLBACK } from "./badges"
 import { isRankKey } from "./i18n"
 import { CHART_REGIONS, SUPPORTED_UI_LANGS } from "./regions"
 import { parseRatingSources } from "./ratings"
-import { isSeparateRatingsStyle, isQualityGroupLayout, DEFAULT_QUALITY_GROUP_LAYOUT } from "./badge-styles"
+import { isSeparateRatingsStyle, isQualityGroupLayout, DEFAULT_QUALITY_GROUP_LAYOUT, isQualityBadgeStyle, isBadgeStyle, isRankingBadgeStyle } from "./badge-styles"
+import { parseRegion } from "./regions"
 import { isPosterLayout, isPosterFreshScope, DEFAULT_POSTER_FRESH_SCOPE } from "./types"
 import { ANIME_RANK_MAX, parseSashOrder } from "./badge-priority"
 import { isVideoFormat } from "./av-specs"
@@ -647,6 +648,71 @@ export function hardenPosterSearchParams(
   if (params.has("qgl")) {
     const v = (params.get("qgl") || "").toLowerCase()
     params.set("qgl", isQualityGroupLayout(v) ? v : DEFAULT_QUALITY_GROUP_LAYOUT)
+  }
+
+  // F2 mirror: canonicalize allowlisted params in presets mode too, so the
+  // hardened path and the normalize path agree (identical renders one key).
+  // dv: valid compact hash only.
+  if (params.has("dv")) {
+    const v = (params.get("dv") || "").trim().toLowerCase()
+    if (/^[0-9a-f]{8}$/.test(v)) params.set("dv", v)
+    else params.delete("dv")
+  }
+  // region / country
+  for (const key of ["region", "country"]) {
+    if (!params.has(key)) continue
+    const code = parseRegion(params.get(key))
+    if (code) params.set(key, code)
+    else params.delete(key)
+  }
+  // logoFit: render treats anything !== "0" as enabled; canonicalize present
+  // values to "0"/"1" (exact "0" only is OFF), never delete a present value.
+  if (params.has("logoFit")) {
+    const v = params.get("logoFit") || ""
+    params.set("logoFit", v === "0" ? "0" : "1")
+  }
+  // debug / netgeo
+  for (const key of ["debug", "netgeo"]) {
+    if (!params.has(key)) continue
+    if (params.get(key) === "1") params.set(key, "1")
+    else params.delete(key)
+  }
+  // side
+  if (params.has("side")) {
+    const v = (params.get("side") || "").trim().toLowerCase()
+    if (v === "left" || v === "right") params.set("side", v)
+    else params.delete("side")
+  }
+  // age: render treats anything !== "0" as enabled; canonicalize present
+  // values to "0"/"1" (exact "0" only is OFF), never delete a present value.
+  if (params.has("age")) {
+    const v = params.get("age") || ""
+    params.set("age", v === "0" ? "0" : "1")
+  }
+  // qbs: present-invalid -> "standard" explicit
+  if (params.has("qbs")) {
+    const v = params.get("qbs") || ""
+    params.set("qbs", isQualityBadgeStyle(v) ? v : "standard")
+  }
+  // bs / rs: drop invalid (render falls through)
+  for (const [key, guard] of [["bs", isBadgeStyle], ["rs", isRankingBadgeStyle]] as const) {
+    if (!params.has(key)) continue
+    const v = params.get(key) || ""
+    if (!guard(v)) params.delete(key)
+  }
+  // malformed numerics
+  const NUMERIC_POSTER_PARAMS: ReadonlySet<string> = new Set([
+    "rank", "animerank", "rk", "scale", "ox", "oy", "tscale", "tox", "toy",
+    "exscale", "exox", "exoy", "gscale", "gox", "goy", "qscale", "qox", "qoy",
+    "sepscale", "sepox", "sepoy", "netscale", "nox", "noy", "bscale", "box",
+    "boy", "gradHeight", "blur", "bf", "bd", "tint", "ts", "tsh", "mv",
+    "year", "voteAverage",
+  ])
+  for (const key of NUMERIC_POSTER_PARAMS) {
+    if (!params.has(key)) continue
+    const v = params.get(key) || ""
+    const n = Number(v)
+    if (!Number.isFinite(n)) params.delete(key)
   }
 
   return params

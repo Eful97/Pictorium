@@ -147,7 +147,9 @@ Run these against the deployed instance:
   re-entered. Stored keys never enter cache keys (sha1-hashed fragments only),
   logs, or error messages.
 - `PICTORIUM_TRUST_PROXY=1` only behind a trusted edge that overwrites IP
-  headers (Cloudflare/HF edge/Nginx).
+  headers (Cloudflare/HF edge/Nginx). Behind Cloudflare, prefer
+  `PICTORIUM_CLIENT_IP_HEADER=cf-connecting-ip`: Cloudflare forwards a
+  client-supplied `x-real-ip`, so the default order is spoofable there.
 - Env table + full defaults live in README "Variabili d'Ambiente" — keep this
   skill in sync with it.
 - `PICTORIUM_HOSTED_BY=elfhosted` shows the sponsor banner on the home page

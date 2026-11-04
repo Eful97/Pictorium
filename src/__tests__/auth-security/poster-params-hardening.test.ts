@@ -381,4 +381,16 @@ describe("presets hardening: canonicalized enum/inert keys", () => {
     expect(key("lang=garbage!!")).toBe(key(""))
     expect(key("lang=zz-garbage1")).toBe(key("lang=zz-garbage2"))
   })
+
+  it("logoFit/age: present '0' stays '0', any other present value becomes '1', absent stays absent", () => {
+    for (const paramName of ["logoFit", "age"]) {
+      expect(key(`${paramName}=0`)).toBe(`${paramName}=0`)
+      for (const value of ["false", "true", "1", "garbage", ""]) {
+        expect(key(`${paramName}=${value}`)).toBe(`${paramName}=1`)
+      }
+      // absent stays absent
+      expect(key(`${paramName}=false`)).not.toBe(key(""))
+      expect(key(`${paramName}=false`)).toBe(key(`${paramName}=1`))
+    }
+  })
 })

@@ -11,7 +11,8 @@ import {
   sanitizeEffectiveAccentMeta,
   type EffectiveAccentMeta,
 } from "@/lib/effective-accent"
-import { isBadgeStyle, isRankingBadgeStyle, isExtraBadgeStyle, isExtraFollowRank, isBadgeFont, isSeparateRatingsStyle, isAgeBadgeStyle, isAwardBadgeMode, isQualityGroupLayout, DEFAULT_QUALITY_GROUP_LAYOUT } from "@/lib/badge-styles"
+import { isBadgeStyle, isRankingBadgeStyle, isExtraBadgeStyle, isExtraFollowRank, isBadgeFont, isSeparateRatingsStyle, isAgeBadgeStyle, isAwardBadgeMode, isQualityGroupLayout, DEFAULT_QUALITY_GROUP_LAYOUT, isQualityBadgeStyle } from "@/lib/badge-styles"
+import { parseRegion } from "@/lib/regions"
 import { isPosterLayout, isPosterFreshScope, DEFAULT_POSTER_FRESH_SCOPE } from "@/lib/types"
 import { POSTER_CACHE_ALLOWLIST, parseListRankParam, sanitizePortraitBaseBackdropPath } from "./poster-params-hardening"
 import { sanitizeDisabledContentTags } from "./content-tags"
@@ -358,6 +359,93 @@ export function normalizePosterCacheParams(searchParams: URLSearchParams): URLSe
     params.set("bit", canonicalizeBadgeItemTransforms(bit) ?? "")
   }
 
+  // F2 cache-key canonicalization: align the key with render semantics for
+  // allowlisted-but-previously-uncanonicalized params (same file). Each block
+  // mirrors the resolver so identical renders share one key and distinct
+  // renders keep distinct keys. Never changes valid-value bytes.
+
+  // dv: cache-buster hash (8 hex FNV-1a). Never read by the render — kept
+  // only when it is a valid compact hash, otherwise dropped (absent render).
+  const dv = params.get("dv")
+  if (dv !== null) {
+    const v = dv.trim().toLowerCase()
+    if (/^[0-9a-f]{8}$/.test(v)) params.set("dv", v)
+    else params.delete("dv")
+  }
+
+  // region / country: parsed via parseRegion (fail-closed). Invalid (unknown
+  // slug/code) collapses onto absent (default region) — same render, one key.
+  for (const key of ["region", "country"]) {
+    const raw = params.get(key)
+    if (raw === null) continue
+    const code = parseRegion(raw)
+    if (code) params.set(key, code)
+    else params.delete(key)
+  }
+
+  // logoFit: boolean-ish. Render treats anything !== "0" as enabled, so
+  // canonicalize the two outcomes ("0"/"1"); ANY present value other than the
+  // exact "0" renders ON (including "false", "true", garbage) — never delete a
+  // present value, never map "false" to "0". Mirrors resolveLogoFitEnabled.
+  const logoFit = params.get("logoFit")
+  if (logoFit !== null) {
+    params.set("logoFit", logoFit === "0" ? "0" : "1")
+  }
+
+  // debug / netgeo: render enables only on the exact "1". Anything else is
+  // inert → collapse onto absent (same render, one key).
+  for (const key of ["debug", "netgeo"]) {
+    const v = params.get(key)
+    if (v === null) continue
+    if (v === "1") params.set(key, "1")
+    else params.delete(key)
+  }
+
+  // side: enum {left,right}. Invalid collapses onto absent (left render).
+  const side = params.get("side")
+  if (side !== null) {
+    const v = side.trim().toLowerCase()
+    if (v === "left" || v === "right") params.set("side", v)
+    else params.delete("side")
+  }
+
+  // age: boolean. Render treats anything !== "0" as enabled, so canonicalize
+  // the two outcomes ("0"/"1"); no delete (present-invalid still renders ON,
+  // identical to "1"). Mirrors qAge !== "0" exactly (no trim, exact "0").
+  const age = params.get("age")
+  if (age !== null) {
+    params.set("age", age === "0" ? "0" : "1")
+  }
+
+  // qbs: present-invalid renders as "standard" (fail-closed, distinct from
+  // absent which may inherit). Keep the valid value; canonicalize garbage to
+  // the explicit "standard" sentinel (NOT delete — absent vs present-invalid
+  // are distinct renders).
+  const qbs = params.get("qbs")
+  if (qbs !== null) {
+    params.set("qbs", isQualityBadgeStyle(qbs) ? qbs : "standard")
+  }
+
+  // bs / rs: already dropped when invalid (render falls through the chain,
+  // identical to absent). Keep the valid value untouched (no re-case).
+  // (handled above)
+
+  // Malformed numerics (non-finite) → delete for known numeric params, so a
+  // garbage value cannot mint a distinct cache entry for an identical render.
+  const NUMERIC_POSTER_PARAMS: ReadonlySet<string> = new Set([
+    "rank", "animerank", "rk", "scale", "ox", "oy", "tscale", "tox", "toy",
+    "exscale", "exox", "exoy", "gscale", "gox", "goy", "qscale", "qox", "qoy",
+    "sepscale", "sepox", "sepoy", "netscale", "nox", "noy", "bscale", "box",
+    "boy", "gradHeight", "blur", "bf", "bd", "tint", "ts", "tsh", "mv",
+    "year", "voteAverage",
+  ])
+  for (const key of NUMERIC_POSTER_PARAMS) {
+    const v = params.get(key)
+    if (v === null) continue
+    const n = Number(v)
+    if (!Number.isFinite(n)) params.delete(key)
+  }
+
   // Removed Badge Lab params (`bp`/`bpf`/`bpt`): the custom badge library is
   // retired — legacy values are already dropped by the allowlist above, and
   // the route never emits them, so old URLs collapse onto the native key.
@@ -490,7 +578,7 @@ function accentMetaHeaders(meta: EffectiveAccentMeta | null | undefined): Record
   return encoded ? { [ACCENT_META_HEADER]: encoded } : {}
 }
 
-export function posterHeaders(etag: string, immutable: boolean, isPreview: boolean = false, dynamic: boolean = false, format: PosterImageFormat = "jpeg", dynamicTtlSec?: number, live: boolean = false, accentMeta?: EffectiveAccentMeta | null, factCapped?: boolean): PosterHeaders {
+export function posterHeaders(etag: string, immutable: boolean, isPreview: boolean = false, dynamic: boolean = false, format: PosterImageFormat = "jpeg", dynamicTtlSec?: number, live: boolean = false, accentMeta?: EffectiveAccentMeta | null, factCapped?: boolean, staleHit?: boolean): PosterHeaders {
   const contentType = FORMAT_MIME_TYPES[format] || "image/jpeg"
   if (isPreview) {
     return {
@@ -505,6 +593,36 @@ export function posterHeaders(etag: string, immutable: boolean, isPreview: boole
   }
   // Percorso live: stessa politica su 200 e 304 (vedi posterNotModifiedHeaders).
   if (live) {
+    return {
+      ...CORS_HEADERS,
+      "Content-Type": contentType,
+      "Cache-Control": LIVE_CACHE_CONTROL,
+      "CDN-Cache-Control": LIVE_CACHE_CONTROL,
+      "Surrogate-Control": LIVE_SURROGATE_CONTROL,
+      "ETag": etag,
+      ...accentMetaHeaders(accentMeta),
+    }
+  }
+  // Stale hit: il poster servito è scaduto (cache stale + refresh in
+  // background). Deve essere rivalidato sempre: no-cache, max-age=0,
+  // must-revalidate, SENZA stale-while-revalidate (altrimenti la CDN
+  // continuerebbe a servirlo oltre la scadenza). factCapped conserva il suo
+  // ramo (remaining) — un stale hit non è mai fact-capped (canServePosterStaleHit
+  // esclude i capped), ma il flag ha comunque la priorità per costruzione.
+  if (staleHit && !factCapped) {
+    return {
+      ...CORS_HEADERS,
+      "Content-Type": contentType,
+      "Cache-Control": LIVE_CACHE_CONTROL,
+      "CDN-Cache-Control": LIVE_CACHE_CONTROL,
+      "Surrogate-Control": LIVE_SURROGATE_CONTROL,
+      "ETag": etag,
+      ...accentMetaHeaders(accentMeta),
+    }
+  }
+  // Explicit zero TTL (httpSec=0) on a non-capped entry: rivalidate, no SWR.
+  // Covers callers that signal a stale serve via a zero TTL instead of the flag.
+  if (dynamicTtlSec !== undefined && dynamicTtlSec <= 0 && !factCapped) {
     return {
       ...CORS_HEADERS,
       "Content-Type": contentType,
@@ -639,7 +757,7 @@ export function serverTimingValue(entries: readonly ServerTimingEntry[]): string
     .join(", ")
 }
 
-export function posterResponse(payload: PosterCachePayload, immutable: boolean, isPreview: boolean = false, dynamic: boolean = false, format: PosterImageFormat = "jpeg", dynamicTtlSec?: number, serverTiming?: string, live: boolean = false, factCapped?: boolean): Response {
+export function posterResponse(payload: PosterCachePayload, immutable: boolean, isPreview: boolean = false, dynamic: boolean = false, format: PosterImageFormat = "jpeg", dynamicTtlSec?: number, serverTiming?: string, live: boolean = false, factCapped?: boolean, staleHit?: boolean): Response {
   // The accent display-sync header rides the SAME bytes the editor XHR loads:
   // every HIT/SWR/stale/coalesced 200 carries the meta of the payload it
   // serves (legacy payloads without meta stay header-absent → honest
@@ -647,7 +765,7 @@ export function posterResponse(payload: PosterCachePayload, immutable: boolean, 
   // Task D: factCapped flows to posterHeaders so a capped entry never emits
   // the 1y immutable policy (payload flag wins when the explicit arg is omitted).
   const capped = factCapped ?? payload.factCapped ?? false
-  const headers = posterHeaders(payload.etag, immutable, isPreview, dynamic, format, dynamicTtlSec, live, payload.accentMeta, capped)
+  const headers = posterHeaders(payload.etag, immutable, isPreview, dynamic, format, dynamicTtlSec, live, payload.accentMeta, capped, staleHit)
   // M5: zero-copy view — `new Uint8Array(buffer)` would MEMCPY the whole image
   // per response; the view shares the same bytes (offset/length honored, so
   // pooled Buffers stay exact).

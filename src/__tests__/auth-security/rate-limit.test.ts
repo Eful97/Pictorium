@@ -6,12 +6,10 @@ describe("rateLimitKey con POSTERIUM_TRUST_PROXY=1 (deploy dietro proxy fidato)"
   beforeEach(() => { process.env.POSTERIUM_TRUST_PROXY = "1" })
   afterEach(() => { delete process.env.POSTERIUM_TRUST_PROXY })
 
-  it("prefers x-real-ip over cf-connecting-ip (fix L27: anti-spoofing)", () => {
-    // Su deploy non-Cloudflare che impostano solo x-real-ip, cf-connecting-ip
-    // è un header client spoofabile: prima aveva la precedenza e il rate
-    // limit era bypassabile ruotandolo. Ora vince x-real-ip (scritto
-    // dall'edge); Cloudflare non imposta x-real-ip, quindi i suoi client
-    // cadono su cf-connecting-ip.
+  it("prefers cf-connecting-ip over x-real-ip (Cloudflare forwards client x-real-ip)", () => {
+    // Cloudflare inoltra un x-real-ip inviato dal client: preferire
+    // cf-connecting-ip (sovrascritto da Cloudflare) evita lo spoof del bucket.
+    // x-real-ip resta valido solo dietro proxy che lo sovrascrivono davvero.
     const req = new NextRequest("http://localhost:3000/", {
       headers: {
         "cf-connecting-ip": "1.2.3.4",
@@ -19,7 +17,7 @@ describe("rateLimitKey con POSTERIUM_TRUST_PROXY=1 (deploy dietro proxy fidato)"
         "x-forwarded-for": "9.9.9.9, 10.10.10.10",
       },
     })
-    expect(rateLimitKey(req)).toBe("5.6.7.8")
+    expect(rateLimitKey(req)).toBe("1.2.3.4")
   })
 
   it("falls back to cf-connecting-ip when x-real-ip is absent (Cloudflare)", () => {

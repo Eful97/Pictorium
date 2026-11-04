@@ -23,17 +23,16 @@ function resolveAdminToken(): string | undefined {
   )
 }
 
+// F7 (dev-only): trust ONLY the request URL hostname. The Host header is
+// client-controllable and must not grant loopback privileges (e.g. a
+// non-loopback URL with Host: localhost). ALLOW_DEV_ADMIN=1 still opens dev.
 function isLoopbackRequest(request: Request): boolean {
   try {
     const hostname = new URL(request.url).hostname.toLowerCase()
-    if (hostname === "127.0.0.1" || hostname === "::1" || hostname === "localhost") return true
-  } catch {}
-  const hostHeader = request.headers.get("host")
-  if (hostHeader) {
-    const h = hostHeader.split(":")[0].trim().toLowerCase()
-    if (h === "127.0.0.1" || h === "::1" || h === "localhost") return true
+    return hostname === "127.0.0.1" || hostname === "::1" || hostname === "localhost"
+  } catch {
+    return false
   }
-  return false
 }
 
 function isDevAdminAllowed(request: Request): boolean {
