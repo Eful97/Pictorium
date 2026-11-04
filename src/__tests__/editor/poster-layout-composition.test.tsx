@@ -252,6 +252,7 @@ describe("ready gallery thumbnails are real projected posters", () => {
     )
     renderPanel()
     await screen.findByTestId("poster-style-apple")
+    openPresetTab()
     const params = (id: string) => new URL(thumbSrc(id), "http://localhost").searchParams
     for (const id of ["apple", "better-poster", "rpdb", "essential", "ratings", "full"]) {
       const p = params(id)
@@ -266,6 +267,7 @@ describe("ready gallery thumbnails are real projected posters", () => {
     // A Card draft never rewrites the ready looks (they own Standard/Fresh).
     await openRankings()
     fireEvent.click(presentationRadio("ui.posterLayoutGroupedCard"))
+    openPresetTab()
     for (const id of ["apple", "essential"]) {
       expect(params(id).get("layout")).toBe("standard")
     }
@@ -277,6 +279,7 @@ describe("ready gallery thumbnails are real projected posters", () => {
     const outerApply = vi.spyOn(ctx(), "applyVisualPreset")
     const before = snapshot(ctx())
     await screen.findByTestId("poster-style-essential")
+    openPresetTab()
     const storageBefore = storageSnapshot()
     // The thumbnail already carries the exact per-click projection: stable.
     const want = thumbSrc("essential")
