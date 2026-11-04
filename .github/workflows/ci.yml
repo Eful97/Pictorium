@@ -106,6 +106,13 @@ jobs:
     needs: [fast, changes]
     if: always() && (github.event_name != 'pull_request' || github.event.pull_request.draft == false)
     runs-on: ubuntu-latest
+    # Shard the Vitest suite across 3 parallel runners to cut wall time (~1/3).
+    # Coverage stays OFF in shards (use `npm run test:coverage` in a dedicated
+    # job if needed); merging per-shard coverage is out of scope here.
+    strategy:
+      fail-fast: false
+      matrix:
+        shard: ['1/3', '2/3', '3/3']
     steps:
       # A failed OR skipped changes job must fail this gate, never skip it.
       - name: Fast checks and change detection must be green
@@ -120,10 +127,10 @@ jobs:
           cache: npm
       - run: npm ci
         if: needs.changes.outputs.code == 'true'
-      - run: npm run test
+      - run: npx vitest run --shard=${{ matrix.shard }}
         if: needs.changes.outputs.code == 'true'
       - run: npm run build
-        if: needs.changes.outputs.code == 'true'
+        if: needs.changes.outputs.code == 'true' && matrix.shard == '1/3'
 
   commits:
     runs-on: ubuntu-latest
