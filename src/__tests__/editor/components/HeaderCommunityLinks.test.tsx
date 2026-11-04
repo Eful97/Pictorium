@@ -1,5 +1,5 @@
 import { describe, expect, it, vi, beforeEach } from "vitest"
-import { screen, waitFor } from "@testing-library/react"
+import { screen } from "@testing-library/react"
 import { DesktopCommunityLinks, MobileCommunityLinks } from "@/components/HeaderCommunityLinks"
 import { renderWithCtx } from "@/__tests__/test-utils"
 
@@ -11,8 +11,8 @@ describe("HeaderCommunityLinks", () => {
     }) as unknown as typeof fetch
   })
 
-  it("renders desktop community links with correct hrefs and goal", async () => {
-    renderWithCtx(<DesktopCommunityLinks />)
+  it("renders desktop community links with an icon-only Ko-fi button", () => {
+    const { container } = renderWithCtx(<DesktopCommunityLinks />)
 
     const ghLink = screen.getByLabelText("GitHub Repository")
     expect(ghLink).toHaveAttribute("href", "https://github.com/Eful97/Pictorium")
@@ -22,22 +22,40 @@ describe("HeaderCommunityLinks", () => {
     expect(discordLink).toHaveAttribute("href", "https://discord.gg/sYfWyXYVUp")
     expect(discordLink).toHaveAttribute("target", "_blank")
 
-    await waitFor(() => {
-      expect(screen.getByText("3/6€")).toBeInTheDocument()
-    })
-
-    const kofiLink = screen.getByRole("link", { name: /support vps on ko-fi/i })
+    const kofiLink = screen.getByRole("link", { name: "Support on Ko-fi" })
     expect(kofiLink).toHaveAttribute("href", "https://ko-fi.com/eful97")
     expect(kofiLink).toHaveAttribute("target", "_blank")
+    expect(kofiLink).toHaveAttribute("rel", expect.stringContaining("noopener"))
+    expect(kofiLink.querySelector("svg")).not.toBeNull()
+    // Icona pura: nessun testo, nessun importo, nessuna barra di progresso
+    expect(kofiLink.textContent).toBe("")
+    expect(screen.queryByText(/vps goal/i)).toBeNull()
+    expect(screen.queryByText(/€/)).toBeNull()
+    expect(screen.queryByText("3/6€")).toBeNull()
+
+    // Nessun fetch del goal: la barra non esiste più
+    expect(global.fetch).not.toHaveBeenCalledWith("/api/kofi/goal")
+
+    // Nessun separatore verticale nella island: icone uniformemente distanziate
+    expect(container.querySelector(".h-4.w-px")).toBeNull()
+    expect(container.querySelector("[class*='bg-white/10'][class*='w-px']")).toBeNull()
   })
 
-  it("renders mobile community links properly", async () => {
+  it("renders mobile community links with an icon-only Ko-fi pill", () => {
     renderWithCtx(<MobileCommunityLinks />)
 
     expect(screen.getByText("GitHub")).toBeInTheDocument()
     expect(screen.getByText("Discord")).toBeInTheDocument()
-    await waitFor(() => {
-      expect(screen.getByText("VPS: 3/6€")).toBeInTheDocument()
-    })
+
+    const kofiLink = screen.getByRole("link", { name: "Support on Ko-fi" })
+    expect(kofiLink).toHaveAttribute("href", "https://ko-fi.com/eful97")
+    expect(kofiLink).toHaveAttribute("target", "_blank")
+    expect(kofiLink).toHaveAttribute("rel", expect.stringContaining("noopener"))
+    expect(kofiLink.querySelector("svg")).not.toBeNull()
+    expect(kofiLink.textContent).toBe("")
+    expect(screen.queryByText(/VPS:/)).toBeNull()
+    expect(screen.queryByText(/€/)).toBeNull()
+
+    expect(global.fetch).not.toHaveBeenCalledWith("/api/kofi/goal")
   })
 })
