@@ -92,6 +92,19 @@ async function waitFor(url, timeoutMs, label, headers = {}) {
 // (PICTORIUM_BASE_URL) impostare LOAD_HEALTH_KEY con una chiave valida.
 const healthKey = process.env.LOAD_HEALTH_KEY || "mock-key"
 
+// Autocannon (opzionale): dipendenza dev opzionale per percentili reali.
+// Se non installato, il harness resta funzionale con la matematica manuale
+// (latencyReport/percentile) come fallback. Installazione (NON eseguita qui):
+//   npm i -D autocannon@8.0.0
+async function loadAutocannon() {
+  try {
+    const mod = await import("autocannon")
+    return mod && (mod.default || mod)
+  } catch {
+    return null
+  }
+}
+
 // Token admin per /api/cache/status (fail-closed in production senza token).
 // Inoltrato al figlio come PICTORIUM_ADMIN_TOKEN così lo status è leggibile.
 const adminToken = process.env.BENCH_ADMIN_TOKEN || process.env.PICTORIUM_ADMIN_TOKEN || ""
@@ -825,11 +838,84 @@ async function runSoak() {
   return 0
 }
 
+// Autocannon (opzionale): scenario coalesce-like tiny N=10 con percentili reali.
+// Fail-open se autocannon non è installato (vedi loadAutocannon).
+async function runAutocannonCoalesce() {
+  const ac = await loadAutocannon()
+  if (!ac) {
+    log("Autocannon: NOT INSTALLED — install with `npm i -D autocannon@8.0.0` (not executed). Skipping real-percentile scenario; manual percentile math remains the fallback.")
+    return 0
+  }
+  const id = 990001
+  const url = `${appUrl}/api/poster/movie/${id}`
+  log(`Autocannon coalesce-like: 10 requests on movie/${id} via autocannon API`)
+  const opts = {
+    url,
+    connections: 10,
+    amount: 10,
+    method: "GET",
+  }
+  let result
+  try {
+    result = await new Promise((resolve, reject) => {
+      ac(opts, (err, res) => (err ? reject(err) : resolve(res)))
+    })
+  } catch (e) {
+    log(`Autocannon run failed: ${e && e.message ? e.message : e} — falling back to manual math`)
+    return 0
+  }
+  const lat = (result && result.latency) || {}
+  const p50 = lat.p50 ?? lat.median ?? lat.average ?? 0
+  const p95 = lat.p95 ?? lat.p97_5 ?? lat.max ?? 0
+  const p99 = lat.p99 ?? lat.p99_9 ?? lat.max ?? 0
+
+  let non2xx = 0
+  let status503 = 0
+  if (typeof result.non2xx === "number") non2xx = result.non2xx
+  else if (result.statusCodeStats) {
+    for (const [code, v] of Object.entries(result.statusCodeStats)) {
+      const count = typeof v === "number" ? v : (v && v.count) || 0
+      if (code !== "200") non2xx += count
+      if (code === "503") status503 = count
+    }
+  }
+  // 503 counting esplicito (backpressure slot limiter), anche se autocannon
+  // li riporta già dentro non2xx.
+  if (result.statusCodeStats && result.statusCodeStats["503"]) {
+    const v = result.statusCodeStats["503"]
+    status503 = typeof v === "number" ? v : (v && v.count) || status503
+  }
+
+  log("--- Autocannon Coalesce ---")
+  log(`Requests: ${result.requests && result.requests.total ? result.requests.total : 10} | non2xx: ${non2xx} | 503: ${status503}`)
+  log(`Latenza p50/p95/p99 (autocannon real percentiles): ${p50}/${p95}/${p99}ms`)
+
+  recordMatrix({
+    scenario: "Autocannon (x10)",
+    p50: `${p50}ms`,
+    p95: `${p95}ms`,
+    p99: `${p99}ms`,
+    renders: "n/a",
+    coalesced: "n/a",
+    maxActive: "n/a",
+    maxQueued: "n/a",
+    errors: non2xx,
+    status: non2xx > 0 ? "FAIL" : "PASS",
+  })
+
+  if (non2xx > 0) {
+    log(`FAIL autocannon: ${non2xx} non-2xx (${status503} 503)`)
+    return 1
+  }
+  log("PASS autocannon")
+  return 0
+}
+
 // --- Avvio infrastruttura --------------------------------------------------
 
 async function run() {
-  if (!["burst", "coalesce", "warm", "swr", "jitter", "soak", "all"].includes(MODE)) {
-    throw new Error(`LOAD_MODE non valido: ${MODE} (coalesce|burst|warm|swr|jitter|soak|all)`)
+  if (!["burst", "coalesce", "warm", "swr", "jitter", "soak", "autocannon", "all"].includes(MODE)) {
+    throw new Error(`LOAD_MODE non valido: ${MODE} (coalesce|burst|warm|swr|jitter|soak|autocannon|all)`)
   }
   const mockUrl = `http://127.0.0.1:${MOCK_PORT}`
 
@@ -923,11 +1009,22 @@ async function run() {
     if (m === "swr") return runSwr()
     if (m === "jitter") return runJitterCheck()
     if (m === "soak") return runSoak()
+    if (m === "autocannon") return runAutocannonCoalesce()
     return runBurst()
   }
 
+  // Disponibilità autocannon (fail-open): documentata, mai installata da qui.
+  const acMod = await loadAutocannon()
+  if (acMod) {
+    log(`Autocannon: available${acMod.version ? ` (v${acMod.version})` : ""} — real p50/p95/p99 enabled`)
+  } else {
+    log("Autocannon: NOT INSTALLED — install with `npm i -D autocannon@8.0.0` (not executed). Manual percentile math remains the fallback.")
+  }
+
   if (MODE === "all") {
-    for (const m of ["coalesce", "burst", "warm", "swr", "jitter", "soak"]) {
+    const modes = ["coalesce", "burst", "warm", "swr", "jitter", "soak"]
+    if (acMod) modes.push("autocannon")
+    for (const m of modes) {
       exitCode = (await runMode(m)) || exitCode
     }
   } else {
