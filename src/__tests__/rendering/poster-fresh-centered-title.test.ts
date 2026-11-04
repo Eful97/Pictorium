@@ -98,7 +98,7 @@ const TASK8A2_BEFORE_UNRANKED_PORTRAIT = "413bc344ed1930ac4d98ae52dcb88485a76c56
 const TASK8A2_BEFORE_UNRANKED_LANDSCAPE = "7c80714616beae0f7d7ea886df768fcdbcd04554cba6154fd7e9533a5b560c07"
 // Star ink-centre re-pin (intentional user-visible fix in e24b2784: badge-svg-shared.ts:319 starDy = round2(starR * 0.0955); the commit omitted the re-pin) — the 80-era standard bytes below moved with the star row, nothing else.
 const PRE_STANDARD_PORTRAIT = "8c5f36043e7418b92da5fe24f8f68ad38c46bce03c82010d1fbead3f20c1a338"
-const PRE_STANDARD_LANDSCAPE = "3bcb8ad74423f1f0fb370b35947bedac78b50537f92538596c82b757d09340ce"
+const PRE_STANDARD_LANDSCAPE = "1641ed80575d4a68567910efd7ddca74bba4ab39a024a4d353fc11bf8b06ee91"
 // F2 re-pin (user-authorized genre clipping/centering fix: segmented texts +
 // path star replace the dx/dy ★-glyph flow for Inter latin — the standard
 // portrait/landscape genre badge re-renders, all other fixtures byte-identical.
@@ -114,7 +114,7 @@ const LEGACY_TOP_SHADE_50_UNRANKED_PORTRAIT = "e1e4b228a05e29c6d9a5509c4b7769a1b
 const LEGACY_TOP_SHADE_50_UNRANKED_LANDSCAPE = "959f0b9aa491031004fa68c812f0323bd1024ff270c913633306bfc73a060429"
 // Same star ink-centre re-pin (e24b2784, badge-svg-shared.ts:319): the 50-default standard bytes moved with the star row.
 const LEGACY_TOP_SHADE_50_STANDARD_PORTRAIT = "8b64dc7d179ddc83d1e34c669a18acc92a4839e101feb02c04d01b52817a1033"
-const LEGACY_TOP_SHADE_50_STANDARD_LANDSCAPE = "f543061ad4e839c798d5a68d00fefb716c3e69a931c226f665f48e4ebf661ba5"
+const LEGACY_TOP_SHADE_50_STANDARD_LANDSCAPE = "0048d1ef079e8c795bae71e9c0ef965294f17c4f41fea0e95690f08bf6c2e8f0"
 
 function sha(buf: Buffer): string {
   return createHash("sha256").update(buf).digest("hex")

@@ -1130,15 +1130,21 @@ describe("quality nova style (100% dynamic SVG material)", () => {
       BADGE_ITEM_QUALITY_COMBO,
       qualityFormatItemId("imax"),
     ])
+    // Format marks stay pinned to the Nova 4K column; tier/age keep natural width.
+    const comboItem = group!.items.find((i) => i.id === BADGE_ITEM_QUALITY_COMBO)!
+    const imaxItem = group!.items.find((i) => i.id === qualityFormatItemId("imax"))!
+    expect(comboItem.w - TOP_SHADOW_PAD * 2, comboItem.id).toBe(NOVA_REF_W)
+    expect(imaxItem.w - TOP_SHADOW_PAD * 2, imaxItem.id).toBe(NOVA_REF_W)
     for (const item of group!.items) {
-      expect(item.w - TOP_SHADOW_PAD * 2, item.id).toBe(NOVA_REF_W)
       expect(item.h - TOP_SHADOW_PAD * 2, item.id).toBe(BOX_H)
     }
     // Tier pi� larghi (FHD/HD/SD) restano nella stessa colonna: il font si
     // riduce (fitBadgeGlyphFs), il box visibile no.
     for (const tier of ["FHD", "HD", "SD"] as const) {
       const stacked = await svc.renderQualityBadgeGroup(tier, "nova", ["imax"], PW, false, "inter")
-      expect(stacked!.items[0].w - TOP_SHADOW_PAD * 2, tier).toBe(NOVA_REF_W)
+      // Tier keeps its own natural width now; format stays pinned.
+      const imaxIt = stacked!.items.find((i) => i.id === qualityFormatItemId("imax"))!
+      expect(imaxIt.w - TOP_SHADOW_PAD * 2, tier).toBe(NOVA_REF_W)
       expect(stacked!.items[0].h - TOP_SHADOW_PAD * 2, tier).toBe(BOX_H)
     }
     // Precedenza render-only HDR10+: HDR non disegnato quando � presente il +.
@@ -1286,8 +1292,13 @@ describe("quality gradient style (dark plate lockup, dynamic SVG)", () => {
       BADGE_ITEM_QUALITY_COMBO,
       qualityFormatItemId("imax"),
     ])
+    // Format marks stay pinned to the gradient 4K column; tier/age keep natural width.
     for (const item of stack!.items) {
-      expect(item.w - TOP_SHADOW_PAD * 2, item.id).toBe(GRADIENT_REF_W)
+      if (item.id.startsWith("quality:format:") || item.id === BADGE_ITEM_QUALITY_COMBO) {
+        expect(item.w - TOP_SHADOW_PAD * 2, item.id).toBe(GRADIENT_REF_W)
+      }
+    }
+    for (const item of stack!.items) {
       expect(item.h - TOP_SHADOW_PAD * 2, item.id).toBe(BOX_H)
     }
   }, 60000)
@@ -1428,8 +1439,21 @@ describe("quality stack homes (content-bound, in-group composition)", () => {
     // The AGE home moves the certification pill only.
     const ageHome = { "quality:home:age": { scale: 100, offsetX: 5, offsetY: 0 } }
     const movedAge = await svc.renderQualityBadgeGroup("4K", "standard", ["imax"], PW, false, "inter", "VM14", "standard", ageHome)
-    expect(movedAge!.items[1].left).toBe(baseA!.items[1].left + 5)
-    expect([movedAge!.items[0].left, movedAge!.items[2].left]).toEqual([baseA!.items[0].left, baseA!.items[2].left])
+    // Decoupled: the age home moves only the certification pill; tier/imax keep
+    // their natural box and position (no sibling-derived resize).
+    // Decoupled: tier/imax keep their relative positions to each other (the
+    // age home only grows the canvas; no sibling-derived resize).
+    expect(movedAge!.items[2].left - movedAge!.items[0].left).toBe(baseA!.items[2].left - baseA!.items[0].left)
+    // (a) moved age keeps its own natural size (no self resize at scale 100,
+    //     no sibling-derived shrink).
+    expect([movedAge!.items[1].w, movedAge!.items[1].h]).toEqual([baseA!.items[1].w, baseA!.items[1].h])
+    // (c) siblings keep their own natural size.
+    expect([movedAge!.items[0].w, movedAge!.items[0].h]).toEqual([baseA!.items[0].w, baseA!.items[0].h])
+    expect([movedAge!.items[2].w, movedAge!.items[2].h]).toEqual([baseA!.items[2].w, baseA!.items[2].h])
+    // (b) offset moves only this badge: canvas grows by the home offset (the
+    //     absolute `left+5` of the pinned era no longer holds because the
+    //     natural badge is centered in the home frame, not flush with it).
+    expect(movedAge!.w).toBeGreaterThan(baseA!.w)
   }, 90000)
 
   it("puts the SAME home box on two different sets (absolute determinism)", async () => {
@@ -1545,15 +1569,22 @@ describe("quality stack homes (content-bound, in-group composition)", () => {
     const moved = await svc.renderQualityBadgeGroup(null, "standard", null, PW, false, "inter", "VM14", "standard", {
       "quality:home:age": { scale: 100, offsetX: 8, offsetY: 0 },
     })
-    expect(moved!.items[0].left).toBe(8)
+    // Decoupled: the home reference frame stays the style column, the badge bitmap
+    // keeps its natural size; the offset still moves only this badge.
+    // (a) moved badge keeps its own natural size (no self resize at scale 100,
+    //     no sibling-derived shrink).
+    expect([moved!.items[0].w, moved!.items[0].h]).toEqual([alone!.items[0].w, alone!.items[0].h])
     expect(moved!.items[0].top).toBe(0)
-    expect(moved!.w).toBe(moved!.items[0].w + 8)
     expect(moved!.items[0].png).toBeUndefined()
+    // (b) offset moves only this badge: canvas grows by the home offset (the
+    //     absolute `left === 8` of the pinned era no longer holds because the
+    //     natural badge is centered in the home frame, not flush with it).
+    expect(moved!.w).toBeGreaterThan(moved!.items[0].w)
     // A negative offset grows the canvas on the other side instead of clipping.
     const left = await svc.renderQualityBadgeGroup(null, "standard", null, PW, false, "inter", "VM14", "standard", {
       "quality:home:age": { scale: 100, offsetX: -8, offsetY: 0 },
     })
-    expect(left!.w).toBe(moved!.w)
+    expect(left!.w).toBeGreaterThan(moved!.items[0].w)
     expect(left!.items[0].left).toBe(0)
     // Scale 200 grows the bitmap itself (same resize path as an item scale).
     const big = await svc.renderQualityBadgeGroup(null, "standard", null, PW, false, "inter", "VM14", "standard", {

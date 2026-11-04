@@ -1591,8 +1591,12 @@ export async function renderQualityBadgeGroup(
   // (the home must be the SAME box everywhere).
   const paintedCount = (hasQuality ? 1 : 0) + (ageText === "" ? 0 : 1) + formatItems.length
   const groupTargetW = paintedCount > 1 ? markRefWidth : undefined
-  const tierTargetW = groupTargetW ?? (homeTransform(BADGE_ITEM_QUALITY_TIER) ? markRefWidth : undefined)
-  const ageTargetW = groupTargetW ?? (homeTransform(BADGE_ITEM_QUALITY_AGE) ? markRefWidth : undefined)
+  // Decoupled (approved): tier/age keep their NATURAL size unless a real group
+  // column exists (groupTargetW). A stored HOME alone never resizes the badge
+  // to the pinned column — the home frame is for positioning only, the canvas
+  // grows to fit (matches quality-badge-styles WIP expectations).
+  const tierTargetW = groupTargetW
+  const ageTargetW = groupTargetW
 
   let resBadge: BadgeSvgSpec | null = null
   if (hasQuality) {
@@ -3426,51 +3430,17 @@ export async function generatePosterBuffer(input: GenerationInput): Promise<Buff
         : (isLandscapeLeft
           ? logoAlignPadX(CW) + combinedGenreOX
           : Math.round((CW - w) / 2) + combinedGenreOX) + landscapeShiftX
-      let genreBox = safeGenreBadgeResult
+      const genreBox = safeGenreBadgeResult
       // L'ancora posiziona il corpo visibile (senza bleed è il percorso
       // storico byte-identico); la tela segue per differenza. Anche
       // l'overlap col logo e lo shrink ragionano sul corpo.
-      const genreBody0 = badgeBody(genreBox)
-      let genreTop = genreTopFor(genreBody0.h)
-      let genreLeft = genreLeftFor(genreBody0.w)
-      // Logo film grande + badge genere: se si sovrappongono si rimpicciolisce
-      // il badge (mai il logo: è il protagonista e la sua scala è un controllo
-      // utente esplicito). Min 0.7 (testo, deve restare leggibile), poi
-      // ri-ancoraggio come sopra.
-      if (logoResult) {
-        const overlapsLogo = (w: number, h: number, left: number, top: number) =>
-          left < logoResult.left + logoResult.w && left + w > logoResult.left &&
-          top < logoResult.top + logoResult.h && top + h > logoResult.top
-        if (overlapsLogo(genreBody0.w, genreBody0.h, genreLeft, genreTop)) {
-          let scale = 1
-          const minScale = 0.7
-          let curW = genreBody0.w
-          let curH = genreBody0.h
-          while (scale > minScale && overlapsLogo(curW, curH, genreLeftFor(curW), genreTopFor(curH))) {
-            scale -= 0.1
-            if (scale < minScale) scale = minScale
-            const newW = Math.max(1, Math.round(genreBody0.w * scale))
-            const newH = Math.max(1, Math.round(genreBody0.h * scale))
-            if (newW === curW && newH === curH) break
-            curW = newW
-            curH = newH
-            if (scale <= minScale) break
-          }
-          if (curW !== genreBody0.w || curH !== genreBody0.h) {
-            // Un solo resize della tela, proporzionale allo shrink del corpo.
-            const ratio = curW / genreBody0.w
-            const canvasW = Math.max(1, Math.round(genreBox.w * ratio))
-            const canvasH = Math.max(1, Math.round(genreBox.h * ratio))
-            const png = await sharp(genreBox.png).resize(canvasW, canvasH).toBuffer()
-            const bleed = genreBox.bleed ? scaleBadgeBleed(genreBox.bleed, canvasW / genreBox.w, canvasH / genreBox.h) : undefined
-            genreBox = { ...genreBox, png, w: canvasW, h: canvasH, ...(bleed ? { bleed } : {}) }
-            const shrunkBody = badgeBody(genreBox)
-            genreTop = genreTopFor(shrunkBody.h)
-            genreLeft = genreLeftFor(shrunkBody.w)
-          }
-        }
-      }
+      // Decoupling (fix): il logo NON rimpicciolisce mai il badge genere.
+      // La dimensione del badge genere dipende SOLO da gscale + contenuto;
+      // il logo si muove/scala/clip per contratto senza toccare il badge.
       const genreBody = badgeBody(genreBox)
+      // Historic placement (auto): no logo shrink.
+      const genreTop = genreTopFor(genreBody.h)
+      const genreLeft = genreLeftFor(genreBody.w)
       genreBadgeRect = { top: genreTop, left: genreLeft, w: genreBody.w, h: genreBody.h }
       const genreCanvas = badgeCanvasForBody(genreLeft, genreTop, genreBox)
       composites.push({ input: genreBox.png, top: genreCanvas.top, left: genreCanvas.left })

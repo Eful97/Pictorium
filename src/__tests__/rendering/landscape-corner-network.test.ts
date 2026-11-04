@@ -255,7 +255,8 @@ describe("landscape corner network above the title", () => {
     expect(title.top).toBeLessThan(LAND_H)
     const net = await netBoxByScan(buf, title.top - 110, title.top - 2)
     expect(net).not.toBeNull()
-    expect(Math.abs(boxCX(net!) - boxCX(title))).toBeLessThanOrEqual(4)
+    // Tolerance 4->5 after logo-genre decoupling (intentional visual change).
+    expect(Math.abs(boxCX(net!) - boxCX(title))).toBeLessThanOrEqual(5)
   }, 60000)
 
   it("does not move the title (corner vs centered style)", async () => {
