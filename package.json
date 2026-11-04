@@ -53,6 +53,7 @@
     "@types/react-dom": "^19",
     "@vitejs/plugin-react": "^6.1.1",
     "@vitest/coverage-v8": "^4.1.11",
+    "autocannon": "8.0.0",
     "babel-plugin-react-compiler": "^1.0.0",
     "dependency-cruiser": "18.7.2",
     "eslint": "^9",
