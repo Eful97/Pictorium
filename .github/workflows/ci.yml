@@ -132,6 +132,24 @@ jobs:
       - run: npm run build
         if: needs.changes.outputs.code == 'true' && matrix.shard == '1/3'
 
+  # Aggregate gate published as the literal check `verify`. Branch protection
+  # on master requires the contexts `commits`/`verify`/`visual`, but a sharded
+  # matrix only reports `verify (1/3|2/3|3/3)`: the required `verify` check
+  # never appeared, so a PR with every shard green stayed BLOCKED on a PENDING
+  # required check. This job republishes that exact context and fails unless the
+  # whole shard matrix succeeded (a skipped shard is not a pass). Additive only:
+  # job ids, shard behaviour and runner work are unchanged.
+  verify-aggregate:
+    name: verify
+    needs: [verify]
+    if: always() && (github.event_name != 'pull_request' || github.event.pull_request.draft == false)
+    runs-on: ubuntu-latest
+    steps:
+      # A failed OR skipped shard matrix must fail this gate, never skip it.
+      - name: All verify shards must be green
+        if: needs.verify.result != 'success'
+        run: exit 1
+
   commits:
     runs-on: ubuntu-latest
     steps:
