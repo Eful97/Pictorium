@@ -30,9 +30,9 @@ export interface ChangelogRelease {
  *  (which bumps on every commit and would leave the dot permanently on). */
 export const CHANGELOG: ChangelogRelease[] = [
   {
-    version: "1.28.0",
+    version: "1.27.0",
     date: "2026-11-05",
-    title: "Release 1.28.0",
+    title: "Release 1.27.0",
     items: [
       { type: "feature", text: "Show each episode's IMDb or TMDB rating on Stremio episode thumbnails, choose a still, badge style and corner, and turn on daily rotation" },
       { type: "fix", text: "Even out the spacing of the No pill quality badges and make them slightly larger, so they match the other styles" },
@@ -43,16 +43,6 @@ export const CHANGELOG: ChangelogRelease[] = [
       { type: "fix", text: "Make episode thumbnails work on shared instances with a missing space, like posters already do" },
       { type: "fix", text: "Apply thumbnail style changes immediately instead of serving a stale cached thumbnail" },
       { type: "fix", text: "Save episode thumbnail settings without changing poster URLs or poster state" },
-    ],
-  },
-  {
-    version: "1.27.0",
-    date: "2026-11-05",
-    title: "Release 1.27.0",
-    items: [
-      { type: "feature", text: "Show each episode's IMDb or TMDB rating on Stremio episode thumbnails, choose a still, badge style and corner, and turn on daily rotation" },
-      { type: "fix", text: "Even out the spacing of the No pill quality badges and make them slightly larger, so they match the other styles" },
-      { type: "fix", text: "Respect your language posters when clean posters are off, and stop a saved landscape backdrop from showing as a band on portrait posters" },
     ],
   },
   {
