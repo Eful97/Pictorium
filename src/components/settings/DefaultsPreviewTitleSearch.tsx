@@ -30,6 +30,7 @@ interface SearchPayload {
     release_date?: string
     first_air_date?: string
     vote_average?: number
+    imdbRating?: string
   }>
 }
 
@@ -301,6 +302,15 @@ export function DefaultsPreviewTitleSearch({
           {results.map((r) => {
             const title = r.title || r.name || `#${r.id}`
             const year = yearOf(r)
+            // IMDb (Cinemeta) first, TMDB `vote_average` as fail-open fallback.
+            // Absent/invalid values never render `0.0`.
+            const imdbRating = r.imdbRating !== undefined ? Number(r.imdbRating) : NaN
+            const displayRating =
+              Number.isFinite(imdbRating) && imdbRating > 0
+                ? imdbRating
+                : r.vote_average != null && r.vote_average > 0
+                  ? r.vote_average
+                  : null
             return (
               <li key={`${r.media_type}:${r.id}`}>
                 <button
@@ -316,9 +326,9 @@ export function DefaultsPreviewTitleSearch({
                   <span className="shrink-0 text-[10px] font-semibold text-zinc-400 border border-white/10 rounded-md px-1.5 py-0.5">
                     {r.media_type === "tv" ? "TV" : t("ui.movie")}
                   </span>
-                  {typeof r.vote_average === "number" && r.vote_average > 0 ? (
+                  {displayRating !== null ? (
                     <span className="shrink-0 text-[10px] text-amber-300 font-semibold tabular-nums">
-                      ★ {r.vote_average.toFixed(1)}
+                      ★ {displayRating.toFixed(1)}
                     </span>
                   ) : null}
                 </button>

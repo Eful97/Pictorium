@@ -39,7 +39,7 @@ function makeReq(mdblistKey?: string): NextRequest {
   return new NextRequest(`http://localhost:3000/api/tmdb/123/details${query}`)
 }
 
-describe("GET /api/tmdb/[id]/details (voto medio TMDB+IMDb)", () => {
+describe("GET /api/tmdb/[id]/details (voto medio IMDb di default)", () => {
   afterEach(() => {
     vi.clearAllMocks()
     cacheClear()
@@ -71,7 +71,7 @@ describe("GET /api/tmdb/[id]/details (voto medio TMDB+IMDb)", () => {
       null,
       undefined,
       expect.any(AbortSignal),
-      expect.objectContaining({ tmdbId: 128, mediaType: "movie", requestedSources: ["imdb", "tmdb"] }),
+      expect.objectContaining({ tmdbId: 128, mediaType: "movie", requestedSources: ["imdb"] }),
     )
   })
 
@@ -118,7 +118,7 @@ describe("GET /api/tmdb/[id]/details (voto medio TMDB+IMDb)", () => {
     expect(body.wikidata_id).toBeNull()
   })
 
-  it("uses the TMDB+IMDb average when the aggregated rating is available", async () => {
+  it("uses the IMDb vote (default source) when the aggregated rating is available", async () => {
     ;(getDetails as ReturnType<typeof vi.fn>).mockResolvedValue(BASE_DETAILS)
     ;(getExternalIds as ReturnType<typeof vi.fn>).mockResolvedValue({ imdb_id: "tt123" })
     ;(fetchAggregatedRating as ReturnType<typeof vi.fn>).mockResolvedValue({
@@ -128,7 +128,7 @@ describe("GET /api/tmdb/[id]/details (voto medio TMDB+IMDb)", () => {
     const res = await GET(makeReq(), { params: Promise.resolve({ id: "123" }) })
     const body = await res.json()
     expect(res.status).toBe(200)
-    expect(body.voteAverage).toBe(7.65)
+    expect(body.voteAverage).toBe(8.0)
   })
 
   it("passes requestedSources, ratingWaitMs and an abortable signal to fetchAggregatedRating", async () => {
@@ -159,7 +159,7 @@ describe("GET /api/tmdb/[id]/details (voto medio TMDB+IMDb)", () => {
     expect(passedSignal?.aborted).toBe(true)
   })
 
-  it("absent-empty-invalid rsrc resolve to explicit default imdb+tmdb", async () => {
+  it("absent-empty-invalid rsrc resolve to the explicit IMDb default", async () => {
     ;(getDetails as ReturnType<typeof vi.fn>).mockResolvedValue(BASE_DETAILS)
     ;(getExternalIds as ReturnType<typeof vi.fn>).mockResolvedValue({ imdb_id: "tt997" })
     ;(fetchAggregatedRating as ReturnType<typeof vi.fn>).mockResolvedValue(null)
@@ -173,7 +173,7 @@ describe("GET /api/tmdb/[id]/details (voto medio TMDB+IMDb)", () => {
         "tt997",
         undefined,
         expect.any(AbortSignal),
-        expect.objectContaining({ requestedSources: ["imdb", "tmdb"] }),
+        expect.objectContaining({ requestedSources: ["imdb"] }),
       )
     }
   })

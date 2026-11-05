@@ -106,6 +106,17 @@ const USER_SAVED = {
   posterShape: "poster",
   logoAlign: null,
   episodeMetadataSource: "tvdb",
+  episodeThumbnails: false,
+  // Miniature visual choices: always explicit in the payload (renderer
+  // defaults), so the fixture must carry them to stay byte-equal.
+  thumbnailBadgeStyle: "pill",
+  thumbnailAnchor: "tr",
+  thumbnailOffsetX: 0,
+  thumbnailOffsetY: 0,
+  thumbnailBadgeScale: 100,
+  thumbnailBlur: false,
+  thumbnailVoteSource: "imdb",
+  thumbnailRotation: false,
   region: "IT",
   dateFormat: "locale",
   logoScale: null,

@@ -81,11 +81,20 @@ describe("GET /api/tmdb/search", () => {
   })
 
   it("successo: include i senza poster, esclude le persone, riusa la cache", async () => {
-    const spy = vi.fn(async () => new Response(JSON.stringify(payload([
-      { id: 1, media_type: "movie", title: "Con poster", poster_path: "/a.jpg" },
-      { id: 2, media_type: "tv", name: "Senza poster", poster_path: null },
-      { id: 3, media_type: "person", name: "Attore", poster_path: "/b.jpg" },
-    ])), { status: 200 }))
+    // La gamba `imdbRating` (external_ids → Cinemeta) è additiva: risponde
+    // senza IMDb id, quindi nessuna chiamata Cinemeta in questo scenario.
+    const spy = vi.fn(async (input: unknown) => {
+      const u = String(input)
+      if (u.includes("/external_ids")) {
+        const id = Number(u.match(/\/(?:movie|tv)\/(\d+)\/external_ids/)?.[1] ?? 0)
+        return new Response(JSON.stringify({ id, imdb_id: null }), { status: 200 })
+      }
+      return new Response(JSON.stringify(payload([
+        { id: 1, media_type: "movie", title: "Con poster", poster_path: "/a.jpg" },
+        { id: 2, media_type: "tv", name: "Senza poster", poster_path: null },
+        { id: 3, media_type: "person", name: "Attore", poster_path: "/b.jpg" },
+      ])), { status: 200 })
+    })
     vi.stubGlobal("fetch", spy)
     const url = "http://x/api/tmdb/search?q=cachehit1&api_key=good-key-4"
     const first = await GET(req(url))
@@ -96,6 +105,7 @@ describe("GET /api/tmdb/search", () => {
     const second = await GET(req(url))
     expect(second.status).toBe(200)
     expect((await second.json()).results).toHaveLength(2)
-    expect(spy).toHaveBeenCalledTimes(1)
+    const searchCalls = spy.mock.calls.filter(([u]) => String(u).includes("/search/multi"))
+    expect(searchCalls).toHaveLength(1)
   })
 })

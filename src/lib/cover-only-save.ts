@@ -150,6 +150,18 @@ export function buildCoverOnlyPayload(input: CoverOnlySaveInput): Record<string,
     posterShape,
   }
   if (episodeGroupId) body.episodeGroupId = episodeGroupId
+  // Episode thumbnail overrides are cover identity metadata, not styling:
+  // the cover-only full-replace must not wipe a picker selection. Preserved
+  // verbatim for both formats (validated again by the mapping schema).
+  if (prevMapping?.episodeThumbnailStills !== undefined) {
+    body.episodeThumbnailStills = prevMapping.episodeThumbnailStills
+  }
+  // Per-title Miniature rotation override is meta-only (inert for the poster)
+  // and not styling: a poster-only save must not wipe the choice. Preserved
+  // verbatim for both formats (validated again by the mapping schema).
+  if (prevMapping?.thumbnailRotation !== undefined) {
+    body.thumbnailRotation = prevMapping.thumbnailRotation
+  }
   if (logoDisabled) body.logoDisabled = true
   // Wordmark: emesso SOLO quando è la sorgente logo attiva. Così il payload
   // resta identico a prima per i titoli senza testo (contratto cover-only:

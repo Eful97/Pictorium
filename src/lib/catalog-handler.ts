@@ -11,6 +11,7 @@ import { getAll, getById, type Mapping } from "@/lib/store"
 import { decodeConfig, type PictoriumUserConfig } from "@/lib/config-token"
 import { getDetails, getDetailsWithExternalIds, getGenreList, getImages, personMovieCredits, personTvCredits, posterUrlOriginal, resolveUserApiKeys, searchMovies, searchPerson, searchTV, tmdbFindByImdb, tmdbFindByTvdb, type TMDBDetails } from "@/lib/tmdb"
 import { resolveImdbId } from "@/lib/imdb-cache"
+import { fetchCinemetaRating, type CinemetaMediaType } from "@/lib/cinemeta"
 import { resolveRankingSource, rankingSourceCatalogName, streamingRankingCatalogName } from "@/lib/ranking-source"
 import { streamingRankingCoordinates, streamingRankingItemsFromPin } from "@/lib/streaming-ranking"
 import { addonRankingRemainingMs, addonRankingSourceKey, fetchAddonRanking } from "@/lib/addon-ranking"
@@ -75,11 +76,11 @@ export const CATALOG_TTL_MS = 60 * 60 * 1000
 /** TTL catalogo vuoto: resta 60s (errori transient non congelati). */
 export const CATALOG_EMPTY_TTL_MS = 60_000
 
-/** Versione identità per le chiavi search dedicate: v2 = id IMDb-first via
+/** Versione identità per le chiavi search dedicate: v3 = `imdbRating` from Cinemeta IMDb with TMDB fail-open, v2 = id IMDb-first via
  *  external_ids + hints video film (`behaviorHints`/`videos:[]`, parità Easy).
  *  Ruota le entry search cachate pre-hints (10 min di TTL breve, scadono
  *  naturalmente) senza toccare le chiavi catalogo. */
-const SEARCH_IDENTITY_VERSION = "idv2"
+const SEARCH_IDENTITY_VERSION = "idv3"
 
 /** Signal per-titolo nei cataloghi (stesso pattern del tetto loghi a riga ~350). */
 function catalogTimeoutSignal(): AbortSignal | undefined {
@@ -552,6 +553,38 @@ export function normalizeCatalogRatingString(value: unknown): string | undefined
   const parsed = Number(value)
   if (!Number.isFinite(parsed)) return undefined
   return normalizeCatalogRating(parsed)
+}
+
+/**
+ * Catalog row `imdbRating` source: Cinemeta IMDb is authoritative and
+ * unconditional (the contract is "the field is IMDb"; the poster badge keeps
+ * following `rsrc`). TMDB `vote_average` is the fail-open fallback — miss,
+ * transport error, open breaker or a missing/invalid IMDb id all keep the row
+ * served with the TMDB value instead of dropping the field or failing.
+ *
+ * Both paths pass through `normalizeCatalogRating`, so `<0.1`, `>10`, `0` and
+ * absent never emit a value (never a fake "0.0").
+ */
+export async function cinemetaImdbOrTmdb(
+  imdbId: string | null | undefined,
+  tmdbRating: number | null | undefined,
+  mediaType?: CinemetaMediaType,
+  signal?: AbortSignal,
+): Promise<string | undefined> {
+  const clean = typeof imdbId === "string" ? imdbId.trim().toLowerCase() : ""
+  if (CATALOG_IMDB_ID_RE.test(clean)) {
+    try {
+      // Per-row cap equal to the catalog TMDB budget: a cold Cinemeta lookup
+      // (including its secondary-type miss attempt) can never stretch a grid
+      // row past the same fail-open ceiling as the details fetch.
+      const rating = await fetchCinemetaRating(clean, mediaType, signal ?? catalogTimeoutSignal())
+      const normalized = normalizeCatalogRating(rating)
+      if (normalized !== undefined) return normalized
+    } catch {
+      // fail-open: TMDB `vote_average` below
+    }
+  }
+  return normalizeCatalogRating(tmdbRating)
 }
 
 /**
@@ -1294,7 +1327,7 @@ export async function pictoriumCatalog(
             landscapePoster,
             background: catalogBackground(item.backdrop_path),
             releaseInfo,
-            imdbRating: normalizeCatalogRating(item.vote_average),
+            imdbRating: await cinemetaImdbOrTmdb(imdbId, item.vote_average, stType),
             genres: genreNamesFromIds(item.genre_ids, genreNames),
             description: item.overview ?? undefined,
           }
@@ -1351,7 +1384,7 @@ export async function pictoriumCatalog(
               landscapePoster,
               background: catalogBackground(d?.backdrop_path ?? null),
               releaseInfo: (d?.release_date || d?.first_air_date || "").slice(0, 4) || undefined,
-              imdbRating: normalizeCatalogRating(d?.vote_average),
+              imdbRating: await cinemetaImdbOrTmdb(imdbQuery, d?.vote_average, stType === "movie" ? "movie" : "tv"),
               genres: genreNamesFromIds(d?.genres?.map((g) => g.id), genreNames),
               description: d?.overview ?? undefined,
             },
@@ -1394,7 +1427,7 @@ export async function pictoriumCatalog(
           landscapePoster,
           background: catalogBackground(item.backdrop_path),
           releaseInfo,
-          imdbRating: normalizeCatalogRating(item.vote_average),
+          imdbRating: await cinemetaImdbOrTmdb(imdbId, item.vote_average, stType),
           genres: genreNamesFromIds(item.genre_ids, genreNames),
           description: item.overview ?? undefined,
         }
@@ -1488,10 +1521,17 @@ export async function pictoriumCatalog(
       )
     }
   }
+  // v6: rows carry the Cinemeta IMDb `imdbRating` (TMDB fail-open), so v5
+  // bodies with TMDB-only ratings must not be reused.
   // v5: dual-format saved titles emit BOTH `poster` (portrait) and
   // `landscapePoster` (landscape) — the v4 body served a single collapsed
   // shape, so old entries must not be reused.
-  const cacheKey = `stremio:catalog:v5:${stType}:${catalogId}:pv${POSTER_URL_VERSION}${scopedUser ? `:u${hashUserFragment(scopedUser)}` : ""}:ak${apiKey ? hashFragment(apiKey) : "none"}${configParam ? `:cfg${hashFragment(configParam)}` : ""}${mdblistKey ? `:mk${hashFragment(mdblistKey)}` : ""}${tvdbKey ? `:tv${hashFragment(tvdbKey)}` : ""}${genreFragment}${skipFragment}${searchFragment}${regionFragment}${rankingFragment}${chartCgFragment}${streamingRankingCgFragment}${traktGenFragment}${themeFragment}${customSortFragment}${freshness}`
+  // Episode provider (TMDB <-> TVDB) is deliberately NOT a fragment here:
+  // catalog rows never carry episode covers/thumbnails (`videos:[]` is the
+  // movie navigation hint only) and `episodeMetadataSource` is a
+  // catalog-only default excluded from `pickVisualDefaults`, so the body is
+  // byte-identical across the switch. `/meta` owns the `:es` fragment.
+  const cacheKey = `stremio:catalog:v6:${stType}:${catalogId}:pv${POSTER_URL_VERSION}${scopedUser ? `:u${hashUserFragment(scopedUser)}` : ""}:ak${apiKey ? hashFragment(apiKey) : "none"}${configParam ? `:cfg${hashFragment(configParam)}` : ""}${mdblistKey ? `:mk${hashFragment(mdblistKey)}` : ""}${tvdbKey ? `:tv${hashFragment(tvdbKey)}` : ""}${genreFragment}${skipFragment}${searchFragment}${regionFragment}${rankingFragment}${chartCgFragment}${streamingRankingCgFragment}${traktGenFragment}${themeFragment}${customSortFragment}${freshness}`
   // C1: L1 + L2 condivisa (KV su multi-istanza, no-op locale/VPS).
   // Il selettore conserva il TTL originale anche dopo il ripopolamento L1
   // da KV (il payload KV non trasporta la scadenza): pieno → 1h, vuoto → 60s.
@@ -1883,7 +1923,9 @@ export async function pictoriumCatalog(
             landscapePoster,
             logo: catalogLogoForShape(posterShape, logo, landscapePoster),
             releaseInfo: r.releaseInfo,
-            imdbRating: normalizeCatalogRating(r.voteAverage),
+            // Final enrichment rides the shared custom budget (same deadline as
+            // the details/logo steps): no per-row cap that can outlive it.
+            imdbRating: await cinemetaImdbOrTmdb(imdbId, r.voteAverage, stType === "movie" ? "movie" : "tv", enrichSignal),
             genres: r.genres,
             description: r.description,
           }
@@ -2136,7 +2178,7 @@ export async function pictoriumCatalog(
           landscapePoster,
           logo: catalogLogoForShape(posterShape, logo, landscapePoster),
           releaseInfo: (d?.release_date || d?.first_air_date || "").slice(0, 4) || undefined,
-          imdbRating: normalizeCatalogRating(d?.vote_average),
+          imdbRating: await cinemetaImdbOrTmdb(imdbId, d?.vote_average, stType === "movie" ? "movie" : "tv"),
           genres: (d?.genres || []).map((g) => g.name).filter(Boolean),
           description: d?.overview ?? undefined,
         }
@@ -2229,7 +2271,7 @@ export async function pictoriumCatalog(
           landscapePoster,
           logo: catalogLogoForShape(posterShape, logo, landscapePoster),
           releaseInfo,
-          imdbRating: normalizeCatalogRating(d?.vote_average),
+          imdbRating: await cinemetaImdbOrTmdb(imdbId, d?.vote_average, mediaType),
           genres: (d?.genres || []).map((g) => g.name).filter(Boolean),
           description: d?.overview ?? undefined,
         }
@@ -2309,7 +2351,7 @@ export async function pictoriumCatalog(
           landscapePoster,
           logo: catalogLogoForShape(posterShape, logo, landscapePoster),
           releaseInfo: (details?.release_date || details?.first_air_date || "").slice(0, 4) || undefined,
-          imdbRating: normalizeCatalogRating(details?.vote_average),
+          imdbRating: await cinemetaImdbOrTmdb(imdbId, details?.vote_average, itemType),
           genres: (details?.genres || []).map((g) => g.name).filter(Boolean),
           description: details?.overview ?? undefined,
           // Video navigation parity for movie items in mixed lists (same
@@ -2463,7 +2505,7 @@ export async function pictoriumCatalog(
               landscapePoster,
               logo: catalogLogoForShape(posterShape, logo, landscapePoster),
               releaseInfo: (details?.release_date || details?.first_air_date || "").slice(0, 4) || undefined,
-              imdbRating: normalizeCatalogRating(details?.vote_average),
+              imdbRating: await cinemetaImdbOrTmdb(imdbId, details?.vote_average, stType === "movie" ? "movie" : "tv"),
               genres: (details?.genres || []).map((g) => g.name).filter(Boolean),
               description: details?.overview ?? undefined,
             }
@@ -2548,7 +2590,7 @@ export async function pictoriumCatalog(
                 landscapePoster,
                 logo: catalogLogoForShape(posterShape, logo, landscapePoster),
                 releaseInfo: (details?.release_date || details?.first_air_date || item.releaseDate)?.slice(0, 4) || undefined,
-                imdbRating: normalizeCatalogRating(details?.vote_average),
+                imdbRating: await cinemetaImdbOrTmdb(imdbId, details?.vote_average, stType === "movie" ? "movie" : "tv"),
                 genres: (details?.genres || []).map((g) => g.name).filter(Boolean),
                 description: details?.overview ?? undefined,
               }

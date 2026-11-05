@@ -222,6 +222,12 @@ export interface ServerDefaults {
   customRatingEndpoint?: string
   /** Header della chiave provider (UI). Default "X-API-Key". */
   customRatingApiKeyHeader?: string
+  /**
+   * Fonti del voto medio ★. Assente = default IMDb-only (`DEFAULT_RATING_SOURCES`
+   * in `rating-weights.ts`): Cinemeta è il provider primario, il voto TMDB
+   * diretto resta un fallback dei caller. Una selezione salvata (anche
+   * esplicita tmdb-only) vince sempre: nessuna migrazione in lettura.
+   */
   ratingSources?: string[]
   /** Colonna rating separati a destra (sostituisce la media ★). Default OFF. */
   separateRatings?: boolean
@@ -320,6 +326,43 @@ export interface ServerDefaults {
    *  `landscape` assente/nullo. */
   logoAlign?: "left" | "center" | null
   episodeMetadataSource?: "tmdb" | "tvdb"
+  /**
+   * Episode thumbnails composed by `/api/thumbnail` (rating pills baked into
+   * the still) instead of the raw TMDB w500 stills. Flat/shared (no landscape
+   * profile: it is a `/meta` setting, not a poster render parameter).
+   * Absent/false = default OFF: the raw stills and the `/meta` bodies stay
+   * byte-identical to the pre-feature contract.
+   */
+  episodeThumbnails?: boolean
+  /**
+   * Miniature (episode thumbnail) visual choices, persisted so the `/meta`
+   * composited URLs match the settings preview exactly (WYSIWYG). All
+   * flat/shared and meta-only (they never reach the poster renderer): the
+   * defaults below are the renderer's own defaults, so absent storage keeps
+   * the historical pill/top-right/no-blur/IMDb look. Bounds are enforced at
+   * every read (unknown values fail closed to the defaults).
+   */
+  /** Vote-badge style (`bstyle`): pill | bordo | vetro | branded | naked | score. Default `pill`. */
+  thumbnailBadgeStyle?: "pill" | "bordo" | "vetro" | "branded" | "naked" | "score"
+  /** Badge-stack corner (`anchor`): tl | tr | bl | br. Default `tr`. */
+  thumbnailAnchor?: "tl" | "tr" | "bl" | "br"
+  /** Horizontal px offset from the anchor (`ox`, -2000..2000). Default 0. */
+  thumbnailOffsetX?: number
+  /** Vertical px offset from the anchor (`oy`, -2000..2000). Default 0. */
+  thumbnailOffsetY?: number
+  /** Badge-stack scale percent (`bscale`, 10..200). Default 100. */
+  thumbnailBadgeScale?: number
+  /** Spoiler blur (`blur`): default false (no blur, byte-identical still). */
+  thumbnailBlur?: boolean
+  /** ★ episode vote source (`source`): imdb | tmdb. Default `imdb`. */
+  thumbnailVoteSource?: "imdb" | "tmdb"
+  /**
+   * Daily episode-thumbnail still rotation (`rotate`). Meta-only flat flag:
+   * absent/false = fixed `?still` (byte-identical historical thumbnail), true =
+   * /meta emits `rotate=1` and the compositor rotates on the 02:00 UTC day
+   * bucket. Flat/shared (no landscape profile, never a poster render param).
+   */
+  thumbnailRotation?: boolean
   /** Regione classifiche JustWatch/FlixPatrol + lingua titoli (codice JW, es. "IT"). */
   region?: string
   /** Formato data badge "in uscita" (default `locale` = segue la lingua). */
@@ -411,7 +454,9 @@ export interface ServerDefaults {
  *   badge reads; the resolved rank itself already travels in the poster cache
  *   key (`r`/`lr`/`la`), so the selection never changes pixels by itself.
  * - `/meta` + episode previews: episodeMetadataSource (meta-handler carries its
- *   own `:es` fragment; the poster route never reads it).
+ *   own `:es` fragment; the poster route never reads it) and
+ *   episodeThumbnails + the Miniature visual choices (meta-handler carries its
+ *   own `:et1` sub-fragment; the poster renderer never reads them).
  * - catalog-name seasonal recognition: seasonal keywords (catalog-handler
  *   match only; the poster route receives the theme as an explicit `theme=` /
  *   mapping value).
@@ -435,6 +480,15 @@ const CATALOG_ONLY_DEFAULTS = [
   "catalogShowEmojis",
   "catalogShapes",
   "episodeMetadataSource",
+  "episodeThumbnails",
+  "thumbnailBadgeStyle",
+  "thumbnailAnchor",
+  "thumbnailOffsetX",
+  "thumbnailOffsetY",
+  "thumbnailBadgeScale",
+  "thumbnailBlur",
+  "thumbnailVoteSource",
+  "thumbnailRotation",
   "seasonalHalloweenKeywords",
   "seasonalChristmasKeywords",
   "badgePresets",

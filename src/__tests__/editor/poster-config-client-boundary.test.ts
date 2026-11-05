@@ -124,6 +124,6 @@ describe("leaf/server parity (single implementation, no duplication)", () => {
     expect(leafResolve("trakt", ["imdb"])).toEqual(["trakt"])
     expect(leafResolve(null, ["IMDB"])).toEqual(["imdb"])
     expect(leafResolve("xyz", ["imdb"])).toEqual(["imdb"])
-    expect(leafResolve(null)).toEqual(["imdb", "tmdb"])
+    expect(leafResolve(null)).toEqual(["imdb"])
   })
 })

@@ -71,6 +71,26 @@ const tmdbImagesResponseSchema = z.object({
   logos: z.array(tmdbImageSchema).default([]),
 }).passthrough()
 
+// Still di un singolo episodio (`/tv/{id}/season/{n}/episode/{e}/images`).
+// Contratto TMDB: `still` sempre con file_path + dimensioni reali; i campi di
+// voto sono opzionali e il resto passa attraverso.
+const tmdbEpisodeImageSchema = z.object({
+  file_path: z.string(),
+  width: z.number(),
+  height: z.number(),
+  aspect_ratio: z.number().optional(),
+  iso_639_1: z.string().nullable().optional(),
+  vote_average: z.number().optional(),
+  vote_count: z.number().optional(),
+}).passthrough()
+
+const tmdbEpisodeImagesResponseSchema = z.object({
+  // TMDB restituisce l'id della serie (o dell'episodio, a seconda della
+  // versione API): non è un'ancora necessaria al rendering, quindi opzionale.
+  id: z.number().int().positive().optional(),
+  stills: z.array(tmdbEpisodeImageSchema).default([]),
+}).passthrough()
+
 const tmdbExternalIdsSchema = z.object({
   id: z.number().int().positive(),
   imdb_id: z.string().nullable().optional(),
@@ -121,6 +141,20 @@ const tmdbSeasonDetailsSchema = z.object({
   name: z.string().optional(),
   overview: z.string().nullable().optional(),
   episodes: z.array(tmdbEpisodeSchema).default([]),
+}).passthrough()
+
+// Dettagli di UN episodio (`/tv/{id}/season/{s}/episode/{e}`). Payload minimo
+// usato dalle miniature: serve solo il voto reale dell'episodio (il voto della
+// serie non è il dato giusto per una thumbnail di puntata). `vote_average` può
+// mancare o essere 0 su episodi non votati: il chiamante deve degradare senza
+// pill, mai alla media della serie.
+const tmdbEpisodeDetailsSchema = z.object({
+  id: z.number().int(),
+  episode_number: z.number().optional(),
+  season_number: z.number().optional(),
+  name: z.string().nullable().optional(),
+  vote_average: z.number().nullable().optional(),
+  vote_count: z.number().optional(),
 }).passthrough()
 
 const tmdbEpisodeGroupItemSchema = z.object({
@@ -796,6 +830,57 @@ export async function getImages(mediaType: "movie" | "tv", id: number, languages
   return parseTmdb<TMDBImagesResponse>("images", tmdbImagesResponseSchema, data)
 }
 
+export interface TMDBEpisodeImage {
+  file_path: string
+  width: number
+  height: number
+  iso_639_1: string | null
+  aspect_ratio?: number
+  vote_average?: number
+  vote_count?: number
+}
+
+export interface TMDBEpisodeImagesResponse {
+  id?: number
+  stills: TMDBEpisodeImage[]
+}
+
+/**
+ * Still di un singolo episodio (`/tv/{seriesId}/season/{seasonNumber}/episode/{episodeNumber}/images`).
+ * A differenza di `getTVSeason` (che espone un solo `still_path` per episodio),
+ * qui arrivano TUTTI gli still con dimensioni e voti, così il client può
+ * scegliere quello da usare come miniatura. Stesso trasporto/cache di
+ * `getImages`: `languages` viaggia in `include_image_language`. Gli id non
+ * validi falliscono PRIMA della rete con un errore descrittivo (mai un
+ * `TypeError`/stack grezzo dal provider).
+ */
+export async function getTVEpisodeImages(
+  seriesId: number,
+  seasonNumber: number,
+  episodeNumber: number,
+  languages = "en,null",
+  apiKey?: string,
+  signal?: AbortSignal,
+  timeoutMs = 30000,
+): Promise<TMDBEpisodeImagesResponse> {
+  if (!Number.isInteger(seriesId) || seriesId <= 0) {
+    throw new Error("TMDB episode images: invalid series id (must be a positive integer)")
+  }
+  if (!Number.isInteger(seasonNumber) || seasonNumber < 0) {
+    throw new Error("TMDB episode images: invalid season number (must be a non-negative integer)")
+  }
+  if (!Number.isInteger(episodeNumber) || episodeNumber < 0) {
+    throw new Error("TMDB episode images: invalid episode number (must be a non-negative integer)")
+  }
+  const data = await tmdbFetch(
+    `/tv/${seriesId}/season/${seasonNumber}/episode/${episodeNumber}/images?include_image_language=${encodeURIComponent(toImageLanguages(languages))}`,
+    apiKey,
+    signal,
+    timeoutMs,
+  )
+  return parseTmdb<TMDBEpisodeImagesResponse>("episode_images", tmdbEpisodeImagesResponseSchema, data)
+}
+
 export function posterUrl(path: string, size = "w500"): string {
   return `${IMG_BASE}/${size}${path}`
 }
@@ -995,6 +1080,43 @@ export async function getTVSeason(tvId: number, seasonNumber: number, language =
   } catch {
     return null
   }
+}
+
+export interface TMDBEpisodeDetails {
+  id: number
+  episode_number?: number
+  season_number?: number
+  name?: string | null
+  vote_average?: number | null
+  vote_count?: number
+}
+
+/**
+ * Dettagli di UN episodio (`/tv/{seriesId}/season/{seasonNumber}/episode/{episodeNumber}`).
+ *
+ * Thin fetch rispetto a `getTVSeason` (che trascina l'intera stagione):
+ * la miniatura di una puntata ha bisogno solo del `vote_average` di QUELLA
+ * puntata, non della media della serie. Stesso trasporto/cache di 5 minuti di
+ * `tmdbFetch` (chiave neutra senza api_key, inflight coalescing). A differenza
+ * di `getTVSeason` gli errori risalgono: la route decide il fail-closed, non
+ * un `null` silenzioso che diventerebbe una miniatura senza voto.
+ */
+export async function getTVEpisodeDetails(
+  seriesId: number,
+  seasonNumber: number,
+  episodeNumber: number,
+  language = "it-IT",
+  apiKey?: string,
+  signal?: AbortSignal,
+  timeoutMs = 30000,
+): Promise<TMDBEpisodeDetails> {
+  const data = await tmdbFetch(
+    `/tv/${seriesId}/season/${seasonNumber}/episode/${episodeNumber}?language=${toProviderLanguage(language)}`,
+    apiKey,
+    signal,
+    timeoutMs,
+  )
+  return parseTmdb<TMDBEpisodeDetails>("episode_details", tmdbEpisodeDetailsSchema, data)
 }
 
 export interface TMDBEpisodeGroupItem {

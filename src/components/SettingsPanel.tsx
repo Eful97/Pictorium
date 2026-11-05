@@ -3,7 +3,7 @@
 import { useState, useEffect, useRef, useCallback } from "react"
 import { toast } from "sonner"
 import { useT } from "@/lib/contexts/TranslationContext"
-import { PosterEditorValueOverride } from "@/lib/contexts/PosterEditorContext"
+import { PosterEditorValueOverride, usePosterEditor, type EditTargetShape } from "@/lib/contexts/PosterEditorContext"
 import { useSettingsSession } from "@/components/settings/useSettingsSession"
 import { UserKeysSection } from "@/components/UserKeysSection"
 import { UserSpaceSection } from "@/components/UserSpaceSection"
@@ -15,6 +15,7 @@ import { DataPanel } from "@/components/settings/DataPanel"
 import { ApiKeysSection } from "@/components/settings/ApiKeysSection"
 import { PrefsPanel } from "@/components/settings/PrefsPanel"
 import { PresetsPanel } from "@/components/settings/PresetsPanel"
+import { ThumbnailSettingsSection } from "@/components/settings/ThumbnailSettingsSection"
 import {
   SeasonalKeywordsSection,
   type SeasonalKeywordsDraft,
@@ -114,6 +115,10 @@ export function SettingsPanel({ setSettingsOpen, exportData, importData, mobile,
   // `mobile` is a legacy prop (kept for compat); layout is responsive.
   void mobile
   const session = useSettingsSession()
+  // Settings edit target (Verticale/Orizzontale/Miniature): preview-only,
+  // owned by the editor context so it survives tab switches/panel remounts
+  // and never touches the persisted delivery format.
+  const { editTargetShape, setEditTargetShape } = usePosterEditor()
   const [mobileViewport, setMobileViewport] = useState<boolean | null>(null)
 
   // Staged seasonal keywords (Catalogs tab): the draft lives here so the
@@ -173,9 +178,6 @@ export function SettingsPanel({ setSettingsOpen, exportData, importData, mobile,
     const requested = normalizeTab(consumeSettingsTab())
     if (requested) setActiveTab(requested)
   }, [])
-  // Edit target (portrait/landscape): preview + controls only, never the
-  // persisted delivery format. Survives tab switches and resize.
-  const [editTargetShape, setEditTargetShape] = useState<"portrait" | "landscape">("portrait")
   // Preview-only editing family + demo title: never persisted.
   const [previewFamily, setPreviewFamily] = useState<DefaultsPreviewFamily>("auto")
   const currentUserId = usePSelector((v) => v.currentUserId)
@@ -205,7 +207,7 @@ export function SettingsPanel({ setSettingsOpen, exportData, importData, mobile,
     if (tab === activeTab) return
     setActiveTab(tab)
   }
-  const requestShapeChange = (shape: "portrait" | "landscape") => {
+  const requestShapeChange = (shape: EditTargetShape) => {
     if (shape === editTargetShape) return
     setEditTargetShape(shape)
   }
@@ -494,7 +496,25 @@ export function SettingsPanel({ setSettingsOpen, exportData, importData, mobile,
 
   const isPrimary = activeTab !== "prefs" && activeTab !== "data" && activeTab !== "catalogs" && activeTab !== "spazio"
   const showPreview = isPrimary
-  const previewIsLandscape = editTargetShape === "landscape"
+  // Miniature uses the 16:9 thumbnail canvas for the preview column/card.
+  const previewIsLandscape = editTargetShape !== "portrait"
+  // Existing panels stay mounted against a poster shape even in Miniature
+  // mode (hidden, never unmounted) so switching back is lossless and
+  // byte-identical; the dedicated thumbnail section owns the visual tabs.
+  const controlShape: "portrait" | "landscape" = editTargetShape === "landscape" ? "landscape" : "portrait"
+  // Miniature mode: poster-only panels stay mounted but inactive, and the
+  // compact thumbnail section owns the visual tabs (never dead toggles).
+  const thumbnailTarget = editTargetShape === "thumbnail"
+  // Every primary tab shows the thumbnail controls in Miniature mode: the
+  // poster panels are hidden there, so leaving one tab empty (Tags) would be a
+  // dead surface. Tags/Networks itself is poster-only and stays hidden.
+  const thumbnailControlsActive =
+    thumbnailTarget &&
+    (activeTab === "preset" ||
+      activeTab === "information" ||
+      activeTab === "badge" ||
+      activeTab === "tags" ||
+      activeTab === "transform")
 
   const tabsNav = (
     <div className="shrink-0">
@@ -601,10 +621,11 @@ export function SettingsPanel({ setSettingsOpen, exportData, importData, mobile,
             role="group"
             aria-label={t("ui.formatTarget")}
           >
-            {(["portrait", "landscape"] as const).map((shape) => (
+            {(["portrait", "landscape", "thumbnail"] as const).map((shape) => (
               <button
                 key={shape}
                 type="button"
+                data-testid={`format-target-${shape}`}
                 aria-pressed={editTargetShape === shape}
                 onClick={() => requestShapeChange(shape)}
                 className={`flex-1 min-h-[44px] md:min-h-0 py-1.5 px-3 rounded-lg text-[11px] font-semibold transition-all cursor-pointer whitespace-nowrap touch-manipulation ${
@@ -613,7 +634,11 @@ export function SettingsPanel({ setSettingsOpen, exportData, importData, mobile,
                     : "text-muted hover:bg-white/5 hover:text-zinc-200"
                 }`}
               >
-                {shape === "portrait" ? t("ui.posterShapePortrait") : t("ui.posterShapeLandscape")}
+                {shape === "portrait"
+                  ? t("ui.posterShapePortrait")
+                  : shape === "landscape"
+                    ? t("ui.posterShapeLandscape")
+                    : t("ui.episodeThumbnails")}
               </button>
             ))}
           </div>
@@ -835,10 +860,10 @@ export function SettingsPanel({ setSettingsOpen, exportData, importData, mobile,
           </FloatingPreview>
         )}
         <div className="min-w-0 min-h-0 flex-1 overflow-y-auto p-3 sm:p-6 space-y-3 sm:space-y-4 md:col-start-1 md:row-start-1" data-testid="settings-controls" data-scroll="settings-controls">
-          <PresetsPanel shape={editTargetShape} demoMedia={previewDemoMedia} active={activeTab === "preset"} />
+          <PresetsPanel shape={controlShape} demoMedia={previewDemoMedia} active={activeTab === "preset" && !thumbnailTarget} />
           <BadgeDefaultsSection
-            active={activeTab === "information"}
-            shape={editTargetShape}
+            active={activeTab === "information" && !thumbnailTarget}
+            shape={controlShape}
             mode="information"
             testStaged
             testDirty={session.dirty}
@@ -846,24 +871,25 @@ export function SettingsPanel({ setSettingsOpen, exportData, importData, mobile,
             presetsEnabled={false}
           />
           <BadgeDefaultsSection
-            active={activeTab === "badge"}
-            shape={editTargetShape}
+            active={activeTab === "badge" && !thumbnailTarget}
+            shape={controlShape}
             mode="appearance"
             testStaged
             testDirty={session.dirty}
             onPreviewFamilyChange={setPreviewFamily}
             presetsEnabled={false}
           />
-          <TagsNetworksSection active={activeTab === "tags"} />
+          <TagsNetworksSection active={activeTab === "tags" && !thumbnailTarget} />
           <TransformPanel
-            active={activeTab === "transform"}
-            previewShape={editTargetShape}
+            active={activeTab === "transform" && !thumbnailTarget}
+            previewShape={controlShape}
             onPreviewShapeChange={requestShapeChange}
             onPreviewFamilyChange={setPreviewFamily}
             demoMedia={previewDemoMedia}
             previewFamily={previewFamily}
             geometryOnly
           />
+          <ThumbnailSettingsSection active={thumbnailControlsActive} />
           <PrefsPanel active={activeTab === "prefs"} />
           <div
             role="tabpanel"

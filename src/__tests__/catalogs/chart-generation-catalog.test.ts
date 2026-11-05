@@ -274,7 +274,7 @@ describe("chart-generation serving integration (entry paths only)", () => {
     expect(pin.id).toBe("20261022-06")
     expect(cacheGets.some((k) => k.includes(":cg20261022-06"))).toBe(true)
     // In-scope nonempty ready body reuses up to the PINNED family end (6h JW).
-    const ttl = readyTtl("stremio:catalog:v5:movie:pictorium-jw-movies")
+    const ttl = readyTtl("stremio:catalog:v6:movie:pictorium-jw-movies")
     expect(ttl).toBe(2 * 60 * 60 * 1000)
     // Repeat request: ready-body hit, zero upstream calls.
     const res2 = await pictoriumCatalog(catalogReq("pictorium-jw-movies"), "movie", "pictorium-jw-movies", null, null)
@@ -384,7 +384,7 @@ describe("chart-generation serving integration (entry paths only)", () => {
     // Canonical default window: pinned family end (2h remaining in this
     // 06-12 fixture slot for the 6h JW family).
     await pictoriumCatalog(catalogReq("pictorium-jw-movies"), "movie", "pictorium-jw-movies", null, null)
-    expect(readyTtl("stremio:catalog:v5:movie:pictorium-jw-movies")).toBe(2 * 60 * 60 * 1000)
+    expect(readyTtl("stremio:catalog:v6:movie:pictorium-jw-movies")).toBe(2 * 60 * 60 * 1000)
     // Excluded variant window (platform genre drill-down, live content):
     // unchanged 1h.
     await pictoriumCatalog(catalogReq("pictorium-netflix-movies", "api_key=test-key&genre=Azione"), "movie", "pictorium-netflix-movies", null, null)
@@ -408,6 +408,6 @@ describe("chart-generation serving integration (entry paths only)", () => {
     // JW charts family untouched by the platform request.
     expect((await pinChartFamily(JW_MOVIE)).id).toBe(CHART_LIVE_PIN_ID)
     // Platform ready body: pinned 12h family end (2h remaining in this fixture).
-    expect(readyTtl("stremio:catalog:v5:movie:pictorium-netflix-movies")).toBe(2 * 60 * 60 * 1000)
+    expect(readyTtl("stremio:catalog:v6:movie:pictorium-netflix-movies")).toBe(2 * 60 * 60 * 1000)
   })
 })

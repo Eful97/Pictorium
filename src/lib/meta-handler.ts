@@ -24,7 +24,7 @@ import { resolveImdbId } from "@/lib/imdb-cache"
 import { isValidImdbId } from "@/lib/imdb-csv"
 import { getCatalogEpoch } from "@/lib/catalog-epoch"
 import { buildNoticeDetail, NOTICE_ID_PREFIX } from "@/lib/notice-meta"
-import { resolveCatalogRegionWithDefaults } from "@/lib/catalog-handler"
+import { resolveCatalogRegionWithDefaults, normalizeCatalogRating } from "@/lib/catalog-handler"
 import { isSupportedUiLang, contentLanguageForUiLang } from "@/lib/regions"
 import { getScopedUserId, userExists, userRateLimitKey } from "@/lib/user-auth"
 import { touchUserActivity } from "@/lib/user-activity"
@@ -36,6 +36,14 @@ import { enrichVideosWithTvdbDetailed } from "@/lib/tvdb"
 import { buildVideosFromAnizip, buildVideosFromGroups, buildVideosFromTvdbDetailed, concurrentMap, isSeasonEpisodesComplete } from "@/lib/episode-ordering"
 import { groupDetailsEpisodeCount, groupDetailsRegularEpisodeCount, resolveDefaultEpisodeGroupId } from "@/lib/episode-group-default"
 import { createLogger } from "@/lib/logger"
+import { sanitizeEpisodeStillPath } from "@/lib/episode-stills"
+import { fetchCinemetaRating } from "@/lib/cinemeta"
+import type {
+  ThumbnailBadgeAnchor,
+  ThumbnailBadgeStyle,
+  ThumbnailStillSource,
+  ThumbnailVoteSource,
+} from "@/lib/thumbnail-renderer"
 
 const log = createLogger("meta")
 
@@ -121,6 +129,305 @@ function metaResponse(body: { meta: StremioMetaDetail | null }, isPartial = fals
 
 function hashFragment(value: string): string {
   return crypto.createHash("sha1").update(value).digest("hex").slice(0, 8)
+}
+
+/**
+ * Episode thumbnail contract (mirrors `/api/thumbnail/tv/...`): 320px wide
+ * 16:9 canvas with both rating pills enabled. `still` travels URL-encoded; the
+ * raw TMDB w500 still is intentionally replaced (the composed URL keeps the
+ * still path in the query for traceability) and is never duplicated as a
+ * separate field.
+ */
+const EPISODE_THUMBNAIL_WIDTH = 320
+const EPISODE_THUMBNAIL_BADGES = "both"
+
+/**
+ * Persisted Miniature visual choices (renderer contract) resolved with the
+ * usual metadata precedence: query override > config token > namespace/defaults
+ * > renderer default. Values are sanitized by the renderer's own parsers, so
+ * this module never drifts from the `/api/thumbnail` contract.
+ */
+interface EpisodeThumbnailOptions {
+  badgeStyle: ThumbnailBadgeStyle
+  anchor: ThumbnailBadgeAnchor
+  offsetX: number
+  offsetY: number
+  badgeScale: number
+  blur: boolean
+  voteSource: ThumbnailVoteSource
+  /** Daily still rotation (`rotate`): default OFF (fixed still). */
+  rotation: boolean
+  /**
+   * Base still provider: `tvdb` when the space resolves episode metadata from
+   * TheTVDB (the compositor's `?stills=` contract), `tmdb` otherwise.
+   */
+  stills: ThumbnailStillSource
+}
+
+async function resolveEpisodeThumbnailOptions(
+  searchParams: URLSearchParams,
+  config: Partial<PictoriumUserConfig> | null,
+  defaults: ServerDefaults,
+  stills: ThumbnailStillSource,
+  /**
+   * Per-title rotation override from the saved mapping: explicit true/false
+   * wins on the space default, null/undefined inherits it. Sits between the
+   * ephemeral query override and the config token, like the other per-title
+   * choices.
+   */
+  mappingRotation?: boolean | null,
+): Promise<EpisodeThumbnailOptions> {
+  const {
+    parseThumbnailBadgeStyle,
+    parseThumbnailBadgeAnchor,
+    parseThumbnailBadgeOffset,
+    parseThumbnailBadgeScale,
+    parseThumbnailVoteSource,
+    parseThumbnailBlur,
+    parseThumbnailRotation,
+    DEFAULT_THUMBNAIL_BADGE_STYLE,
+    DEFAULT_THUMBNAIL_BADGE_ANCHOR,
+    DEFAULT_THUMBNAIL_BADGE_SCALE,
+    DEFAULT_THUMBNAIL_VOTE_SOURCE,
+    THUMBNAIL_BADGE_OFFSET_MIN,
+    THUMBNAIL_BADGE_OFFSET_MAX,
+    THUMBNAIL_BADGE_SCALE_MIN,
+    THUMBNAIL_BADGE_SCALE_MAX,
+  } = await import("@/lib/thumbnail-renderer")
+
+  // Invalid explicit query values fall through to the next level (fail-closed
+  // to a valid rendering, never a 400 on an otherwise valid meta URL).
+  const pick = <T>(
+    queryName: string,
+    configValue: unknown,
+    storedValue: unknown,
+    parse: (raw: string | null | undefined) => T | null,
+    fallback: T,
+  ): T => {
+    const queryRaw = searchParams.get(queryName)
+    if (queryRaw !== null) {
+      const parsed = parse(queryRaw)
+      if (parsed !== null) return parsed
+    }
+    for (const candidate of [configValue, storedValue]) {
+      if (typeof candidate === "string") {
+        const parsed = parse(candidate)
+        if (parsed !== null) return parsed
+      }
+    }
+    return fallback
+  }
+
+  const pickOffset = (queryName: string, configValue: unknown, storedValue: unknown): number => {
+    const queryRaw = searchParams.get(queryName)
+    if (queryRaw !== null) {
+      const parsed = parseThumbnailBadgeOffset(queryRaw)
+      if (parsed !== null) return parsed
+    }
+    for (const candidate of [configValue, storedValue]) {
+      // Stored/token offsets are numbers (token schema), but the storage is
+      // unvalidated JSON: clamp and round exactly like the renderer parser.
+      if (typeof candidate === "number" && Number.isFinite(candidate)) {
+        return Math.max(THUMBNAIL_BADGE_OFFSET_MIN, Math.min(THUMBNAIL_BADGE_OFFSET_MAX, Math.round(candidate)))
+      }
+      if (typeof candidate === "string") {
+        const parsed = parseThumbnailBadgeOffset(candidate)
+        if (parsed !== null) return parsed
+      }
+    }
+    return 0
+  }
+
+  const pickBlur = (): boolean => {
+    const queryRaw = searchParams.get("blur")
+    if (queryRaw !== null) {
+      const parsed = parseThumbnailBlur(queryRaw)
+      if (parsed !== null) return parsed
+    }
+    for (const candidate of [config?.thumbnailBlur, defaults.thumbnailBlur]) {
+      if (typeof candidate === "boolean") return candidate
+    }
+    return false
+  }
+
+  const pickRotation = (): boolean => {
+    const queryRaw = searchParams.get("rotate")
+    if (queryRaw !== null) {
+      const parsed = parseThumbnailRotation(queryRaw)
+      if (parsed !== null) return parsed
+    }
+    // Per-title saved choice (`thumbnailRotation` on the mapping): explicit
+    // true/false wins on the space default, null/absent inherits it.
+    if (typeof mappingRotation === "boolean") return mappingRotation
+    for (const candidate of [config?.thumbnailRotation, defaults.thumbnailRotation]) {
+      if (typeof candidate === "boolean") return candidate
+    }
+    return false
+  }
+
+  const pickScale = (queryName: string, configValue: unknown, storedValue: unknown): number => {
+    const queryRaw = searchParams.get(queryName)
+    if (queryRaw !== null) {
+      const parsed = parseThumbnailBadgeScale(queryRaw)
+      if (parsed !== null) return parsed
+    }
+    for (const candidate of [configValue, storedValue]) {
+      // Stored/token scales are numbers, but the storage is unvalidated JSON:
+      // clamp and round exactly like the renderer parser.
+      if (typeof candidate === "number" && Number.isFinite(candidate)) {
+        return Math.max(THUMBNAIL_BADGE_SCALE_MIN, Math.min(THUMBNAIL_BADGE_SCALE_MAX, Math.round(candidate)))
+      }
+      if (typeof candidate === "string") {
+        const parsed = parseThumbnailBadgeScale(candidate)
+        if (parsed !== null) return parsed
+      }
+    }
+    return DEFAULT_THUMBNAIL_BADGE_SCALE
+  }
+
+  return {
+    stills,
+    badgeStyle: pick(
+      "bstyle",
+      config?.thumbnailBadgeStyle,
+      defaults.thumbnailBadgeStyle,
+      parseThumbnailBadgeStyle,
+      DEFAULT_THUMBNAIL_BADGE_STYLE,
+    ),
+    anchor: pick(
+      "anchor",
+      config?.thumbnailAnchor,
+      defaults.thumbnailAnchor,
+      parseThumbnailBadgeAnchor,
+      DEFAULT_THUMBNAIL_BADGE_ANCHOR,
+    ),
+    offsetX: pickOffset("ox", config?.thumbnailOffsetX, defaults.thumbnailOffsetX),
+    offsetY: pickOffset("oy", config?.thumbnailOffsetY, defaults.thumbnailOffsetY),
+    badgeScale: pickScale("bscale", config?.thumbnailBadgeScale, defaults.thumbnailBadgeScale),
+    blur: pickBlur(),
+    rotation: pickRotation(),
+    voteSource: pick(
+      "source",
+      config?.thumbnailVoteSource,
+      defaults.thumbnailVoteSource,
+      parseThumbnailVoteSource,
+      DEFAULT_THUMBNAIL_VOTE_SOURCE,
+    ),
+  }
+}
+
+/** Cache-key fragment for the resolved Miniature choices (never a secret). */
+function thumbnailOptionsCacheFragment(options: EpisodeThumbnailOptions): string {
+  // `stills` is explicit only when it changes the representation (TVDB base);
+  // the TMDB path keeps the historical fragment byte-identical. The source is
+  // already carried by `:es`, this segment makes the compositor identity
+  // self-describing in the key.
+  const stillsFragment = options.stills === "tvdb" ? ":tstvdb" : ""
+  // OFF keeps the historical fragment byte-identical; rotation is a
+  // representation change and must never reuse a fixed-still body.
+  const rotationFragment = options.rotation ? ":tr1" : ""
+  return `:tb${options.badgeStyle}:ta${options.anchor}:tx${options.offsetX}:ty${options.offsetY}:sc${options.badgeScale}:tv${options.voteSource}:tz${options.blur ? 1 : 0}${stillsFragment}${rotationFragment}`
+}
+
+/**
+ * Ephemeral query override (`?thumbnails=1|0|true|false`), same shape as the
+ * other meta query flags: absent/invalid = inherit config token > defaults,
+ * so old URLs and bodies stay byte-identical. Only explicit values override.
+ */
+function parseEpisodeThumbnailsQuery(raw: string | null): boolean | undefined {
+  if (raw === null) return undefined
+  const value = raw.trim().toLowerCase()
+  if (value === "1" || value === "true") return true
+  if (value === "0" || value === "false") return false
+  return undefined
+}
+
+/**
+ * Replace raw TMDB w500 stills with the composited thumbnail URL.
+ *
+ * A per-episode picker override (`S:E`, saved on the mapping) wins for that
+ * episode and is always composed against the TMDB still: it is an explicit
+ * user choice, so it must not be replaced by the TVDB base. Otherwise a video
+ * with a raw TMDB w500 thumbnail is rewritable directly; when the space uses
+ * TVDB episode metadata the enrichment has replaced it with a TVDB cover, so
+ * the pre-enrichment TMDB still (`tmdbStills`) is used as the compositor's
+ * fail-open fallback and `?stills=tvdb` selects the TVDB base (same badge
+ * params as the TMDB path). A video with no usable TMDB fallback stays raw:
+ * fail-open, never an error or a 500.
+ *
+ * No global poster blur leaks in: the emitted `blur` param comes from the
+ * explicit Miniature spoiler choice (`thumbnailBlur`/query) only, so
+ * spoiler-blurred stills remain an intentional opt-in.
+ *
+ * `thumbnail-renderer` is imported dynamically so the default-OFF path never
+ * pulls sharp/resvg into the /meta module graph.
+ */
+async function applyEpisodeThumbnails(
+  req: NextRequest,
+  seriesId: number,
+  videos: StremioVideo[],
+  options: EpisodeThumbnailOptions,
+  overrides?: Record<string, string> | null,
+  tmdbStills?: Map<string, string> | null,
+  /**
+   * Validated scoped user (multi-user). The composed image request cannot carry
+   * the session headers, so the namespace id must travel in the URL (`u=`) for
+   * the route to resolve the same TVDB/TMDB keys this /meta request used.
+   */
+  scopedUser?: string | null,
+): Promise<StremioVideo[]> {
+  const rawBase = posterUrl("", "w500")
+  const origin = getOriginFromRequest(req)
+  const { sanitizeStillPath } = await import("@/lib/thumbnail-renderer")
+  return videos.map((video) => {
+    const overrideStill = sanitizeEpisodeStillPath(overrides?.[`${video.season}:${video.episode}`])
+    let still: string | null = overrideStill
+    // An override is a TMDB still path by contract: compose it against TMDB.
+    const stillsSource: ThumbnailStillSource = overrideStill ? "tmdb" : options.stills
+    if (!still) {
+      const thumbnail = video.thumbnail
+      if (thumbnail && thumbnail.startsWith(`${rawBase}/`)) {
+        still = sanitizeStillPath(thumbnail.slice(rawBase.length))
+        if (!still) return video
+      } else if (stillsSource === "tvdb" && thumbnail) {
+        // TVDB cover base: the pre-enrichment TMDB still is the required
+        // fail-open fallback of `/api/thumbnail`.
+        still = sanitizeEpisodeStillPath(tmdbStills?.get(`${video.season}:${video.episode}`)) ?? null
+        if (!still) return video
+      } else {
+        return video
+      }
+    }
+    const params = new URLSearchParams({
+      still,
+      w: String(EPISODE_THUMBNAIL_WIDTH),
+      badges: EPISODE_THUMBNAIL_BADGES,
+      // Persisted Miniature choices (same contract/order as the settings
+      // preview): style, corner, offsets and vote source are always explicit
+      // so /meta and the WYSIWYG preview produce the same request.
+      bstyle: options.badgeStyle,
+      anchor: options.anchor,
+      ox: String(options.offsetX),
+      oy: String(options.offsetY),
+      bscale: String(options.badgeScale),
+      source: options.voteSource,
+    })
+    // Only the TVDB base needs the selector; absence is the TMDB default, so
+    // the TMDB path stays byte-identical to the historical URL.
+    if (stillsSource === "tvdb") params.set("stills", "tvdb")
+    // OFF = no param at all (byte-identical plain thumbnail), exactly like the
+    // preview builder.
+    if (options.blur) params.set("blur", "1")
+    // Daily still rotation: opt-in only, absent keeps the historical URL.
+    if (options.rotation) params.set("rotate", "1")
+    // Namespace keys (multi-user): absent for global requests, so legacy URLs
+    // stay byte-identical.
+    if (scopedUser) params.set("u", scopedUser)
+    return {
+      ...video,
+      thumbnail: `${origin}/api/thumbnail/tv/${seriesId}/season/${video.season}/episode/${video.episode}?${params.toString()}`,
+    }
+  })
 }
 
 /**
@@ -303,7 +610,38 @@ export async function pictoriumMeta(
     userConfig = effectiveDefaults
   }
 
-  const episodeMetadataSource = userConfig?.episodeMetadataSource || (tvdbApiKey ? "tvdb" : "tmdb")
+  // Episode provider precedence: config token > namespace/instance defaults >
+  // "TVDB when a key is configured" (historical fallback). The catalog-only
+  // config token used by local-only/profileless installs (`/c/<config>/...`)
+  // never carries `episodeMetadataSource`, so falling straight from the token
+  // to the key-presence branch ignored the saved TMDB/TVDB choice entirely:
+  // the covers stayed on the key-derived provider no matter what the settings
+  // toggle said. The `:es` cache-key fragment follows the resolved provider,
+  // so a real switch now always targets a fresh meta body (never a stale 12h
+  // one) instead of resolving the same provider again.
+  const configuredMetadataSource =
+    userConfig?.episodeMetadataSource ?? effectiveDefaults.episodeMetadataSource
+  const episodeMetadataSource: "tmdb" | "tvdb" =
+    configuredMetadataSource === "tmdb" || configuredMetadataSource === "tvdb"
+      ? configuredMetadataSource
+      : tvdbApiKey ? "tvdb" : "tmdb"
+  // Base still provider for the compositor. Same semantics as the metadata
+  // source: TVDB when the space resolves episodes from TheTVDB AND a key is
+  // available (the route fails open to the required TMDB still otherwise).
+  const stillsSource: ThumbnailStillSource =
+    episodeMetadataSource === "tvdb" && tvdbApiKey ? "tvdb" : "tmdb"
+  // Effective opt-in for composited episode thumbnails: ephemeral query
+  // override > config token > namespace/defaults > OFF. Absent everywhere =
+  // legacy raw stills and byte-identical bodies.
+  const thumbnailsQuery = parseEpisodeThumbnailsQuery(req.nextUrl.searchParams.get("thumbnails"))
+  const episodeThumbnailsEnabled = thumbnailsQuery ?? (
+    typeof userConfig?.episodeThumbnails === "boolean"
+      ? userConfig.episodeThumbnails
+      : effectiveDefaults.episodeThumbnails === true
+  )
+  // Persisted Miniature visual choices are resolved after the mapping
+  // pre-cache lookup below, so a per-title rotation override can participate:
+  // query > mapping > token > defaults > renderer default.
   const region = resolveCatalogRegionWithDefaults(req, userConfig, effectiveDefaults)
   const requestedLang = req.nextUrl.searchParams.get("lang")?.toLowerCase()
   const posterLang = isSupportedUiLang(requestedLang) ? requestedLang! : region.lang2
@@ -359,12 +697,52 @@ export async function pictoriumMeta(
   // episodeGroupId+updatedAt nella cache key (fetch pre-cache) altrimenti dopo
   // un save si serve lo stale fino a 12h. Il lookup è cached (memCache/KV
   // 500ms) quindi costo minimo. Prima era solo per le serie (F4).
-  let preMappingForCache: { episodeGroupId?: string | null; updatedAt?: string } | null = null
+  let preMappingForCache: {
+    episodeGroupId?: string | null
+    updatedAt?: string
+    episodeThumbnailStills?: Record<string, string> | null
+    thumbnailRotation?: boolean | null
+  } | null = null
   try {
     const pre = await getById(tmdbMediaType, tmdbId, scopedUser)
-    if (pre) preMappingForCache = { episodeGroupId: pre.episodeGroupId ?? null, updatedAt: pre.updatedAt }
+    if (pre) {
+      preMappingForCache = {
+        episodeGroupId: pre.episodeGroupId ?? null,
+        updatedAt: pre.updatedAt,
+        episodeThumbnailStills: pre.episodeThumbnailStills ?? null,
+        thumbnailRotation: pre.thumbnailRotation ?? null,
+      }
+    }
   } catch { /* ignore — fallback a auto */ }
   const egKey = preMappingForCache ? `${preMappingForCache.episodeGroupId ?? "auto"}:${preMappingForCache.updatedAt ?? ""}` : "auto"
+  // Persisted Miniature visual choices, resolved only when the compositor is
+  // actually used (query > mapping override > token > defaults > renderer
+  // default). The per-title rotation override is a tri-state: explicit
+  // true/false wins on the space default, null/absent inherits it.
+  const episodeThumbnailOptions = stType === "series" && episodeThumbnailsEnabled
+    ? await resolveEpisodeThumbnailOptions(
+      req.nextUrl.searchParams,
+      userConfig,
+      effectiveDefaults,
+      stillsSource,
+      preMappingForCache?.thumbnailRotation,
+    )
+    : null
+  const episodeThumbnailOptionsFragment = episodeThumbnailOptions
+    ? thumbnailOptionsCacheFragment(episodeThumbnailOptions)
+    : ""
+  // Cache-key fragment only when the feature actually changes the body:
+  // `:et1` for ON, `:et0` only for an explicit query OFF over an enabling
+  // source (so it can never collide with the ON key). Every Miniature choice
+  // also travels in the key, so changing style/anchor/offsets/source/blur/
+  // rotation can never serve a stale Stremio body. Absent OFF keeps the
+  // historical key byte-identical.
+  const episodeThumbnailCacheFragment = stType === "series"
+    ? (thumbnailsQuery !== undefined
+      ? (thumbnailsQuery ? `:et1${episodeThumbnailOptionsFragment}` : ":et0")
+      : episodeThumbnailsEnabled ? `:et1${episodeThumbnailOptionsFragment}` : "")
+    : ""
+
   // eo2 = versione ordinamento episodi: il default automatico "Parts" (v2)
   // cambia i videos a parità di mapping — senza frammento, un meta cachato
   // con le stagioni standard resterebbe servito fino a 12h dopo il deploy.
@@ -375,11 +753,17 @@ export async function pictoriumMeta(
   const epoch = await getCatalogEpoch(scopedUser)
   const sdHash = hashFragment(JSON.stringify(effectiveDefaults))
   const freshness = `:e${epoch}:sd${sdHash}`
+  // mhv3: `imdbRating` follows Cinemeta IMDb (TMDB fail-open); mhv2 bodies
+  // serve TMDB-only ratings, so they must not be reused.
+  // `:es` carries the RESOLVED episode provider (token > defaults > key
+  // presence, see above), so a real TMDB<->TVDB switch always targets a
+  // different body; a config-token install that ignores the saved choice
+  // would otherwise re-resolve the same provider under a new sd hash.
   // mhv2: dual-format saved titles emit `landscapePoster` beside the
   // portrait `poster` (mhv1 bodies served the single collapsed shape).
   // lk1: bodies without `links` (pre-manifest-health) must not be served for
   // another 12h after deploy.
-  const cacheKey = `stremio:meta:${stType}:${cleanId}:pv${POSTER_URL_VERSION}${scopedUser ? `:u${hashUserFragment(scopedUser)}` : ""}:ak${apiKey ? hashFragment(apiKey) : "none"}${configParam ? `:cfg${hashFragment(configParam)}` : ""}${mdblistKey ? `:mk${hashFragment(mdblistKey)}` : ""}${tvdbApiKey ? `:tk${hashFragment(tvdbApiKey)}` : ""}:es${episodeMetadataSource}:eg${hashFragment(egKey)}:r${region.code}:l${posterLang}${stType === "series" ? ":eo2" : ""}${metaThemeFragment}:mhv2:lk1${freshness}`
+  const cacheKey = `stremio:meta:${stType}:${cleanId}:pv${POSTER_URL_VERSION}${scopedUser ? `:u${hashUserFragment(scopedUser)}` : ""}:ak${apiKey ? hashFragment(apiKey) : "none"}${configParam ? `:cfg${hashFragment(configParam)}` : ""}${mdblistKey ? `:mk${hashFragment(mdblistKey)}` : ""}${tvdbApiKey ? `:tk${hashFragment(tvdbApiKey)}` : ""}:es${episodeMetadataSource}:eg${hashFragment(egKey)}:r${region.code}:l${posterLang}${stType === "series" ? ":eo2" : ""}${metaThemeFragment}${episodeThumbnailCacheFragment}:mhv3:lk1${freshness}`
   const cached = await cacheGetShared<{ meta: StremioMetaDetail; __partial?: boolean }>(cacheKey, ["stremio", "meta"])
   // __partial is only an internal signal for the hit HTTP header: never in the JSON.
   if (cached) return metaResponse({ meta: cached.meta }, cached.__partial === true)
@@ -404,10 +788,17 @@ export async function pictoriumMeta(
     // canvas landscape dalla propria base.
     const background = details.backdrop_path ? posterUrlOriginal(details.backdrop_path) : undefined
 
-    // Risoluzione Logo
+    // Risoluzione Logo + `imdbRating` in parallelo. `imdbRating` contract:
+    // Cinemeta IMDb is authoritative, TMDB `vote_average` is the fail-open
+    // fallback (miss/transient/open breaker). Both promises are non-throwing
+    // for the rating path, so a Cinemeta failure never turns /meta into a 500
+    // and no serial round trip is added to the logo fetch.
     let logo: string | undefined
+    const [images, cinemetaRating] = await Promise.all([
+      getImages(tmdbMediaType, tmdbId, `${posterLang},en,null`, apiKey, requestSignal, 5000).catch(() => null),
+      fetchCinemetaRating(imdbId, stType === "movie" ? "movie" : "series", requestSignal).catch(() => null),
+    ])
     try {
-      const images = await getImages(tmdbMediaType, tmdbId, `${posterLang},en,null`, apiKey, requestSignal, 5000)
       if (images?.logos && images.logos.length > 0) {
         // Stessa scala del render poster (lingua → inglese → lingua originale
         // → primo): prima si prendeva il PRIMO logo disponibile appena mancava
@@ -433,6 +824,11 @@ export async function pictoriumMeta(
 
     let videos: StremioVideo[] | undefined
     let isPartialSeasonData = false
+    // Pre-enrichment TMDB stills (`S:E` → sanitized path). The TVDB enrichment
+    // replaces the thumbnail with a TVDB cover, but `/api/thumbnail` still
+    // requires a TMDB still as its fail-open fallback, so it is captured
+    // before the overwrite (only when the TVDB base can actually be used).
+    let tmdbStillsByEpisode: Map<string, string> | null = null
 
     if (stType === "series") {
       videos = []
@@ -561,12 +957,25 @@ export async function pictoriumMeta(
       // Parti assegnerebbe nome/cover/trama dell'episodio sbagliato.
       const isTvdbOrdering = (mapping?.episodeGroupId === "tvdb" || (mapping?.episodeGroupId?.startsWith("tvdb:") ?? false))
       if (videos.length > 0 && episodeMetadataSource === "tvdb" && tvdbApiKey && !isTvdbOrdering && !videosFromGroup) {
+        if (episodeThumbnailOptions?.stills === "tvdb") {
+          const rawBase = posterUrl("", "w500")
+          tmdbStillsByEpisode = new Map()
+          for (const v of videos) {
+            if (!v.thumbnail || !v.thumbnail.startsWith(`${rawBase}/`)) continue
+            const still = sanitizeEpisodeStillPath(v.thumbnail.slice(rawBase.length))
+            if (still) tmdbStillsByEpisode.set(`${v.season}:${v.episode}`, still)
+          }
+        }
         const enrichSignal = combineAbortSignals(requestSignal, 8000)
         // Interrupted enrichment: TMDB videos stay intact but the meta goes to
         // a short TTL so TVDB covers/synopses are retried.
         const enrichComplete = await enrichVideosWithTvdbDetailed(videos, imdbId, tmdbId, tvdbApiKey, "ita", apiKey, enrichSignal)
         if (!enrichComplete) isPartialSeasonData = true
       }
+    }
+
+    if (stType === "series" && episodeThumbnailsEnabled && episodeThumbnailOptions && videos && videos.length > 0) {
+      videos = await applyEpisodeThumbnails(req, tmdbId, videos, episodeThumbnailOptions, preMappingForCache?.episodeThumbnailStills, tmdbStillsByEpisode, scopedUser)
     }
 
     const genres = (details.genres || []).map((g) => g.name)
@@ -590,7 +999,7 @@ export async function pictoriumMeta(
       releaseInfo: (details.release_date || details.first_air_date || "").slice(0, 4) || undefined,
       released: details.release_date ? `${details.release_date}T00:00:00.000Z` : undefined,
       runtime: details.runtime ? `${details.runtime} min` : undefined,
-      imdbRating: details.vote_average ? details.vote_average.toFixed(1) : undefined,
+      imdbRating: normalizeCatalogRating(cinemetaRating ?? details.vote_average),
       cast: cast.length > 0 ? cast : undefined,
       director: director.length > 0 ? director : undefined,
       writer: writers.length > 0 ? writers : undefined,

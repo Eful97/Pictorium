@@ -17,6 +17,27 @@ describe("search results view", () => {
     expect(screen.queryByText("ui.noResults")).not.toBeInTheDocument()
   })
 
+  it("prefers the Cinemeta IMDb rating over TMDB vote_average and falls back when absent", () => {
+    renderWithCtx(<SearchView />, {
+      tmdbKey: "k",
+      query: "x",
+      hasSearched: true,
+      totalPages: 1,
+      searchPage: 1,
+      results: [
+        { id: 1, media_type: "movie", title: "IMDb rated", poster_path: null, vote_average: 7.9, imdbRating: "9.1" },
+        { id: 2, media_type: "movie", title: "TMDB only", poster_path: null, vote_average: 6.4 },
+        { id: 3, media_type: "movie", title: "No vote", poster_path: null, vote_average: 0 },
+      ],
+    })
+    expect(screen.getByText("9.1")).toBeInTheDocument()
+    expect(screen.getByText("6.4")).toBeInTheDocument()
+    // The TMDB vote never replaces a present IMDb value, and a 0 vote is
+    // rendered as absent (never "0.0").
+    expect(screen.queryByText("7.9")).toBeNull()
+    expect(screen.queryByText("0.0")).toBeNull()
+  })
+
   it("uses independent buttons to remove a recent search without submitting it", () => {
     const doSearch = vi.fn(async () => [])
     const removeRecentSearch = vi.fn()

@@ -612,7 +612,7 @@ describe("GET /api/poster/[type]/[id] with saved mappings", () => {
       params: Promise.resolve({ type: "movie", id: String(id) }),
     })
     expect(debug.status).toBe(200)
-    expect((await debug.json()).vote.average).toBeCloseTo(kind === "non-mapped" ? (imdb ? 7.4 : 6) : 5)
+    expect((await debug.json()).vote.average).toBeCloseTo(kind === "non-mapped" ? (imdb ? 8.8 : 6) : 5)
   })
 
   it("applies the TMDB+IMDb average rating when the aggregated rating resolves", async () => {
@@ -715,8 +715,8 @@ describe("GET /api/poster/[type]/[id] with saved mappings", () => {
       params: Promise.resolve({ type: "movie", id: "43" }),
     })
     expect(garbage.status).toBe(200)
-    // Garbage rsrc → default imdb+tmdb (8+6)/2, come la details route — mai fallback TMDB.
-    expect((await garbage.json()).vote.average).toBeCloseTo(7.0)
+    // Garbage rsrc → default IMDb-only (8.0), come la details route — mai fallback TMDB.
+    expect((await garbage.json()).vote.average).toBeCloseTo(8.0)
   })
 
   it("accepts tmdb:<id> typed ids as exact numeric path (Nuvio auto template)", async () => {

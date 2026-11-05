@@ -112,6 +112,13 @@ export default defineConfig({
         // mostrerebbe il gate al posto della home e romperebbe gli snapshot.
         PICTORIUM_MULTI_USER: "",
         POSTERIUM_MULTI_USER: "",
+        // Banner sunset spento: un .env.local con PICTORIUM_DUCKDNS_NOTICE=1
+        // rende DuckDnsSunsetBanner in cima a ogni pagina (+125px di altezza) e
+        // sposta gli snapshot di layout. La variabile è letta a render time in
+        // src/app/layout.tsx (con l'alias NEXT_PUBLIC_*): entrambe vanno VUOTE
+        // qui, così gli snapshot valgono ovunque (CI inclusa).
+        PICTORIUM_DUCKDNS_NOTICE: "",
+        NEXT_PUBLIC_DUCKDNS_NOTICE: "",
         JUSTWATCH_API_URL: `${mockUrl}/graphql`,
         WIKIDATA_SPARQL_URL: `${mockUrl}/sparql`,
         WIKIDATA_API_URL: `${mockUrl}/w/api.php`,

@@ -26,8 +26,9 @@ export async function GET(req: NextRequest, { params }: { params: Promise<{ id: 
   const apiKey = await resolveRouteApiKey(req)
   const mdblistKey = await resolveRouteApiKey(req, "mdblist")
   const simklKey = await resolveRouteApiKey(req, "simkl")
-  // Stesso default della poster route: assente/vuota/invalida imdb+tmdb,
-  // mai legacy all-source. Solo default locale, nessun mapping o token.
+  // Stesso default della poster route: assente/vuota/invalida -> IMDb-only
+  // (`DEFAULT_RATING_SOURCES`), mai legacy all-source. Solo default locale,
+  // nessun mapping o token.
   const ratingSources = resolveRatingSources(req.nextUrl.searchParams.get("rsrc"))
   const mediaType = type === "tv" || type === "series" ? "tv" : "movie"
   const tmdbId = Number(id)
@@ -46,7 +47,9 @@ export async function GET(req: NextRequest, { params }: { params: Promise<{ id: 
   const mdblistHash = mdblistKey ? crypto.createHash("sha1").update(mdblistKey).digest("hex").slice(0, 8) : ""
   const simklHash = simklKey ? crypto.createHash("sha1").update(simklKey).digest("hex").slice(0, 8) : ""
   const rsrcKey = ratingSources.slice().sort().join(",")
-  // v15: default esplicito imdb+tmdb, mai all-source; nuova precedenza direct.
+  // v15: default esplicito IMDb-only, mai all-source; nuova precedenza direct.
+  // (Il frammento rsrcKey distingue comunque le selezioni, incluso il vecchio
+  // default imdb+tmdb: le entry pre-cambio non vengono riusate.)
   const cacheKey = `details:v15:${type}:${tmdbId}:${language}:${mdblistHash || "nomk"}:${simklHash || "nosk"}:${rsrcKey}`
   interface Genre { id: number; name: string }
   interface Episode { id: number; name: string; air_date: string | null; episode_number: number; season_number: number }

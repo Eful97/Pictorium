@@ -54,8 +54,13 @@ export const SUPPORTED_RATING_SOURCES = [
 
 export type RatingSource = (typeof SUPPORTED_RATING_SOURCES)[number]
 
-/** Fonti default del voto medio (imdb/tmdb). Definita qui (foglia client-safe), re-esportata da ratings.ts. */
-export const DEFAULT_RATING_SOURCES: RatingSource[] = ["imdb", "tmdb"]
+/**
+ * Fonti default del voto medio: SOLO IMDb, servito da Cinemeta (gratis, senza
+ * chiave) come provider primario. TMDB diretto resta un fallback/overlay dei
+ * caller quando l'IMDb non è disponibile — mai la fonte primaria del default.
+ * Definita qui (foglia client-safe), re-esportata da ratings.ts.
+ */
+export const DEFAULT_RATING_SOURCES: RatingSource[] = ["imdb"]
 
 /**
  * Parsing unico del parametro `rsrc` (Fix D): split "," → trim → lowercase →
@@ -109,7 +114,7 @@ export const UI_RATING_SOURCES: { id: RatingSource; labelKey: string; emoji: str
   { id: "tvmaze", labelKey: "ui.source_tvmaze", emoji: "🦉" },
 ]
 
-/** Media pari sulle fonti richieste (default imdb/tmdb). */
+/** Media pari sulle fonti richieste (default IMDb-only). */
 function equalAverage(ratings: AggregatedRatings | null, sources: readonly string[]): number | null {
   if (!ratings || !ratings.sources) return null
   const values: number[] = []
@@ -122,7 +127,7 @@ function equalAverage(ratings: AggregatedRatings | null, sources: readonly strin
 }
 
 /**
- * Voto unico a media pari sulle fonti richieste (`rsrc` o default imdb/tmdb).
+ * Voto unico a media pari sulle fonti richieste (`rsrc` o default IMDb-only).
  */
 export function computeVote(
   ratings: AggregatedRatings | null,

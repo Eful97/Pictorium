@@ -1,7 +1,7 @@
 "use client"
 
 import { useCallback, useEffect, useMemo, useRef, useState } from "react"
-import { usePosterEditor, type PosterEditorCtx } from "@/lib/contexts/PosterEditorContext"
+import { usePosterEditor, type PosterEditorCtx, type ThumbnailBadgeAnchor, type ThumbnailBadgeStyle, type ThumbnailVoteSource } from "@/lib/contexts/PosterEditorContext"
 import { currentPathUuid } from "@/lib/user-token"
 import { materializeExtraTuning, clearedExtraForPresetApply } from "@/lib/extra-materialize"
 import { independentLandscapeDefaults } from "@/lib/visual-presets"
@@ -440,6 +440,53 @@ export function useSettingsSession(): SettingsSessionResult {
           : { defaultSeparateRatingsStyle: next }
       })
     }
+    // Miniature visual choices: staged exactly like the other default-backed
+    // fields (no live outer write / phantom conflict), so the single Save is
+    // the only writer and the preview reads the draft.
+    const setThumbnailBadgeStyle = (
+      v: ThumbnailBadgeStyle | ((prev: ThumbnailBadgeStyle) => ThumbnailBadgeStyle),
+    ) => {
+      updateSession((prev) => ({
+        defaultThumbnailBadgeStyle: resolveField(v, prev.defaultThumbnailBadgeStyle),
+      }))
+    }
+    const setThumbnailBadgeAnchor = (
+      v: ThumbnailBadgeAnchor | ((prev: ThumbnailBadgeAnchor) => ThumbnailBadgeAnchor),
+    ) => {
+      updateSession((prev) => ({
+        defaultThumbnailAnchor: resolveField(v, prev.defaultThumbnailAnchor),
+      }))
+    }
+    const setThumbnailBadgeOffsetX = (v: number | ((prev: number) => number)) => {
+      updateSession((prev) => ({
+        defaultThumbnailOffsetX: resolveField(v, prev.defaultThumbnailOffsetX),
+      }))
+    }
+    const setThumbnailBadgeOffsetY = (v: number | ((prev: number) => number)) => {
+      updateSession((prev) => ({
+        defaultThumbnailOffsetY: resolveField(v, prev.defaultThumbnailOffsetY),
+      }))
+    }
+    const setThumbnailBadgeScale = (v: number | ((prev: number) => number)) => {
+      updateSession((prev) => ({
+        defaultThumbnailBadgeScale: Math.max(
+          10,
+          Math.min(200, Math.round(resolveField(v, prev.defaultThumbnailBadgeScale))),
+        ),
+      }))
+    }
+    const setThumbnailBlurEnabled = (v: boolean | ((prev: boolean) => boolean)) => {
+      updateSession((prev) => ({
+        defaultThumbnailBlur: resolveField(v, prev.defaultThumbnailBlur),
+      }))
+    }
+    const setThumbnailVoteSource = (
+      v: ThumbnailVoteSource | ((prev: ThumbnailVoteSource) => ThumbnailVoteSource),
+    ) => {
+      updateSession((prev) => ({
+        defaultThumbnailVoteSource: resolveField(v, prev.defaultThumbnailVoteSource),
+      }))
+    }
     // Landscape profile patch with rank→extra materialization on the
     // EFFECTIVE rank (provider parity: explicit undefined = cleared and
     // falls back to flats; sync restores pass { materialize: false }).
@@ -600,6 +647,16 @@ export function useSettingsSession(): SettingsSessionResult {
       setDefaultQualityGroupLayout: makeSimpleSetter(updateSession, "defaultQualityGroupLayout"),
       setDefaultVideoFormats: makeSimpleSetter(updateSession, "defaultVideoFormats"),
       setDefaultEpisodeMetadataSource: makeSimpleSetter(updateSession, "defaultEpisodeMetadataSource"),
+      setDefaultEpisodeThumbnails: makeSimpleSetter(updateSession, "defaultEpisodeThumbnails"),
+      // Miniature visual choices (same staged ownership as the fields above).
+      setThumbnailBadgeStyle,
+      setThumbnailBadgeAnchor,
+      setThumbnailBadgeOffsetX,
+      setThumbnailBadgeOffsetY,
+      setThumbnailBadgeScale,
+      setThumbnailBlurEnabled,
+      setThumbnailVoteSource,
+      setDefaultThumbnailRotation: makeSimpleSetter(updateSession, "defaultThumbnailRotation"),
       setDefaultBlurEnabled: makeSimpleSetter(updateSession, "defaultBlurEnabled"),
       setDefaultBlurIntensity: makeSimpleSetter(updateSession, "defaultBlurIntensity"),
       setDefaultTintStrength: makeSimpleSetter(updateSession, "defaultTintStrength"),
@@ -690,6 +747,16 @@ export function useSettingsSession(): SettingsSessionResult {
       ...outer,
       ...session,
       ...localSetters,
+      // Miniature aliases: the historical `thumbnail*` names the panel and
+      // preview consume, projected from the staged draft (so a settings edit
+      // is WYSIWYG immediately but persists only through the single Save).
+      thumbnailBadgeStyle: session.defaultThumbnailBadgeStyle,
+      thumbnailBadgeAnchor: session.defaultThumbnailAnchor,
+      thumbnailBadgeOffsetX: session.defaultThumbnailOffsetX,
+      thumbnailBadgeOffsetY: session.defaultThumbnailOffsetY,
+      thumbnailBadgeScale: session.defaultThumbnailBadgeScale,
+      thumbnailBlurEnabled: session.defaultThumbnailBlur,
+      thumbnailVoteSource: session.defaultThumbnailVoteSource,
       activePresetBaselines,
       refreshActivePresetBaseline,
     }),

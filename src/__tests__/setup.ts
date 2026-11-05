@@ -173,6 +173,8 @@ const itDict: Record<string, string> = {
   "badge.seriesEnded": "Serie conclusa",
   "badge.upcomingRelease": "In uscita {date}",
   "ui.deleteFailed": "Errore nella cancellazione di {count} poster",
+  // Miniature position hint: asserted by text in the settings target spec.
+  "ui.thumbnailBadgePositionHint": "Trascina il badge nell'anteprima ingrandita per rifinire; ridimensiona dagli angoli; un preset d'angolo azzera la posizione.",
   "ui.loadingCatalogs": "Caricamento cataloghi...",
   "ui.confirmDelete": "Eliminare questo poster?",
   "ui.confirmDeleteMsg": "Vuoi eliminare {title}? Non può essere annullata.",

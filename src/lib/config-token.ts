@@ -223,6 +223,22 @@ export const configTokenSchema = z.object({
   disabledCatalogIds: z.array(z.string().max(80)).optional(),
   homeDisabledCatalogIds: z.array(z.string().max(80)).optional(),
   episodeMetadataSource: z.enum(["tmdb", "tvdb"]).optional(),
+  // Episode thumbnails composited by /api/thumbnail (default OFF: absent keeps
+  // the raw TMDB stills and byte-identical /meta bodies). Meta-only, flat.
+  episodeThumbnails: z.boolean().optional(),
+  // Miniature visual choices (meta-only, flat): persisted so /meta composited
+  // URLs match the settings preview. Absent/invalid = renderer defaults
+  // (pill / tr / 0 / 0 / no blur / imdb); bounds re-checked at every read.
+  thumbnailBadgeStyle: z.enum(["pill", "bordo", "vetro", "branded", "naked", "score"]).optional(),
+  thumbnailAnchor: z.enum(["tl", "tr", "bl", "br"]).optional(),
+  thumbnailOffsetX: z.number().min(-2000).max(2000).optional(),
+  thumbnailOffsetY: z.number().min(-2000).max(2000).optional(),
+  thumbnailBadgeScale: z.number().min(10).max(200).optional(),
+  thumbnailBlur: z.boolean().optional(),
+  thumbnailVoteSource: z.enum(["imdb", "tmdb"]).optional(),
+  // Daily episode-thumbnail still rotation (meta-only, flat). Absent = OFF:
+  // /meta keeps the historical fixed still and byte-identical bodies.
+  thumbnailRotation: z.boolean().optional(),
   hubMode: z.enum(["all", "catalogs", "search"]).optional(),
   // Regione classifiche (codice JW "IT"/"US"... o slug FlixPatrol): validazione
   // lasca di proposito, la normalizzazione fail-closed avviene in risoluzione.

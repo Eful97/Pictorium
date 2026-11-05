@@ -95,6 +95,17 @@ export async function saveDefaults(ed: PosterEditorCtx): Promise<boolean> {
     preRelease: ed.defaultPreRelease,
     defaultRibbonSide: ed.defaultRibbonSide,
     defaultEpisodeMetadataSource: ed.defaultEpisodeMetadataSource,
+    episodeThumbnails: ed.defaultEpisodeThumbnails,
+    // Miniature visual choices (WYSIWYG parity with /meta): the manual save
+    // carries the same live values the settings preview emits.
+    thumbnailBadgeStyle: ed.thumbnailBadgeStyle,
+    thumbnailAnchor: ed.thumbnailBadgeAnchor,
+    thumbnailOffsetX: ed.thumbnailBadgeOffsetX,
+    thumbnailOffsetY: ed.thumbnailBadgeOffsetY,
+    thumbnailBadgeScale: ed.thumbnailBadgeScale,
+    thumbnailBlur: ed.thumbnailBlurEnabled,
+    thumbnailVoteSource: ed.thumbnailVoteSource,
+    thumbnailRotation: ed.defaultThumbnailRotation,
     region: ed.defaultRegion,
     dateFormat: ed.defaultDateFormat,
     networkLogo: ed.defaultNetworkLogo,

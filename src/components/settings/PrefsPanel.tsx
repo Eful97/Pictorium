@@ -1,6 +1,6 @@
 "use client"
 
-import { Globe, Palette, RectangleHorizontal, RectangleVertical, RotateCcw, Sparkles, Sun, Tv, Type } from "lucide-react"
+import { Globe, Image as ImageIcon, Palette, RectangleHorizontal, RectangleVertical, RotateCcw, Sparkles, Sun, Tv, Type } from "lucide-react"
 import { usePSelector } from "@/lib/context"
 import { useT } from "@/lib/contexts/TranslationContext"
 import { usePosterEditor } from "@/lib/contexts/PosterEditorContext"
@@ -133,6 +133,24 @@ export function PrefsPanel({ active }: { active: boolean }) {
         <p className="text-xs text-zinc-400 leading-relaxed pt-1 border-t border-white/[0.04]">
           {t("ui.episodeMetadataSourceHint")}
         </p>
+        <div className="py-1.5 space-y-1">
+          <div className="flex items-center justify-between gap-3">
+            <span className="text-zinc-200 text-xs sm:text-sm font-medium flex items-center gap-2">
+              <Tv className="w-4 h-4 text-zinc-400 shrink-0" />
+              <span>{t("ui.episodeThumbnails")}</span>
+            </span>
+            <Toggle
+              value={ed.defaultEpisodeThumbnails}
+              onChange={(v) => {
+                ed.setDefaultEpisodeThumbnails(v)
+              }}
+              label={t("ui.episodeThumbnails")}
+            />
+          </div>
+          <p className="text-xs text-zinc-400 leading-relaxed pl-6">
+            {t("ui.episodeThumbnailsHint")}
+          </p>
+        </div>
       </section>
 
       {/* Gruppo 3: Default Rotazione — portrait, scope e landscape in un'unica card */}
@@ -198,6 +216,22 @@ export function PrefsPanel({ active }: { active: boolean }) {
                   ed.setDefaultAutoRotateBackdrop(v)
                 }}
                 label={t("ui.autoRotateDefaultLandscape")}
+              />
+            </div>
+            {/* Miniature (episode thumbnails): same 24h on/off pattern as the
+                poster rotations, cut at 02:00 UTC. Meta-only: `/meta` emits
+                `rotate=1` only when the effective value is ON. */}
+            <div className="flex items-center justify-between py-1.5">
+              <span className="text-zinc-200 text-xs sm:text-sm font-medium flex items-center gap-2">
+                <ImageIcon className="w-4 h-4 text-emerald-400 shrink-0" />
+                <span>{t("ui.autoRotateDefaultThumbnails")}</span>
+              </span>
+              <Toggle
+                value={ed.defaultThumbnailRotation}
+                onChange={(v) => {
+                  ed.setDefaultThumbnailRotation(v)
+                }}
+                label={t("ui.autoRotateDefaultThumbnails")}
               />
             </div>
           </div>

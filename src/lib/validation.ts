@@ -3,6 +3,7 @@ import { BADGE_STYLES, RANKING_BADGE_STYLES, QUALITY_BADGE_STYLES, AGE_BADGE_STY
 import { TEXT_LOGO_MAX_LENGTH } from "./text-logo"
 import { POSTER_LAYOUTS, POSTER_FRESH_SCOPES, RETIRED_BADGE_FAMILY_IDS, type RetiredBadgeFamilyBindings, type RetiredBadgeFamilyFollows } from "./types"
 import { QUALITY_GROUP_LAYOUTS } from "./badge-styles"
+import { MAX_EPISODE_STILL_OVERRIDES, sanitizeEpisodeThumbnailStills } from "./episode-stills"
 
 /**
  * Retired Badge Lab write-boundary schemas (custom badge library removed).
@@ -72,6 +73,21 @@ const rotationPosterLanguagesSchema = z.custom<Record<string, string> | null | u
     if (typeof code !== "string" || code.length === 0 || code.length > ROTATION_POSTER_LANGUAGES_MAX_CODE_LENGTH) return false
   }
   return true
+}).nullable().optional()
+
+/**
+ * Per-episode thumbnail overrides (`S:E` → single-segment TMDB still path).
+ * Uses the shared sanitizer (same rule as `/meta` + the picker): a write that
+ * carries any invalid key/path is rejected, never silently trimmed.
+ * Absent/null = legacy raw episode stills.
+ */
+const episodeThumbnailStillsSchema = z.custom<Record<string, string> | null | undefined>((raw) => {
+  if (raw === undefined || raw === null) return true
+  if (typeof raw !== "object" || Array.isArray(raw)) return false
+  const entries = Object.entries(raw)
+  if (entries.length > MAX_EPISODE_STILL_OVERRIDES) return false
+  const sanitized = sanitizeEpisodeThumbnailStills(raw)
+  return sanitized !== null && Object.keys(sanitized).length === entries.length
 }).nullable().optional()
 
 export const mappingSchema = z.object({
@@ -331,6 +347,14 @@ export const mappingSchema = z.object({
   defaultRankingBadgeStyle: z.enum(RANKING_BADGE_STYLES).nullable().optional(),
   defaultExtraBadgeStyle: z.union([z.enum(EXTRA_BADGE_STYLES), z.literal(EXTRA_BADGE_FOLLOW_RANK)]).nullable().optional(),
   episodeGroupId: z.string().max(80).nullable().optional(),
+  // Per-episode thumbnail overrides chosen in the editor picker: `S:E` keys,
+  // TMDB single-segment still paths (same sanitizer as thumbnail-renderer).
+  // Absent/null = raw episode stills; bounded so a hostile write cannot store
+  // an unbounded blob.
+  episodeThumbnailStills: episodeThumbnailStillsSchema,
+  // Per-title daily still rotation (`rotate`): explicit true/false wins on the
+  // space default, null = inherit. Meta-only flat field.
+  thumbnailRotation: z.boolean().nullable().optional(),
 })
 
 export type MappingInput = z.infer<typeof mappingSchema>

@@ -990,7 +990,7 @@ export function resolvePosterRenderConfig(input: PosterRenderConfigInput): Poste
   const customRatings = qCr !== null ? qCr !== "0" : (m?.customRatings ?? configOverride?.customRatings ?? esd.customRatings ?? sd.customRatings ?? true)
 
   // Fonti voto medio ★ — catena canonica: query `rsrc` > mapping per-titolo >
-  // config token > server defaults > imdb+tmdb. Stessa dell'URL Stremio.
+  // config token > server defaults > IMDb-only. Stessa dell'URL Stremio.
   const ratingSources: string[] = resolveRatingSources(
     q.get("rsrc"),
     mapping?.ratingSources,

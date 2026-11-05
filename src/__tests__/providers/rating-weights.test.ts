@@ -10,7 +10,7 @@ const sample: AggregatedRatings = {
 }
 
 describe("computeVote (sempre media pari, nessun preset)", () => {
-  it("equivale al legacy su default imdb/tmdb", () => {
+  it("equivale al legacy su default IMDb-only", () => {
     expect(computeVote(sample)).toBe(calculateAverageRating(sample))
     expect(computeVote(sample, ["imdb", "tomatoes"])).toBe(
       calculateAverageRating(sample, ["imdb", "tomatoes"]),
@@ -26,7 +26,7 @@ describe("computeVote (sempre media pari, nessun preset)", () => {
   it("ignora valori non numerici o non positivi", () => {
     const dirty = { sources: { imdb: 0, tmdb: NaN, letterboxd: 7.5 }, average: 0, count: 3 }
     expect(computeVote(dirty, ["imdb", "tmdb", "letterboxd"])).toBe(7.5)
-    expect(computeVote(dirty)).toBeNull() // nei default resta solo spazzatura
+    expect(computeVote(dirty)).toBeNull() // nel default IMDb resta solo spazzatura
   })
 
   it("null quando non c'è proprio niente", () => {

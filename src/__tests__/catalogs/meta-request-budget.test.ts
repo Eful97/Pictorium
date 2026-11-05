@@ -26,6 +26,12 @@ vi.mock("@/lib/tvdb", async (importOriginal) => {
   return { ...mod, enrichVideosWithTvdb: vi.fn(), enrichVideosWithTvdbDetailed: vi.fn(async () => true) }
 })
 
+// imdbRating source is covered by catalog-imdb-rating.test.ts: keep the
+// budget phases exactly as recorded before the Cinemeta rows change.
+vi.mock("@/lib/cinemeta", () => ({
+  fetchCinemetaRating: vi.fn(async () => null),
+}))
+
 const mockedGetById = vi.mocked(getById)
 
 interface FetchCall {

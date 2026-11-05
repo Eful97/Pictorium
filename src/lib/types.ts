@@ -104,6 +104,12 @@ export interface SearchResult {
   release_date?: string
   first_air_date?: string
   vote_average?: number
+  /**
+   * IMDb vote from Cinemeta (0-10 decimal string) exposed additively by
+   * `/api/tmdb/search`. Absent when Cinemeta has no usable vote: the UI falls
+   * back to `vote_average`, never to `0.0`.
+   */
+  imdbRating?: string
   imdb_id?: string | null
   /** Local anime associations; multiple seasons may share a TMDB series. */
   anime_ids?: { kitsu: number[]; mal: number[] }
@@ -117,7 +123,7 @@ export interface SearchResult {
   listRegion?: string | null
 }
 
-export function toSearchResult(partial: { id?: number | null; media_type?: string; title?: string | null; name?: string | null; poster_path?: string | null; release_date?: string; first_air_date?: string; vote_average?: number; imdb_id?: string | null; listRank?: number | null; listRegion?: string | null }): SearchResult {
+export function toSearchResult(partial: { id?: number | null; media_type?: string; title?: string | null; name?: string | null; poster_path?: string | null; release_date?: string; first_air_date?: string; vote_average?: number; imdbRating?: string; imdb_id?: string | null; listRank?: number | null; listRegion?: string | null }): SearchResult {
   const out: SearchResult = {
     id: partial.id ?? 0,
     media_type: partial.media_type === "tv" ? "tv" : "movie",
@@ -127,6 +133,7 @@ export function toSearchResult(partial: { id?: number | null; media_type?: strin
     release_date: partial.release_date,
     first_air_date: partial.first_air_date,
     vote_average: partial.vote_average,
+    imdbRating: partial.imdbRating,
     imdb_id: partial.imdb_id,
   }
   if (partial.listRank !== undefined) out.listRank = partial.listRank
@@ -304,10 +311,26 @@ export interface Mapping {
    * default effettivi di forma; assente ovunque = `badge` (byte-identico).
    */
   awardBadgeStyle?: AwardBadgeMode | null
+  /**
+   * Per-episode thumbnail overrides chosen in the editor picker:
+   * `"S:E"` → TMDB still path (single raster file segment). Consumed by
+   * `/meta` only when episode thumbnails are enabled; absent/empty keeps the
+   * episode's raw TMDB still. Invalid entries are dropped by the shared
+   * sanitizer at the write boundary.
+   */
+  episodeThumbnailStills?: Record<string, string> | null
+  /**
+   * Per-title daily still rotation (`rotate`): explicit `true`/`false` wins on
+   * the space `thumbnailRotation` default, `null`/absent = inherit it. Meta-only
+   * flat field (never a poster render parameter). `/meta` resolves query >
+   * mapping > config token > defaults; OFF keeps the fixed still and the
+   * historical URL/cache key.
+   */
+  thumbnailRotation?: boolean | null
   /** Riga rating custom provider (display). Default ON quando il provider è configurato. */
   customRatings?: boolean | null
   /** Fonti del voto medio ★ per-titolo (catena: query `rsrc` > mapping >
-   * config token > server defaults > imdb+tmdb). Assente nei mapping vecchi
+   * config token > server defaults > IMDb-only). Assente nei mapping vecchi
    * (seguono i default finché non risalvati). */
   ratingSources?: string[] | null
   /** Colonna rating separati a destra (sostituisce la media ★). Default OFF. */

@@ -26,6 +26,12 @@ vi.mock("@/lib/tvdb", async (importOriginal) => {
   return { ...mod, enrichVideosWithTvdb: vi.fn(), enrichVideosWithTvdbDetailed: vi.fn(async () => true) }
 })
 
+// imdbRating source is covered by catalog-imdb-rating.test.ts: keep these
+// ordered-fetch mocks focused on video hints (no extra Cinemeta request).
+vi.mock("@/lib/cinemeta", () => ({
+  fetchCinemetaRating: vi.fn(async () => null),
+}))
+
 const mockedGetById = vi.mocked(getById)
 
 function justWatchResponse(tmdbId: number, imdbId?: string | null): Response {

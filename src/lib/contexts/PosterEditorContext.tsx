@@ -38,6 +38,24 @@ import type { ActivePresetBaseline, ActivePresetMeta } from "@/lib/active-preset
  * quelli restano flat + stash al cambio formato). Valori sempre concreti,
  * inizializzati all'apertura titolo.
  */
+/**
+ * Settings edit target: which canvas the Impostazioni controls and preview
+ * act on. `thumbnail` is a preview-only THIRD target (episode thumbnail
+ * compositor); it never changes the persisted delivery shape. Lives in the
+ * editor context so the choice survives settings tab switches and panel
+ * remounts, exactly like the portrait/landscape target always did.
+ */
+export type EditTargetShape = "portrait" | "landscape" | "thumbnail"
+
+/** Thumbnail vote-badge style (mirrors the renderer `bstyle` contract). */
+export type ThumbnailBadgeStyle = "pill" | "bordo" | "vetro" | "branded" | "naked" | "score"
+
+/** Thumbnail badge-stack corner anchor (renderer `anchor` contract). */
+export type ThumbnailBadgeAnchor = "tl" | "tr" | "bl" | "br"
+
+/** Thumbnail ★ vote source (mirrors the renderer `source` contract; default IMDb). */
+export type ThumbnailVoteSource = "imdb" | "tmdb"
+
 export interface LandscapeBlurState {
   gradientHeight: number
   blurEnabled: boolean
@@ -204,6 +222,36 @@ export interface PosterEditorCtx {
   /** Formato canvas del poster in editing (switch per-titolo in EditView). */
   posterShape: PosterShape
   setPosterShape: (v: PosterShape | ((prev: PosterShape) => PosterShape)) => void
+  /**
+   * Settings edit target (preview-only, never the delivery format):
+   * Verticale / Orizzontale / Miniature. Default `portrait` preserves the
+   * historical behavior.
+   */
+  editTargetShape: EditTargetShape
+  setEditTargetShape: (v: EditTargetShape | ((prev: EditTargetShape) => EditTargetShape)) => void
+  /**
+   * Thumbnail vote-badge style (pill/bordo/vetro/branded/naked). Persisted as a flat
+   * space default (`thumbnailBadgeStyle`) so Stremio `/meta` matches the
+   * settings preview; never a poster render param.
+   */
+  thumbnailBadgeStyle: ThumbnailBadgeStyle
+  setThumbnailBadgeStyle: (v: ThumbnailBadgeStyle | ((prev: ThumbnailBadgeStyle) => ThumbnailBadgeStyle)) => void
+  /** Corner anchor (default top-right) + manual px offsets from it (persisted). */
+  thumbnailBadgeAnchor: ThumbnailBadgeAnchor
+  setThumbnailBadgeAnchor: (v: ThumbnailBadgeAnchor | ((prev: ThumbnailBadgeAnchor) => ThumbnailBadgeAnchor)) => void
+  thumbnailBadgeOffsetX: number
+  setThumbnailBadgeOffsetX: (v: number | ((prev: number) => number)) => void
+  thumbnailBadgeOffsetY: number
+  setThumbnailBadgeOffsetY: (v: number | ((prev: number) => number)) => void
+  /** Badge-stack scale percent (`bscale`, 10..200; default 100). */
+  thumbnailBadgeScale: number
+  setThumbnailBadgeScale: (v: number | ((prev: number) => number)) => void
+  /** Thumbnail spoiler blur (default OFF; separate from poster blur, persisted). */
+  thumbnailBlurEnabled: boolean
+  setThumbnailBlurEnabled: (v: boolean | ((prev: boolean) => boolean)) => void
+  /** Thumbnail ★ vote source (default imdb, persisted). */
+  thumbnailVoteSource: ThumbnailVoteSource
+  setThumbnailVoteSource: (v: ThumbnailVoteSource | ((prev: ThumbnailVoteSource) => ThumbnailVoteSource)) => void
   episodeMetadataSource: "tmdb" | "tvdb"
   setEpisodeMetadataSource: (v: "tmdb" | "tvdb" | ((prev: "tmdb" | "tvdb") => "tmdb" | "tvdb")) => void
   region: string
@@ -232,6 +280,21 @@ export interface PosterEditorCtx {
   setDefaultVideoFormats: (v: VideoFormat[] | ((prev: VideoFormat[]) => VideoFormat[])) => void
   defaultEpisodeMetadataSource: "tmdb" | "tvdb"
   setDefaultEpisodeMetadataSource: (v: "tmdb" | "tvdb" | ((prev: "tmdb" | "tvdb") => "tmdb" | "tvdb")) => void
+  /** Episode thumbnails composed by /api/thumbnail in /meta (default OFF). */
+  defaultEpisodeThumbnails: boolean
+  setDefaultEpisodeThumbnails: (v: boolean | ((prev: boolean) => boolean)) => void
+  /** Miniature visual choices (flat, meta-only) — persisted `default*` truth. */
+  defaultThumbnailBadgeStyle: ThumbnailBadgeStyle
+  defaultThumbnailAnchor: ThumbnailBadgeAnchor
+  defaultThumbnailOffsetX: number
+  defaultThumbnailOffsetY: number
+  /** Miniature badge-stack scale percent (`bscale`; default 100). */
+  defaultThumbnailBadgeScale: number
+  defaultThumbnailBlur: boolean
+  defaultThumbnailVoteSource: ThumbnailVoteSource
+  /** Miniature daily still rotation (`rotate`; default OFF). */
+  defaultThumbnailRotation: boolean
+  setDefaultThumbnailRotation: (v: boolean | ((prev: boolean) => boolean)) => void
   defaultBlurEnabled: boolean
   setDefaultBlurEnabled: (v: boolean | ((prev: boolean) => boolean)) => void
   defaultBlurIntensity: number
@@ -604,6 +667,23 @@ export interface PosterEditorCtx {
   episodeGroupId: string | null
   setEpisodeGroupId: (v: string | null | ((prev: string | null) => string | null)) => void
   /**
+   * Per-episode still overrides (`S:E` → TMDB still path), persisted on the
+   * title mapping. Only explicit user choices live here; absent = inherit the
+   * episode's raw TMDB still. Sanitized at the write boundary (`/meta` and
+   * the mapping schema validate the same rule).
+   */
+  episodeThumbnailStills: Record<string, string>
+  setEpisodeThumbnailStills: (v: Record<string, string> | ((prev: Record<string, string>) => Record<string, string>)) => void
+  /**
+   * Per-title daily still rotation (`rotate`) override: `true`/`false` are
+   * explicit choices, `null` = inherit the space `defaultThumbnailRotation`.
+   * Persisted on the title mapping (`thumbnailRotation`). `/meta` resolves
+   * query > mapping > config token > defaults; thumbnails-only, flat (never a
+   * poster render parameter).
+   */
+  thumbnailRotationOverride: boolean | null
+  setThumbnailRotationOverride: (v: boolean | null | ((prev: boolean | null) => boolean | null)) => void
+  /**
    * Shared per-title other-shape draft stash (see `src/lib/shape-draft.ts`):
    * single owner keyed by `perTitleDraftKey(userId, mediaType, id)`. EditView
    * mirrors its shape-switch stash here; normal Save passes its local stash
@@ -703,8 +783,17 @@ export function PosterEditorProvider({
   const [autoRotateBackdrop, setAutoRotateBackdrop] = useState(false)
   const [excludedBackdrops, setExcludedBackdrops] = useState<string[]>([])
 
+  // ---- Settings edit target (preview-only) ----
+  // Not a persisted default and not a per-title mapping field: it only
+  // selects what the settings preview/controls surface targets. The default
+  // keeps the historical portrait behavior byte-identical.
+  const [editTargetShape, setEditTargetShape] = useState<EditTargetShape>("portrait")
+
   // ---- Episode Group state ----
   const [episodeGroupId, setEpisodeGroupId] = useState<string | null>(null)
+  const [episodeThumbnailStills, setEpisodeThumbnailStills] = useState<Record<string, string>>({})
+  // Per-title thumbnail rotation override (null = inherit the space default).
+  const [thumbnailRotationOverride, setThumbnailRotationOverrideState] = useState<boolean | null>(null)
 
   // Shared per-title other-shape draft stash (boundary documented in
   // `src/lib/shape-draft.ts`): single owner + per-shape staged drafts, refs
@@ -787,10 +876,80 @@ export function PosterEditorProvider({
     defaultAutoWordmark,
     landscape: landscapeDefaults,
     episodeMetadataSource, defaultEpisodeMetadataSource,
+    defaultEpisodeThumbnails,
+    defaultThumbnailBadgeStyle,
+    defaultThumbnailAnchor,
+    defaultThumbnailOffsetX,
+    defaultThumbnailOffsetY,
+    defaultThumbnailBadgeScale,
+    defaultThumbnailBlur,
+    defaultThumbnailVoteSource,
+    defaultThumbnailRotation,
     region, defaultRegion, defaultDateFormat,
     loadDefaultsToState, update,
   } = defaults
   const { defaultSyncStatus, retryDefaultSync, saveStagedDefaults } = defaults
+
+  // Miniature visual choices: persisted defaults (flat, meta-only). Consumers
+  // keep the historical `thumbnail*` names (settings panel + drag adapter), so
+  // nothing else changes; every write goes through the same defaults update
+  // path, which is what makes the /meta compositor URL match the WYSIWYG
+  // preview (acceptance: a saved choice reaches Stremio).
+  const thumbnailBadgeStyle = defaultThumbnailBadgeStyle
+  const thumbnailBadgeAnchor = defaultThumbnailAnchor
+  const thumbnailBadgeOffsetX = defaultThumbnailOffsetX
+  const thumbnailBadgeOffsetY = defaultThumbnailOffsetY
+  const thumbnailBadgeScale = defaultThumbnailBadgeScale
+  const thumbnailBlurEnabled = defaultThumbnailBlur
+  const thumbnailVoteSource = defaultThumbnailVoteSource
+  const setThumbnailBadgeStyle = useCallback(
+    (v: ThumbnailBadgeStyle | ((prev: ThumbnailBadgeStyle) => ThumbnailBadgeStyle)) => {
+      const next = typeof v === "function" ? v(defaultThumbnailBadgeStyle) : v
+      update({ defaultThumbnailBadgeStyle: next })
+    }, [defaultThumbnailBadgeStyle, update])
+  const setThumbnailBadgeAnchor = useCallback(
+    (v: ThumbnailBadgeAnchor | ((prev: ThumbnailBadgeAnchor) => ThumbnailBadgeAnchor)) => {
+      const next = typeof v === "function" ? v(defaultThumbnailAnchor) : v
+      update({ defaultThumbnailAnchor: next })
+    }, [defaultThumbnailAnchor, update])
+  const setThumbnailBadgeOffsetX = useCallback(
+    (v: number | ((prev: number) => number)) => {
+      const next = typeof v === "function" ? v(defaultThumbnailOffsetX) : v
+      update({ defaultThumbnailOffsetX: next })
+    }, [defaultThumbnailOffsetX, update])
+  const setThumbnailBadgeOffsetY = useCallback(
+    (v: number | ((prev: number) => number)) => {
+      const next = typeof v === "function" ? v(defaultThumbnailOffsetY) : v
+      update({ defaultThumbnailOffsetY: next })
+    }, [defaultThumbnailOffsetY, update])
+  const setThumbnailBadgeScale = useCallback(
+    (v: number | ((prev: number) => number)) => {
+      const next = typeof v === "function" ? v(defaultThumbnailBadgeScale) : v
+      // Same 10..200 contract as the renderer/query parser.
+      update({ defaultThumbnailBadgeScale: Math.max(10, Math.min(200, Math.round(next))) })
+    }, [defaultThumbnailBadgeScale, update])
+  const setThumbnailBlurEnabled = useCallback(
+    (v: boolean | ((prev: boolean) => boolean)) => {
+      const next = typeof v === "function" ? v(defaultThumbnailBlur) : v
+      update({ defaultThumbnailBlur: next })
+    }, [defaultThumbnailBlur, update])
+  const setThumbnailVoteSource = useCallback(
+    (v: ThumbnailVoteSource | ((prev: ThumbnailVoteSource) => ThumbnailVoteSource)) => {
+      const next = typeof v === "function" ? v(defaultThumbnailVoteSource) : v
+      update({ defaultThumbnailVoteSource: next })
+    }, [defaultThumbnailVoteSource, update])
+  const setDefaultThumbnailRotation = useCallback(
+    (v: boolean | ((prev: boolean) => boolean)) => {
+      const next = typeof v === "function" ? v(defaultThumbnailRotation) : v
+      update({ defaultThumbnailRotation: next })
+    }, [defaultThumbnailRotation, update])
+  const setThumbnailRotationOverride = useCallback(
+    (v: boolean | null | ((prev: boolean | null) => boolean | null)) => {
+      setThumbnailRotationOverrideState((prev) => {
+        const next = typeof v === "function" ? v(prev) : v
+        return typeof next === "boolean" ? next : null
+      })
+    }, [])
 
   // Per-title rotation override (see interface contract): explicit values are
   // saved, the reset returns to inherit so the space default keeps governing.
@@ -1671,6 +1830,11 @@ export function PosterEditorProvider({
       const next = typeof v === "function" ? v(defaultEpisodeMetadataSource) : v
       update({ defaultEpisodeMetadataSource: next })
     }, [defaultEpisodeMetadataSource, update])
+  const setDefaultEpisodeThumbnails = useCallback(
+    (v: boolean | ((prev: boolean) => boolean)) => {
+      const next = typeof v === "function" ? v(defaultEpisodeThumbnails) : v
+      update({ defaultEpisodeThumbnails: next })
+    }, [defaultEpisodeThumbnails, update])
   const setRegion = useCallback(
     (v: string | ((prev: string) => string)) => {
       const next = typeof v === "function" ? v(region) : v
@@ -2008,6 +2172,22 @@ export function PosterEditorProvider({
       setRibbonEnabled,
       posterShape,
       setPosterShape,
+      editTargetShape,
+      setEditTargetShape,
+      thumbnailBadgeStyle,
+      setThumbnailBadgeStyle,
+      thumbnailBadgeAnchor,
+      setThumbnailBadgeAnchor,
+      thumbnailBadgeOffsetX,
+      setThumbnailBadgeOffsetX,
+      thumbnailBadgeOffsetY,
+      setThumbnailBadgeOffsetY,
+      thumbnailBadgeScale,
+      setThumbnailBadgeScale,
+      thumbnailBlurEnabled,
+      setThumbnailBlurEnabled,
+      thumbnailVoteSource,
+      setThumbnailVoteSource,
       logoAlign,
       setLogoAlign,
       episodeMetadataSource,
@@ -2032,6 +2212,17 @@ export function PosterEditorProvider({
       setDefaultVideoFormats,
       defaultEpisodeMetadataSource,
       setDefaultEpisodeMetadataSource,
+      defaultEpisodeThumbnails,
+      setDefaultEpisodeThumbnails,
+      defaultThumbnailBadgeStyle,
+      defaultThumbnailAnchor,
+      defaultThumbnailOffsetX,
+      defaultThumbnailOffsetY,
+      defaultThumbnailBadgeScale,
+      defaultThumbnailBlur,
+      defaultThumbnailVoteSource,
+      defaultThumbnailRotation,
+      setDefaultThumbnailRotation,
       defaultBlurEnabled,
       setDefaultBlurEnabled,
       defaultBlurIntensity,
@@ -2301,6 +2492,14 @@ export function PosterEditorProvider({
       episodeGroupId,
       setEpisodeGroupId,
 
+      // Per-episode still overrides (persisted on the title mapping)
+      episodeThumbnailStills,
+      setEpisodeThumbnailStills,
+
+      // Per-title daily still rotation override (null = inherit the space default)
+      thumbnailRotationOverride,
+      setThumbnailRotationOverride,
+
       // Shared per-title other-shape draft stash (save boundary)
       stashShapeDraft,
       readShapeDraft,
@@ -2340,6 +2539,14 @@ export function PosterEditorProvider({
       ribbonSide, setRibbonSide,
       ribbonEnabled, setRibbonEnabled,
       posterShape, setPosterShape,
+      editTargetShape, setEditTargetShape,
+      thumbnailBadgeStyle, setThumbnailBadgeStyle,
+      thumbnailBadgeAnchor, setThumbnailBadgeAnchor,
+      thumbnailBadgeOffsetX, setThumbnailBadgeOffsetX,
+      thumbnailBadgeOffsetY, setThumbnailBadgeOffsetY,
+      thumbnailBadgeScale, setThumbnailBadgeScale,
+      thumbnailBlurEnabled, setThumbnailBlurEnabled,
+      thumbnailVoteSource, setThumbnailVoteSource,
       logoAlign, setLogoAlign,
       episodeMetadataSource, setEpisodeMetadataSource,
       region, setRegion,
@@ -2355,6 +2562,11 @@ export function PosterEditorProvider({
       defaultQualityGroupLayout, setDefaultQualityGroupLayout,
       defaultVideoFormats, setDefaultVideoFormats,
       defaultEpisodeMetadataSource, setDefaultEpisodeMetadataSource,
+      defaultEpisodeThumbnails, setDefaultEpisodeThumbnails,
+      defaultThumbnailBadgeStyle, defaultThumbnailAnchor,
+      defaultThumbnailOffsetX, defaultThumbnailOffsetY,
+      defaultThumbnailBadgeScale,
+      defaultThumbnailBlur, defaultThumbnailVoteSource, defaultThumbnailRotation, setDefaultThumbnailRotation,
       defaultBlurEnabled, setDefaultBlurEnabled,
       defaultBlurIntensity, setDefaultBlurIntensity,
       defaultTintStrength, setDefaultTintStrength,
@@ -2506,6 +2718,8 @@ export function PosterEditorProvider({
 
       // Episode Group
       episodeGroupId, setEpisodeGroupId,
+      episodeThumbnailStills, setEpisodeThumbnailStills,
+      thumbnailRotationOverride, setThumbnailRotationOverride,
 
       // Shared per-title other-shape draft stash (stable callbacks)
       stashShapeDraft, readShapeDraft, resetShapeDraftsForTitle,

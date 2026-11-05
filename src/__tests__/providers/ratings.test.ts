@@ -108,8 +108,8 @@ describe("fetchAggregatedRating (D4 — mdblist key nel cache key, D5 — niente
       count: 4,
     }
 
-    // Default: imdb + tmdb -> (8.0 + 9.0) / 2 = 8.5
-    expect(calculateAverageRating(sample)).toBe(8.5)
+    // Default: IMDb-only (Cinemeta) -> 8.0
+    expect(calculateAverageRating(sample)).toBe(8.0)
     // Custom: tomatoes + metacritic -> (9.5 + 7.0) / 2 = 8.25
     expect(calculateAverageRating(sample, ["tomatoes", "metacritic"])).toBe(8.25)
     // Custom: solo metacritic -> 7.0
@@ -176,10 +176,9 @@ describe("pickSeparateRatings / formatSeparateValue (colonna separati)", () => {
     // Zero/mancanti → []
     expect(pickSeparateRatings(sample, ["letterboxd", "mal"])).toEqual([])
     expect(pickSeparateRatings(null, ["imdb"])).toEqual([])
-    // Default imdb+tmdb senza selezione
+    // Default IMDb-only senza selezione
     expect(pickSeparateRatings(sample)).toEqual([
       { id: "imdb", value: 8.4 },
-      { id: "tmdb", value: 8.0 },
     ])
   })
 
@@ -224,12 +223,12 @@ describe("parseRatingSources / resolveRatingSources (Fix D — parser unico rsrc
     expect(parseRatingSources("")).toEqual([])
   })
 
-  it("catena query > mapping > config > defaults > imdb+tmdb; vuoti saltati", () => {
+  it("catena query > mapping > config > defaults > imdb (default); vuoti saltati", () => {
     expect(resolveRatingSources("trakt", ["imdb"], ["letterboxd"], ["metacritic"])).toEqual(["trakt"])
     expect(resolveRatingSources(null, ["imdb"], ["letterboxd"], ["metacritic"])).toEqual(["imdb"])
     expect(resolveRatingSources(null, null, ["letterboxd"], ["metacritic"])).toEqual(["letterboxd"])
     expect(resolveRatingSources(null, [], undefined, ["metacritic"])).toEqual(["metacritic"])
     expect(resolveRatingSources("xyz", ["imdb"])).toEqual(["imdb"])
-    expect(resolveRatingSources(null)).toEqual(["imdb", "tmdb"])
+    expect(resolveRatingSources(null)).toEqual(["imdb"])
   })
 })

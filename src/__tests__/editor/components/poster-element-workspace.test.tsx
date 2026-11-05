@@ -57,8 +57,11 @@ function renderSettingsWithProbe(options: { openPreset?: boolean } = {}) {
 }
 
 function snapshotDefaults(ctx: PosterEditorCtx): string {
-  const { landscape, defaultPosterShape, ...rest } = ctx as unknown as Record<string, unknown>
+  // Preview-only edit target (Verticale/Orizzontale/Miniature) is deliberately
+  // NOT a default: switching it must never count as a defaults write.
+  const { landscape, defaultPosterShape, editTargetShape, ...rest } = ctx as unknown as Record<string, unknown>
   void defaultPosterShape
+  void editTargetShape
   return JSON.stringify({ rest, landscape })
 }
 

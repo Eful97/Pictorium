@@ -54,6 +54,7 @@ import { useLocalConfigToken } from "./useLocalConfigToken"
 import { slotsReferencingCustom, shouldApplyRankRefresh } from "./ranking-source"
 import { migrateLegacyStorage } from "./storage-migration"
 import { writePersonalDeviceKey } from "./device-keys"
+import { sanitizeEpisodeThumbnailStills } from "./episode-stills"
 
 export type ViewType = "search" | "myposters" | "edit" | "cataloghi"
 
@@ -878,6 +879,10 @@ export function usePictorium(): PictoriumCtx {
     excludedBackdrops, setExcludedBackdrops,
     // Episode Group
     episodeGroupId, setEpisodeGroupId,
+    // Per-episode still overrides (title mapping state)
+    episodeThumbnailStills, setEpisodeThumbnailStills,
+    // Per-title daily still rotation override (null = inherit the space default)
+    thumbnailRotationOverride, setThumbnailRotationOverride,
   } = editorCtx
 
   const [urlPattern, setUrlPattern] = useState("")
@@ -2627,6 +2632,14 @@ export function usePictorium(): PictoriumCtx {
       setNetworkLogo(existing.networkLogo ?? defaultNetworkLogo)
       setNetworkLogoPosition(existing.networkLogoPosition ?? defaultNetworkLogoPosition)
       setEpisodeGroupId(existing.episodeGroupId ?? null)
+      setEpisodeThumbnailStills(sanitizeEpisodeThumbnailStills(existing.episodeThumbnailStills) ?? {})
+      // Per-title rotation override: explicit true/false from the mapping,
+      // null (absent) = inherit the space default.
+      setThumbnailRotationOverride(
+        existing.thumbnailRotation === true || existing.thumbnailRotation === false
+          ? existing.thumbnailRotation
+          : null,
+      )
     } else {
       setLogoDisabled(false)
       setLogoText("")
@@ -2637,6 +2650,8 @@ export function usePictorium(): PictoriumCtx {
       // leaves these exactly as the open sync left them (mid-load tweaks and
       // the land profile both survive).
       setEpisodeGroupId(null)
+      setEpisodeThumbnailStills({})
+      setThumbnailRotationOverride(null)
       const clean = data.posters?.find((p: TMDBImage) => p.iso_639_1 === null)
       const langPoster = data.posters?.find((p: TMDBImage) => p.iso_639_1 === lang)
       const firstPoster = data.posters?.[0]
@@ -3429,7 +3444,7 @@ export function usePictorium(): PictoriumCtx {
     excludedPosters, accentColor, autoAccentColor, logoDisabled, setLogoDisabled,
     logoText, logoFont, setLogoText, setLogoFont,
     rotationBackdrops, autoRotateBackdrop, defaultAutoRotateBackdrop, excludedBackdrops, backdrops,
-    setLogoScale, setLogoOffsetX, setLogoOffsetY, networkLogo, networkLogoPosition, networkLogoFollowTitle, ribbonEnabled, lang, episodeGroupId, posterShape, posterLayout, posterFreshScope,
+    setLogoScale, setLogoOffsetX, setLogoOffsetY, networkLogo, networkLogoPosition, networkLogoFollowTitle, ribbonEnabled, lang, episodeGroupId, episodeThumbnailStills, thumbnailRotationOverride, posterShape, posterLayout, posterFreshScope,
     defaultSashOrder, logoScaleExplicit,
     portraitBaseBackdropPath, portraitBaseLogoPath,
   })

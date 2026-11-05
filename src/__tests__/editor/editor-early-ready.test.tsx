@@ -713,6 +713,12 @@ describe("editor early readiness (rank/awards do not block)", () => {
 
   it("manual ratingSources change during enrichment is not reverted", async () => {
     await renderRoot()
+    // Explicit two-provider fixture: the default is IMDb-only, this case
+    // verifies the reactive average with both sources selected. The default
+    // must be set BEFORE navigation (the details load captures the sources).
+    await act(async () => {
+      ed!.setDefaultRatingSources(["imdb", "tmdb"])
+    })
     await act(async () => {
       ctx!.navigateToPoster(ITEM_A)
     })

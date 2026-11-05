@@ -189,6 +189,20 @@ const defaultsSchema = z.object({
   qualityGroupLayout: z.enum(QUALITY_GROUP_LAYOUTS).optional(),
   logoAlign: z.enum(["left", "center"]).nullable().optional(),
   episodeMetadataSource: z.enum(["tmdb", "tvdb"]).optional(),
+  // Composed episode thumbnails (default OFF: absent keeps raw stills).
+  episodeThumbnails: z.boolean().optional(),
+  // Miniature visual choices (default renderer look: pill/tr/0/0/no blur/imdb).
+  // Meta-only: stored so the /meta composited URL matches the preview exactly.
+  thumbnailBadgeStyle: z.enum(["pill", "bordo", "vetro", "branded", "naked", "score"]).optional(),
+  thumbnailAnchor: z.enum(["tl", "tr", "bl", "br"]).optional(),
+  thumbnailOffsetX: z.number().min(-2000).max(2000).optional(),
+  thumbnailOffsetY: z.number().min(-2000).max(2000).optional(),
+  thumbnailBadgeScale: z.number().min(10).max(200).optional(),
+  thumbnailBlur: z.boolean().optional(),
+  thumbnailVoteSource: z.enum(["imdb", "tmdb"]).optional(),
+  // Daily still rotation for composed episode thumbnails (default OFF: absent
+  // keeps the fixed still and byte-identical /meta bodies).
+  thumbnailRotation: z.boolean().optional(),
   region: z.string().max(32).optional(),
   dateFormat: z.enum(["locale", "dmy", "mdy", "iso"]).optional(),
   /**

@@ -2,7 +2,7 @@
 
 import { useEffect, useRef, useState, useId } from "react"
 import { ChevronDown, ImageOff, Move, RefreshCw, Search, Sparkles } from "lucide-react"
-import { usePosterEditor, type PosterEditorCtx } from "@/lib/contexts/PosterEditorContext"
+import { usePosterEditor, type EditTargetShape, type PosterEditorCtx } from "@/lib/contexts/PosterEditorContext"
 import { useT } from "@/lib/contexts/TranslationContext"
 import { buildDefaultsPreviewUrl, isDefaultsPreviewRankConfigured, type DefaultsPreviewDemoMedia, type DefaultsPreviewFamily } from "@/lib/poster-url"
 import { DEFAULT_SASH_ORDER, type SashBucket } from "@/lib/badge-priority"
@@ -13,13 +13,21 @@ import { PosterBadgeDragLayer } from "@/components/settings/PosterBadgeDragLayer
 import { readBadgeDragEnabled, writeBadgeDragEnabled } from "@/lib/badge-drag-pref"
 import { previewRequestHeaders } from "@/lib/user-token"
 import { DefaultsPreviewTitleSearch } from "@/components/settings/DefaultsPreviewTitleSearch"
+import {
+  buildThumbnailPreviewUrl,
+  demoTvSeriesId,
+  fetchFirstEpisodeStill,
+} from "@/components/settings/thumbnail-preview"
+import { useThumbnailBadgeGeometry } from "@/components/settings/useThumbnailBadgeGeometry"
 
 interface DefaultsPosterPreviewProps {
   /** Compact mode for mobile above the controls. */
   compact?: boolean
-  /** Preview-only shape (Horizontal tab): wins over the persisted
-   *  `defaultPosterShape` without modifying it. Absent = follow the default. */
-  previewShape?: "portrait" | "landscape" | null
+  /** Preview-only edit target (Verticale/Orizzontale/Miniature): wins over
+   *  the persisted `defaultPosterShape` without modifying it. Absent = follow
+   *  the default. `thumbnail` swaps the preview to the existing
+   *  `/api/thumbnail` sample; portrait/landscape keep the poster renderer. */
+  previewShape?: EditTargetShape | null
   /** Preview-only demo title (default Avatar): only changes the preview
    *  `{type}/{id}` path, never mapping/default/shape. Lifted to SettingsPanel
    *  so the selection survives desktop/mobile switches (a single responsive
@@ -366,6 +374,46 @@ export function DefaultsPosterPreview({ compact, floating, suspended, previewSha
 
   const demoTitle = demoMedia?.title?.trim() ? demoMedia.title.trim() : "Avatar"
   const searchLanguage = getRegionDef(ed.defaultRegion).lang
+  // Third edit target: the SAME settings panel, but the live sample comes from
+  // the existing episode-thumbnail compositor instead of the poster route.
+  const isThumbnail = previewShape === "thumbnail"
+  // Same drag overlay/adapter contract as the poster editor, writer = the
+  // thumbnail offsets. Only the master ON has badges to manipulate.
+  const thumbnailGeometryAdapter = useThumbnailBadgeGeometry()
+  // Sample rule: the previewed TV title's own S01E01 first still when the
+  // existing episode-stills endpoint provides one; movie/empty/error falls
+  // back to the stable Breaking Bad S01E01 still. The pair is keyed by series
+  // id so a title switch can never paint A's still with B's id.
+  const thumbnailDemoSeriesId = isThumbnail ? demoTvSeriesId(demoMedia) : null
+  const [thumbnailDemoStill, setThumbnailDemoStill] = useState<{
+    seriesId: number
+    still: string
+  } | null>(null)
+  useEffect(() => {
+    if (!isThumbnail || !thumbnailDemoSeriesId) {
+      setThumbnailDemoStill(null)
+      return
+    }
+    let active = true
+    const controller = new AbortController()
+    setThumbnailDemoStill(null)
+    fetchFirstEpisodeStill({
+      seriesId: thumbnailDemoSeriesId,
+      tmdbKey,
+      signal: controller.signal,
+    }).then((still) => {
+      if (!active || !still) return
+      setThumbnailDemoStill({ seriesId: thumbnailDemoSeriesId, still })
+    })
+    return () => {
+      active = false
+      controller.abort()
+    }
+  }, [isThumbnail, thumbnailDemoSeriesId, tmdbKey])
+  const resolvedThumbnailStill =
+    thumbnailDemoStill && thumbnailDemoStill.seriesId === thumbnailDemoSeriesId
+      ? thumbnailDemoStill.still
+      : null
 
   // Draft overlay (guided setup): read through a ref so the debounced URL
   // effect below depends only on the stable stringified identity — the
@@ -375,16 +423,41 @@ export function DefaultsPosterPreview({ compact, floating, suspended, previewSha
   const draftKey = JSON.stringify(draftDefaults ?? null)
   // Calcolo URL con debounce a 200ms per non sovraccaricare il server durante lo scorrimento dei controlli
   useEffect(() => {
-    const { url } = buildDefaultsPreviewUrlFromEditor(ed, {
-      tmdbKey,
-      userId,
-      configToken: localConfigToken,
-      lang,
-      demoMedia: demoMedia ?? null,
-      previewShape: previewShape ?? null,
-      previewFamily: previewFamily ?? null,
-      draftDefaults: draftDefaultsRef.current ?? undefined,
-    })
+    // Miniature target: same debounced pipeline, URL built from the shared
+    // thumbnail contract (existing endpoint). Portrait/landscape keep the
+    // historical poster URL builder byte-identical.
+    const { url } = isThumbnail
+      ? {
+          url: buildThumbnailPreviewUrl({
+            demoMedia: demoMedia ?? null,
+            still: resolvedThumbnailStill,
+            badgeStyle: ed.thumbnailBadgeStyle,
+            anchor: ed.thumbnailBadgeAnchor,
+            offsetX: ed.thumbnailBadgeOffsetX,
+            offsetY: ed.thumbnailBadgeOffsetY,
+            badgeScale: ed.thumbnailBadgeScale,
+            showBadges: ed.defaultEpisodeThumbnails,
+            blur: ed.thumbnailBlurEnabled,
+            voteSource: ed.thumbnailVoteSource,
+            // Same badge mode /meta emits (`both`): the thumbnail compositor is
+            // independent from the poster `globalBadges` master, so deriving it
+            // from that master made the preview drift (custom pill dropped).
+            badgesEnabled: true,
+            // Namespace keys (multi-user): the image request has no session
+            // headers, so the scoped id must travel in the URL.
+            user: userId,
+          }),
+        }
+      : buildDefaultsPreviewUrlFromEditor(ed, {
+          tmdbKey,
+          userId,
+          configToken: localConfigToken,
+          lang,
+          demoMedia: demoMedia ?? null,
+          previewShape: previewShape ?? null,
+          previewFamily: previewFamily ?? null,
+          draftDefaults: draftDefaultsRef.current ?? undefined,
+        })
 
     const timer = setTimeout(() => {
       setDebouncedUrl(url)
@@ -458,6 +531,8 @@ export function DefaultsPosterPreview({ compact, floating, suspended, previewSha
     ed.defaultSashOrder,
     ed.landscape,
     previewShape,
+    isThumbnail,
+    resolvedThumbnailStill,
     previewFamily,
     retryNonce,
     ed,
@@ -606,11 +681,16 @@ export function DefaultsPosterPreview({ compact, floating, suspended, previewSha
   // Aspect conforme all'URL (stessa shape effettiva del builder): switch
   // immediato, senza mixing durante il debounce (l'immagine precedente resta
   // in buffer finché la nuova non è pronta).
-  const isLandscape = previewShape === "landscape" || (previewShape == null && ed.defaultPosterShape === "landscape")
+  const isLandscape =
+    isThumbnail ||
+    previewShape === "landscape" ||
+    (previewShape == null && ed.defaultPosterShape === "landscape")
 
   // Regular preview (draft/simple-chrome callers keep the read-only enlarge
   // view): the enlarged editor and the two-state switch are editor surfaces.
-  const editorActive = !draftDefaults && !simpleChrome
+  // Thumbnail editor: the same enlarged drag surface as the poster, enabled
+  // only with the badge master ON (raw still = nothing to manipulate).
+  const editorActive = !draftDefaults && !simpleChrome && (!isThumbnail || ed.defaultEpisodeThumbnails)
 
   // Two-state preview switch (Settings only): the poster either paints the
   // configured ranking badge (configured layout untouched, Fresh/Card
@@ -626,7 +706,9 @@ export function DefaultsPosterPreview({ compact, floating, suspended, previewSha
     defaultRankingBadges: ed.defaultRankingBadges,
     defaultSashOrder: ed.defaultSashOrder,
     landscape: ed.landscape,
-    previewShape: previewShape ?? null,
+    // The thumbnail target has no poster rank state (switch hidden): passing
+    // null keeps the poster fallback resolution valid without inventing one.
+    previewShape: previewShape === "thumbnail" ? null : (previewShape ?? null),
     defaultPosterShape: ed.defaultPosterShape,
   })
   // - `rank` family: `sash=rank` → numeral (configured layout kept; the
@@ -648,7 +730,7 @@ export function DefaultsPosterPreview({ compact, floating, suspended, previewSha
       : previewFamily === "info" || previewFamily === "extra"
         ? "without"
         : "unset"
-  const rankSwitchEnabled = editorActive && !!onPreviewFamilyChange
+  const rankSwitchEnabled = editorActive && !!onPreviewFamilyChange && !isThumbnail
   // One control, two placements (never mounted twice at once): inline under
   // the editing chip on the static/compact preview, inside the enlarged
   // editor toolbar on the floating mobile card (which has no chrome).
@@ -803,6 +885,7 @@ export function DefaultsPosterPreview({ compact, floating, suspended, previewSha
                   enabled
                   dragMode={dragBadges}
                   targetLevel={targetLevel}
+                  adapter={isThumbnail ? thumbnailGeometryAdapter : undefined}
                 />
               </div>
               <p className="text-[11px] text-zinc-400 max-w-md">
@@ -848,8 +931,12 @@ export function DefaultsPosterPreview({ compact, floating, suspended, previewSha
       >
         <span className="truncate">
           {t("ui.previewEditingNow")}:{" "}
-          {isLandscape ? t("ui.posterShapeLandscape") : t("ui.posterShapePortrait")} ·{" "}
-          {t(PREVIEW_FAMILY_LABEL_KEY[editingFamily])}
+          {isThumbnail
+            ? t("ui.episodeThumbnails")
+            : isLandscape
+              ? t("ui.posterShapeLandscape")
+              : t("ui.posterShapePortrait")}{" "}
+          · {t(PREVIEW_FAMILY_LABEL_KEY[editingFamily])}
         </span>
         {editingFamily !== "auto" && onPreviewFamilyChange && (
           <button

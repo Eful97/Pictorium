@@ -23,6 +23,7 @@ import type { LandscapeBlurState } from "./contexts/PosterEditorContext"
 import type { LandscapeServerDefaults } from "./server-defaults"
 import { MAPPING_SHAPE_LAND_KEYS, isLandscapeKeyPresent, mappingShapeChainEffective, snapshotMissingMappingLandscape, type MappingShapeLandKey } from "./visual-presets"
 import { http, ApiError } from "./http"
+import { sanitizeEpisodeThumbnailStills } from "./episode-stills"
 
 interface PosterSaveDeps {
   selected: SearchResult | null
@@ -232,6 +233,16 @@ interface PosterSaveDeps {
   /** Ordine sash dai default editor (stesso del render, o il salvataggio congela un badge diverso). */
   defaultSashOrder?: readonly SashBucket[] | null
   episodeGroupId?: string | null
+  /**
+   * Per-episode still overrides (`S:E` → TMDB path) chosen in the picker.
+   * Persisted on the title mapping; absent/empty = raw episode stills.
+   */
+  episodeThumbnailStills?: Record<string, string> | null
+  /**
+   * Per-title daily still rotation override (`rotate`): explicit true/false,
+   * null = inherit the space default. Persisted on the title mapping.
+   */
+  thumbnailRotationOverride?: boolean | null
   /** Formato canvas in editing (congelato per-titolo al save). */
   posterShape: PosterShape
   /** Graphical poster layout in editing (congelato per-titolo al save, per-shape). */
@@ -301,6 +312,8 @@ export function usePosterSave(deps: PosterSaveDeps) {
     logoText, logoFont, setLogoText, setLogoFont,
     rotationBackdrops, autoRotateBackdrop, defaultAutoRotateBackdrop, excludedBackdrops, backdrops,
     setLogoScale, setLogoOffsetX, setLogoOffsetY,     networkLogo, networkLogoPosition, networkLogoFollowTitle, ribbonEnabled, lang, episodeGroupId, posterShape, posterLayout, posterFreshScope,
+    episodeThumbnailStills,
+    thumbnailRotationOverride,
     defaultSashOrder, logoScaleExplicit,
   } = deps
 
@@ -1078,6 +1091,16 @@ export function usePosterSave(deps: PosterSaveDeps) {
           networkLogoPath: networkLogoPath ?? null,
           networkLogoName: networkLogoName ?? null,
           episodeGroupId: episodeGroupId || undefined,
+          // Per-episode still overrides: sanitized/omitted when empty so the
+          // payload of titles that never used the picker stays unchanged.
+          episodeThumbnailStills: sanitizeEpisodeThumbnailStills(episodeThumbnailStills) ?? undefined,
+          // Per-title daily still rotation: explicit true/false wins on the
+          // space default. Inherit (null/absent) is omitted: the mapping POST
+          // is a full replacement, so the key is dropped and `/meta` falls
+          // back to the space default (never a stale saved choice).
+          ...(typeof thumbnailRotationOverride === "boolean"
+            ? { thumbnailRotation: thumbnailRotationOverride }
+            : null),
           posterShape,
           // Graphical layout congelato per-titolo (flat in portrait, preservato
           // in landscape come gli altri tuning per-shape): in landscape il flat
@@ -1121,7 +1144,7 @@ export function usePosterSave(deps: PosterSaveDeps) {
       if (overrides.silent) throw error
       return false
     }
-  }, [selected, previewPoster, selectedLogo, metaInfo, logoScale, logoOffsetX, logoOffsetY, trendRank, globalBadges, rankingBadges, badgeGenre, badgeYear, badgeRating, badgeQuality, ageBadge, ageCountry, ageBadgeStyle, awardBadgeStyle, customRatings, ratingSources, separateRatings, separateRatingsStyle, seasonalTheme, mdblistAnimeList, loadMappings, customBadge, badgeStyle, rankingBadgeStyle, extraBadgeStyle, badgeFont, qualityBadgeStyle, videoFormats, blurEnabled, blurIntensity, blurFade, blurDarkness, landscapeBlur, landscapeBlurDirty, tintStrength, topShade, topShadeHeight, gradientHeight, topBadgeScale, topBadgeOffsetX, topBadgeOffsetY, extraBadgeScale, extraBadgeOffsetX, extraBadgeOffsetY, genreBadgeScale, qualityBadgeScale, separateBadgeScale, separateBadgeOffsetX, separateBadgeOffsetY, badgeItemTransforms, networkLogoScale, genreBadgeOffsetX, genreBadgeOffsetY, qualityBadgeOffsetX, qualityBadgeOffsetY, networkLogoOffsetX, networkLogoOffsetY, rotationPosters, autoRotateClean, autoRotateCleanOverride, defaultAutoRotateClean, excludedPosters, rotationBackdrops, autoRotateBackdrop, defaultAutoRotateBackdrop, excludedBackdrops, backdrops, defaultBadgeStyle, defaultRankingBadgeStyle, defaultExtraBadgeStyle, defaultGlobalBadges, defaultRankingBadges, defaultBadgeGenre, defaultBadgeYear, defaultBadgeRating, defaultBadgeQuality, defaultAgeBadge, defaultAgeCountry, defaultAgeBadgeStyle, defaultAwardBadgeStyle, defaultCustomRatings, defaultSeparateRatings, defaultBadgeFont, defaultQualityBadgeStyle, defaultVideoFormats, defaultNetworkLogo, defaultNetworkLogoPosition, defaultRibbonEnabled, posters, mappingsMap, accentColor, autoAccentColor, backdropOffsetX, backdropOffsetY, backdropScale, selectedBackdrop, networkLogo, networkLogoPosition, networkLogoFollowTitle, ribbonEnabled, episodeGroupId, posterShape, posterLayout, posterFreshScope, portraitBaseBackdropPath, portraitBaseLogoPath, logoText, logoFont]) // eslint-disable-line react-hooks/exhaustive-deps -- intentionally complete to save all poster state
+  }, [selected, previewPoster, selectedLogo, metaInfo, logoScale, logoOffsetX, logoOffsetY, trendRank, globalBadges, rankingBadges, badgeGenre, badgeYear, badgeRating, badgeQuality, ageBadge, ageCountry, ageBadgeStyle, awardBadgeStyle, customRatings, ratingSources, separateRatings, separateRatingsStyle, seasonalTheme, mdblistAnimeList, loadMappings, customBadge, badgeStyle, rankingBadgeStyle, extraBadgeStyle, badgeFont, qualityBadgeStyle, videoFormats, blurEnabled, blurIntensity, blurFade, blurDarkness, landscapeBlur, landscapeBlurDirty, tintStrength, topShade, topShadeHeight, gradientHeight, topBadgeScale, topBadgeOffsetX, topBadgeOffsetY, extraBadgeScale, extraBadgeOffsetX, extraBadgeOffsetY, genreBadgeScale, qualityBadgeScale, separateBadgeScale, separateBadgeOffsetX, separateBadgeOffsetY, badgeItemTransforms, networkLogoScale, genreBadgeOffsetX, genreBadgeOffsetY, qualityBadgeOffsetX, qualityBadgeOffsetY, networkLogoOffsetX, networkLogoOffsetY, rotationPosters, autoRotateClean, autoRotateCleanOverride, defaultAutoRotateClean, excludedPosters, rotationBackdrops, autoRotateBackdrop, defaultAutoRotateBackdrop, excludedBackdrops, backdrops, defaultBadgeStyle, defaultRankingBadgeStyle, defaultExtraBadgeStyle, defaultGlobalBadges, defaultRankingBadges, defaultBadgeGenre, defaultBadgeYear, defaultBadgeRating, defaultBadgeQuality, defaultAgeBadge, defaultAgeCountry, defaultAgeBadgeStyle, defaultAwardBadgeStyle, defaultCustomRatings, defaultSeparateRatings, defaultBadgeFont, defaultQualityBadgeStyle, defaultVideoFormats, defaultNetworkLogo, defaultNetworkLogoPosition, defaultRibbonEnabled, posters, mappingsMap, accentColor, autoAccentColor, backdropOffsetX, backdropOffsetY, backdropScale, selectedBackdrop, networkLogo, networkLogoPosition, networkLogoFollowTitle, ribbonEnabled, episodeGroupId, episodeThumbnailStills, thumbnailRotationOverride, posterShape, posterLayout, posterFreshScope, portraitBaseBackdropPath, portraitBaseLogoPath, logoText, logoFont]) // eslint-disable-line react-hooks/exhaustive-deps -- intentionally complete to save all poster state
 
   /**
    * Cover-only save ("Salva solo poster" / "Save poster only"): persists

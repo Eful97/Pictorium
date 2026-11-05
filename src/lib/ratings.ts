@@ -112,6 +112,9 @@ export function isMdblistBreakerOpen(key?: string | null): boolean {
 // in rating-weights.ts (foglia client-safe senza import runtime): ratings.ts
 // importa cache/KV e non può stare nel bundle browser. Ri-esportati qui per
 // compatibilità (route, hardening, test esistenti importano da questo modulo).
+// Il default assente è IMDb-only: `fetchAggregatedRating` con quella selezione
+// usa Cinemeta come primario e MDBList solo come fallback degli irrisolti;
+// il voto TMDB diretto resta un fallback dei caller (mai primario).
 import { DEFAULT_RATING_SOURCES, UI_RATING_SOURCES, SUPPORTED_RATING_SOURCES, parseRatingSources, resolveRatingSources } from "./rating-weights"
 export { DEFAULT_RATING_SOURCES, UI_RATING_SOURCES, SUPPORTED_RATING_SOURCES, parseRatingSources, resolveRatingSources }
 export type { RatingSource } from "./rating-weights"

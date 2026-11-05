@@ -30,6 +30,12 @@ vi.mock("@/lib/tvdb", async (importOriginal) => {
   return { ...mod, enrichVideosWithTvdb: vi.fn(), enrichVideosWithTvdbDetailed: vi.fn(async () => true) }
 })
 
+// imdbRating source is covered by catalog-imdb-rating.test.ts: keep these
+// ordered-fetch mocks byte-stable (no extra Cinemeta request).
+vi.mock("@/lib/cinemeta", () => ({
+  fetchCinemetaRating: vi.fn(async () => null),
+}))
+
 import { enrichVideosWithTvdbDetailed } from "@/lib/tvdb"
 
 const mockedEnrich = vi.mocked(enrichVideosWithTvdbDetailed)

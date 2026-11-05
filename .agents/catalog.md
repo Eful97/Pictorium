@@ -466,6 +466,71 @@ legacy `posterium-*` normalizzati) — mai provider/servizi/nomi custom. I
 disabilitati restano esclusi (nessun resurrect), l'ordine relativo utente è
 preservato dentro e fuori il gruppo anime, nessun duplicato.
 
+### Rating per-episodio delle thumbnail (`episode-ratings-provider.ts`)
+
+La ★ della thumbnail episodio è alimentata da un registry di provider con
+default **ShowGrid**: poll IMDb per-episodio via ShowGrid, poi fallback al voto
+TMDB dell'episodio. La scelta è una decisione esplicita dell'operatore che
+accetta il rischio di terze parti: ShowGrid non ha licenza e il permesso del
+provider è ancora pendente. Nessuna env è richiesta. Cinemeta NON è più
+consultato sul percorso episodio (i rating dei titoli restano su
+`lib/cinemeta.ts`, invariati): i vecchi valori `cinemeta`/`imdb`/
+`imdb-cinemeta` sono accettati come alias del default ShowGrid, così un deploy
+esistente continua a funzionare. `PICTORIUM_EPISODE_RATINGS_PROVIDER` accetta
+`showgrid` (default), `tmdb`/`off` (solo voto TMDB, nessun provider esterno),
+`seriesgraph` e `dataset` (opt-in). Gli opt-in sono **fail-closed**: senza
+`PICTORIUM_NON_COMMERCIAL_ACK=1` e il rispettivo URL
+(`PICTORIUM_SERIESGRAPH_URL` / `PICTORIUM_IMDB_DATASET_URL`) il resolver
+logga un warning e usa ShowGrid, mai un bypass silenzioso dei termini della
+fonte. SeriesGraph richiede il consenso scritto dell'operatore; i dataset IMDb
+sono personal-use e non vengono mai ridistribuiti. SeriesGraph e dataset
+viaggiano come stub fail-closed (nessun fetch/import) finché consenso e
+implementazione non esistono. ShowGrid è attivo in produzione (nessun gate
+ack/URL): `GET /api/sg/getEpisodeRatings?imdbID=<tt…>` (nessuna chiave, 8s
+timeout, cap 512KB), righe `sno`/`eno`/`r`/`v` mappate su `S:E` (ordine
+irrilevante, voti 0/fuori range/non numerici scartati), cache 12h con tag
+`showgrid`, failure mai cacheate, fail-open a vuoto. `PICTORIUM_SHOWGRID_URL`
+è solo un override opzionale dell'origin (E2E mock/self-hosting), non un
+requisito. Un hit resta `imdb` nell'header (i valori sono il poll IMDb
+per-episodio servito da ShowGrid); l'header `X-Pictorium-Vote-Source` resta
+onesto (`imdb` | `tmdb` | `imdb-fallback`, quest'ultimo quando un opt-in
+configurato ma inutilizzabile è stato servito dal default ShowGrid) e l'id del
+provider effettivo entra nella cache key/ETag (`pr<provider>`); nessuna
+chiave/namespace nei log.
+
+### Copertine episodio: switch provider TMDB <-> TVDB e cache client
+
+- **Scelta e precedenza (`meta-handler.ts`):** `episodeMetadataSource` =
+  config token (`config=`) > defaults dello spazio/istanza (dove scrive il
+  toggle "sorgente metadati episodi") > `tvdb` se esiste una chiave TVDB,
+  altrimenti `tmdb`. Il token catalog-only mintato per gli spazi
+  local-only/profileless (`/c/<config>/...`) NON porta il campo: senza il
+  livello defaults il toggle veniva ignorato e le copertine restavano sul
+  provider derivato dalla chiave (il body non seguiva mai la scelta salvata).
+  Catena documentata: un solo punto di risoluzione, nessun secondo parser.
+- **Cache key `/meta`:** `:es<tmdb|tvdb>` con il provider RISOLTO; per le
+  miniature composte si aggiungono `:et1`/`:et0` e, con base TVDB,
+  `:tstvdb` (meglio `?stills=tvdb`). Lo switch cambia quindi la chiave e non
+  riusa un body da 12h. `/catalog` non porta il frammento per scelta: le
+  righe catalogo non contengono copertine episodio (`videos:[]` è solo
+  l'hint di navigazione film) e `episodeMetadataSource` è escluso da
+  `pickVisualDefaults` (catalog-only), quindi il body è byte-identico.
+- **Copertina TVDB scelta in galleria (poster/backdrop):** è un URL assoluto
+  `artworks.thetvdb.com` salvato come `customPosterUrl`/`backdropPath`
+  (allowlist SSRF in `resolve-image.ts`), non un fetch di galleria a render.
+  Il save timbra `mapping.updatedAt` e `mv` compare nell'URL poster
+  (cataloghi e `/meta`) → URL nuovo. Il render non attende la galleria TVDB:
+  la cache artworks (6h hit / 10min assenza confermata, failure mai
+  cachate) serve solo l'editor.
+- **Limite client Stremio:** Stremio (e la CDN di Stremio Web) cachea le
+  risposte addon e le immagini per URL; non esiste un purge remoto. Il solo
+  meccanismo è un URL nuovo: `mv` per il poster mappato, `stills=` per la
+  base TVDB della thumbnail, host diverso per le copertine grezze
+  (`image.tmdb.org` vs `artworks.thetvdb.com`). Il body `/meta` viaggia con
+  `Cache-Control: public, max-age=300, stale-while-revalidate=600`: dopo uno
+  switch la finestra residua è del client, mai della cache server (la chiave
+  è già ruotata); `/catalog` è `no-cache` e si rivalida sempre.
+
 ## Fonte ranking Top 20 (`rankingSourceMovie` / `rankingSourceSeries`)
 
 I cataloghi globali `pictorium-jw-movies` / `pictorium-jw-series` e i badge

@@ -815,9 +815,9 @@ describe("resolvePosterRenderConfig", () => {
     expect(rSd.customRatings).toBe(false)
   })
 
-  it("ratingSources default is ['imdb', 'tmdb'] and query rsrc overrides it", () => {
+  it("ratingSources default is ['imdb'] and query rsrc overrides it", () => {
     const rDef = resolvePosterRenderConfig(baseInput())
-    expect(rDef.ratingSources).toEqual(["imdb", "tmdb"])
+    expect(rDef.ratingSources).toEqual(["imdb"])
 
     const rQuery = resolvePosterRenderConfig(baseInput({
       searchParams: new URLSearchParams({ rsrc: "imdb,tomatoes,metacritic" }),
@@ -830,7 +830,7 @@ describe("resolvePosterRenderConfig", () => {
     expect(rConfig.ratingSources).toEqual(["letterboxd", "trakt"])
   })
 
-  it("ratingSources chain is query > mapping > config > server defaults > imdb+tmdb", () => {
+  it("ratingSources chain is query > mapping > config > server defaults > imdb", () => {
     const rMapping = resolvePosterRenderConfig(baseInput({
       mapping: mapping({ ratingSources: ["imdb"] }),
       configOverride: config({ ratingSources: ["letterboxd"] }),

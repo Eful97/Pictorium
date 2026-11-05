@@ -224,6 +224,15 @@ export function SearchView() {
             const mapping = mappingsMap.get(`${r.media_type}:${r.id}`)
             const year = yearOf(r)
             const title = titleOf(r)
+            // IMDb (Cinemeta) first, TMDB `vote_average` as fail-open fallback.
+            // Absent/invalid values never render `0.0`.
+            const imdbRating = r.imdbRating !== undefined ? Number(r.imdbRating) : NaN
+            const displayRating =
+              Number.isFinite(imdbRating) && imdbRating > 0
+                ? imdbRating
+                : r.vote_average != null && r.vote_average > 0
+                  ? r.vote_average
+                  : null
             return (
               <button
                 type="button"
@@ -282,10 +291,10 @@ export function SearchView() {
                       </p>
                       <div className="flex items-center justify-between text-[11px] text-muted mt-0.5 gap-1">
                         <span>{year || "—"}</span>
-                        {r.vote_average != null && r.vote_average > 0 && (
+                        {displayRating !== null && (
                           <span className="px-1.5 py-px rounded bg-amber-500/20 border border-amber-500/30 text-amber-300 font-semibold flex items-center gap-1 tabular-nums">
                             <Star className="w-2.5 h-2.5 fill-amber-300" />
-                            {r.vote_average.toFixed(1)}
+                            {displayRating.toFixed(1)}
                           </span>
                         )}
                         <span className="capitalize text-zinc-400">{r.media_type === "movie" ? t("ui.movie") : t("ui.tvSeries")}</span>

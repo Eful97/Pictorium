@@ -26,6 +26,11 @@ import { isExtraBadgeStyle, isExtraFollowRank } from "./badge-styles"
 import { DEFAULT_QUALITY_BADGE_OFFSET_X, DEFAULT_QUALITY_BADGE_OFFSET_Y } from "./badge-styles"
 import type { RetiredBadgeFamilyBindings } from "./types"
 import { KNOWN_VIDEO_FORMATS, isVideoFormat, type VideoFormat } from "./av-specs"
+import type {
+  ThumbnailBadgeAnchor,
+  ThumbnailBadgeStyle,
+  ThumbnailVoteSource,
+} from "./contexts/PosterEditorContext"
 
 export type RibbonSide = "left" | "right"
 
@@ -178,6 +183,23 @@ export interface DefaultsState {
   /** Allineamento blocco logo/metadati di default (null = default di formato). */
   defaultLogoAlign: "left" | "center" | null
   defaultEpisodeMetadataSource: "tmdb" | "tvdb"
+  /** Episode thumbnails composed by /api/thumbnail in /meta (default OFF). */
+  defaultEpisodeThumbnails: boolean
+  /** Miniature vote-pill style (`bstyle`; default `pill`). */
+  defaultThumbnailBadgeStyle: ThumbnailBadgeStyle
+  /** Miniature badge corner (`anchor`; default `tr`). */
+  defaultThumbnailAnchor: ThumbnailBadgeAnchor
+  /** Miniature badge px offsets from the anchor (`ox`/`oy`; default 0). */
+  defaultThumbnailOffsetX: number
+  defaultThumbnailOffsetY: number
+  /** Miniature badge-stack scale percent (`bscale`; default 100). */
+  defaultThumbnailBadgeScale: number
+  /** Miniature spoiler blur (`blur`; default OFF). */
+  defaultThumbnailBlur: boolean
+  /** Miniature ★ episode vote source (`source`; default `imdb`). */
+  defaultThumbnailVoteSource: ThumbnailVoteSource
+  /** Miniature daily still rotation (`rotate`; default OFF). */
+  defaultThumbnailRotation: boolean
   /** Regione classifiche (codice JW canonico, es. "IT"). */
   defaultRegion: string
   /** Formato data badge "in uscita" (default `locale` = segue la lingua). */
@@ -340,7 +362,7 @@ const DEFAULT_FLAT_DEFAULTS: Omit<DefaultsState, "landscape"> = {
   defaultAgeBadgeStyle: DEFAULT_AGE_BADGE_STYLE,
   defaultAwardBadgeStyle: DEFAULT_AWARD_BADGE_MODE,
   defaultCustomRatings: true,
-  defaultRatingSources: ["imdb", "tmdb"],
+  defaultRatingSources: ["imdb"],
   defaultSeparateRatings: false,
   defaultSeparateRatingsStyle: DEFAULT_SEPARATE_RATINGS_STYLE,
   defaultPosterLayout: "standard",
@@ -365,6 +387,15 @@ const DEFAULT_FLAT_DEFAULTS: Omit<DefaultsState, "landscape"> = {
   defaultPosterShape: "poster",
   defaultLogoAlign: null,
   defaultEpisodeMetadataSource: "tmdb",
+  defaultEpisodeThumbnails: false,
+  defaultThumbnailBadgeStyle: "pill",
+  defaultThumbnailAnchor: "tr",
+  defaultThumbnailOffsetX: 0,
+  defaultThumbnailOffsetY: 0,
+  defaultThumbnailBadgeScale: 100,
+  defaultThumbnailBlur: false,
+  defaultThumbnailVoteSource: "imdb",
+  defaultThumbnailRotation: false,
   defaultDateFormat: "locale",
   defaultRegion: "IT",
   region: "IT",
@@ -375,7 +406,7 @@ const DEFAULT_FLAT_DEFAULTS: Omit<DefaultsState, "landscape"> = {
   badgeRating: true,
   badgeQuality: true,
   customRatings: true,
-  ratingSources: ["imdb", "tmdb"],
+  ratingSources: ["imdb"],
   separateRatings: false,
   separateRatingsStyle: DEFAULT_SEPARATE_RATINGS_STYLE,
   posterLayout: "standard",
@@ -610,6 +641,27 @@ interface StoredDefaults {
   logoAlign?: "left" | "center"
   defaultEpisodeMetadataSource?: "tmdb" | "tvdb"
   episodeMetadataSource?: "tmdb" | "tvdb"
+  /** Composed episode thumbnails (default OFF): prefixed local key. */
+  defaultEpisodeThumbnails?: boolean
+  /** Chiave flat server (ServerDefaults.episodeThumbnails): assente = OFF. */
+  episodeThumbnails?: boolean
+  /** Miniature visual choices: prefixed local keys + flat server fallbacks. */
+  defaultThumbnailBadgeStyle?: ThumbnailBadgeStyle
+  thumbnailBadgeStyle?: ThumbnailBadgeStyle
+  defaultThumbnailAnchor?: ThumbnailBadgeAnchor
+  thumbnailAnchor?: ThumbnailBadgeAnchor
+  defaultThumbnailOffsetX?: number
+  thumbnailOffsetX?: number
+  defaultThumbnailOffsetY?: number
+  thumbnailOffsetY?: number
+  defaultThumbnailBadgeScale?: number
+  thumbnailBadgeScale?: number
+  defaultThumbnailBlur?: boolean
+  thumbnailBlur?: boolean
+  defaultThumbnailVoteSource?: ThumbnailVoteSource
+  thumbnailVoteSource?: ThumbnailVoteSource
+  defaultThumbnailRotation?: boolean
+  thumbnailRotation?: boolean
   defaultDateFormat?: DateFormat
   /** Chiave server/local piatta (saveDefaults/defaultsToPayload): fallback di lettura. */
   dateFormat?: DateFormat
@@ -805,6 +857,36 @@ function hydrateLandscapeBadgePresets(
   return { badgePresets: raw as RetiredBadgeFamilyBindings }
 }
 
+const THUMBNAIL_BADGE_STYLE_VALUES = ["pill", "bordo", "vetro", "branded", "naked", "score"] as const
+const THUMBNAIL_ANCHOR_VALUES = ["tl", "tr", "bl", "br"] as const
+const THUMBNAIL_VOTE_SOURCE_VALUES = ["imdb", "tmdb"] as const
+const THUMBNAIL_OFFSET_LIMIT = 2000
+
+/** Storage is unvalidated JSON: unknown values fail closed to the defaults. */
+function sanitizeStoredThumbnailStyle(raw: unknown): ThumbnailBadgeStyle {
+  return (THUMBNAIL_BADGE_STYLE_VALUES as readonly unknown[]).includes(raw)
+    ? (raw as ThumbnailBadgeStyle)
+    : "pill"
+}
+function sanitizeStoredThumbnailAnchor(raw: unknown): ThumbnailBadgeAnchor {
+  return (THUMBNAIL_ANCHOR_VALUES as readonly unknown[]).includes(raw)
+    ? (raw as ThumbnailBadgeAnchor)
+    : "tr"
+}
+function sanitizeStoredThumbnailOffset(raw: unknown): number {
+  if (typeof raw !== "number" || !Number.isFinite(raw)) return 0
+  return Math.max(-THUMBNAIL_OFFSET_LIMIT, Math.min(THUMBNAIL_OFFSET_LIMIT, Math.round(raw)))
+}
+function sanitizeStoredThumbnailScale(raw: unknown): number {
+  if (typeof raw !== "number" || !Number.isFinite(raw)) return 100
+  return Math.max(10, Math.min(200, Math.round(raw)))
+}
+function sanitizeStoredThumbnailVoteSource(raw: unknown): ThumbnailVoteSource {
+  return (THUMBNAIL_VOTE_SOURCE_VALUES as readonly unknown[]).includes(raw)
+    ? (raw as ThumbnailVoteSource)
+    : "imdb"
+}
+
 function buildFromStored(d: StoredDefaults | null): DefaultsState {
   // Empty object (fresh backend GET, ancient store) behaves like no store:
   // full independent factory profile instead of a sparse follow-shell, so a
@@ -904,7 +986,7 @@ function buildFromStored(d: StoredDefaults | null): DefaultsState {
     defaultCustomRatings: d.defaultCustomRatings ?? d.customRatings ?? true,
     defaultCustomRatingEndpoint: d.defaultCustomRatingEndpoint ?? d.customRatingEndpoint,
     defaultCustomRatingApiKeyHeader: d.defaultCustomRatingApiKeyHeader ?? d.customRatingApiKeyHeader,
-    defaultRatingSources: d.defaultRatingSources ?? d.ratingSources ?? ["imdb", "tmdb"],
+    defaultRatingSources: d.defaultRatingSources ?? d.ratingSources ?? ["imdb"],
     defaultSeparateRatings: d.defaultSeparateRatings ?? d.separateRatings ?? false,
     defaultSeparateRatingsStyle: isSeparateRatingsStyle(d.defaultSeparateRatingsStyle)
       ? d.defaultSeparateRatingsStyle
@@ -941,6 +1023,35 @@ function buildFromStored(d: StoredDefaults | null): DefaultsState {
     defaultPosterShape: storedDefaultShape ?? "poster",
     defaultLogoAlign: d.defaultLogoAlign === "left" || d.defaultLogoAlign === "center" ? d.defaultLogoAlign : null,
     defaultEpisodeMetadataSource: d.defaultEpisodeMetadataSource ?? d.episodeMetadataSource ?? "tmdb",
+    // Opt-in composed episode thumbnails: absent everywhere = OFF (legacy
+    // raw stills, byte-identical /meta bodies).
+    defaultEpisodeThumbnails: d.defaultEpisodeThumbnails ?? d.episodeThumbnails ?? false,
+    // Miniature visual choices: same absent = renderer default contract.
+    defaultThumbnailBadgeStyle: sanitizeStoredThumbnailStyle(
+      d.defaultThumbnailBadgeStyle ?? d.thumbnailBadgeStyle,
+    ),
+    defaultThumbnailAnchor: sanitizeStoredThumbnailAnchor(
+      d.defaultThumbnailAnchor ?? d.thumbnailAnchor,
+    ),
+    defaultThumbnailOffsetX: sanitizeStoredThumbnailOffset(
+      d.defaultThumbnailOffsetX ?? d.thumbnailOffsetX,
+    ),
+    defaultThumbnailOffsetY: sanitizeStoredThumbnailOffset(
+      d.defaultThumbnailOffsetY ?? d.thumbnailOffsetY,
+    ),
+    defaultThumbnailBadgeScale: sanitizeStoredThumbnailScale(
+      d.defaultThumbnailBadgeScale ?? d.thumbnailBadgeScale,
+    ),
+    defaultThumbnailBlur: typeof (d.defaultThumbnailBlur ?? d.thumbnailBlur) === "boolean"
+      ? (d.defaultThumbnailBlur ?? d.thumbnailBlur) === true
+      : false,
+    defaultThumbnailVoteSource: sanitizeStoredThumbnailVoteSource(
+      d.defaultThumbnailVoteSource ?? d.thumbnailVoteSource,
+    ),
+    // Daily still rotation: absent everywhere = OFF (fixed still, byte-identical).
+    defaultThumbnailRotation: typeof (d.defaultThumbnailRotation ?? d.thumbnailRotation) === "boolean"
+      ? (d.defaultThumbnailRotation ?? d.thumbnailRotation) === true
+      : false,
     defaultDateFormat: parseDateFormat(d.defaultDateFormat ?? d.dateFormat) ?? "locale",
     defaultRegion: normalizeRegion(d.defaultRegion ?? d.region),
     region: normalizeRegion(d.region ?? d.defaultRegion),
@@ -951,7 +1062,7 @@ function buildFromStored(d: StoredDefaults | null): DefaultsState {
     badgeRating: d.badgeRating ?? d.defaultBadgeRating ?? true,
     badgeQuality: d.badgeQuality ?? d.defaultBadgeQuality ?? true,
     customRatings: d.customRatings ?? d.defaultCustomRatings ?? true,
-    ratingSources: d.ratingSources ?? d.defaultRatingSources ?? ["imdb", "tmdb"],
+    ratingSources: d.ratingSources ?? d.defaultRatingSources ?? ["imdb"],
     separateRatings: d.separateRatings ?? d.defaultSeparateRatings ?? false,
     separateRatingsStyle: isSeparateRatingsStyle(d.separateRatingsStyle)
       ? d.separateRatingsStyle
@@ -1143,6 +1254,20 @@ export function defaultsToPayload(d: DefaultsState): Record<string, unknown> {
     posterShape: d.defaultPosterShape,
     logoAlign: d.defaultLogoAlign,
     episodeMetadataSource: d.defaultEpisodeMetadataSource,
+    // Always emitted (like autoWordmark): PUT merges, so omitting the key
+    // when the toggle goes back OFF would leave a stored `true` behind.
+    episodeThumbnails: d.defaultEpisodeThumbnails,
+    // Miniature visual choices: always explicit (PUT merges), so the stored
+    // /meta representation can never keep a stale style/anchor/offset/source.
+    thumbnailBadgeStyle: d.defaultThumbnailBadgeStyle,
+    thumbnailAnchor: d.defaultThumbnailAnchor,
+    thumbnailOffsetX: d.defaultThumbnailOffsetX,
+    thumbnailOffsetY: d.defaultThumbnailOffsetY,
+    thumbnailBadgeScale: d.defaultThumbnailBadgeScale,
+    thumbnailBlur: d.defaultThumbnailBlur,
+    thumbnailVoteSource: d.defaultThumbnailVoteSource,
+    // Always explicit (PUT merges): going back OFF must clear a stored true.
+    thumbnailRotation: d.defaultThumbnailRotation,
     region: d.defaultRegion,
     dateFormat: d.defaultDateFormat,
     videoFormats: d.defaultVideoFormats,

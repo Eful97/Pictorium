@@ -182,6 +182,25 @@ describe("DefaultsPreviewTitleSearch isolation (transport mocks, real logic)", (
     expect(screen.queryByRole("listbox")).toBeNull()
   })
 
+  it("shows the Cinemeta IMDb rating when present and the TMDB vote otherwise", async () => {
+    searchImpl = () =>
+      Promise.resolve(
+        okResponse([
+          { ...SEARCH_RESULTS[0], vote_average: 8.2 },
+          { ...SEARCH_RESULTS[1], vote_average: 7.6, imdbRating: "9.1" },
+        ]),
+      )
+    const user = userEvent.setup()
+    renderSearch()
+    await user.type(screen.getByRole("textbox"), "imdb")
+    await user.click(screen.getByLabelText("ui.searchButton"))
+    await screen.findByRole("option", { name: /Avatar/ })
+    // IMDb wins when present, TMDB remains the fail-open fallback.
+    expect(screen.getByText(/9\.1/)).toBeInTheDocument()
+    expect(screen.getByText(/8\.2/)).toBeInTheDocument()
+    expect(screen.queryByText(/7\.6/)).toBeNull()
+  })
+
   it("ignores out-of-order responses: the latest query wins", async () => {
     const user = userEvent.setup()
     const gate = deferred<Response>()
