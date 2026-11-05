@@ -30,6 +30,16 @@ export interface ChangelogRelease {
  *  (which bumps on every commit and would leave the dot permanently on). */
 export const CHANGELOG: ChangelogRelease[] = [
   {
+    version: "1.27.0",
+    date: "2026-11-05",
+    title: "Release 1.27.0",
+    items: [
+      { type: "feature", text: "Show each episode's IMDb or TMDB rating on Stremio episode thumbnails, choose a still, badge style and corner, and turn on daily rotation" },
+      { type: "fix", text: "Even out the spacing of the No pill quality badges and make them slightly larger, so they match the other styles" },
+      { type: "fix", text: "Respect your language posters when clean posters are off, and stop a saved landscape backdrop from showing as a band on portrait posters" },
+    ],
+  },
+  {
     version: "1.26.8",
     date: "2026-11-04",
     title: "Release 1.26.8",
