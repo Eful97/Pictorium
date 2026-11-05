@@ -11,13 +11,15 @@ import {
 } from "@/lib/badge-svg-shared"
 import { renderQualityBadge, renderQualityNakedBadge } from "@/lib/svg-badge"
 import { renderQualityBadgeGroup } from "@/lib/poster-service"
-import { BADGE_ITEM_QUALITY_AGE, BADGE_ITEM_QUALITY_TIER, qualityFormatItemId } from "@/lib/badge-item-transforms"
+import { BADGE_ITEM_QUALITY_AGE, BADGE_ITEM_QUALITY_COMBO, BADGE_ITEM_QUALITY_TIER, qualityFormatItemId } from "@/lib/badge-item-transforms"
 import type { AgeBadgeStyle } from "@/lib/badge-styles"
 import type { VideoFormat } from "@/lib/av-specs"
 
 const PW = 380
 /** Same 17px base as `renderQualityBadge`/`renderQualityNakedBadge` at 380w. */
 const FS = Math.round(Math.max(17 * PW / 380, 10))
+/** `naked` group optical enlargement at 380w: base font 17 → 19 (+12.5%). */
+const NAKED_FS = 19
 
 async function rawPng(png: Buffer) {
   const { data, info } = await sharp(png).ensureAlpha().raw().toBuffer({ resolveWithObject: true })
@@ -176,37 +178,99 @@ describe("quality badge style `naked` — quality group integration (full group)
     return found!
   }
 
-  it("paints the whole group plate-less: same column/anchors, bare A/V with aspect height", async () => {
+  it("paints the whole group plate-less: enlarged column, bare A/V with aspect height", async () => {
     const standard = await renderGroup("standard")
     const naked = await renderGroup("naked")
     expect(standard).not.toBeNull()
     expect(naked).not.toBeNull()
 
-    // The common column and the paint order are unchanged: the tier and the
-    // age pill keep the STANDARD box (same builder geometry), so group width
-    // does not move.
-    expect(naked!.w).toBe(standard!.w)
+    // `naked` optically enlarges the WHOLE group (nominal +12.5%, integer base
+    // font 17 → 19 at pw=380): the shared column, the tier/age text boxes and
+    // therefore every A/V mark that normalizes to the column grow together.
+    // The paint order and the anchor X do not move.
+    expect(naked!.w).toBe(81)
+    expect(standard!.w).toBe(76)
     expect(naked!.items.map((item) => item.id)).toEqual([
       BADGE_ITEM_QUALITY_TIER,
       BADGE_ITEM_QUALITY_AGE,
       qualityFormatItemId("imax"),
     ])
     for (const id of [BADGE_ITEM_QUALITY_TIER, BADGE_ITEM_QUALITY_AGE]) {
-      expect(byId(naked!, id)).toEqual(byId(standard!, id)) // identical box, no png
+      const injected = byId(naked!, id)
+      const original = byId(standard!, id)
+      expect([injected.w, injected.h], String(id)).toEqual([81, 63])
+      expect([original.w, original.h], String(id)).toEqual([76, 59])
+      expect(injected.left, String(id)).toBe(original.left)
     }
+    // Optical-gap pitch: the plate-less style advances by each mark's visible
+    // INK band (text cap for tier/age, bare bitmap band for A/V) plus one
+    // scaled 6px gap, not by the full text box. The tier text box carries
+    // ~10px of dead padding per side, so the age pill sits at top 21 (was 36).
+    expect(byId(naked!, BADGE_ITEM_QUALITY_TIER).top).toBe(0)
+    expect(byId(naked!, BADGE_ITEM_QUALITY_AGE).top).toBe(21)
 
-    // A/V mark: same anchor and visible width (pinned to the column), but the
-    // bare ink keeps the asset aspect → honestly SHORTER than the text box.
-    // Never stretched to equal height, so the canvas shrinks by exactly that
-    // delta (single-column stack).
+    // A/V mark: same anchor X, visible width pinned to the (larger) column, but
+    // the bare ink keeps the asset aspect → honestly SHORTER than the text
+    // box (38 vs 63). It follows the age ink band at the same 6px optical gap
+    // (top 52, was 72 by visible-box pitch), and the canvas shrinks.
     const avId = qualityFormatItemId("imax")
     const avNaked = byId(naked!, avId)
     const avStandard = byId(standard!, avId)
     expect(avNaked.left).toBe(avStandard.left)
-    expect(avNaked.top).toBe(avStandard.top)
-    expect(avNaked.w).toBe(avStandard.w)
+    expect(avNaked.w).toBe(81)
+    expect(avStandard.w).toBe(76)
     expect(avNaked.h).toBeLessThan(avStandard.h)
-    expect(naked!.h).toBe(standard!.h - (avStandard.h - avNaked.h))
+    expect(avNaked.h).toBe(38)
+    expect(avNaked.top).toBe(52)
+    expect(naked!.h).toBe(90)
+    expect(standard!.h).toBe(131)
+    expect(naked!.png.equals(standard!.png)).toBe(false)
+  })
+
+  it("uses one uniform optical gap across a representative full stack", async () => {
+    const formats: readonly VideoFormat[] = ["dv", "atmos", "imax", "hdr10plus"]
+    const standard = await renderGroup("standard", { formats })
+    const naked = await renderGroup("naked", { formats })
+    expect(standard).not.toBeNull()
+    expect(naked).not.toBeNull()
+
+    expect(naked!.w).toBe(81)
+    expect(standard!.w).toBe(76)
+    expect(naked!.items.map((item) => item.id)).toEqual([
+      BADGE_ITEM_QUALITY_TIER,
+      BADGE_ITEM_QUALITY_AGE,
+      BADGE_ITEM_QUALITY_COMBO,
+      qualityFormatItemId("imax"),
+      qualityFormatItemId("hdr10plus"),
+    ])
+    // The enlarged group scales tier/age text boxes (81×63 vs 76×59) and the
+    // pinned column; A/V marks keep the pinned visible width but the bare ink
+    // is honestly shorter than the framed standard one. Only the pitch moves
+    // for the A/V marks.
+    for (const id of [BADGE_ITEM_QUALITY_TIER, BADGE_ITEM_QUALITY_AGE]) {
+      const injected = byId(naked!, id)
+      const original = byId(standard!, id)
+      expect([injected.w, injected.h], String(id)).toEqual([81, 63])
+      expect([original.w, original.h], String(id)).toEqual([76, 59])
+      expect(injected.left, String(id)).toBe(original.left)
+    }
+    for (const id of [BADGE_ITEM_QUALITY_COMBO, qualityFormatItemId("imax"), qualityFormatItemId("hdr10plus")]) {
+      const injected = byId(naked!, id)
+      const original = byId(standard!, id)
+      expect(injected.w, String(id)).toBe(81)
+      expect(original.w, String(id)).toBe(76)
+      expect(injected.h, String(id)).toBeLessThan(original.h)
+      expect(injected.left, String(id)).toBe(original.left)
+    }
+
+    // Visible tops follow the approved enlarged naked pitch:
+    // 0 / 21 / 52 / 73 / 89, i.e. every pair of neighbours is separated by the
+    // SAME scaled 6px optical gap after each mark's real ink band.
+    const tops = naked!.items.map((item) => item.top)
+    expect(tops).toEqual([0, 21, 52, 73, 89])
+    expect(naked!.h).toBe(128)
+    expect(standard!.h).toBe(203)
+    expect(naked!.h).toBeLessThan(standard!.h)
     expect(naked!.png.equals(standard!.png)).toBe(false)
   })
 
@@ -222,15 +286,18 @@ describe("quality badge style `naked` — quality group integration (full group)
     expect(standard).not.toBeNull()
     expect(naked).not.toBeNull()
 
-    // Age pill: same box, different material (naked = ink + light shadow, no pill).
+    // Age pill: the naked group is optically enlarged, so the box is larger
+    // (81×63 vs 76×59) and the material differs (naked = ink + light shadow,
+    // no pill).
     const ageStandard = byId(standard!, BADGE_ITEM_QUALITY_AGE)
     const ageNaked = byId(naked!, BADGE_ITEM_QUALITY_AGE)
     expect(ageStandard.png).toBeTruthy()
     expect(ageNaked.png).toBeTruthy()
-    expect([ageNaked.w, ageNaked.h]).toEqual([ageStandard.w, ageStandard.h])
+    expect([ageNaked.w, ageNaked.h]).toEqual([81, 63])
+    expect([ageStandard.w, ageStandard.h]).toEqual([76, 59])
     expect(ageNaked.png!.equals(ageStandard.png!)).toBe(false)
 
-    const boxH = badgeBoxHeight(FS)
+    const boxH = badgeBoxHeight(NAKED_FS)
     const probeY = TOP_SHADOW_PAD + 3 // inside the pill, above any glyph ink
     const ageStandardRaw = await rawPng(ageStandard.png!)
     const ageNakedRaw = await rawPng(ageNaked.png!)
@@ -241,14 +308,15 @@ describe("quality badge style `naked` — quality group integration (full group)
     expect(alphaAt(ageNakedRaw.data, ageNakedRaw.info, 0, 0)).toBe(0)
     expect(ageNaked.h).toBe(boxH + TOP_SHADOW_PAD * 2)
 
-    // A/V mark: same width, bare aspect height, no frame rect.
+    // A/V mark: larger pinned width, bare aspect height, no frame rect.
     const avId = String(qualityFormatItemId("imax"))
     const avStandard = byId(standard!, avId)
     const avNaked = byId(naked!, avId)
     expect(avStandard.png).toBeTruthy()
     expect(avNaked.png).toBeTruthy()
     expect(avNaked.png!.equals(avStandard.png!)).toBe(false)
-    expect(avNaked.w).toBe(avStandard.w)
+    expect(avNaked.w).toBe(81)
+    expect(avStandard.w).toBe(76)
     expect(avNaked.h).toBeLessThan(avStandard.h)
     const avStandardRaw = await rawPng(avStandard.png!)
     const avNakedRaw = await rawPng(avNaked.png!)
@@ -278,8 +346,34 @@ describe("quality badge style `naked` — quality group integration (full group)
     const ageNaked = byId(naked!, BADGE_ITEM_QUALITY_AGE)
     expect(ageStandard.png).toBeTruthy()
     expect(ageNaked.png).toBeTruthy()
-    // Explicit `agebs=mono` wins over `qbs=naked`: identical material/bytes.
-    expect(ageNaked.png!.equals(ageStandard.png!)).toBe(true)
+    // Explicit `agebs=mono` wins over `qbs=naked`: the SAME mono material at
+    // the two group scales (81×63 vs 76×59), so bytes differ by size only.
+    expect([ageNaked.w, ageNaked.h]).toEqual([81, 63])
+    expect([ageStandard.w, ageStandard.h]).toEqual([76, 59])
+    expect(ageNaked.png!.equals(ageStandard.png!)).toBe(false)
+
+    const monoMaterial = async (png: Buffer) => {
+      const raw = await rawPng(png)
+      let maxAlpha = 0
+      let painted = 0
+      for (let i = 3; i < raw.data.length; i += raw.info.channels) {
+        if (raw.data[i] > 0) painted++
+        if (raw.data[i] > maxAlpha) maxAlpha = raw.data[i]
+      }
+      return { raw, maxAlpha, painted }
+    }
+    const nakedMono = await monoMaterial(ageNaked.png!)
+    const standardMono = await monoMaterial(ageStandard.png!)
+    for (const stats of [nakedMono, standardMono]) {
+      // Opaque frame/glyph ink over a fully transparent background — the mono
+      // material, never a satin plate or a naked text-only box.
+      expect(stats.maxAlpha).toBe(255)
+      expect(stats.painted).toBeGreaterThan(100)
+      expect(alphaAt(stats.raw.data, stats.raw.info, 0, 0)).toBe(0)
+      // The mono frame paints the box edge inset; a naked text box keeps that
+      // area as dead transparent padding.
+      expect(alphaAt(stats.raw.data, stats.raw.info, TOP_SHADOW_PAD + 3, TOP_SHADOW_PAD + 3)).toBeGreaterThan(50)
+    }
   })
 })
 

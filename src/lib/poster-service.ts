@@ -58,7 +58,7 @@ import type { BadgeFont } from "./badge-styles"
 import { isRibbonRankingStyle, isBottomSeparateRatingsStyle, isAgeBadgeStyle, isAwardBadgeMode, getSeparateRatingsStyleForShape, resolveNumberBadgeBaseOffsetX, normalizeExtraBadgeStyleForRender, resolveQualityGroupLayout, isMergedQualityStrip, DEFAULT_AGE_BADGE_STYLE, DEFAULT_AWARD_BADGE_MODE, type BadgeStyle, type RankingBadgeStyle, type ExtraBadgeStyle, type ExtraBadgeFollowRank, type SeparateRatingsStyle, type SeparateBottomVariant, type AgeBadgeStyle, type AwardBadgeMode, type QualityGroupLayout } from "./badge-styles"
 import { normalizeBadgeFont } from "./badge-svg-shared"
 import type { PosterImageFormat } from "@/lib/poster-runtime-cache"
-import { AV_KNOCKOUT_RADIUS_FACTOR, AV_KNOCKOUT_TAG_INSET_FACTOR, AV_PLATE_RADIUS_FACTOR, AV_PLATE_STROKE_WIDTH, AV_COMBO_SHORT_LABEL, COLOR_MARK_GLYPH, COLOR_MARK_PLATE_BG, COLOR_MARK_PLATE_STROKE, GRADIENT_TIER_INK, avMarkInkBox, avPlateGlyphBox, gradientMarkStops, qualityBadgeIconPath, qualityIconReferenceWidth, videoFormatShortLabel, type AvMarkInkBox, PREMIUM_COMBO_ACCENT, PREMIUM_PLATE_BG, PREMIUM_PLATE_STROKE, premiumAccentHex, premiumFormatAccent } from "./quality-badge-styles"
+import { AV_KNOCKOUT_RADIUS_FACTOR, AV_KNOCKOUT_TAG_INSET_FACTOR, AV_MARK_CAP_HEIGHT_FACTOR, AV_PLATE_RADIUS_FACTOR, AV_PLATE_STROKE_WIDTH, AV_COMBO_SHORT_LABEL, COLOR_MARK_GLYPH, COLOR_MARK_PLATE_BG, COLOR_MARK_PLATE_STROKE, GRADIENT_TIER_INK, avMarkGroupInkBox, avMarkInkBox, avPlateGlyphBox, gradientMarkStops, qualityBadgeIconPath, qualityIconReferenceWidth, videoFormatShortLabel, type AvMarkInkBox, PREMIUM_COMBO_ACCENT, PREMIUM_PLATE_BG, PREMIUM_PLATE_STROKE, premiumAccentHex, premiumFormatAccent } from "./quality-badge-styles"
 import type { QualityBadgeStyle } from "./badge-styles"
 import { FORMAT_ICON_PATHS, type VideoFormat } from "./av-specs"
 import { isRankKey } from "./i18n"
@@ -132,6 +132,21 @@ export const LANDSCAPE_BOTTOM_PILLS_SHIFT_Y = -10
 // landscape toccato). Eccezione: bottom-bar portrait full-width a filo
 // (top = CH - h): il +5 sarebbe annullato dal clamp, resta a filo.
 export const PORTRAIT_SEPARATE_SHIFT_Y = 5
+
+/**
+ * Optical enlargement of the senza-pill `naked` quality group ONLY.
+ *
+ * Without a plate the group has no solid mass, so at the shared base font the
+ * tier/age text and the bare A/V marks read smaller than every plated style in
+ * the same slot. The WHOLE group is scaled uniformly from the single font input
+ * (`markFs`), so the tier text, the default age text, the pinned common column
+ * and the A/V marks derived from it grow together — shapes/aspect, HDR family
+ * parity, optical cap and optical gap all scale proportionally. Nominal factor
+ * is +12.5%; the integer base font at pw=380 goes 17 → 19 (+11.8% on the
+ * font/column, ~+15% on the measured text cap). Any other style never reads
+ * this constant (historic bytes preserved).
+ */
+const NAKED_GROUP_SCALE = 1.125
 
 // TTL cache image-level (colori badge, resize logo/backdrop): le immagini TMDB
 // sono immutabili per path → 24h come la badge cache. Le entry si auto-espellono
@@ -752,13 +767,20 @@ async function buildQualityIconSvg(
   topLight?: boolean,
   /** Larghezza d'inchiostro imposta ai marchi A/V (default: larghezza 4K). */
   inkWidth?: number,
+  /**
+   * Render-only ink box override (senza-pill `naked` style only, the sole
+   * style on the bare-icon path). It passes the family-parity/optical-cap box
+   * (`avMarkGroupInkBox`); every other style keeps the measured asset box
+   * (historic bytes).
+   */
+  inkOverride?: AvMarkInkBox | null,
 ): Promise<BadgeSvgSpec | null> {
   try {
     const src = await loadQualityIconSvg(iconPath)
     if (!src) return null
     // Marchio A/V: viewBox ritagliato sull'inchiostro e larghezza normalizzata.
     // Il tier (mono/color) non entra qui: percorso storico byte-identico.
-    const ink = avMarkInkBox(iconPath)
+    const ink = inkOverride ?? avMarkInkBox(iconPath)
     if (ink) return buildBareAvIconSvg(src, ink, pw, topLight, inkWidth)
     const vb = qualityIconViewBox(src)
     if (!vb) return null
@@ -1247,7 +1269,19 @@ export async function renderQualityBadgeGroup(
   // `premium` è la larghezza ESTERNA della placca ( = icona tier 4K): il glifo
   // ci sta dentro con un inset piccolo, mai un padding additivo che allarghi
   // la colonna oltre il tier. Per `nova` è la larghezza visibile del 4K Nova.
-  const markFs = Math.round(Math.max(17 * pw / 380, 10))
+  //
+  // `naked` (senza-pill) optical enlargement: without a plate the group has no
+  // solid mass, so at the shared base font it reads visibly smaller than every
+  // plated style on the same slot. The WHOLE group is enlarged uniformly for
+  // THIS STYLE ONLY (nominal +12.5% → integer font 17→19 at pw=380, i.e.
+  // +11.8% on the font/column): the tier text, the default age text, the
+  // pinned common column (`markRefWidth`, derived from this same `markFs`) and
+  // therefore every A/V mark that normalizes to that column. Shapes, aspect,
+  // HDR parity, optical cap, anchor/scale/offset chain and the per-item
+  // identity/home boxes stay the same by construction (they all derive from
+  // `markFs`). Every other style keeps the exact historic base font/bytes.
+  const baseMarkFs = Math.round(Math.max(17 * pw / 380, 10))
+  const markFs = isNaked ? Math.round(baseMarkFs * NAKED_GROUP_SCALE) : baseMarkFs
   const markFont = normalizeBadgeFont(font)
   const markRefWidth = (() => {
     if (isKnockout) {
@@ -1348,6 +1382,12 @@ export async function renderQualityBadgeGroup(
   const markInkWidth = isKnockout
     ? Math.max(1, markRefWidth - Math.round(markFs * AV_KNOCKOUT_TAG_INSET_FACTOR) * 2)
     : markRefWidth
+  // Optical size of the BARE icon A/V marks of the senza-pill `naked` style
+  // only (the sole style on the `buildQualityIconSvg` path; see
+  // `avMarkGroupInkBox`): the cap is the tier TEXT cap height, so tall icon
+  // wordmarks stop reading larger than the `4K` tier while width-bound marks
+  // keep their bytes. Every other style keeps its pre-HDR measured box.
+  const avCapHeight = Math.max(1, Math.round(markFs * AV_MARK_CAP_HEIGHT_FACTOR))
   /**
    * Un marchio nel layout `stacked` dello stile `strip`: UNA placca scura per
    * elemento (stessa ricetta/materiale/airier padding della strip merged, un
@@ -1386,6 +1426,11 @@ export async function renderQualityBadgeGroup(
      *  (usata solo dagli stili dinamici `nova` e `gradient`). */
     novaLabel: string,
   ): Promise<BadgeSvgSpec | null> => {
+    // BARE icon sizing (family parity + optical cap) belongs ONLY to the
+    // senza-pill `naked` style: it draws the A/V marks through the
+    // `buildQualityIconSvg` bare-icon path with this exact box. Every other
+    // style keeps its pre-HDR measured box (`avMarkInkBox`) unchanged.
+    const bareInk = avMarkGroupInkBox(iconPath, markRefWidth, avCapHeight)
     if (isStripStyle) {
       // Placca scura singola condivisa: un marchio A/V per placca (nessun
       // artwork per formato, l'etichetta breve è il glifo).
@@ -1428,7 +1473,7 @@ export async function renderQualityBadgeGroup(
       // to the tier box height): a wide wordmark is honestly shorter than the
       // text boxes, so the stack (and a HOME frame) center it instead of
       // faking an equal height.
-      return buildQualityIconSvg(iconPath, pw, topLightForMark, markRefWidth)
+      return buildQualityIconSvg(iconPath, pw, topLightForMark, markRefWidth, bareInk)
     }
     // standard / mono: stessa cornice del tier e dell'età (mai un marchio nudo).
     return buildFramedAvBadgeSvg(iconPath, pw, markRefWidth, isMono ? "mono" : "satin", topLightForMark)
@@ -1739,6 +1784,10 @@ export async function renderQualityBadgeGroup(
   }
 
   const gap = Math.round(5 * pw / 380)
+  // Spacing of the naked group follows the same enlargement as its marks, so
+  // the pitch stays ONE uniform optical gap at the larger size (5→6 at
+  // pw=380). Every other style reads `gap` (identical value → same bytes).
+  const groupGap = isNaked ? Math.max(gap, Math.round(gap * NAKED_GROUP_SCALE)) : gap
   // Group layout, fixed paint order (quality tier, age certification, every
   // verified format — Dolby like any other format):
   // - `stacked` (default, historic): single vertical column, one badge per
@@ -1761,12 +1810,53 @@ export async function renderQualityBadgeGroup(
     rowIndexes.push(row)
   }
   const rowWidths = rowIndexes.map((row) =>
-    row.reduce((sum, idx) => sum + visWidths[idx], 0) + gap * (row.length - 1),
+    row.reduce((sum, idx) => sum + visWidths[idx], 0) + groupGap * (row.length - 1),
   )
   const rowHeights = rowIndexes.map((row) => Math.max(...row.map((idx) => visHeights[idx])))
+  // -------------------------------------------------------------------
+  // `naked` optical-gap stacking (stacked column only; `row` keeps its band
+  // centring).
+  //
+  // The plate-less style paints text-only tier/age boxes that carry ~9px of
+  // transparent padding above/below the glyphs, while the bare A/V bitmaps
+  // are ink-tight vertically. Advancing by the full VISIBLE BOX height
+  // therefore produced unequal optical gaps (23 / 14 / 5 at pw=380). For this
+  // style only the pitch comes from each mark's visible INK band (the text
+  // cap height for tier/age, the bare bitmap band for A/V marks — the same
+  // `avMarkGroupInkBox`-derived height the mark is rendered at) plus the SAME
+  // constant `gap`, so every pair of neighbours reads with one optical gap.
+  // Every other style keeps the historic visible-box pitch byte-for-byte and
+  // `row` keeps its per-band centring. The `items[]` boxes below still report
+  // the BITMAP boxes (drag geometry unchanged): only each bitmap's top moves.
+  // -------------------------------------------------------------------
+  const nakedStack = isNaked && !isRowLayout
+  // Text ink height: the shared optical cap of the tier text (~0.78 × fs:
+  // 13px at pw=380, where the box is 31px tall → ~9px dead padding per side).
+  const nakedTextInkH = Math.max(1, Math.round(markFs * AV_MARK_CAP_HEIGHT_FACTOR))
+  const inkBands = allBadges.map((_, i) => {
+    const visH = visHeights[i]
+    const id = identified[i].id
+    const nakedText = isNaked && (
+      id === BADGE_ITEM_QUALITY_TIER
+      || (id === BADGE_ITEM_QUALITY_AGE && effAgeStyle === DEFAULT_AGE_BADGE_STYLE)
+    )
+    if (!nakedStack || !nakedText) return { offset: TOP_SHADOW_PAD, h: visH }
+    const h = Math.min(nakedTextInkH, visH)
+    return { offset: TOP_SHADOW_PAD + Math.round((visH - h) / 2), h }
+  })
+  const nakedInkTops: number[] = []
+  if (nakedStack) {
+    let inkTop = inkBands[0].offset
+    for (let i = 0; i < allBadges.length; i++) {
+      nakedInkTops[i] = inkTop
+      inkTop += inkBands[i].h + groupGap
+    }
+  }
   const maxVisW = Math.max(...rowWidths)
   const totalW = maxVisW + TOP_SHADOW_PAD * 2
-  const totalVisH = rowHeights.reduce((sum, h) => sum + h, 0) + gap * (rowIndexes.length - 1)
+  const totalVisH = (nakedStack
+    ? inkBands.reduce((sum, band) => sum + band.h, 0)
+    : rowHeights.reduce((sum, h) => sum + h, 0)) + groupGap * (rowIndexes.length - 1)
   const totalH = totalVisH + TOP_SHADOW_PAD * 2
   // Automatic layout position of every painted element, then its HOME: with a
   // stored home the automatic position is REPLACED by the element's ISOLATED
@@ -1788,16 +1878,18 @@ export async function renderQualityBadgeGroup(
     let curVisLeft = TOP_SHADOW_PAD + Math.round((maxVisW - rowWidths[r]) / 2)
     for (const i of row) {
       const auto = {
-        top: curVisTop + Math.round((rowH - visHeights[i]) / 2) - TOP_SHADOW_PAD,
+        top: nakedStack
+          ? nakedInkTops[i] - inkBands[i].offset
+          : curVisTop + Math.round((rowH - visHeights[i]) / 2) - TOP_SHADOW_PAD,
         left: curVisLeft - TOP_SHADOW_PAD,
         w: allBadges[i].w,
         h: allBadges[i].h,
       }
       const homeT = homeTransform(identified[i].id)
       boxes[i] = homeT ? applyBadgeItemTransform(homeReference(allBadges[i]), homeT) : auto
-      curVisLeft += visWidths[i] + gap
+      curVisLeft += visWidths[i] + groupGap
     }
-    curVisTop += rowH + gap
+    if (!nakedStack) curVisTop += rowH + gap
   }
   const originLeft = Math.min(0, ...boxes.map((b) => b.left))
   const originTop = Math.min(0, ...boxes.map((b) => b.top))

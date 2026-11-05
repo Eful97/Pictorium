@@ -246,6 +246,110 @@ export function avMarkInkBox(iconPath: string): AvMarkInkBox | null {
   return null
 }
 
+// ---------------------------------------------------------------------------
+// HDR family: `hdr` (generic HDR/HDR10) and `hdr10plus` are the same wordmark
+// family and must read at the SAME visual height on the BARE-ICON path.
+//
+// The shipped assets already share the cap height (~49.5 viewBox units), but
+// the icon renderer normalizes every bare A/V mark to the SAME VISIBLE WIDTH,
+// so the short `HDR` wordmark becomes proportionally taller than the longer
+// `HDR10+` one and reads as visibly larger. `avMarkGroupInkBox` crops the HDR
+// glyph on an inflated horizontal ink box, i.e. it shrinks uniformly inside
+// the unchanged box until its rendered height matches the family reference
+// (the widest member, HDR10+). The declared `AV_MARK_INK_BOX` stays measured
+// from the asset (guard test) — only the render crop is derived.
+//
+// SCOPE: this sizing applies ONLY to the `naked` (senza-pill) style, which
+// draws A/V marks through the bare-icon path. Every other style
+// (standard/mono/color/premium/knockout/nova/gradient/outline/strip) keeps
+// its pre-HDR measured box (byte-identical). Non-family marks
+// (4K/DV/Atmos/IMAX/combo) keep their own aspect; the optical cap only trims
+// tall marks down to the tier text cap.
+// ---------------------------------------------------------------------------
+
+/** HDR family members (generic HDR/HDR10 and the HDR10+ variant). */
+export const HDR_FAMILY_FORMATS: readonly VideoFormat[] = ["hdr", "hdr10plus"]
+
+/** Is a format part of the HDR wordmark family? */
+export function isHdrFamilyFormat(format: VideoFormat | null | undefined): boolean {
+  return format === "hdr" || format === "hdr10plus"
+}
+
+/** Format of a registered A/V asset path, or null (tier/combo/unknown). */
+function videoFormatForIconPath(iconPath: string): VideoFormat | null {
+  for (const format of KNOWN_VIDEO_FORMATS) {
+    if (FORMAT_ICON_PATHS[format] === iconPath) return format
+  }
+  return null
+}
+
+/**
+ * Family reference aspect (height / width) = the WIDEST HDR member (HDR10+):
+ * the smallest rendered height at a pinned column width. Every HDR-family
+ * glyph is scaled to this height so `HDR` and `HDR10+` read the same size.
+ */
+const HDR_FAMILY_REFERENCE_RATIO: number = Math.min(
+  ...HDR_FAMILY_FORMATS.map((format) => AV_MARK_INK_BOX[format].h / AV_MARK_INK_BOX[format].w),
+)
+
+/**
+ * Render-only ink box of an A/V mark inside the quality group.
+ *
+ * Two normalizations, both aspect-preserving (width differs by content, the
+ * glyph is never stretched) and both NEVER upscaling:
+ *
+ * 1. HDR family parity: every member is widened to the widest member's aspect
+ *    (`HDR_FAMILY_REFERENCE_RATIO`), so `HDR` and `HDR10+` share one visual
+ *    height. Other marks keep their measured aspect.
+ * 2. Optical cap: when the caller supplies the glyph width the builder will
+ *    use (`glyphWidth`) and the shared text cap height (`capHeight`), a mark
+ *    whose width-normalized ink height exceeds the cap is shrunk uniformly
+ *    down to it. The cap is the tier text cap height, so tall icon wordmarks
+ *    (Dolby Vision/Atmos) no longer read larger than the `4K` tier, while
+ *    width-bound marks (IMAX, HDR10+) stay exactly as before.
+ *
+ * The measured `AV_MARK_INK_BOX` is untouched (guard test): only the render
+ * crop is derived. Non-A/V paths (tier/combo/unknown) return the measured box.
+ */
+export function avMarkGroupInkBox(
+  iconPath: string,
+  /** Width the builder will render the glyph at (frame interior / ink width).
+   *  Omit for family parity only (no optical cap, e.g. icon-tier styles). */
+  glyphWidth?: number,
+  /** Shared optical cap height in px (tier text cap). */
+  capHeight?: number,
+): AvMarkInkBox | null {
+  const ink = avMarkInkBox(iconPath)
+  if (!ink) return null
+  const format = videoFormatForIconPath(iconPath)
+  const ownRatio = ink.h / ink.w
+  // HDR family: render every member at the widest member's aspect.
+  const requestedRatio = isHdrFamilyFormat(format) ? HDR_FAMILY_REFERENCE_RATIO : ownRatio
+  let factor = ownRatio / requestedRatio
+  if (glyphWidth != null && capHeight != null) {
+    const nativeHeight = Math.max(1, glyphWidth) * requestedRatio
+    const targetHeight = Math.min(nativeHeight, Math.max(1, capHeight))
+    // Sub-pixel tolerance: never rewrite bytes for a mark that already sits on
+    // the cap after raster rounding (e.g. the merged Dolby lockup).
+    if (nativeHeight - targetHeight > AV_MARK_CAP_TOLERANCE_PX) {
+      factor *= nativeHeight / targetHeight
+    }
+  }
+  if (factor <= 1) return ink
+  const widened = ink.w * factor
+  return { x: ink.x - (widened - ink.w) / 2, y: ink.y, w: widened, h: ink.h }
+}
+
+/** Rounding tolerance (px) of the group optical cap: a mark already within
+ *  this distance from the cap keeps its historic crop/bytes. */
+export const AV_MARK_CAP_TOLERANCE_PX = 0.5
+
+/** Text cap height as a fraction of the badge font size (Inter/technical
+ *  wordmarks). The tier's `4K` glyph measures ~13px at fs 17 (0.765); 0.78
+ *  leaves raster headroom so the merged Dolby lockup (0.296 × interior ≈
+ *  13.0) stays byte-identical at portrait size. */
+export const AV_MARK_CAP_HEIGHT_FACTOR = 0.78
+
 /**
  * Palette dei marchi A/V `color`, campionata dall'asset 4K color shipped
  * (public/quality-badges/color/4k-label-color-icon.svg): cornice oro, placca
