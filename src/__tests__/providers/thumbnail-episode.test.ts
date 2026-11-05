@@ -268,13 +268,6 @@ function stillFetchCount(spy: ReturnType<typeof mockUpstream>): number {
   }).length
 }
 
-function tvdbStillFetchCount(spy: ReturnType<typeof mockUpstream>): number {
-  return spy.mock.calls.filter(([input]) => {
-    const url = String(typeof input === "string" ? input : input instanceof URL ? input.href : (input as Request).url)
-    return url.includes("artworks.thetvdb.com")
-  }).length
-}
-
 function showgridCalls(spy: ReturnType<typeof mockUpstream>): number {
   return spy.mock.calls.filter(([input]) => {
     const url = String(typeof input === "string" ? input : input instanceof URL ? input.href : (input as Request).url)
