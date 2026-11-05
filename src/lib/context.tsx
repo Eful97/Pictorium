@@ -2656,8 +2656,10 @@ export function usePictorium(): PictoriumCtx {
       const langPoster = data.posters?.find((p: TMDBImage) => p.iso_639_1 === lang)
       const firstPoster = data.posters?.[0]
       // Con "disattiva clean" si salta il ramo clean+logo e si usa la catena
-      // lingua -> en -> originale -> primo non-clean (badge invariati, niente
-      // logo sopra in portrait). La scelta manuale di un clean resta possibile.
+      // lingua -> en -> originale -> primo non-clean -> NIENTE (badge invariati,
+      // niente logo sopra in portrait). Parità con la catena server no-clean
+      // (route.ts:2060-2070): mai `firstPoster`, che può essere un clean. La
+      // scelta manuale di un clean resta possibile.
       const firstNonClean = defaultDisableCleanPosters
         ? data.posters?.find((p: TMDBImage) => p.iso_639_1 !== null)
         : undefined
@@ -2700,6 +2702,23 @@ export function usePictorium(): PictoriumCtx {
             chosenPoster = fallbackPoster
             navigation.setPreviewPoster({ file_path: fallbackPoster.file_path, iso_639_1: fallbackPoster.iso_639_1, vote_average: 0, width: 0, height: 0 })
           }
+        }
+      } else if (defaultDisableCleanPosters) {
+        // Flag ON e nessuna base clean: stessa catena del ramo server no-clean
+        // (route.ts:2060-2070) — preferita -> inglese -> originale -> NIENTE.
+        // `firstNonClean` è provabilmente non-clean (iso_639_1 !== null) e resta
+        // l'ultimo anello prima del vuoto; `firstPoster` non è mai usato perché
+        // può essere un clean. Nessuna selezione = preview senza base (il
+        // server risponde 404/percorso no-base, mai un clean).
+        const enPoster = lang !== "en" ? data.posters?.find((p: TMDBImage) => p.iso_639_1 === "en") : undefined
+        const origLang = details.original_language
+        const origPoster = origLang && origLang !== lang && origLang !== "en"
+          ? data.posters?.find((p: TMDBImage) => p.iso_639_1 === origLang)
+          : undefined
+        const fallbackPoster = langPoster || enPoster || origPoster || firstNonClean
+        if (fallbackPoster) {
+          chosenPoster = fallbackPoster
+          navigation.setPreviewPoster({ file_path: fallbackPoster.file_path, iso_639_1: fallbackPoster.iso_639_1, vote_average: 0, width: 0, height: 0 })
         }
       } else if (langPoster) {
         chosenPoster = langPoster
@@ -2819,7 +2838,8 @@ export function usePictorium(): PictoriumCtx {
           const langPoster = data.posters?.find((p: TMDBImage) => p.iso_639_1 === lang)
           const firstPoster = data.posters?.[0]
           // Con "disattiva clean" il clean non è mai preferito (né qui né sotto):
-          // la catena resta lingua -> originale -> primo non-clean.
+          // la catena resta lingua -> en -> originale -> primo non-clean ->
+          // NIENTE (mai `firstPoster`/`currentPoster`, che possono essere clean).
           const firstNonClean = defaultDisableCleanPosters
             ? data.posters?.find((p: TMDBImage) => p.iso_639_1 !== null)
             : undefined
@@ -2843,6 +2863,22 @@ export function usePictorium(): PictoriumCtx {
             } else {
               const enPoster = data.posters?.find((p: TMDBImage) => p.iso_639_1 === "en")
               const nextPoster = langPoster || enPoster || firstPoster || currentPoster
+              navigation.setPreviewPoster(nextPoster)
+              applyFor(nextPoster)
+            }
+          } else if (defaultDisableCleanPosters) {
+            // Stessa catena del primo load / del ramo server no-clean
+            // (route.ts:2060-2070): preferita -> inglese -> originale ->
+            // primo non-clean -> NIENTE. Mai `firstPoster`/`currentPoster`:
+            // possono essere clean (o il residuo dell'altra lingua). Nessuna
+            // selezione = preview invariata (una scelta esplicita resta).
+            const enPoster = lang !== "en" ? data.posters?.find((p: TMDBImage) => p.iso_639_1 === "en") : undefined
+            const origLang = details.original_language
+            const origPoster = origLang && origLang !== lang && origLang !== "en"
+              ? data.posters?.find((p: TMDBImage) => p.iso_639_1 === origLang)
+              : undefined
+            const nextPoster = langPoster || enPoster || origPoster || firstNonClean
+            if (nextPoster) {
               navigation.setPreviewPoster(nextPoster)
               applyFor(nextPoster)
             }

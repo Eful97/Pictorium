@@ -2728,7 +2728,11 @@ export async function generatePosterBuffer(input: GenerationInput): Promise<Buff
   // -----------------------------------------------------------------------
   const composites: PosterComposite[] = []
 
-  if (backdropFetch) {
+  // SOLO landscape: il backdrop storico è la base 16:9 ed è già full-bleed in
+  // `posterBuf` per la route; in portrait non esiste un layer backdrop (la base
+  // è il poster). Il gate qui rende impossibile una banda centrata anche se un
+  // chiamante passasse un buffer stantio (difesa oltre al fix della route).
+  if (backdropFetch && isLandscape) {
     const bMeta = await backdropMetaCached(backdropFetch, backdropSrc)
     const bw = bMeta.width
     const bh = bMeta.height

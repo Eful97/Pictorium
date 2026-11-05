@@ -548,6 +548,234 @@ describe("GET /api/poster/[type]/[id] with saved mappings", () => {
     expect(requestedUrls.some((url) => url.includes("/clean-dc.jpg"))).toBe(false)
   })
 
+  // `disableCleanPosters` si arma con `mockReturnValueOnce` (una chiamata per
+  // richiesta): un `mockReturnValue` permanente resterebbe attivo nei test
+  // successivi — `vi.restoreAllMocks()` non resetta i vi.fn dei module mock.
+  // Ogni test che fa due GET (render + debug) accoda due valori.
+  const cleanDisabledDefaults = () => ({
+    defaultLogoFitEnabled: true,
+    badgeStyle: "shadow" as const,
+    rankingBadgeStyle: "default" as const,
+    disableCleanPosters: true,
+  })
+
+  it("disableCleanPosters: never serves a clean poster when the pool only contains one", async () => {
+    vi.mocked(getServerDefaults).mockReturnValueOnce(cleanDisabledDefaults())
+    const cleanBuf = await imageBuffer("#101010", 500, 750)
+    const requestedUrls: string[] = []
+
+    mockedGetById.mockResolvedValue(null)
+    mockedGetDetails.mockResolvedValue({
+      id: 64101,
+      title: "Solo clean",
+      genres: [{ id: 18, name: "Drama" }],
+      vote_average: 7.0,
+      vote_count: 100,
+      // Uguale alla lingua preferita (IT): nessun retry origLang, il pool
+      // resta quello base con il solo clean.
+      original_language: "it",
+      release_date: "2025-01-15",
+      backdrop_path: null,
+      production_companies: [],
+    })
+    mockedGetImages.mockResolvedValue({
+      id: 64101,
+      posters: [
+        { file_path: "/only-clean.jpg", iso_639_1: null, vote_average: 8.0, vote_count: 100, width: 500, height: 750, aspect_ratio: 0.667 },
+      ],
+      logos: [],
+      backdrops: [],
+    })
+    mockedGetExternalIds.mockResolvedValue({ imdb_id: "tt64101" })
+
+    vi.spyOn(globalThis, "fetch").mockImplementation(async (input) => {
+      const url = String(input)
+      requestedUrls.push(url)
+      return new Response(new Uint8Array(cleanBuf), {
+        status: 200,
+        headers: { "content-type": "image/png", "content-length": String(cleanBuf.length) },
+      })
+    })
+
+    const res = await GET(adminReq("http://localhost:3000/api/poster/movie/64101"), {
+      params: Promise.resolve({ type: "movie", id: "64101" }),
+    })
+
+    // Nessuna base ammessa: né il clean né `images.posters[0]` (che è lo
+    // stesso clean). Il percorso no-base esistente risponde 404 — l'artwork
+    // clean non viene MAI servito (assert sul file_path, non sul ramo).
+    expect(res.status).toBe(404)
+    expect(requestedUrls.some((url) => url.includes("/only-clean.jpg"))).toBe(false)
+  })
+
+  it("disableCleanPosters: preferred language wins over en and the original language", async () => {
+    vi.mocked(getServerDefaults)
+      .mockReturnValueOnce(cleanDisabledDefaults())
+      .mockReturnValueOnce(cleanDisabledDefaults())
+    const posterBuf = await imageBuffer("#204080", 500, 750)
+    const requestedUrls: string[] = []
+
+    mockedGetById.mockResolvedValue(null)
+    mockedGetDetails.mockResolvedValue({
+      id: 64202,
+      title: "Preferita presente",
+      genres: [{ id: 18, name: "Drama" }],
+      vote_average: 7.0,
+      vote_count: 100,
+      original_language: "ja",
+      release_date: "2025-01-15",
+      backdrop_path: null,
+      production_companies: [],
+    })
+    mockedGetImages.mockResolvedValue({
+      id: 64202,
+      posters: [
+        { file_path: "/clean-64202.jpg", iso_639_1: null, vote_average: 8.0, vote_count: 100, width: 500, height: 750, aspect_ratio: 0.667 },
+        { file_path: "/it-64202.jpg", iso_639_1: "it", vote_average: 7.0, vote_count: 50, width: 500, height: 750, aspect_ratio: 0.667 },
+        { file_path: "/en-64202.jpg", iso_639_1: "en", vote_average: 7.0, vote_count: 50, width: 500, height: 750, aspect_ratio: 0.667 },
+        { file_path: "/ja-64202.jpg", iso_639_1: "ja", vote_average: 7.0, vote_count: 50, width: 500, height: 750, aspect_ratio: 0.667 },
+      ],
+      logos: [],
+      backdrops: [],
+    })
+    mockedGetExternalIds.mockResolvedValue({ imdb_id: "tt64202" })
+
+    vi.spyOn(globalThis, "fetch").mockImplementation(async (input) => {
+      const url = String(input)
+      requestedUrls.push(url)
+      return new Response(new Uint8Array(posterBuf), {
+        status: 200,
+        headers: { "content-type": "image/png", "content-length": String(posterBuf.length) },
+      })
+    })
+
+    const res = await GET(adminReq("http://localhost:3000/api/poster/movie/64202"), {
+      params: Promise.resolve({ type: "movie", id: "64202" }),
+    })
+    expect(res.status).toBe(200)
+    const debug = await GET(adminReq("http://localhost:3000/api/poster/movie/64202?debug=1"), {
+      params: Promise.resolve({ type: "movie", id: "64202" }),
+    })
+    expect(debug.status).toBe(200)
+    expect(((await debug.json()).images as { poster: string | null }).poster).toBe("/it-64202.jpg")
+    expect(requestedUrls.some((url) => url.includes("/clean-64202.jpg"))).toBe(false)
+  })
+
+  it("disableCleanPosters: English wins over the original language when the preferred one is missing", async () => {
+    vi.mocked(getServerDefaults)
+      .mockReturnValueOnce(cleanDisabledDefaults())
+      .mockReturnValueOnce(cleanDisabledDefaults())
+    const posterBuf = await imageBuffer("#204080", 500, 750)
+
+    mockedGetById.mockResolvedValue(null)
+    mockedGetDetails.mockResolvedValue({
+      id: 64303,
+      title: "Solo en e originale",
+      genres: [{ id: 18, name: "Drama" }],
+      vote_average: 7.0,
+      vote_count: 100,
+      original_language: "ja",
+      release_date: "2025-01-15",
+      backdrop_path: null,
+      production_companies: [],
+    })
+    // Pool base (lingue preferite) senza `ja`: l'originale compare solo nel
+    // retry con `origLang` aggiunto (clean DISABILITATI, nuova condizione).
+    const pool = (file: string, iso: string | null) => ({
+      file_path: file, iso_639_1: iso, vote_average: 7.0, vote_count: 50, width: 500, height: 750, aspect_ratio: 0.667,
+    })
+    mockedGetImages.mockImplementation(async (_mediaType, _id, langs) => {
+      const withOrig = typeof langs === "string" && langs.includes("ja")
+      return {
+        id: 64303,
+        posters: [
+          pool("/clean-64303.jpg", null),
+          pool("/en-64303.jpg", "en"),
+          ...(withOrig ? [pool("/ja-64303.jpg", "ja")] : []),
+        ],
+        logos: [],
+        backdrops: [],
+      }
+    })
+    mockedGetExternalIds.mockResolvedValue({ imdb_id: "tt64303" })
+
+    vi.spyOn(globalThis, "fetch").mockImplementation(async (input) => {
+      const url = String(input)
+      if (url.includes("/ja-64303.jpg")) throw new Error("original-language poster must not be chosen")
+      return new Response(new Uint8Array(posterBuf), {
+        status: 200,
+        headers: { "content-type": "image/png", "content-length": String(posterBuf.length) },
+      })
+    })
+
+    const res = await GET(adminReq("http://localhost:3000/api/poster/movie/64303"), {
+      params: Promise.resolve({ type: "movie", id: "64303" }),
+    })
+    expect(res.status).toBe(200)
+    // Il retry include davvero la lingua originale (requisito di fetch).
+    expect(mockedGetImages.mock.calls.some((c) => typeof c[2] === "string" && (c[2] as string).includes("ja"))).toBe(true)
+    const debug = await GET(adminReq("http://localhost:3000/api/poster/movie/64303?debug=1"), {
+      params: Promise.resolve({ type: "movie", id: "64303" }),
+    })
+    expect(debug.status).toBe(200)
+    // `en` vince sull'originale anche quando l'originale è nel pool.
+    expect(((await debug.json()).images as { poster: string | null }).poster).toBe("/en-64303.jpg")
+  })
+
+  it("disableCleanPosters: the original language is chosen when preferred and en are missing", async () => {
+    vi.mocked(getServerDefaults)
+      .mockReturnValueOnce(cleanDisabledDefaults())
+      .mockReturnValueOnce(cleanDisabledDefaults())
+    const posterBuf = await imageBuffer("#204080", 500, 750)
+
+    mockedGetById.mockResolvedValue(null)
+    mockedGetDetails.mockResolvedValue({
+      id: 64404,
+      title: "Solo originale",
+      genres: [{ id: 18, name: "Drama" }],
+      vote_average: 7.0,
+      vote_count: 100,
+      original_language: "ja",
+      release_date: "2025-01-15",
+      backdrop_path: null,
+      production_companies: [],
+    })
+    const pool = (file: string, iso: string | null) => ({
+      file_path: file, iso_639_1: iso, vote_average: 7.0, vote_count: 50, width: 500, height: 750, aspect_ratio: 0.667,
+    })
+    // Pool base: SOLO clean (il caso live). L'originale è disponibile solo
+    // nel retry con `origLang`, senza il quale non ci sarebbe nessuna base
+    // ammessa (mai il clean).
+    mockedGetImages.mockImplementation(async (_mediaType, _id, langs) => {
+      const withOrig = typeof langs === "string" && langs.includes("ja")
+      return {
+        id: 64404,
+        posters: [
+          pool("/clean-64404.jpg", null),
+          ...(withOrig ? [pool("/ja-64404.jpg", "ja")] : []),
+        ],
+        logos: [],
+        backdrops: [],
+      }
+    })
+    mockedGetExternalIds.mockResolvedValue({ imdb_id: "tt64404" })
+
+    vi.spyOn(globalThis, "fetch").mockImplementation(async () => new Response(new Uint8Array(posterBuf), {
+      status: 200,
+      headers: { "content-type": "image/png", "content-length": String(posterBuf.length) },
+    }))
+
+    const res = await GET(adminReq("http://localhost:3000/api/poster/movie/64404"), {
+      params: Promise.resolve({ type: "movie", id: "64404" }),
+    })
+    expect(res.status).toBe(200)
+    const debug = await GET(adminReq("http://localhost:3000/api/poster/movie/64404?debug=1"), {
+      params: Promise.resolve({ type: "movie", id: "64404" }),
+    })
+    expect(debug.status).toBe(200)
+    expect(((await debug.json()).images as { poster: string | null }).poster).toBe("/ja-64404.jpg")
+  })
+
   it.each([
     { label: "disabled", enabled: false, imdb: true, custom: true, id: 98769 },
     { label: "IMDb + Custom", enabled: true, imdb: true, custom: true, id: 98770 },
@@ -2293,3 +2521,85 @@ const TEST_ADMIN_TOKEN = "route-tests-admin-token"
 process.env.ADMIN_TOKEN = TEST_ADMIN_TOKEN
 const adminReq = (url: string, init?: { headers?: Record<string, string> }) =>
   new NextRequest(url, { ...init, headers: { ...(init?.headers ?? {}), "x-admin-token": TEST_ADMIN_TOKEN } })
+
+describe("saved landscape backdrop on the portrait canvas (no centered band)", () => {
+  async function centerPixel(buf: Buffer): Promise<[number, number, number]> {
+    const { data, info } = await sharp(buf).raw().toBuffer({ resolveWithObject: true })
+    const x = Math.floor(info.width / 2)
+    const y = Math.floor(info.height / 2)
+    const i = (y * info.width + x) * info.channels
+    return [data[i], data[i + 1], data[i + 2]]
+  }
+
+  function mapping(id: number, posterShape: "poster" | "landscape") {
+    return {
+      tmdbId: id,
+      mediaType: "movie" as const,
+      title: "Backdrop band guard",
+      posterPath: "/portrait-base-band.jpg",
+      logoPath: null,
+      originalPosterPath: null,
+      language: "it",
+      backdropPath: "/landscape-band.jpg",
+      posterShape,
+      showBadges: false,
+      rankingBadges: false,
+      updatedAt: "2026-11-05T10:00:00.000Z",
+    }
+  }
+
+  it("portrait mapping with backdropPath renders the portrait base and never fetches the backdrop", async () => {
+    const red = await imageBuffer("#c81e1e", 500, 750)
+    const blue = await imageBuffer("#1e3ac8", 1920, 1080)
+    const requestedUrls: string[] = []
+    mockedGetById.mockResolvedValue(mapping(62001, "poster"))
+    vi.spyOn(globalThis, "fetch").mockImplementation(async (input) => {
+      const url = String(input)
+      requestedUrls.push(url)
+      const body = url.includes("/landscape-band.jpg") ? blue : red
+      return new Response(new Uint8Array(body), {
+        status: 200,
+        headers: { "content-type": "image/png", "content-length": String(body.length) },
+      })
+    })
+
+    const res = await GET(adminReq("http://localhost:3000/api/poster/movie/62001?rv=81&mv=1790000000001"), {
+      params: Promise.resolve({ type: "movie", id: "62001" }),
+    })
+
+    expect(res.status).toBe(200)
+    // The portrait canvas has no backdrop layer, so the fetch is pointless.
+    expect(requestedUrls.some((url) => url.includes("/landscape-band.jpg"))).toBe(false)
+    const [r, , b] = await centerPixel(Buffer.from(await res.arrayBuffer()))
+    // Center (y=375) is inside the historical 16:9 band (y 235..516): the
+    // portrait base must stay full-bleed red, never the blue band.
+    expect(r).toBeGreaterThan(120)
+    expect(r).toBeGreaterThan(b + 40)
+  })
+
+  it("landscape mapping still uses the saved backdrop as the base (regression)", async () => {
+    const red = await imageBuffer("#c81e1e", 500, 750)
+    const blue = await imageBuffer("#1e3ac8", 1920, 1080)
+    const requestedUrls: string[] = []
+    mockedGetById.mockResolvedValue(mapping(62002, "landscape"))
+    vi.spyOn(globalThis, "fetch").mockImplementation(async (input) => {
+      const url = String(input)
+      requestedUrls.push(url)
+      const body = url.includes("/landscape-band.jpg") ? blue : red
+      return new Response(new Uint8Array(body), {
+        status: 200,
+        headers: { "content-type": "image/png", "content-length": String(body.length) },
+      })
+    })
+
+    const res = await GET(adminReq("http://localhost:3000/api/poster/movie/62002?rv=81&mv=1790000000002"), {
+      params: Promise.resolve({ type: "movie", id: "62002" }),
+    })
+
+    expect(res.status).toBe(200)
+    expect(requestedUrls.some((url) => url.includes("/landscape-band.jpg"))).toBe(true)
+    const [r, , b] = await centerPixel(Buffer.from(await res.arrayBuffer()))
+    expect(b).toBeGreaterThan(120)
+    expect(b).toBeGreaterThan(r + 40)
+  })
+})

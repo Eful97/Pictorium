@@ -1763,8 +1763,16 @@ export async function GET(req: NextRequest, { params }: { params: Promise<RouteP
           wikidata_id: det.external_ids?.wikidata_id ?? null,
         }
         const origLang = det.original_language
+        // Con clean DISABILITATI (`disableCleanPosters` ON) il pool in lingua
+        // originale serve sempre: la catena base non può più chiudere sul
+        // clean (`posters[0]` può esserlo), quindi un titolo con soli clean
+        // nelle lingue base resterebbe senza base. Il retry paga l'extra RTT
+        // solo quando `origLang` aggiunge davvero una lingua (distinta da
+        // preferita/en), fail-open come prima (il catch tiene `imgs`).
+        // Con clean ABILITATI la condizione storica resta invariata.
+        const cleanDisabled = sd.disableCleanPosters === true
         const needsOrigLang = origLang && origLang !== preferredLanguage && origLang !== "en"
-          && (imgs.posters.length === 0 || imgs.logos.length === 0)
+          && (imgs.posters.length === 0 || imgs.logos.length === 0 || cleanDisabled)
         images = needsOrigLang
           ? await getImages(mediaType, tmdbId, `${baseLangs},${origLang}`, apiKey, renderAbort.signal, POSTER_TMDB_TIMEOUT_MS).catch(() => imgs)
           : imgs
@@ -2035,10 +2043,32 @@ export async function GET(req: NextRequest, { params }: { params: Promise<RouteP
         // La selezione TVDB è SOLO manuale (gallery + mapping/query): nessun
         // rescue automatico, così il poster consegnato a Stremio coincide con
         // la scelta visibile nel client.
-        const langPoster = images.posters.find((p: TMDBImage) => p.iso_639_1 === preferredLanguage)
-        const origPoster = details.original_language ? images.posters.find((p: TMDBImage) => p.iso_639_1 === details.original_language) : undefined
-        const chosen = langPoster || origPoster || images.posters[0]
-        if (chosen) posterPath = chosen.file_path
+        // Catena base del ramo senza clean. Con `disableCleanPosters` ON il
+        // clean non è MAI una base valida: preferita → inglese → originale →
+        // NIENTE. L'ultimo anello storico (`images.posters[0]`) è rimosso
+        // perché può essere un clean (proven live: pool con un solo clean e
+        // i poster in lingua non ancora fetchati). `chosen` undefined =
+        // `posterPath` lasciato non impostato: segue il percorso no-base
+        // esistente (crop backdrop B2 quando c'è un backdrop, altrimenti
+        // 404) — mai un clean servito. Con clean ABILITATI la catena storica
+        // (`posters[0]` incluso) resta byte-identica.
+        if (cleanEnabled) {
+          const langPoster = images.posters.find((p: TMDBImage) => p.iso_639_1 === preferredLanguage)
+          const origPoster = details.original_language ? images.posters.find((p: TMDBImage) => p.iso_639_1 === details.original_language) : undefined
+          const chosen = langPoster || origPoster || images.posters[0]
+          if (chosen) posterPath = chosen.file_path
+        } else {
+          const langPoster = images.posters.find((p: TMDBImage) => p.iso_639_1 === preferredLanguage)
+          const enPoster = preferredLanguage !== "en"
+            ? images.posters.find((p: TMDBImage) => p.iso_639_1 === "en")
+            : undefined
+          const origLang = details.original_language
+          const origPoster = origLang && origLang !== preferredLanguage && origLang !== "en"
+            ? images.posters.find((p: TMDBImage) => p.iso_639_1 === origLang)
+            : undefined
+          const chosen = langPoster || enPoster || origPoster
+          if (chosen) posterPath = chosen.file_path
+        }
         // Portrait senza clean ma con un backdrop: il backdrop è un'immagine
         // SENZA titolo cotto, quindi vale come base clean (stesso invariante
         // del ramo landscape) e il logo resta composto sopra. La base è il
@@ -2502,8 +2532,11 @@ export async function GET(req: NextRequest, { params }: { params: Promise<RouteP
         // (they would throw on non-TMDB hosts).
         backdropCustomForFetch
           ? fetchPosterBaseWithCustom(backdropCustomForFetch, tmdbBackdropSrc, renderAbort.signal).then((r) => (r ? r.buf : null))
-          : backdropPath
-            ? fetchImg(isLandscape ? landscapeBackdropUrl(backdropPath) : imgSrc(backdropPath), renderAbort.signal).catch(() => null)
+          // SOLO landscape: il portrait non ha alcun layer backdrop (la base è
+          // `posterPath`/crop) — un buffer qui finiva composto come banda 16:9
+          // centrata (y ~235..516) sopra il poster. Il fetch è inutile lì.
+          : isLandscape && backdropPath
+            ? fetchImg(landscapeBackdropUrl(backdropPath), renderAbort.signal).catch(() => null)
             : Promise.resolve(null),
         rankingEnabledEarly
           // Pre-cache snapshot reuse: same value as the cache key.
@@ -3545,7 +3578,11 @@ export async function GET(req: NextRequest, { params }: { params: Promise<RouteP
       // In bottom il custom provider non si rende (suppressCustomRow): la
       // priorità storica della colonna resta invariata.
       ratings: customRatingConfig.enabled && !separateDisplay.suppressCustomRow ? [...new Map([...ratings, ...customRatings].map(item => [item.id, item])).values()] : undefined,
-      posterBuf, logoFetch, backdropFetch: isLandscape ? null : backdropFetch,
+      // Never forwarded: in landscape the fitted backdrop IS `posterBuf`
+      // (the service layer would be redundant work on the same bytes), in
+      // portrait there is no backdrop layer at all. The service gate is the
+      // second line of defence.
+      posterBuf, logoFetch, backdropFetch: null,
       backdropScale, backdropOffsetX, backdropOffsetY,
       blurEnabled, blurHeight: effBlurHeight, blurIntensity, blurFade: effBlurFade, blurDarkness, tintStrength, topShade, topShadeHeight,
       badgesEnabled, rankingEnabled, genreName, voteAverage, badgeStyle,
