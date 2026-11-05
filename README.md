@@ -33,10 +33,9 @@ pinned: false
 </p>
 
 > [!TIP]
-> 🚀 **Free public instances**: create your personal space with your TMDB key on **[pictorium.duckdns.org](https://pictorium.duckdns.org)** (community VPS) or on **[pictorium.elfhosted.com](https://pictorium.elfhosted.com/)** (ElfHosted public instance).
+> 🚀 **Free public instances**: create your personal space with your TMDB key on **[pictorium.duckdns.org](https://pictorium.duckdns.org)** (community VPS) or **[pictorium.elfhosted.com](https://pictorium.elfhosted.com/)** (ElfHosted public instance).
 >
-> 💬 **Join the community on [Discord](https://discord.gg/sYfWyXYVUp)** for support, updates, bug reports, and feature requests.  
-> ☕ Support the project on [Ko-fi](https://ko-fi.com/eful97) to help keep the public VPS running.
+> 💬 Join the [Discord community](https://discord.gg/sYfWyXYVUp) for support and updates · ☕ Support the project on [Ko-fi](https://ko-fi.com/eful97) to keep the public VPS running.
 
 ---
 
@@ -44,61 +43,68 @@ pinned: false
 
 New to Pictorium? The fastest path uses a public instance — no install needed:
 
-1. **Open a public instance** (see links at the top) and **create your personal space** — each space has its own `/u/<uuid>/configure` URL with separate settings and API keys.
-2. **Obtain your free TMDB API key (v3 auth)** from **Settings → API** on [themoviedb.org](https://www.themoviedb.org/signup), then paste it into Pictorium settings.
+1. **Open a public instance** (links above) and **create your personal space** — each space gets its own `/u/<uuid>/configure` URL with separate settings and API keys.
+2. **Get your free TMDB API key (v3 auth)** from **Settings → API** on [themoviedb.org](https://www.themoviedb.org/signup), then paste it into Pictorium settings.
 3. **Pick a title and customize it** in the WYSIWYG editor with live preview.
-4. **Save the poster**, then **Install to Stremio** — or copy the **Follow my space** template (`live=1`) into a supported external catalog client such as Nuvio or AIOMetadata. Saved changes then apply without replacing the link; **Fixed settings in the link** stays available under advanced options.
+4. **Save the poster**, then **Install to Stremio** — or copy the **Follow my space** template (`live=1`) into a supported external catalog client such as Nuvio or AIOMetadata. Saved changes apply without replacing the link; **Fixed settings in the link** stays available under advanced options.
 5. **Updates are revalidated, not pushed**: follow links revalidate on every request, so a new render is served when the client asks again. Copies already cached elsewhere refresh on that client's schedule.
 
 Want to self-host instead? See [Quick Deploy](#-quick-deploy): [Vercel](#-vercel-recommended) · [Docker & Compose](#-docker--compose). Reference: [Environment Variables](#-environment-variables).
 
 **Detailed setup guides:** step-by-step English guides, suited for sharing as Markdown files and Discord attachments — [setup guides index](docs/setup-guides.md) · [Stremio addon](docs/discord-stremio-addon-guide.md) · [AIOMetadata](docs/discord-aiometadata-guide.md) · [Nuvio](docs/discord-nuvio-guide.md).
 
+**Contents**
+- [Preview](#-preview) · [Key Features](#-key-features) · [Detailed Features](#-detailed-features)
+- [Quick Deploy](#-quick-deploy) · [Environment Variables](#-environment-variables)
+- [Known Limitations](#-known-limitations) · [Local Development](#-local-development) · [License & Credits](#-license--credits)
+
 ---
 
 ## 📸 Preview
 
 <div align="center">
-  <img src="https://raw.githubusercontent.com/Eful97/Pictorium/master/public/Screen/home.png" alt="Pictorium Home" width="100%" style="border-radius: 8px; margin-bottom: 8px;" />
+  <img src="https://raw.githubusercontent.com/Eful97/Pictorium/master/public/Screen/home.png" alt="Pictorium Home" width="100%" style="border-radius: 8px;" />
 </div>
 
 <table align="center" width="100%">
   <tr>
-    <td width="50%"><img src="https://raw.githubusercontent.com/Eful97/Pictorium/master/public/Screen/editor.png" alt="Pictorium Editor" style="border-radius: 6px;" /></td>
-    <td width="50%"><img src="https://raw.githubusercontent.com/Eful97/Pictorium/master/public/Screen/myposters.png" alt="Pictorium My Posters" style="border-radius: 6px;" /></td>
+    <td width="50%"><img src="https://raw.githubusercontent.com/Eful97/Pictorium/master/public/Screen/editor.png" alt="Pictorium Editor" style="border-radius: 8px;" /></td>
+    <td width="50%"><img src="https://raw.githubusercontent.com/Eful97/Pictorium/master/public/Screen/myposters.png" alt="Pictorium My Posters" style="border-radius: 8px;" /></td>
   </tr>
   <tr>
     <td align="center"><em>WYSIWYG Editor & Live Preview</em></td>
     <td align="center"><em>My Posters & Personal Library</em></td>
   </tr>
   <tr>
-    <td colspan="2"><img src="https://raw.githubusercontent.com/Eful97/Pictorium/master/public/Screen/catalogs.png" alt="Pictorium Catalogs" style="border-radius: 6px; margin-top: 8px;" /></td>
+    <td colspan="2"><img src="https://raw.githubusercontent.com/Eful97/Pictorium/master/public/Screen/catalogs.png" alt="Pictorium Catalogs" style="border-radius: 8px;" /></td>
   </tr>
   <tr>
     <td align="center" colspan="2"><em>Dynamic Catalogs & JustWatch Streaming Charts</em></td>
   </tr>
   <tr>
-    <td colspan="2"><img src="https://raw.githubusercontent.com/Eful97/Pictorium/master/public/Screen/landscape-editor.png" alt="Landscape 16:9 Editor — Ted Lasso" style="border-radius: 6px; margin-top: 8px;" /></td>
+    <td colspan="2"><img src="https://raw.githubusercontent.com/Eful97/Pictorium/master/public/Screen/landscape-editor.png" alt="Landscape 16:9 Editor — Ted Lasso" style="border-radius: 8px;" /></td>
   </tr>
   <tr>
     <td align="center" colspan="2"><em>Landscape 16:9 Editor: backdrops, baked-in logo & Live Preview</em></td>
   </tr>
 </table>
 
-<div align="center" style="margin-top: 12px;">
-  <img src="https://raw.githubusercontent.com/Eful97/Pictorium/master/public/Screen/1405.jpg" alt="Poster Demo — Dexter" width="31%" style="border-radius: 6px; margin: 1%;" />
-  <img src="https://raw.githubusercontent.com/Eful97/Pictorium/master/public/Screen/155.jpg" alt="Poster Demo — The Dark Knight" width="31%" style="border-radius: 6px; margin: 1%;" />
-  <img src="https://raw.githubusercontent.com/Eful97/Pictorium/master/public/Screen/66732.jpg" alt="Poster Demo — Stranger Things" width="31%" style="border-radius: 6px; margin: 1%;" />
+<div align="center">
+  <img src="https://raw.githubusercontent.com/Eful97/Pictorium/master/public/Screen/1405.jpg" alt="Poster Demo — Dexter" width="31%" style="border-radius: 8px;" />
+  <img src="https://raw.githubusercontent.com/Eful97/Pictorium/master/public/Screen/155.jpg" alt="Poster Demo — The Dark Knight" width="31%" style="border-radius: 8px;" />
+  <img src="https://raw.githubusercontent.com/Eful97/Pictorium/master/public/Screen/66732.jpg" alt="Poster Demo — Stranger Things" width="31%" style="border-radius: 8px;" />
+  <br />
+  <em>Portrait posters: textless base, baked-in logo, quality and rating badges</em>
 </div>
 
-<div align="center" style="margin-top: 8px;">
-  <img src="https://raw.githubusercontent.com/Eful97/Pictorium/master/public/Screen/landscape.jpg" alt="Landscape 16:9 Poster Demo — Lanterns (HBO)" width="64%" style="border-radius: 6px;" />
+<div align="center">
+  <img src="https://raw.githubusercontent.com/Eful97/Pictorium/master/public/Screen/landscape.jpg" alt="Landscape 16:9 Poster Demo — Lanterns (HBO)" width="64%" style="border-radius: 8px;" />
   <br />
   <em>16:9 landscape poster with baked-in logo, top-10 outline number, genre/rating and network badge</em>
 </div>
 
-<div align="center" style="margin-top: 8px;">
-  <img src="https://raw.githubusercontent.com/Eful97/Pictorium/master/public/Screen/1368337.jpg" alt="Pre-Digital Effect — Coming Soon" width="31%" style="border-radius: 6px;" />
+<div align="center">
+  <img src="https://raw.githubusercontent.com/Eful97/Pictorium/master/public/Screen/1368337.jpg" alt="Pre-Digital Effect — Coming Soon" width="31%" style="border-radius: 8px;" />
   <br />
   <em>Pre-Digital Effect: dark veil + "Coming Soon" ribbon on movies not yet streaming</em>
 </div>
@@ -109,65 +115,84 @@ Want to self-host instead? See [Quick Deploy](#-quick-deploy): [Vercel](#-vercel
 
 | Feature | Description |
 |---|---|
-| 🎯 **WYSIWYG Graphics Engine** | A single endpoint (`/api/poster/{type}/{id}`) powered by Sharp C++ and SVG serves both the real-time web preview and the final poster on Stremio, Nuvio, and media centers with pixel-perfect sync. |
-| 📦 **100% Standalone Addon** | Directly delivers rich metadata cards, multilingual synopses, transparent logos, 4K backdrops, YouTube trailers, and full seasons with thumbnails and translated episodes to Stremio. |
+| 🎯 **WYSIWYG Graphics Engine** | One endpoint (`/api/poster/{type}/{id}`) powered by Sharp C++ and SVG serves both the live web preview and the final poster on Stremio, Nuvio, and media centers, pixel-perfect. |
+| 📦 **100% Standalone Addon** | Delivers rich metadata cards, multilingual synopses, transparent logos, 4K backdrops, YouTube trailers, and full seasons with thumbnails and translated episodes directly to Stremio. |
 | 📺 **Smart Parts & Anime Splitting** | Automatically detects **Original Parts** (*Money Heist*, *Lupin*) and splits giant single-season anime entries on TMDB (*Re:ZERO*, *Jujutsu Kaisen*) into their true release seasons. |
-| 🏷️ **Quality Badges & Ratings** | Real-time video resolution detection (4K/FHD/HD), aggregated ratings from over 16 sources (IMDb, TMDB, Rotten Tomatoes, Letterboxd, MAL), Academy/Cannes awards, and Netflix Top 10 ribbons. |
+| 🏷️ **Quality Badges & Ratings** | Live video resolution detection (4K/FHD/HD), aggregated ratings from over 16 sources (IMDb, TMDB, Rotten Tomatoes, Letterboxd, MAL), Academy/Cannes awards, and Netflix Top 10 ribbons. |
 | 🌐 **Custom Catalogs & Lists** | Import watchlists and custom lists from **Letterboxd, Trakt, TMDb, TheTVDB (your API key), MDBList**, plus official IMDb CSV exports, along with real-time trending charts via JustWatch GraphQL. |
-| 🌍 **Dynamic Multilingual UI** | Interface available in 18 languages with real-time language switching without page refresh. |
-| 🔒 **PIN Protection & User Spaces** | PIN code lock protection for single instances, or full multi-user support with isolated spaces, AES-256-GCM encryption, and full-space backup/restore. Stremio manifests and posters remain permanently functional. |
+| 🌍 **Dynamic Multilingual UI** | Interface available in 18 languages with real-time switching, no page refresh. |
+| 🔒 **PIN Protection & User Spaces** | PIN lock for single instances, or full multi-user support with isolated spaces, AES-256-GCM encryption, and full-space backup/restore. Stremio manifests and posters stay permanently functional. |
 | ⚡ **Versioned Cache Updates** | Deterministic versioning with automated `RENDER_VERSION` and `APP_VERSION`. Follow-space links (`live=1`) revalidate on every request, so clients pick up new renders when they re-request; copies already cached elsewhere refresh on that client's schedule. |
 
 ---
 
-## 🛠️ Detailed Features
+## 🛠 Detailed Features
 
-### 🖼️ Posters, Logos & Graphics
+<details>
+<summary><strong>🖼️ Posters, Logos & Graphics</strong></summary>
+
 * **Clean Poster Selection**: Select textless posters with one click from official TMDB candidates (`iso_639_1 === null`).
-* **Custom Poster URL Import**: Import any artwork via direct URL, Pinterest, Imgur, Reddit, or Postimages with live preview, tile management, and persistent custom artwork.
-* **Smart Best-Fit Algorithm**: Analyzes brightness and empty space to automatically scale and position logos without obscuring faces.
-* **Cinematic Background Blur (Sharp C++)**: Progressive intensity toward the base with same-hue scene tint, quadratic darkening and anti-seam, in a few ms with minimal RAM usage.
-* **24h Auto-Rotation**: Automatically rotates through multiple saved clean posters daily for the same title.
+* **Custom Poster URL Import**: Import artwork via direct URL, Pinterest, Imgur, Reddit, or Postimages with live preview, tile management, and persistent custom artwork.
+* **Smart Best-Fit Algorithm**: Analyzes brightness and empty space to scale and position logos without obscuring faces.
+* **Cinematic Background Blur (Sharp C++)**: Progressive intensity toward the base with same-hue scene tint, quadratic darkening and anti-seam, in a few ms with minimal RAM.
+* **24h Auto-Rotation**: Rotates through multiple saved clean posters daily for the same title.
 * **Official Network Logos**: Automatic detection and embedding for Netflix, Prime Video, Disney+, Apple TV+, HBO Max, Paramount+, Sky/NOW, Crunchyroll, Rai, Mediaset and 30+ studios (Marvel, Pixar, Ghibli, Warner Bros, A24).
 
-### 🏷️ Badges, Ratings & Accolades
+</details>
+
+<details>
+<summary><strong>🏷️ Badges, Ratings & Accolades</strong></summary>
+
 * **✨ Streaming Quality (4K / FHD / HD / SD)**: Detected live from Stremio video streams with automatic fallback to JustWatch.
-* **7 Genre & Rating Badge Styles**: *Shadow, Pill, Bar, Colored, Border, Glass, Minimal* (`Genre | Rating | Year`) with adaptive palette matching the poster.
+* **7 Genre & Rating Badge Styles**: *Shadow, Pill, Bar, Colored, Border, Glass, Minimal* (`Genre | Rating | Year`) with an adaptive palette matching the poster.
 * **Vertical Netflix Top 10 Ribbon**: The iconic red side ribbon with live rank position (dedicated support for Anime series).
 * **Film Awards & Accolades**: Automatic recognition of Oscars, Cannes, BAFTA, Emmy, and the *"Absolute Cinema"* badge for IMDb Top 250 titles.
 * **Always-in-Sync Charts**: Top 10/20 badges track live charts; if a title leaves the ranking, its badge updates automatically.
 * **✨ Pre-Digital Effect (Coming Soon)**: For movies out in theaters but not yet streaming (detected via JustWatch/TMDB): darkened poster with a red "Coming Soon" corner ribbon.
 * **🔌 Custom Rating Provider**: Display external ratings from any HTTP(S) API (via IMDb ID) with dedicated pills. See [docs/custom-rating.md](docs/custom-rating.md).
 
-### 📺 Seasons, Episodes & Anime
+</details>
+
+<details>
+<summary><strong>📺 Seasons, Episodes & Anime</strong></summary>
+
 * **✨ Smart Parts Detection**: Automatically detects split-part series like *Money Heist* (5 parts) or *Lupin* (4 parts).
 * **🌀 Anime Season Unpacking**: Fixes TMDB's compression of multi-season anime into a single season, restoring official seasons (S1, S2, S3, S4 + Specials in S0).
 * **TVDB & AniZip Support**: Manually select alternate ordering from TheTVDB (*Aired, DVD, Absolute, Alternate*) or AniZip (*AniList / AniDB*).
 * **Live Episode Preview**: See exactly how seasons, episode titles, and thumbnails will appear on Stremio before saving.
- 
-### 🗂️ Library, Automation & Backups
-* **Batch Poster Management**: Multi-select saved posters in "My Posters" to perform batch deletions and keep your collection tidy.
+
+</details>
+
+<details>
+<summary><strong>🗂️ Library, Automation & Backups</strong></summary>
+
+* **Batch Poster Management**: Multi-select saved posters in "My Posters" for batch deletions and a tidy collection.
 * **Full Space Backup & Restore**: One-click export and import of your entire space configuration, saved posters, custom presets, and preferences.
 * **Nuvio & AIOMetadata Auto URL**: Dedicated poster template URLs for external catalog managers (e.g. Nuvio and AIOMetadata) with automatic TMDB ID resolution.
-  User spaces default to **Follow my space**: copy the new template once to use saved changes without replacing the link again. **Fixed settings in the link** remains available under advanced options and existing templates keep their explicit overrides. The automatic Nuvio variant still lets the client choose the image shape.
+  User spaces default to **Follow my space**: copy the new template once and saved changes apply without replacing the link again. **Fixed settings in the link** remains available under advanced options, and existing templates keep their explicit overrides. The automatic Nuvio variant still lets the client choose the image shape.
   Follow links (`live=1`) require HTTP revalidation and reuse fresh internal renders. AIOMetadata and other image proxies must honor that policy; refresh any previously cached image using the controls available in your installed version. New headers cannot purge existing external copies, and an already displayed poster updates only when the client requests it again. Live rankings and other upstream data retain their internal refresh schedules.
 
-### 🔒 Security: PIN & Multi-User Spaces
+</details>
+
+<details>
+<summary><strong>🔒 Security: PIN & Multi-User Spaces</strong></summary>
 
 #### PIN Lock (Single / Personal Instances)
-* **Lock on Launch & Refresh**: Password prompt appears on app launch and page reload (F5) to protect your settings and saved posters.
-* **Quick Setup**: Configure your PIN code in seconds during Step 3 of the setup wizard, or manage it anytime in Settings.
-* **Zero Stremio Impact**: PIN only protects the web editor; Stremio endpoints (`/manifest.json`, `/api/poster/*`, `/catalog/*`) remain open and functional.
-* **Rotation**: when a PIN is set using an admin token, rotating `PICTORIUM_ADMIN_TOKEN` automatically invalidates it (cryptographic binding against persistence). After rotating the token, simply set a new PIN if desired.
+* **Lock on Launch & Refresh**: Password prompt on app launch and page reload (F5) protects your settings and saved posters.
+* **Quick Setup**: Configure your PIN during Step 3 of the setup wizard, or anytime in Settings.
+* **Zero Stremio Impact**: PIN protects only the web editor; Stremio endpoints (`/manifest.json`, `/api/poster/*`, `/catalog/*`) remain open and functional.
+* **Rotation**: when a PIN is set using an admin token, rotating `PICTORIUM_ADMIN_TOKEN` automatically invalidates it (cryptographic binding against persistence). After rotating the token, set a new PIN if desired.
 
 #### Multi-User Spaces (Public / Shared Instances)
-When `PICTORIUM_MULTI_USER=1` is enabled, multiple users can share a single server with complete isolation:
-* **Personal Space via UUID**: Each user has their own URL (`/u/<uuid>/configure`) with separate mappings, preferences, and API keys (TMDB, MDBList, TVDB, Simkl, Fanart.tv).
+When `PICTORIUM_MULTI_USER=1` is enabled, multiple users share a single server with complete isolation:
+* **Personal Space via UUID**: Each user has a URL (`/u/<uuid>/configure`) with separate mappings, preferences, and API keys (TMDB, MDBList, TVDB, Simkl, Fanart.tv).
 * **Encrypted at Rest**: User API keys are stored encrypted on disk using AES-256-GCM via `PROFILE_ENCRYPTION_KEY`.
 * **Authentication & Recovery**:
   * **Session Password**: Required on each visit to unlock the editor (never stored permanently in the browser).
   * **Recovery Key (Secret)**: Shown once at account creation — save it now. It stays valid to recover access or rotate credentials until you rotate it.
-* **Anti-Brute-Force Protection**: Automatic rate limiting on incorrect password attempts to prevent attacks.
+* **Anti-Brute-Force Protection**: Automatic rate limiting on incorrect password attempts.
+
+</details>
 
 > 📢 To report vulnerabilities privately (never via public issues), see [SECURITY.md](SECURITY.md).
 
@@ -216,7 +241,7 @@ When `PICTORIUM_MULTI_USER=1` is enabled, multiple users can share a single serv
 
 > **Function duration**: with Fluid compute (the current default) Hobby functions allow up to 300s, and the app caps its own routes well below that (poster 40s, catalogs 60s, warmup 60s). A cold render or a slow upstream can still return a bounded 503; keeping catalogs warm reduces the chance.
 
-> **Future Updates**: To update your instance, simply open your GitHub fork and click **Sync fork → Update branch**. Vercel will automatically redeploy in 60 seconds while preserving your database and settings.
+> **Future Updates**: To update your instance, open your GitHub fork and click **Sync fork → Update branch**. Vercel redeploys in 60 seconds while preserving your database and settings.
 
 ---
 
@@ -241,7 +266,7 @@ Then start it:
 docker compose up -d
 ```
 
-> The first start builds the image locally (a few minutes, longer on ARM). To start immediately with the prebuilt image: `docker compose pull pictorium && docker compose up -d --no-build`. Admin routes are closed by default (fail-closed): a valid PIN session (or the token pasted in **Settings → Admin token**, session only) is what unlocks warmup, cache and saves from the UI. The old `PICTORIUM_PUBLIC_INSTANCE` switch has been removed: if it is still set it is ignored and opens nothing.
+> The first start builds the image locally (a few minutes, longer on ARM). To start immediately with the prebuilt image: `docker compose pull pictorium && docker compose up -d --no-build`. Admin routes are closed by default (fail-closed): a valid PIN session (or the token pasted in **Settings → Admin token**, session only) unlocks warmup, cache and saves from the UI. The old `PICTORIUM_PUBLIC_INSTANCE` switch has been removed: if it is still set it is ignored and opens nothing.
 >
 > If you came from the old example with a `pictorium-data` volume and already have saves, copy them before switching to the repo compose: `docker run --rm -v pictorium-data:/from -v posterium-data:/to alpine cp -a /from/. /to/`
 
@@ -249,8 +274,10 @@ Open `http://<SERVER-IP>:8080`, unlock the editor and click **Install to Stremio
 
 ---
 
+### 👉 Other installation methods
+
 <details>
-<summary><strong>👉 Other installation methods (Hugging Face, Oracle Cloud, VPS Caddy, Termux)</strong></summary>
+<summary><strong>Hugging Face, Oracle Cloud, VPS Caddy, Termux</strong></summary>
 
 #### 🤗 Hugging Face Spaces
 1. Create a Space on Hugging Face using the **Docker** SDK pointing to `Eful97/Pictorium`.
@@ -291,6 +318,7 @@ git clone https://github.com/Eful97/Pictorium && cd Pictorium
 npm ci && npm run build
 PORT=8080 node .next/standalone/server.js
 ```
+
 </details>
 
 ---
@@ -381,11 +409,12 @@ Trakt OAuth notes (multi-user): one Trakt app registration per instance (client 
 | `PICTORIUM_CACHE_MAX` | `2000` | Max entries in the in-memory metadata cache (must be > 100, otherwise `2000`). This is the entry-cap knob: `PICTORIUM_CACHE_MAX_ENTRIES` is not read. |
 | `PICTORIUM_CACHE_MAX_MB` | `150` | Maximum RAM allocated for the in-memory metadata cache (must be > 10 MB, otherwise `150`). |
 | `PICTORIUM_SELF_WARMUP` | `1` | Automatically pre-warm core catalogs on server start (Docker entrypoint). |
+
 </details>
 
 ---
 
-## ⚠️ Known Limitations
+## ⚠ Known Limitations
 
 Deliberate architectural choices, not bugs:
 

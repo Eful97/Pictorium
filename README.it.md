@@ -35,8 +35,7 @@ pinned: false
 > [!TIP]
 > 🚀 **Istanze pubbliche gratuite**: crea il tuo spazio personale con la tua chiave TMDB su **[pictorium.duckdns.org](https://pictorium.duckdns.org)** (VPS comunitaria) oppure su **[pictorium.elfhosted.com](https://pictorium.elfhosted.com/)** (istanza pubblica ElfHosted).
 >
-> 💬 Entra nella community su [Discord](https://discord.gg/sYfWyXYVUp) per supporto, novità e segnalazioni.  
-> ☕ Supporta il progetto su [Ko-fi](https://ko-fi.com/eful97) per mantenere attiva la VPS comunitaria.
+> 💬 Entra nella [community Discord](https://discord.gg/sYfWyXYVUp) per supporto e novità · ☕ Supporta il progetto su [Ko-fi](https://ko-fi.com/eful97) per mantenere attiva la VPS comunitaria.
 
 ---
 
@@ -52,51 +51,58 @@ Prima volta con Pictorium? La strada più veloce usa un'istanza pubblica — nes
 
 Preferisci il self-hosting? Vedi [Deploy Rapido](#-deploy-rapido): [Vercel](#-vercel-consigliato) · [Docker & Compose](#-docker--compose). Riferimento: [Variabili d'Ambiente](#-variabili-dambiente).
 
+**Indice**
+- [Anteprima](#-anteprima) · [Caratteristiche Principali](#-caratteristiche-principali) · [Funzionalità in Dettaglio](#-funzionalità-in-dettaglio)
+- [Deploy Rapido](#-deploy-rapido) · [Variabili d'Ambiente](#-variabili-dambiente)
+- [Limiti Noti](#-limiti-noti) · [Sviluppo in Locale](#-sviluppo-in-locale) · [Licenza & Crediti](#-licenza--crediti)
+
 ---
 
 ## 📸 Anteprima
 
 <div align="center">
-  <img src="https://raw.githubusercontent.com/Eful97/Pictorium/master/public/Screen/home.png" alt="Pictorium Home" width="100%" style="border-radius: 8px; margin-bottom: 8px;" />
+  <img src="https://raw.githubusercontent.com/Eful97/Pictorium/master/public/Screen/home.png" alt="Pictorium Home" width="100%" style="border-radius: 8px;" />
 </div>
 
 <table align="center" width="100%">
   <tr>
-    <td width="50%"><img src="https://raw.githubusercontent.com/Eful97/Pictorium/master/public/Screen/editor.png" alt="Pictorium Editor" style="border-radius: 6px;" /></td>
-    <td width="50%"><img src="https://raw.githubusercontent.com/Eful97/Pictorium/master/public/Screen/myposters.png" alt="Pictorium My Posters" style="border-radius: 6px;" /></td>
+    <td width="50%"><img src="https://raw.githubusercontent.com/Eful97/Pictorium/master/public/Screen/editor.png" alt="Pictorium Editor" style="border-radius: 8px;" /></td>
+    <td width="50%"><img src="https://raw.githubusercontent.com/Eful97/Pictorium/master/public/Screen/myposters.png" alt="Pictorium My Posters" style="border-radius: 8px;" /></td>
   </tr>
   <tr>
     <td align="center"><em>Editor WYSIWYG & Anteprima Live</em></td>
     <td align="center"><em>I Miei Poster & Libreria Personale</em></td>
   </tr>
   <tr>
-    <td colspan="2"><img src="https://raw.githubusercontent.com/Eful97/Pictorium/master/public/Screen/catalogs.png" alt="Pictorium Catalogs" style="border-radius: 6px; margin-top: 8px;" /></td>
+    <td colspan="2"><img src="https://raw.githubusercontent.com/Eful97/Pictorium/master/public/Screen/catalogs.png" alt="Pictorium Catalogs" style="border-radius: 8px;" /></td>
   </tr>
   <tr>
     <td align="center" colspan="2"><em>Cataloghi Dinamici & Classifiche Streaming JustWatch</em></td>
   </tr>
   <tr>
-    <td colspan="2"><img src="https://raw.githubusercontent.com/Eful97/Pictorium/master/public/Screen/landscape-editor.png" alt="Editor Landscape 16:9 — Ted Lasso" style="border-radius: 6px; margin-top: 8px;" /></td>
+    <td colspan="2"><img src="https://raw.githubusercontent.com/Eful97/Pictorium/master/public/Screen/landscape-editor.png" alt="Editor Landscape 16:9 — Ted Lasso" style="border-radius: 8px;" /></td>
   </tr>
   <tr>
     <td align="center" colspan="2"><em>Editor Landscape 16:9: sfondi, logo integrato & Anteprima Live</em></td>
   </tr>
 </table>
 
-<div align="center" style="margin-top: 12px;">
-  <img src="https://raw.githubusercontent.com/Eful97/Pictorium/master/public/Screen/1405.jpg" alt="Poster Demo — Dexter" width="31%" style="border-radius: 6px; margin: 1%;" />
-  <img src="https://raw.githubusercontent.com/Eful97/Pictorium/master/public/Screen/155.jpg" alt="Poster Demo — The Dark Knight" width="31%" style="border-radius: 6px; margin: 1%;" />
-  <img src="https://raw.githubusercontent.com/Eful97/Pictorium/master/public/Screen/66732.jpg" alt="Poster Demo — Stranger Things" width="31%" style="border-radius: 6px; margin: 1%;" />
+<div align="center">
+  <img src="https://raw.githubusercontent.com/Eful97/Pictorium/master/public/Screen/1405.jpg" alt="Poster Demo — Dexter" width="31%" style="border-radius: 8px;" />
+  <img src="https://raw.githubusercontent.com/Eful97/Pictorium/master/public/Screen/155.jpg" alt="Poster Demo — The Dark Knight" width="31%" style="border-radius: 8px;" />
+  <img src="https://raw.githubusercontent.com/Eful97/Pictorium/master/public/Screen/66732.jpg" alt="Poster Demo — Stranger Things" width="31%" style="border-radius: 8px;" />
+  <br />
+  <em>Poster verticali: base senza testo, logo integrato, badge qualità e voto</em>
 </div>
 
-<div align="center" style="margin-top: 8px;">
-  <img src="https://raw.githubusercontent.com/Eful97/Pictorium/master/public/Screen/landscape.jpg" alt="Poster Landscape 16:9 Dimostrativo — Lanterns (HBO)" width="64%" style="border-radius: 6px;" />
+<div align="center">
+  <img src="https://raw.githubusercontent.com/Eful97/Pictorium/master/public/Screen/landscape.jpg" alt="Poster Landscape 16:9 Dimostrativo — Lanterns (HBO)" width="64%" style="border-radius: 8px;" />
   <br />
   <em>Poster landscape 16:9 con logo integrato, nastro ranking e badge genere</em>
 </div>
 
-<div align="center" style="margin-top: 8px;">
-  <img src="https://raw.githubusercontent.com/Eful97/Pictorium/master/public/Screen/1368337.jpg" alt="Effetto Pre-Digitale — Coming Soon" width="31%" style="border-radius: 6px;" />
+<div align="center">
+  <img src="https://raw.githubusercontent.com/Eful97/Pictorium/master/public/Screen/1368337.jpg" alt="Effetto Pre-Digitale — Coming Soon" width="31%" style="border-radius: 8px;" />
   <br />
   <em>Effetto Pre-Digitale: velo scuro + nastro "Coming Soon" sui film non ancora in streaming</em>
 </div>
@@ -107,20 +113,22 @@ Preferisci il self-hosting? Vedi [Deploy Rapido](#-deploy-rapido): [Vercel](#-ve
 
 | Funzionalità | Descrizione |
 |---|---|
-| 🎯 **Motore Grafico WYSIWYG** | Un unico endpoint (`/api/poster/{type}/{id}`) basato su Sharp C++ ed SVG serve l'anteprima web in tempo reale e il poster finale su Stremio, Nuvio e media center con pixel-perfect sync. |
+| 🎯 **Motore Grafico WYSIWYG** | Un unico endpoint (`/api/poster/{type}/{id}`) basato su Sharp C++ ed SVG serve l'anteprima web in tempo reale e il poster finale su Stremio, Nuvio e media center, pixel-perfect. |
 | 📦 **Addon 100% Autonomo** | Fornisce direttamente a Stremio schede dettagliate, trame localizzate, loghi trasparenti, sfondi 4K, trailer YouTube e tutte le stagioni con miniature ed episodi tradotti. |
 | 📺 **Ordinamento Intelligente Parti & Anime** | Rileva automaticamente i gruppi **Original Parts** (*La Casa di Carta*, *Lupin*) e spacchetta le mega-stagioni anime compresse su TMDB (*Re:ZERO*, *Jujutsu Kaisen*) nelle vere stagioni ufficiali. |
-| 🏷️ **Badge Qualità & Voti** | Visualizza in tempo reale risoluzione video (4K/FHD/HD), voti aggregati da oltre 16 fonti (IMDb, TMDB, Rotten Tomatoes, Letterboxd, MAL), premi Oscar/Cannes e nastri Netflix Top 10. |
+| 🏷️ **Badge Qualità & Voti** | Risoluzione video in tempo reale (4K/FHD/HD), voti aggregati da oltre 16 fonti (IMDb, TMDB, Rotten Tomatoes, Letterboxd, MAL), premi Oscar/Cannes e nastri Netflix Top 10. |
 | 🌐 **Cataloghi & Liste Personalizzate** | Importa watchlist e collezioni da **Letterboxd, Trakt, TMDb, TheTVDB, MDBList**, file CSV esportati da IMDb e classifiche trend in tempo reale tramite JustWatch GraphQL. |
-| 🌍 **Interfaccia Multilingua Dinamica** | Interfaccia disponibile in 18 lingue con cambio in tempo reale senza ricaricare la pagina. |
-| 🔒 **Protezione PIN & Spazi Multi-Utente** | Protezione con codice PIN per istanze singole, oppure modalità multi-utente con spazi isolati, crittografia AES-256-GCM e backup/ripristino completo. Locandine e manifest Stremio rimangono sempre funzionanti. |
+| 🌍 **Interfaccia Multilingua Dinamica** | Interfaccia disponibile in 18 lingue con cambio in tempo reale, senza ricaricare la pagina. |
+| 🔒 **Protezione PIN & Spazi Multi-Utente** | PIN per istanze singole, oppure multi-utente con spazi isolati, crittografia AES-256-GCM e backup/ripristino completo. Locandine e manifest Stremio restano sempre funzionanti. |
 | ⚡ **Aggiornamenti Cache Versionati** | Versioning deterministico con `RENDER_VERSION` e `APP_VERSION` automatiche. I link Segui (`live=1`) rivalidano a ogni richiesta, quindi i client ricevono i nuovi render quando li richiedono di nuovo; le copie già in cache altrove si aggiornano secondo i tempi di quel client. |
 
 ---
 
-## 🛠️ Funzionalità in Dettaglio
+## 🛠 Funzionalità in Dettaglio
 
-### 🖼️ Locandine, Loghi & Grafica
+<details>
+<summary><strong>🖼️ Locandine, Loghi & Grafica</strong></summary>
+
 * **Selezione Poster Clean**: Scegli in un click la locandina senza testo tra i candidati ufficiali TMDB (`iso_639_1 === null`).
 * **Poster Personalizzati & Import Diretto**: Importa locandine da URL diretti, Pinterest, Imgur o Reddit con anteprima immediata, gestione tessere e persistenza.
 * **Algoritmo Best-Fit Intelligente**: Analizza luminosità e zone vuote per scalare e posizionare il logo evitando di coprire i volti.
@@ -128,7 +136,11 @@ Preferisci il self-hosting? Vedi [Deploy Rapido](#-deploy-rapido): [Vercel](#-ve
 * **Rotazione Automatica 24h**: Alterna automaticamente ogni giorno più locandine selezionate per lo stesso titolo.
 * **Loghi Network Ufficiali**: Riconoscimento ed embedding automatico per Netflix, Prime Video, Disney+, Apple TV+, HBO Max, Paramount+, Sky/NOW, Crunchyroll, Rai, Mediaset e oltre 30 studi (Marvel, Pixar, Ghibli, Warner Bros, A24).
 
-### 🏷️ Badge, Rating & Riconoscimenti
+</details>
+
+<details>
+<summary><strong>🏷️ Badge, Rating & Riconoscimenti</strong></summary>
+
 * **✨ Qualità Streaming (4K / FHD / HD / SD)**: Rilevata in tempo reale dai flussi di Stremio con fallback automatico su JustWatch.
 * **7 Stili Badge Genere & Voto**: *Shadow, Pill, Bar, Colored, Bordo, Vetro, Minimal* (`Genere | Voto | Anno`) con palette cromatica che si adatta ai colori della locandina.
 * **Nastro Verticale Netflix Top 10**: Il caratteristico nastro rosso laterale con posizione live (supporto dedicato anche per serie Anime).
@@ -137,20 +149,31 @@ Preferisci il self-hosting? Vedi [Deploy Rapido](#-deploy-rapido): [Vercel](#-ve
 * **✨ Effetto Pre-Digitale (Coming Soon)**: Per i film usciti al cinema ma non ancora in streaming (rilevati via JustWatch/TMDB): velo scuro sul poster e nastro rosso "Coming Soon". Attivabile per-titolo, via query `?pre=1` o per l'intera libreria.
 * **🔌 Provider Voti Personalizzati**: Visualizza voti da qualsiasi API esterna (via IMDb ID) con pill dedicate. Dettagli in [docs/custom-rating.md](docs/custom-rating.md).
 
-### 📺 Stagioni, Episodi & Anime
+</details>
+
+<details>
+<summary><strong>📺 Stagioni, Episodi & Anime</strong></summary>
+
 * **✨ Rilevamento Automatico Parti**: Passa in automatico da stagioni standard a Parti originali per serie strutturate a blocchi (es. *La Casa di Carta*, *Lupin*).
 * **🌀 Spacchettamento Anime**: Risolve la catalogazione TMDB che raggruppa intere serie anime in una singola stagione, ripristinando la suddivisione ufficiale (S1, S2, S3, S4 + Speciali in S0).
 * **Supporto TVDB & AniZip**: Seleziona manualmente gli ordinamenti alternativi TheTVDB (*Aired, DVD, Absolute, Alternate*) o AniZip (*AniList / AniDB*).
 * **Anteprima Episodi Live**: Visualizza prima di salvare esattamente come appariranno stagioni, titoli e miniature su Stremio.
- 
-### 🗂️ Libreria, Automazione & Backup
-* **Gestione Massiva ne I Miei Poster**: Selezione multipla dei poster salvati con eliminazione di gruppo per riordinare la propria libreria in pochi click.
+
+</details>
+
+<details>
+<summary><strong>🗂️ Libreria, Automazione & Backup</strong></summary>
+
+* **Gestione Massiva ne I Miei Poster**: Selezione multipla dei poster salvati con eliminazione di gruppo per riordinare la libreria in pochi click.
 * **Backup Completo & Ripristino**: Esporta e ripristina con un click l'intera configurazione dello spazio (poster salvati, preset personalizzati, stili e preferenze) in formato JSON.
 * **Template URL per Nuvio & AIOMetadata**: Template dedicati per gestori di cataloghi esterni (come Nuvio e AIOMetadata) con risoluzione automatica degli ID TMDB.
   Gli spazi utente usano di default **Segui il mio spazio**: copia il nuovo template una volta sola e le modifiche salvate si applicano senza sostituire di nuovo il link. **Impostazioni fisse nel link** resta disponibile nelle opzioni avanzate e i template esistenti mantengono i loro override espliciti. La variante automatica Nuvio lascia comunque al client la scelta del formato immagine.
   I link Segui (`live=1`) richiedono rivalidazione HTTP e riusano i render interni aggiornati. AIOMetadata e gli altri proxy di immagini devono rispettare questa policy; aggiorna le immagini già in cache usando i controlli disponibili nella versione installata. I nuovi header non possono eliminare le copie esterne esistenti e un poster già mostrato si aggiorna solo quando il client lo richiede di nuovo. Ranking live e altri dati upstream mantengono i loro tempi di aggiornamento interni.
 
-### 🔒 Sicurezza: PIN & Spazi Multi-Utente
+</details>
+
+<details>
+<summary><strong>🔒 Sicurezza: PIN & Spazi Multi-Utente</strong></summary>
 
 #### Protezione PIN (Istanze Singole / Personali)
 * **Blocco Pannello ad Ogni Avvio**: Richiesta del codice PIN all'avvio e ad ogni refresh (F5) per proteggere modifiche e impostazioni.
@@ -165,7 +188,9 @@ Attivando `PICTORIUM_MULTI_USER=1`, l'istanza permette a più utenti di condivid
 * **Autenticazione & Recovery**:
   * **Password di Sessione**: richiesta ad ogni visita per sbloccare l'editor (non viene salvata permanentemente nel browser).
   * **Recovery Key (Secret)**: chiave mostrata una sola volta alla creazione — salvala subito. Resta valida per recuperare l'accesso o ruotare le credenziali finché non la ruoti.
-* **Protezione Anti-Brute-Force**: Limite automatico sui tentativi di inserimento password errati e protezione da abusi.
+* **Protezione Anti-Brute-Force**: Limite automatico sui tentativi di inserimento password errati.
+
+</details>
 
 > 📢 Per segnalare vulnerabilità in privato (mai con issue pubbliche), vedi [SECURITY.md](SECURITY.md).
 
@@ -177,8 +202,8 @@ Attivando `PICTORIUM_MULTI_USER=1`, l'istanza permette a più utenti di condivid
 |---|---|---|---|---|
 | [▲ **Vercel**](#-vercel-consigliato) | **Gratis** | Serverless | Upstash Redis (KV) | **Consigliato**: 1 click, zero manutenzione, CDN globale ([📺 Video Guida](https://www.youtube.com/watch?v=FP6VJ2vGYiY)) |
 | [🐳 **Docker Compose**](#-docker--compose) | **Gratis** | Container | Volume locale (`/data`) | NAS, Home Server, mini-PC (Unraid, TrueNAS, CasaOS) |
-| [🤗 **Hugging Face**](#-altre-modalit-di-installazione) | **Gratis** | Docker (16GB RAM) | Storage Bucket | Ottima RAM gratuita per istanze condivise |
-| [🦾 **Oracle Cloud**](#-altre-modalit-di-installazione) | **Gratis** | VPS ARM (24GB RAM) | Disco Locale | Sempre online con risorse dedicate a costo zero |
+| [🤗 **Hugging Face**](#-altre-modalità-di-installazione) | **Gratis** | Docker (16GB RAM) | Storage Bucket | Ottima RAM gratuita per istanze condivise |
+| [🦾 **Oracle Cloud**](#-altre-modalità-di-installazione) | **Gratis** | VPS ARM (24GB RAM) | Disco Locale | Sempre online con risorse dedicate a costo zero |
 
 ---
 
@@ -214,7 +239,7 @@ Attivando `PICTORIUM_MULTI_USER=1`, l'istanza permette a più utenti di condivid
 
 > **Durata delle funzioni**: con Fluid compute (il default attuale) le funzioni Hobby arrivano fino a 300s, e l'app limita le proprie route ben al di sotto (poster 40s, cataloghi 60s, warmup 60s). Un render a freddo o un upstream lento può comunque rispondere con un 503 limitato; mantenere i cataloghi caldi riduce il rischio.
 
-> **Aggiornamenti Futuri**: Per aggiornare la tua istanza, ti basterà aprire il tuo fork su GitHub e cliccare su **Sync fork → Update branch**. Vercel effettuerà il redeploy automatico in 60 secondi senza toccare i tuoi dati.
+> **Aggiornamenti Futuri**: Per aggiornare la tua istanza, apri il tuo fork su GitHub e clicca su **Sync fork → Update branch**. Vercel effettua il redeploy automatico in 60 secondi senza toccare i tuoi dati.
 
 ---
 
@@ -247,8 +272,10 @@ Apri `http://<IP-SERVER>:8080`, sblocca l'editor e clicca su **Installa su Strem
 
 ---
 
+### 👉 Altre modalità di installazione
+
 <details>
-<summary><strong>👉 Altre modalità di installazione (Hugging Face, Oracle Cloud, VPS Caddy, Termux)</strong></summary>
+<summary><strong>Hugging Face, Oracle Cloud, VPS Caddy, Termux</strong></summary>
 
 #### 🤗 Hugging Face Spaces
 1. Crea una Space su Hugging Face con SDK **Docker** collegata al repo `Eful97/Pictorium`.
@@ -289,6 +316,7 @@ git clone https://github.com/Eful97/Pictorium && cd Pictorium
 npm ci && npm run build
 PORT=8080 node .next/standalone/server.js
 ```
+
 </details>
 
 ---
@@ -369,11 +397,12 @@ Note Trakt OAuth (multi-utente): una sola registrazione app Trakt per istanza (c
 | `PICTORIUM_CACHE_MAX` | `2000` | Voci massime nella cache metadati in memoria (deve essere > 100, altrimenti `2000`). È il knob del numero di entry: `PICTORIUM_CACHE_MAX_ENTRIES` non viene letto. |
 | `PICTORIUM_CACHE_MAX_MB` | `150` | RAM massima allocata alla cache metadati in memoria (deve essere > 10 MB, altrimenti `150`). |
 | `PICTORIUM_SELF_WARMUP` | `1` | Preriscaldamento automatico dei cataloghi core all'avvio del server (entrypoint Docker). |
+
 </details>
 
 ---
 
-## ⚠️ Limiti Noti
+## ⚠ Limiti Noti
 
 Scelte architetturali deliberate, non bug:
 
