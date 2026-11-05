@@ -79,6 +79,11 @@ describe("store upsert keepUpdatedAt", () => {
     await store.upsert(original)
     const savedBefore = await store.getById("tv", original.tmdbId)
 
+    // Stamp resolution is millisecond-level: ensure the second write lands in
+    // a later millisecond than the first, so the "fresh stamp" assertion is
+    // not defeated by identical toISOString() output.
+    await new Promise((r) => setTimeout(r, 10))
+
     await store.upsert({ ...savedBefore!, title: "Renamed" })
     const after = await store.getById("tv", original.tmdbId)
     expect(after?.title).toBe("Renamed")
