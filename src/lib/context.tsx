@@ -31,7 +31,7 @@ import { useSearch } from "./useSearch"
 import { useNavigation } from "./useNavigation"
 import { useMappingsStore, type BackupExportOptions, type BackupImportOptions } from "./useMappingsStore"
 import { usePosterEditor, PosterEditorProvider, type LandscapeBlurState } from "./contexts/PosterEditorContext"
-import { usePosterSave, type SaveConfigOverrides } from "./usePosterSave"
+import { usePosterSave, type SaveConfigOverrides, type ThumbnailSettingsWrite } from "./usePosterSave"
 import { useSharedShapeStash } from "./shape-draft"
 import { usePrefetchTitle } from "./usePrefetchTitle"
 import { defaultHeightForPoster, defaultFadeForPoster, adjustGradientForPosterChange } from "./gradient-presets"
@@ -56,7 +56,7 @@ import { migrateLegacyStorage } from "./storage-migration"
 import { writePersonalDeviceKey } from "./device-keys"
 import { sanitizeEpisodeThumbnailStills } from "./episode-stills"
 
-export type ViewType = "search" | "myposters" | "edit" | "cataloghi"
+export type ViewType = "search" | "myposters" | "thumbnails" | "edit" | "cataloghi"
 
 export interface MetaInfo {
   genres: { id: number; name: string }[]
@@ -164,6 +164,13 @@ export interface PictoriumCtx {
   setPreviewId: React.Dispatch<React.SetStateAction<string | null>>
   saveConfig: (overrides?: SaveConfigOverrides) => Promise<boolean | void>
   /**
+   * Thumbnail-only save: writes only the per-title episode-thumbnail keys
+   * (`episodeThumbnailStills`/`thumbnailRotation`). Poster fields, `mv` and
+   * poster caches are untouched. Optional so lightweight test harnesses that
+   * only stub `saveConfig` keep working (callers fall back to `saveConfig`).
+   */
+  saveThumbnailSettings?: (settings: ThumbnailSettingsWrite) => Promise<boolean>
+  /**
    * Cover-only save ("Salva solo poster"): persists the chosen cover image
    * and logo identity; everything else follows the global defaults
    * (previously frozen custom styling is cleared). On success the editor
@@ -174,7 +181,7 @@ export interface PictoriumCtx {
   removeMapping: (m: Mapping) => Promise<void>
   mappingsMap: Map<string, Mapping>
   goHome: () => void
-  sourceView: "edit" | "search" | "myposters" | "cataloghi" | null
+  sourceView: "edit" | "search" | "myposters" | "thumbnails" | "cataloghi" | null
   /**
    * Apre un titolo nell'editor. `originatingListName` è il nome visibile
    * della lista/catalogo di origine (contesto effimero per il `theme=`
@@ -3456,7 +3463,7 @@ export function usePictorium(): PictoriumCtx {
 
   const posterActivePath = navigation.previewPoster?.file_path
 
-  const { selectPoster, selectLogo, removeLogo, selectBackdrop, removeBackdrop, saveConfig: savePosterConfig, saveCoverOnly: saveCoverOnlyPost } = usePosterSave({
+  const { selectPoster, selectLogo, removeLogo, selectBackdrop, removeBackdrop, saveConfig: savePosterConfig, saveCoverOnly: saveCoverOnlyPost, saveThumbnailSettings } = usePosterSave({
     selected: navigation.selected, previewPoster: navigation.previewPoster, selectedLogo: navigation.selectedLogo,
     setSelectedLogo: navigation.setSelectedLogo, setPreviewPoster: navigation.setPreviewPoster, setPreviewId: navigation.setPreviewId,
     posters: navigation.posters, metaInfo, trendRank, mdblistAnimeList: trending.mdblistAnimeList,
@@ -3677,7 +3684,7 @@ export function usePictorium(): PictoriumCtx {
     imdbTop250,
     metaInfo,
     previewId: navigation.previewId, setPreviewId: navigation.setPreviewId,
-    saveConfig, saveCoverOnly, removeMapping, mappingsMap,
+    saveConfig, saveCoverOnly, saveThumbnailSettings, removeMapping, mappingsMap,
     goHome: goHomeAbort, sourceView: navigation.sourceView, navigateToPoster: (item: SearchResult, source?: string, originatingListName?: string | null, seasonalKeywords?: { halloween?: readonly string[]; christmas?: readonly string[] } | null) => { navigation.navigateToPoster(item, source, originatingListName, seasonalKeywords); openPosterBrowserRef.current(item) },
     refreshLists: trending.refreshLists, loadPlatform: trending.loadPlatform,
     tmdbKey, setQuery: search.setQuery, doSearch: search.doSearch, loadMore: search.loadMore, loadMoreFiltered: search.loadMoreFiltered, retryFailed: search.retryFailed, failedPage: search.failedPage, hasSearched: search.hasSearched,

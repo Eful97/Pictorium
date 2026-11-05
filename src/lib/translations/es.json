@@ -817,6 +817,27 @@
   "ui.episodeMetadataSource": "Fuente de metadatos de episodios",
   "ui.episodeMetadataSourceHint": "Usa TheTVDB o TMDB para las portadas (capturas) y las sinopsis de los episodios.",
   "ui.episodeThumbnails": "Episode thumbnails",
+
+  "ui.thumbnailsZoneSubtitle": "Títulos con miniaturas de episodios personalizadas. Editar aquí nunca afecta al póster.",
+
+  "ui.thumbnailsZoneEmpty": "Aún no hay miniaturas de episodios personalizadas. Abre un póster y usa Miniaturas de episodios para personalizarlas.",
+
+  "ui.thumbnailsZoneEdit": "Editar miniaturas",
+
+
+  "ui.thumbnailsNav": "Miniaturas",
+
+
+  "ui.thumbnailsZoneSearch": "Buscar títulos",
+
+
+  "ui.thumbnailsZoneClear": "Borrar búsqueda",
+
+
+  "ui.thumbnailsZoneDeleteTitle": "¿Eliminar las miniaturas?",
+
+
+  "ui.thumbnailsZoneDeleteMsg": "¿Quitar las miniaturas de episodios personalizadas de los títulos seleccionados? Los pósteres no se tocan. No se puede deshacer.",
   "ui.episodeThumbnailsHint": "Show episode stills with rating badges on Stremio episode cards. When off, the original TMDB stills are used.",
   "ui.episodeStillPickerTitle": "Episode still",
   "ui.episodeStillPickerChoose": "Use still {ep}",
@@ -1048,6 +1069,9 @@
   "ui.installTabAio": "AIOMetadata",
   "ui.installAioDesc": "Pega este enlace en AIOMetadata en Art Providers → Poster URL Pattern.",
   "ui.installAioPosterTitle": "Plantilla de enlace del póster",
+  "ui.installThumbnailToggle": "Añadir patrón de miniaturas de episodios",
+  "ui.installThumbnailDesc": "Patrón opcional de URL de miniaturas de episodios de AIOMetadata. Siempre usa {tmdb_id} (la ruta de miniaturas necesita el id numérico). La clave API se hereda de la plantilla del póster cuando la incluye (instancias locales); con una clave del lado del servidor se omite.",
+  "ui.installThumbnailPatternTitle": "Patrón URL de miniaturas de episodios",
   "ui.installOtherDevice": "Instalar en otro dispositivo",
   "ui.listsPartial": "Listas parcialmente actualizadas; títulos anteriores conservados en caso de error",
   "ui.catalogSyncFailed": "Catálogos guardados localmente. Falló la sincronización con el servidor.",

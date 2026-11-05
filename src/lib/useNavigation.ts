@@ -116,6 +116,12 @@ export function useNavigation() {
         setPreviewPoster(null)
         setSelectedLogo(null)
         setPreviewId(null)
+      } else if (targetView === "thumbnails" || source === "thumbnails") {
+        setViewState("thumbnails")
+        setSelected(null)
+        setPreviewPoster(null)
+        setSelectedLogo(null)
+        setPreviewId(null)
       } else if (targetView === "search" || source === "search") {
         setViewState("search")
         setSelected(null)

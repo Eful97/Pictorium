@@ -860,6 +860,27 @@
   "ui.episodeMetadataSource": "Fonte de metadados de episódios",
   "ui.episodeMetadataSourceHint": "Usa TheTVDB ou TMDB para capas (screenshots) e sinopses dos episódios.",
   "ui.episodeThumbnails": "Episode thumbnails",
+
+  "ui.thumbnailsZoneSubtitle": "Títulos com miniaturas de episódios personalizadas. Editar aqui nunca altera o pôster.",
+
+  "ui.thumbnailsZoneEmpty": "Ainda não há miniaturas de episódios personalizadas. Abra um pôster e use Miniaturas de episódios para personalizá-las.",
+
+  "ui.thumbnailsZoneEdit": "Editar miniaturas",
+
+
+  "ui.thumbnailsNav": "Miniaturas",
+
+
+  "ui.thumbnailsZoneSearch": "Pesquisar títulos",
+
+
+  "ui.thumbnailsZoneClear": "Limpar pesquisa",
+
+
+  "ui.thumbnailsZoneDeleteTitle": "Excluir as miniaturas?",
+
+
+  "ui.thumbnailsZoneDeleteMsg": "Remover as miniaturas de episódios personalizadas dos títulos selecionados? Os pôsteres não são alterados. Não pode ser desfeito.",
   "ui.episodeThumbnailsHint": "Show episode stills with rating badges on Stremio episode cards. When off, the original TMDB stills are used.",
   "ui.episodeStillPickerTitle": "Episode still",
   "ui.episodeStillPickerChoose": "Use still {ep}",
@@ -1048,6 +1069,9 @@
   "ui.installTabAio": "AIOMetadata",
   "ui.installAioDesc": "Cole este link no AIOMetadata em Art Providers → Poster URL Pattern.",
   "ui.installAioPosterTitle": "Modelo de link do cartaz",
+  "ui.installThumbnailToggle": "Adicionar padrão de miniaturas de episódios",
+  "ui.installThumbnailDesc": "Padrão opcional de URL de miniaturas de episódios do AIOMetadata. Usa sempre {tmdb_id} (a rota de miniaturas exige o id numérico). A chave de API é herdada do modelo do pôster quando ele a inclui (instâncias locais); com uma chave no servidor, ela é omitida.",
+  "ui.installThumbnailPatternTitle": "Padrão URL de miniaturas de episódios",
   "ui.installOtherDevice": "Instalar em outro dispositivo",
   "ui.listsPartial": "Listas parcialmente atualizadas; títulos anteriores mantidos em caso de erro",
   "ui.catalogSyncFailed": "Catálogos guardados localmente. Falha na sincronização com o servidor.",

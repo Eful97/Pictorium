@@ -244,7 +244,7 @@ describe("editor early readiness (rank/awards do not block)", () => {
     vi.unstubAllGlobals()
   })
 
-  it.each(["cataloghi", "myposters", "search"] as const)("cancels a pending title on leaving for %s and resumes on return", async (view) => {
+  it.each(["cataloghi", "myposters", "thumbnails", "search"] as const)("cancels a pending title on leaving for %s and resumes on return", async (view) => {
     await renderRoot()
     await act(async () => { ctx!.setTmdbKey("test-key") })
     await act(async () => { ctx!.navigateToPoster(ITEM_A) })

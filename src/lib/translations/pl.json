@@ -860,6 +860,27 @@
   "ui.episodeMetadataSource": "Źródło metadanych odcinków",
   "ui.episodeMetadataSourceHint": "Użyj TheTVDB lub TMDB dla okładek odcinków (screeny) i opisów odcinków.",
   "ui.episodeThumbnails": "Episode thumbnails",
+
+  "ui.thumbnailsZoneSubtitle": "Tytuły z niestandardowymi miniaturami odcinków. Edycja tutaj nigdy nie zmienia plakatu.",
+
+  "ui.thumbnailsZoneEmpty": "Brak niestandardowych miniatur odcinków. Otwórz plakat i użyj Miniatur odcinków, aby je dostosować.",
+
+  "ui.thumbnailsZoneEdit": "Edytuj miniatury",
+
+
+  "ui.thumbnailsNav": "Miniatury",
+
+
+  "ui.thumbnailsZoneSearch": "Szukaj tytułów",
+
+
+  "ui.thumbnailsZoneClear": "Wyczyść wyszukiwanie",
+
+
+  "ui.thumbnailsZoneDeleteTitle": "Usunąć miniatury?",
+
+
+  "ui.thumbnailsZoneDeleteMsg": "Usunąć niestandardowe miniatury odcinków dla wybranych tytułów? Plakaty pozostaną nietknięte. Tej operacji nie można cofnąć.",
   "ui.episodeThumbnailsHint": "Show episode stills with rating badges on Stremio episode cards. When off, the original TMDB stills are used.",
   "ui.episodeStillPickerTitle": "Episode still",
   "ui.episodeStillPickerChoose": "Use still {ep}",
@@ -1048,6 +1069,9 @@
   "ui.installTabAio": "AIOMetadata",
   "ui.installAioDesc": "Wklej ten link w AIOMetadata w sekcji Art Providers → Poster URL Pattern.",
   "ui.installAioPosterTitle": "Szablon linku plakatu",
+  "ui.installThumbnailToggle": "Dodaj wzorzec miniatur odcinków",
+  "ui.installThumbnailDesc": "Opcjonalny wzorzec URL miniatur odcinków AIOMetadata. Zawsze używa {tmdb_id} (trasa miniatur wymaga numerycznego id). Klucz API jest dziedziczony z szablonu plakatu, gdy go zawiera (instancje lokalne); przy kluczu po stronie serwera jest pomijany.",
+  "ui.installThumbnailPatternTitle": "Wzorzec URL miniatur odcinków",
   "ui.installOtherDevice": "Zainstaluj na innym urządzeniu",
   "ui.listsPartial": "Listy częściowo odświeżone; zachowano poprzednie tytuły w razie błędu",
   "ui.catalogSyncFailed": "Katalogi zapisano lokalnie. Synchronizacja z serwerem nie powiodła się.",

@@ -7,8 +7,44 @@ import { mappingUpdateSchema } from "@/lib/validation"
 import { checkAdminToken, isSameOrigin, adminAuthResponse, originMismatchResponse } from "@/lib/auth"
 import { checkUserAuth, getScopedUserId, extractUserParam, invalidUserResponse, isMultiUserEnabled, userAuthResponse, userRateLimitKey } from "@/lib/user-auth"
 import { readJsonBody, BodyTooLargeError, DEFAULT_MAX_BODY_BYTES } from "@/lib/read-body"
+import { sanitizeEpisodeThumbnailStills, MAX_EPISODE_STILL_OVERRIDES } from "@/lib/episode-stills"
+import type { Mapping } from "@/lib/types"
 
 type RouteParams = { id: string }
+
+/**
+ * Keys a mapping can carry WITHOUT holding any poster customization.
+ *
+ * `posterPath` is deliberately NOT here: it is the saved cover identity and a
+ * full save always writes it, so a mapping that has it is a poster mapping and
+ * must never be removed by a thumbnail delete.
+ */
+const THUMBNAIL_ONLY_MAPPING_KEYS: ReadonlySet<string> = new Set([
+  "tmdbId",
+  "mediaType",
+  "title",
+  "updatedAt",
+  "episodeThumbnailStills",
+  "thumbnailRotation",
+  "originalPosterPath",
+  "language",
+  "genreName",
+  "voteAverage",
+  "trendRank",
+  "trendPeriod",
+  "imdbId",
+  "wikidataId",
+  "tvType",
+  "tvStatus",
+  "releaseDate",
+  "firstAirDate",
+  "episodeGroupId",
+])
+
+/** True when the mapping carries at least one poster-facing input. */
+function hasPosterData(mapping: Mapping): boolean {
+  return Object.keys(mapping).some((key) => !THUMBNAIL_ONLY_MAPPING_KEYS.has(key))
+}
 
 function resolveScope(req: NextRequest): { scoped: string | null; error?: Response } {
   const rawUser = extractUserParam(req)
@@ -125,6 +161,128 @@ export async function PUT(req: NextRequest, { params }: { params: Promise<RouteP
   cacheInvalidate("stremio")
   // Bump epoch cataloghi (F3): invalidazione cross-instance.
   await bumpCatalogEpoch()
+  return Response.json({ ok: true })
+}
+
+/**
+ * Thumbnail-only write: persists ONLY the per-title episode-thumbnail keys
+ * (`episodeThumbnailStills`, `thumbnailRotation`) on an EXISTING mapping.
+ *
+ * Contract (why not PUT/POST):
+ * - the full save is a replace of the whole visual state and stamps a new
+ *   `updatedAt`; `updatedAt` feeds the poster `mv` URL param and the poster
+ *   cache identity, so saving thumbnails used to rotate poster URLs and could
+ *   freeze/reset poster state (clean rotation index/timestamp) even when the
+ *   user never edited the poster;
+ * - this write copies the stored mapping verbatim, changes only the two
+ *   thumbnail keys and PRESERVES `updatedAt` (`keepUpdatedAt`), so poster
+ *   bytes, poster URL/`mv`, rotation state and cache entries are untouched;
+ * - unknown keys are rejected (strict) so this endpoint can never be used as
+ *   a poster back door;
+ * - meta/catalog freshness (the `/meta` body carries the composed thumbnail
+ *   URLs) is granted by the catalog-epoch bump, which is cross-instance, not by
+ *   the mapping timestamp;
+ * - a title with no mapping still needs the full save to create its record:
+ *   404 lets the caller fall back deliberately (there is no saved poster to
+ *   protect in that case).
+ */
+export async function PATCH(req: NextRequest, { params }: { params: Promise<RouteParams> }) {
+  const { scoped, error } = resolveScope(req)
+  const rl = await rateLimit(error ? rateLimitKey(req) : (scoped ? userRateLimitKey(req, scoped) : rateLimitKey(req)), "mappings")
+  if (!rl.ok) return rateLimitResponse(rl.retAfter)
+  if (error) return error
+  if (scoped) {
+    const denied = await checkUserWrite(req, scoped)
+    if (denied) return denied
+  } else {
+    if (!(await checkAdminToken(req))) return adminAuthResponse()
+    if (!isSameOrigin(req)) return originMismatchResponse()
+  }
+  const { id } = await params
+  const [type, tmdbIdStr] = id.split(":")
+  const tmdbId = Number(tmdbIdStr)
+  if (!tmdbId || !type || (type !== "movie" && type !== "tv")) {
+    return Response.json({ error: "Invalid id format" }, { status: 400 })
+  }
+  let body: unknown
+  try {
+    body = await readJsonBody(req, DEFAULT_MAX_BODY_BYTES)
+  } catch (e) {
+    if (e instanceof BodyTooLargeError) return Response.json({ error: "Request body too large" }, { status: 413 })
+    return Response.json({ error: "Invalid JSON body" }, { status: 400 })
+  }
+  if (typeof body !== "object" || body === null || Array.isArray(body)) {
+    return Response.json({ error: "Invalid body" }, { status: 400 })
+  }
+  const raw = body as Record<string, unknown>
+  const allowed = new Set(["episodeThumbnailStills", "thumbnailRotation"])
+  if (Object.keys(raw).some((key) => !allowed.has(key))) {
+    return Response.json({ error: "Only thumbnail settings can be written here" }, { status: 400 })
+  }
+  const hasStills = Object.prototype.hasOwnProperty.call(raw, "episodeThumbnailStills")
+  const hasRotation = Object.prototype.hasOwnProperty.call(raw, "thumbnailRotation")
+  if (!hasStills && !hasRotation) {
+    return Response.json({ error: "No thumbnail settings in body" }, { status: 400 })
+  }
+  let stills: Record<string, string> | null | undefined
+  if (hasStills) {
+    const value = raw.episodeThumbnailStills
+    if (value === null) {
+      stills = null
+    } else if (typeof value !== "object" || Array.isArray(value)) {
+      return Response.json({ error: "Invalid episodeThumbnailStills" }, { status: 400 })
+    } else {
+      const entries = Object.entries(value as Record<string, unknown>)
+      if (entries.length > MAX_EPISODE_STILL_OVERRIDES) {
+        return Response.json({ error: "Invalid episodeThumbnailStills" }, { status: 400 })
+      }
+      if (entries.length === 0) {
+        // Explicit clear ("Restore saved"/"Reset all" with nothing left):
+        // drop the field so `/meta` falls back to the raw episode stills.
+        stills = null
+      } else {
+        const sanitized = sanitizeEpisodeThumbnailStills(value)
+        if (!sanitized || Object.keys(sanitized).length !== entries.length) {
+          return Response.json({ error: "Invalid episodeThumbnailStills" }, { status: 400 })
+        }
+        stills = sanitized
+      }
+    }
+  }
+  let rotation: boolean | null | undefined
+  if (hasRotation) {
+    const value = raw.thumbnailRotation
+    if (value !== null && typeof value !== "boolean") {
+      return Response.json({ error: "Invalid thumbnailRotation" }, { status: 400 })
+    }
+    rotation = value
+  }
+  const existing = await getById(type as "movie" | "tv", tmdbId, scoped)
+  if (!existing) return Response.json({ error: "not found" }, { status: 404 })
+  const next: Mapping = { ...existing }
+  if (hasStills) {
+    if (stills === null) delete next.episodeThumbnailStills
+    else next.episodeThumbnailStills = stills
+  }
+  if (hasRotation) {
+    if (rotation === null) delete next.thumbnailRotation
+    else next.thumbnailRotation = rotation
+  }
+  const stillEntries = next.episodeThumbnailStills ? Object.keys(next.episodeThumbnailStills).length : 0
+  const hasThumbnailData = stillEntries > 0 || typeof next.thumbnailRotation === "boolean"
+  if (!hasThumbnailData && !hasPosterData(next)) {
+    // The mapping only ever held thumbnail customization (no poster input):
+    // removing it is the clean equivalent of clearing the last thumbnail keys.
+    // Full saves always carry poster data, so this never deletes a saved poster.
+    await remove(type as "movie" | "tv", tmdbId, scoped)
+  } else {
+    await upsert(next, scoped, { keepUpdatedAt: true })
+  }
+  // Meta/catalog freshness only: the composed thumbnail URLs live in `/meta`
+  // bodies and catalog payloads consume the same epoch. Poster data/caches are
+  // deliberately NOT invalidated — poster identity did not change.
+  await bumpCatalogEpoch(scoped)
+  if (!scoped) cacheInvalidate("stremio")
   return Response.json({ ok: true })
 }
 

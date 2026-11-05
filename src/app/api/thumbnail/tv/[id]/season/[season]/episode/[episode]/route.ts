@@ -1,6 +1,7 @@
 import { createHash } from "node:crypto"
 import { NextRequest } from "next/server"
-import { getTVEpisodeDetails, getTVEpisodeImages, getExternalIds, resolveRouteApiKey } from "@/lib/tmdb"
+import { getTVEpisodeDetails, getTVEpisodeImages, getExternalIds, resolveUserApiKeys } from "@/lib/tmdb"
+import { getScopedUserId, userExists } from "@/lib/user-auth"
 import { formatTvdbImageUrl, getTvdbEpisodesResult, getTvdbSeriesId } from "@/lib/tvdb"
 import { resolveImdbId } from "@/lib/imdb-cache"
 import {
@@ -17,6 +18,14 @@ import { jsonGzip } from "@/lib/json-response"
 import { initSharp } from "@/lib/sharp-config"
 import { createLogger } from "@/lib/logger"
 import {
+  DEFAULT_THUMBNAIL_BADGE_ANCHOR,
+  DEFAULT_THUMBNAIL_BADGE_SCALE,
+  DEFAULT_THUMBNAIL_BADGE_STYLE,
+  DEFAULT_THUMBNAIL_VOTE_SOURCE,
+  THUMBNAIL_BADGE_OFFSET_MAX,
+  THUMBNAIL_BADGE_OFFSET_MIN,
+  THUMBNAIL_BADGE_SCALE_MAX,
+  THUMBNAIL_BADGE_SCALE_MIN,
   THUMBNAIL_WIDTHS,
   ThumbnailRenderError,
   parseThumbnailBadgeMode,
@@ -31,13 +40,15 @@ import {
   parseThumbnailWidth,
   renderEpisodeThumbnail,
   resolveRotatedThumbnailStill,
-  sanitizeStillPath,
+  resolveThumbnailStill,
   sanitizeTvdbStillUrl,
   thumbnailBadgeGeometryReport,
   thumbnailCacheKey,
   thumbnailRotationBucket,
 } from "@/lib/thumbnail-renderer"
-import type { ThumbnailVoteSource } from "@/lib/thumbnail-renderer"
+import type { ThumbnailBadgeAnchor, ThumbnailBadgeStyle, ThumbnailVoteSource } from "@/lib/thumbnail-renderer"
+import { getServerDefaultsForUser } from "@/lib/server-defaults"
+import { getCatalogEpoch } from "@/lib/catalog-epoch"
 
 type RouteParams = { id: string; season: string; episode: string }
 
@@ -56,6 +67,47 @@ function jsonError(message: string, status: number, acceptEncoding: string | nul
 function ratingLanguage(languages: string): string {
   const first = (languages.split(",")[0] || "").trim()
   return /^[a-z]{2}(?:-[A-Za-z]{2})?$/.test(first) ? first : "en-US"
+}
+
+// ---------------------------------------------------------------------------
+// Space Miniature (episode thumbnail) defaults.
+//
+// AIOMetadata's Episode Thumbnail URL Pattern hardcodes `w`/`badges` and does
+// NOT carry the user's style/corner/scale/source choices. Without this
+// fallback those saved choices were visible only in the `/meta` composed URLs
+// and silently ignored by a directly-called pattern, so a style change never
+// reached the image. Precedence mirrors `/meta`: explicit query wins, then the
+// namespace default, then the renderer default. Stored JSON is unvalidated
+// (numbers included), so every read is clamped exactly like the renderer.
+// ---------------------------------------------------------------------------
+
+function storedThumbnailBadgeStyle(raw: unknown): ThumbnailBadgeStyle {
+  if (typeof raw !== "string") return DEFAULT_THUMBNAIL_BADGE_STYLE
+  return parseThumbnailBadgeStyle(raw) ?? DEFAULT_THUMBNAIL_BADGE_STYLE
+}
+
+function storedThumbnailAnchor(raw: unknown): ThumbnailBadgeAnchor {
+  if (typeof raw !== "string") return DEFAULT_THUMBNAIL_BADGE_ANCHOR
+  return parseThumbnailBadgeAnchor(raw) ?? DEFAULT_THUMBNAIL_BADGE_ANCHOR
+}
+
+function storedThumbnailVoteSource(raw: unknown): ThumbnailVoteSource {
+  if (typeof raw !== "string") return DEFAULT_THUMBNAIL_VOTE_SOURCE
+  return parseThumbnailVoteSource(raw) ?? DEFAULT_THUMBNAIL_VOTE_SOURCE
+}
+
+function storedThumbnailOffset(raw: unknown): number {
+  if (typeof raw !== "number" || !Number.isFinite(raw)) return 0
+  return Math.max(THUMBNAIL_BADGE_OFFSET_MIN, Math.min(THUMBNAIL_BADGE_OFFSET_MAX, Math.round(raw)))
+}
+
+function storedThumbnailScale(raw: unknown): number {
+  if (typeof raw !== "number" || !Number.isFinite(raw)) return DEFAULT_THUMBNAIL_BADGE_SCALE
+  return Math.max(THUMBNAIL_BADGE_SCALE_MIN, Math.min(THUMBNAIL_BADGE_SCALE_MAX, Math.round(raw)))
+}
+
+function storedThumbnailFlag(raw: unknown): boolean {
+  return typeof raw === "boolean" ? raw : false
 }
 
 function imageResponse(
@@ -94,16 +146,15 @@ function imageResponse(
  * URL emitted to clients nor the cache key.
  */
 async function resolveTvdbEpisodeStill(
-  req: NextRequest,
   seriesId: number,
   seasonNumber: number,
   episodeNumber: number,
   tmdbKey: string | undefined,
+  tvdbKey: string | undefined,
   signal?: AbortSignal,
 ): Promise<string | null> {
   try {
-    const tvdbKey = (await resolveRouteApiKey(req, "tvdb"))?.trim()
-    if (!tvdbKey) return null
+    if (!tvdbKey?.trim()) return null
 
     // Same resolution as the seasonTypes route: TMDB `external_ids` tvdb_id
     // first (reliable), IMDb/remoteid only as a fallback.
@@ -135,16 +186,18 @@ async function resolveTvdbEpisodeStill(
 const ROTATION_CANDIDATES_CACHE_TTL_MS = 30 * 60 * 1000
 
 /**
- * Episode still candidates for `?rotate=1`.
+ * Episode still candidates, shared by daily rotation (`?rotate=1`) and the
+ * automatic still fallback (empty/absent `?still`).
  *
  * The list is the TMDB episode `/images` payload (already cached by the TMDB
  * module for 5 minutes); the sanitized path list is cached at the route level
  * for the same 30-minute family as the composed thumbnail so a shared render
- * never pays a second upstream lookup. Failures propagate to
- * `resolveRotatedThumbnailStill`, which fails open to the fixed `?still` (never
- * a 500) and never caches an empty/failed list.
+ * never pays a second upstream lookup. Failures propagate to the callers:
+ * `resolveRotatedThumbnailStill` fails open to the fixed `?still` (never a
+ * 500), and the auto-still leg treats them as "no still" (400, as before).
+ * Empty/failed lists are never cached.
  */
-async function loadRotationCandidates(
+async function loadEpisodeStillCandidates(
   seriesId: number,
   seasonNumber: number,
   episodeNumber: number,
@@ -173,10 +226,28 @@ async function loadRotationCandidates(
 /**
  * Composed thumbnail for one TV episode still.
  *
- * Read-only GET: `?still=<TMDB still path>` is required and canonicalized to a
- * single file segment on the exact `image.tmdb.org` host. `w` is allowlisted
- * (invalid = 400) and `badges` is `both|vote|custom` (invalid = 400). The
- * route is mounted only under `/tv`, so non-TV ids are structurally rejected.
+ * Read-only GET: `?still=<TMDB still path | TMDB image URL | TVDB still URL>`
+ * is optional. A path is canonicalized to a single file segment on the exact
+ * `image.tmdb.org` host; a complete TMDB image URL (what AIO passes in its
+ * `{thumbnail}` placeholder) is reduced to that same file name, so both
+ * spellings share one cache entry and one byte-identical render. A complete
+ * `https://artworks.thetvdb.com/...` raster URL is accepted as-is and fetched
+ * directly (public artwork, no TVDB API key/lookup); its raw URL enters the
+ * cache key, so it never collides with a TMDB path entry. An absent/blank
+ * `still` (AIO substitutes empty `{thumbnail}` for episodes with no source
+ * thumbnail) is auto-resolved to the episode's first TMDB still and renders
+ * through the SAME pipeline/cache entry as that explicit path; only an episode
+ * with no TMDB still at all keeps the historical 400. `w` is allowlisted
+ * (invalid = 400) and `badges` is `both|vote|custom` (invalid = 400). The route
+ * is mounted only under `/tv`, so non-TV ids are structurally rejected.
+ *
+ * Miniature choices (`bstyle`/`anchor`/`ox`/`oy`/`bscale`/`blur`/`source`/
+ * `rotate`) keep the explicit-query contract (invalid = 400), but when a
+ * parameter is absent it now follows the namespace's saved Miniature defaults
+ * (`u` space, then the instance/global space) instead of always using the
+ * renderer default; a namespace with no saved values is byte-identical to
+ * before. This is what makes a directly-called AIO pattern reflect the style
+ * chosen in the settings UI.
  *
  * `?stills=tmdb|tvdb` (default `tmdb`) selects the base still provider: `tvdb`
  * resolves the episode image from TheTVDB (artworks.thetvdb.com) and uses it
@@ -254,11 +325,25 @@ export async function GET(req: NextRequest, { params }: { params: Promise<RouteP
     return jsonError("Invalid episode: must be a non-negative integer", 400, acceptEncoding)
   }
 
-  const still = sanitizeStillPath(sp.get("still"))
-  if (!still) {
-    return jsonError("Invalid still: expected a TMDB still path", 400, acceptEncoding)
+  // `still` is OPTIONAL: AIOMetadata substitutes an EMPTY `{thumbnail}` for
+  // episodes whose source video carries no `originalThumb`, and those rows must
+  // not fall back to the client placeholder when TMDB has a still for the
+  // episode. Accepted spellings: a TMDB path, a complete TMDB image URL, or a
+  // complete TVDB artwork URL (`artworks.thetvdb.com`, fetched directly: no
+  // API key lookup). An explicit but unacceptable still stays a hard 400
+  // before any upstream fetch (unchanged); an absent/blank still is
+  // auto-resolved from the episode's TMDB stills right before the cache
+  // identity is built.
+  const rawStill = sp.get("still")
+  const explicitStill = resolveThumbnailStill(rawStill)
+  if (!explicitStill && rawStill !== null && rawStill.trim() !== "") {
+    return jsonError(
+      "Invalid still: expected a TMDB still path/URL or a TVDB still URL",
+      400,
+      acceptEncoding,
+    )
   }
-  // Base provider: `tmdb` (default, historical) or `tvdb`. The TMDB path is
+  // Base provider: `tmdb` (default, historical) or `tvdb`. The supplied still is
   // still required as the fail-open fallback in both cases.
   const stillsSource = parseThumbnailStillSource(sp.get("stills"))
   if (stillsSource === null) {
@@ -272,43 +357,50 @@ export async function GET(req: NextRequest, { params }: { params: Promise<RouteP
   if (badgeMode === null) {
     return jsonError("Invalid badges: must be both, vote or custom", 400, acceptEncoding)
   }
-  // Vote-badge style: existing `renderGenreBadge` recipes (pill/bordo/vetro),
-  // the branded separate-renderer path, the container-free naked brand mark +
-  // score, or the bucket-coloured score tile (no logo). Absent = pill.
-  const badgeStyle = parseThumbnailBadgeStyle(sp.get("bstyle") ?? null)
-  if (badgeStyle === null) {
+  // Explicit query values keep their historical contract: invalid = 400.
+  // Absent values are resolved from the space Miniature defaults below.
+  const rawBadgeStyle = sp.get("bstyle")
+  const queryBadgeStyle = parseThumbnailBadgeStyle(rawBadgeStyle)
+  if (queryBadgeStyle === null) {
     return jsonError("Invalid bstyle: must be pill, bordo, vetro, branded, naked or score", 400, acceptEncoding)
   }
   // Corner anchor + manual offsets (8px margin is the anchor's default).
-  const badgeAnchor = parseThumbnailBadgeAnchor(sp.get("anchor") ?? null)
-  if (badgeAnchor === null) {
+  const rawAnchor = sp.get("anchor")
+  const queryAnchor = parseThumbnailBadgeAnchor(rawAnchor)
+  if (queryAnchor === null) {
     return jsonError("Invalid anchor: must be tl, tr, bl or br", 400, acceptEncoding)
   }
-  const offsetX = parseThumbnailBadgeOffset(sp.get("ox") ?? null)
-  const offsetY = parseThumbnailBadgeOffset(sp.get("oy") ?? null)
-  if (offsetX === null || offsetY === null) {
+  const rawOffsetX = sp.get("ox")
+  const rawOffsetY = sp.get("oy")
+  const queryOffsetX = parseThumbnailBadgeOffset(rawOffsetX)
+  const queryOffsetY = parseThumbnailBadgeOffset(rawOffsetY)
+  if (queryOffsetX === null || queryOffsetY === null) {
     return jsonError("Invalid ox/oy: integer px between -2000 and 2000", 400, acceptEncoding)
   }
   // Badge-stack scale: percent of the standard render (10..200, absent = 100).
   // Applied to the composed pill bitmap; 100 is byte-identical to the
   // historical fixed-size thumbnail.
-  const badgeScale = parseThumbnailBadgeScale(sp.get("bscale") ?? null)
-  if (badgeScale === null) {
+  const rawBadgeScale = sp.get("bscale")
+  const queryBadgeScale = parseThumbnailBadgeScale(rawBadgeScale)
+  if (queryBadgeScale === null) {
     return jsonError("Invalid bscale: integer percent between 10 and 200", 400, acceptEncoding)
   }
-  const blur = parseThumbnailBlur(sp.get("blur"))
-  if (blur === null) {
+  const rawBlur = sp.get("blur")
+  const queryBlur = parseThumbnailBlur(rawBlur)
+  if (queryBlur === null) {
     return jsonError("Invalid blur: must be 0, 1, true or false", 400, acceptEncoding)
   }
   // Daily still rotation: absent/OFF keeps the fixed `?still` and the
   // historical cache entry byte-identical; only an explicit opt-in can change
   // the selected still.
-  const rotationEnabled = parseThumbnailRotation(sp.get("rotate"))
-  if (rotationEnabled === null) {
+  const rawRotation = sp.get("rotate")
+  const queryRotation = parseThumbnailRotation(rawRotation)
+  if (queryRotation === null) {
     return jsonError("Invalid rotate: must be 0, 1, true or false", 400, acceptEncoding)
   }
-  const voteSource = parseThumbnailVoteSource(sp.get("source"))
-  if (voteSource === null) {
+  const rawVoteSource = sp.get("source")
+  const queryVoteSource = parseThumbnailVoteSource(rawVoteSource)
+  if (queryVoteSource === null) {
     return jsonError("Invalid source: must be tmdb or imdb", 400, acceptEncoding)
   }
   const rawLanguages = sp.get("languages") || "en,null"
@@ -317,8 +409,74 @@ export async function GET(req: NextRequest, { params }: { params: Promise<RouteP
     : "en,null"
 
   const wantsGeometry = sp.get("debug") === "1" && sp.get("netgeo") === "1"
-  const apiKey = await resolveRouteApiKey(req)
+  // Namespace utente (multi-user): STESSA regola della route poster — un `u`
+  // che non nomina uno spazio esistente vale come anonimo PRIMA della
+  // risoluzione chiavi (spazi fantasma collassati a null). Senza questo
+  // collapse `scopedUser` restava valorizzato, con MULTI_USER=1 il fallback
+  // d'istanza veniva spento e la thumbnail falliva 502 mentre il poster con lo
+  // stesso `u` (pattern senza `api_key`) rispondeva 200. Nessun nuovo accesso:
+  // è esattamente il fallback che il poster già concede.
+  const rawUser = sp.get("u") ?? sp.get("user")
+  let scopedUser = getScopedUserId(rawUser)
+  if (scopedUser && !(await userExists(scopedUser))) scopedUser = null
+  const effKeys = await resolveUserApiKeys(req, scopedUser)
+  const apiKey = effKeys.tmdb.key
+  const tvdbKey = effKeys.tvdb.key
+  // Space Miniature defaults (namespace `u`, phantom spaces already collapsed
+  // to anonymous above). Explicit query params keep winning; absent ones now
+  // follow the saved settings, so a directly-called AIO pattern renders the
+  // same style/corner/scale/blur/source/rotation as the `/meta` composed URLs
+  // and the settings preview instead of silently falling back to `pill`.
+  // A namespace with no saved values resolves to the renderer defaults, so the
+  // historical bytes/cache key stay identical.
+  const spaceDefaults = await getServerDefaultsForUser(scopedUser)
+  const badgeStyle = rawBadgeStyle === null
+    ? storedThumbnailBadgeStyle(spaceDefaults.thumbnailBadgeStyle)
+    : queryBadgeStyle
+  const badgeAnchor = rawAnchor === null
+    ? storedThumbnailAnchor(spaceDefaults.thumbnailAnchor)
+    : queryAnchor
+  const offsetX = rawOffsetX === null
+    ? storedThumbnailOffset(spaceDefaults.thumbnailOffsetX)
+    : queryOffsetX
+  const offsetY = rawOffsetY === null
+    ? storedThumbnailOffset(spaceDefaults.thumbnailOffsetY)
+    : queryOffsetY
+  const badgeScale = rawBadgeScale === null
+    ? storedThumbnailScale(spaceDefaults.thumbnailBadgeScale)
+    : queryBadgeScale
+  const blur = rawBlur === null ? storedThumbnailFlag(spaceDefaults.thumbnailBlur) : queryBlur
+  const rotationEnabled = rawRotation === null
+    ? storedThumbnailFlag(spaceDefaults.thumbnailRotation)
+    : queryRotation
+  const voteSource = rawVoteSource === null
+    ? storedThumbnailVoteSource(spaceDefaults.thumbnailVoteSource)
+    : queryVoteSource
   const signal = typeof AbortSignal !== "undefined" && "timeout" in AbortSignal ? AbortSignal.timeout(8000) : undefined
+  // Auto still (absent/blank `?still` only): the first usable TMDB episode
+  // still, from the SAME sanitized candidate list daily rotation uses (already
+  // cached at route level; zero extra I/O when rotation ran in this slot).
+  //
+  // Cache identity: the RESOLVED PATH is used exactly as an explicit `?still`
+  // would be, so no "auto" marker is added. That is deliberate: the composed
+  // bytes are path-identical, and AIO's empty-substitution rows then share the
+  // historical entry of the same still instead of fragmenting the cache. A
+  // TMDB episode with no still at all (or a failed lookup) keeps today's 400 —
+  // there is no base image to composite — and is never cached.
+  let still = explicitStill
+  if (!still) {
+    const candidates = await loadEpisodeStillCandidates(
+      seriesId,
+      seasonNumber,
+      episodeNumber,
+      apiKey,
+      signal,
+    ).catch(() => [] as string[])
+    still = candidates[0] ?? null
+    if (!still) {
+      return jsonError("No TMDB still for this episode", 400, acceptEncoding)
+    }
+  }
   // Provider selection is read per request (never at module level) and is part
   // of the cache identity: an opt-in provider can never reuse a Cinemeta entry.
   const providerSelection = resolveEpisodeRatingsProvider()
@@ -331,11 +489,12 @@ export async function GET(req: NextRequest, { params }: { params: Promise<RouteP
     ? await resolveRotatedThumbnailStill({
         fallback: still,
         bucket: thumbnailRotationBucket(),
-        loadCandidates: () => loadRotationCandidates(seriesId, seasonNumber, episodeNumber, apiKey, signal),
+        loadCandidates: () => loadEpisodeStillCandidates(seriesId, seasonNumber, episodeNumber, apiKey, signal),
       })
     : null
   const effectiveStill = rotation?.still ?? still
-  const cacheKey = thumbnailCacheKey({ seriesId, seasonNumber, episodeNumber, still: effectiveStill, width, badges: badgeMode, badgeStyle, anchor: badgeAnchor, offsetX, offsetY, badgeScale, languages, blur, voteSource, provider: providerSelection.provider, stills: stillsSource, rotationBucket: rotation?.rotationBucket ?? undefined })
+  const thumbnailEpoch = await getCatalogEpoch(scopedUser)
+  const cacheKey = thumbnailCacheKey({ seriesId, seasonNumber, episodeNumber, still: effectiveStill, width, badges: badgeMode, badgeStyle, anchor: badgeAnchor, offsetX, offsetY, badgeScale, languages, blur, voteSource, provider: providerSelection.provider, stills: stillsSource, rotationBucket: rotation?.rotationBucket ?? undefined, epoch: thumbnailEpoch })
   if (!wantsGeometry) {
     const cached = cacheGet<{ png: Buffer; etag: string; voteSource?: ThumbnailVoteSource }>(cacheKey)
     if (cached) {
@@ -446,7 +605,7 @@ export async function GET(req: NextRequest, { params }: { params: Promise<RouteP
   // fail-open to `null` so the renderer falls back to the TMDB still.
   let tvdbStill: string | null = null
   if (stillsSource === "tvdb") {
-    tvdbStill = await resolveTvdbEpisodeStill(req, seriesId, seasonNumber, episodeNumber, apiKey, signal)
+    tvdbStill = await resolveTvdbEpisodeStill(seriesId, seasonNumber, episodeNumber, apiKey, tvdbKey, signal)
   }
 
   let result: Awaited<ReturnType<typeof renderEpisodeThumbnail>>

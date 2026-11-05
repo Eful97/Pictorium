@@ -272,6 +272,16 @@ export interface SaveConfigOverrides {
 }
 
 /**
+ * Thumbnail-only write payload (`PATCH /api/mappings/<type>:<id>`): exactly the
+ * per-title episode-thumbnail keys. Poster fields are never part of this
+ * payload, by contract.
+ */
+export interface ThumbnailSettingsWrite {
+  episodeThumbnailStills?: Record<string, string> | null
+  thumbnailRotation?: boolean | null
+}
+
+/**
  * Per-title save success toast position: bottom-right on desktop (>= lg),
  * global top-center below lg. Evaluated at toast time (SSR-safe); the global
  * Toaster stays top-center for errors and settings.
@@ -1200,5 +1210,39 @@ export function usePosterSave(deps: PosterSaveDeps) {
     }
   }, [selected, previewPoster, selectedLogo, logoDisabled, logoText, logoFont, selectedBackdrop, mappingsMap, metaInfo, lang, episodeGroupId, posterShape, loadMappings]) // eslint-disable-line react-hooks/exhaustive-deps -- setter refs are stable
 
-  return { selectPoster, selectLogo, removeLogo, selectBackdrop, removeBackdrop, saveConfig, saveCoverOnly }
+  /**
+   * Thumbnail-only save ("Save thumbnails" in the episode studio / rotation
+   * toggle in the Miniature zone): PATCHes just `episodeThumbnailStills` and
+   * `thumbnailRotation`. Never touches poster fields, `updatedAt`/`mv`, clean
+   * rotation state or poster caches. A missing mapping (new title) falls back
+   * to the normal full save, which is the only path that creates the record —
+   * there is no saved poster to pollute in that case.
+   */
+  const saveThumbnailSettings = useCallback(async (settings: ThumbnailSettingsWrite): Promise<boolean> => {
+    if (!selected) return false
+    const body: Record<string, unknown> = {}
+    if (settings.episodeThumbnailStills !== undefined) body.episodeThumbnailStills = settings.episodeThumbnailStills
+    if (settings.thumbnailRotation !== undefined) body.thumbnailRotation = settings.thumbnailRotation
+    if (Object.keys(body).length === 0) return true
+    try {
+      await http(`/api/mappings/${selected.media_type}:${selected.id}`, {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(body),
+      })
+      await loadMappings()
+      return true
+    } catch (error) {
+      if (error instanceof ApiError && error.status === 404) {
+        // No mapping yet: thumbnail overrides need the mapping record created
+        // by the full save. No poster exists to leak into, so this fallback is
+        // the deliberate exception.
+        return (await saveConfig()) !== false
+      }
+      import("sonner").then(({ toast }) => toast.error(t("ui.saveError")))
+      return false
+    }
+  }, [selected, loadMappings, saveConfig])
+
+  return { selectPoster, selectLogo, removeLogo, selectBackdrop, removeBackdrop, saveConfig, saveCoverOnly, saveThumbnailSettings }
 }

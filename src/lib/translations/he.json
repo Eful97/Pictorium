@@ -860,6 +860,27 @@
   "ui.episodeMetadataSource": "מקור מטא-דאטה של פרקים",
   "ui.episodeMetadataSourceHint": "שימוש ב-TheTVDB או ב-TMDB עבור תמונות הפרקים (screencaps) והתקצירים שלהם.",
   "ui.episodeThumbnails": "Episode thumbnails",
+
+  "ui.thumbnailsZoneSubtitle": "כותרים עם תמונות ממוזערות מותאמות לפרקים. עריכה כאן לא נוגעת בפוסטר.",
+
+  "ui.thumbnailsZoneEmpty": "אין עדיין תמונות ממוזערות מותאמות. פתחו פוסטר והשתמשו בתמונות ממוזערות של פרקים.",
+
+  "ui.thumbnailsZoneEdit": "עריכת תמונות ממוזערות",
+
+
+  "ui.thumbnailsNav": "תמונות ממוזערות",
+
+
+  "ui.thumbnailsZoneSearch": "חיפוש כותרות",
+
+
+  "ui.thumbnailsZoneClear": "ניקוי החיפוש",
+
+
+  "ui.thumbnailsZoneDeleteTitle": "למחוק את התמונות הממוזערות?",
+
+
+  "ui.thumbnailsZoneDeleteMsg": "להסיר את התמונות הממוזערות המותאמות של הפרקים עבור הכותרים שנבחרו? הפוסטרים לא ייפגעו. לא ניתן לבטל.",
   "ui.episodeThumbnailsHint": "Show episode stills with rating badges on Stremio episode cards. When off, the original TMDB stills are used.",
   "ui.episodeStillPickerTitle": "Episode still",
   "ui.episodeStillPickerChoose": "Use still {ep}",
@@ -1048,6 +1069,9 @@
   "ui.installTabAio": "AIOMetadata",
   "ui.installAioDesc": "יש להדביק את הקישור הזה ב-AIOMetadata תחת Art Providers ← Poster URL Pattern.",
   "ui.installAioPosterTitle": "תבנית קישור לפוסטר",
+  "ui.installThumbnailToggle": "הוספת תבנית תמונות ממוזערות לפרקים",
+  "ui.installThumbnailDesc": "תבנית URL אופציונלית לתמונות ממוזערות של פרקים ב-AIOMetadata. משתמשת תמיד ב-{tmdb_id} (מסלול התמונות הממוזערות דורש מזהה מספרי). מפתח ה-API עובר בירושה מתבנית הפוסטר כשהיא כוללת אותו (מופעים מקומיים); כשהמפתח בצד השרת הוא מושמט.",
+  "ui.installThumbnailPatternTitle": "תבנית URL לתמונות ממוזערות של פרקים",
   "ui.installOtherDevice": "התקנה במכשיר אחר",
   "ui.listsPartial": "הרשימות עודכנו באופן חלקי — חלק מהספקים נכשלו, והכותרות הקודמות נשמרו",
   "ui.catalogSyncFailed": "הקטלוגים נשמרו מקומית בלבד. הסנכרון עם השרת נכשל.",

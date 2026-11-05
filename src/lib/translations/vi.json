@@ -881,6 +881,27 @@
   "ui.episodeMetadataSource": "Nguồn metadata tập",
   "ui.episodeMetadataSourceHint": "Dùng TheTVDB hoặc TMDB cho ảnh tập (screencap) và tóm tắt tập.",
   "ui.episodeThumbnails": "Episode thumbnails",
+
+  "ui.thumbnailsZoneSubtitle": "Tiêu đề có ảnh thu nhỏ tập tùy chỉnh. Chỉnh sửa ở đây không bao giờ ảnh hưởng đến áp phích.",
+
+  "ui.thumbnailsZoneEmpty": "Chưa có ảnh thu nhỏ tập tùy chỉnh. Mở một áp phích và dùng Ảnh thu nhỏ tập.",
+
+  "ui.thumbnailsZoneEdit": "Sửa ảnh thu nhỏ",
+
+
+  "ui.thumbnailsNav": "Ảnh thu nhỏ",
+
+
+  "ui.thumbnailsZoneSearch": "Tìm tiêu đề",
+
+
+  "ui.thumbnailsZoneClear": "Xóa tìm kiếm",
+
+
+  "ui.thumbnailsZoneDeleteTitle": "Xóa ảnh thu nhỏ?",
+
+
+  "ui.thumbnailsZoneDeleteMsg": "Xóa ảnh thu nhỏ tập tùy chỉnh của các tiêu đề đã chọn? Áp phích không bị ảnh hưởng. Không thể hoàn tác.",
   "ui.episodeThumbnailsHint": "Show episode stills with rating badges on Stremio episode cards. When off, the original TMDB stills are used.",
   "ui.episodeStillPickerTitle": "Episode still",
   "ui.episodeStillPickerChoose": "Use still {ep}",
@@ -1067,6 +1088,9 @@
   "ui.installTabAio": "AIOMetadata",
   "ui.installAioDesc": "Dán liên kết này vào AIOMetadata tại mục Art Providers → Poster URL Pattern.",
   "ui.installAioPosterTitle": "Mẫu liên kết poster",
+  "ui.installThumbnailToggle": "Thêm mẫu ảnh thu nhỏ tập phim",
+  "ui.installThumbnailDesc": "Mẫu URL ảnh thu nhỏ tập phim tùy chọn của AIOMetadata. Luôn dùng {tmdb_id} (route ảnh thu nhỏ cần id số). Khóa API được kế thừa từ mẫu poster khi mẫu có chứa (phiên bản cục bộ); khi khóa nằm ở máy chủ thì sẽ được bỏ qua.",
+  "ui.installThumbnailPatternTitle": "Mẫu URL ảnh thu nhỏ tập phim",
   "ui.installOtherDevice": "Cài đặt trên thiết bị khác",
   "ui.defaultsAutoSaved": "Thay đổi tự lưu",
   "ui.syncNow": "Đồng bộ ngay",

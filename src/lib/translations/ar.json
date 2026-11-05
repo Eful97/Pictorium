@@ -860,6 +860,27 @@
   "ui.episodeMetadataSource": "مصدر بيانات الحلقات",
   "ui.episodeMetadataSourceHint": "استخدم TheTVDB أو TMDB لأغلفة الحلقات وملخصاتها.",
   "ui.episodeThumbnails": "Episode thumbnails",
+
+  "ui.thumbnailsZoneSubtitle": "عناوين بصور حلقات مصغرة مخصصة. التعديل هنا لا يمس الملصق أبدًا.",
+
+  "ui.thumbnailsZoneEmpty": "لا توجد صور حلقات مصغرة مخصصة بعد. افتح ملصقًا واستخدم صور الحلقات المصغرة.",
+
+  "ui.thumbnailsZoneEdit": "تعديل الصور المصغرة",
+
+
+  "ui.thumbnailsNav": "صور مصغرة",
+
+
+  "ui.thumbnailsZoneSearch": "ابحث عن العناوين",
+
+
+  "ui.thumbnailsZoneClear": "مسح البحث",
+
+
+  "ui.thumbnailsZoneDeleteTitle": "حذف الصور المصغرة؟",
+
+
+  "ui.thumbnailsZoneDeleteMsg": "إزالة صور الحلقات المصغرة المخصصة للعناوين المحددة؟ لن تتأثر الملصقات. لا يمكن التراجع عن هذا الإجراء.",
   "ui.episodeThumbnailsHint": "Show episode stills with rating badges on Stremio episode cards. When off, the original TMDB stills are used.",
   "ui.episodeStillPickerTitle": "Episode still",
   "ui.episodeStillPickerChoose": "Use still {ep}",
@@ -1048,6 +1069,9 @@
   "ui.installTabAio": "AIOMetadata",
   "ui.installAioDesc": "الصق هذا الرابط في AIOMetadata تحت Art Providers ← Poster URL Pattern.",
   "ui.installAioPosterTitle": "قالب رابط الملصق",
+  "ui.installThumbnailToggle": "إضافة نمط صور الحلقات المصغرة",
+  "ui.installThumbnailDesc": "نمط عنوان URL اختياري لصور الحلقات المصغرة في AIOMetadata. يستخدم دائمًا {tmdb_id} (مسار الصور المصغرة يحتاج إلى المعرّف الرقمي). يُورَّث مفتاح API من قالب الملصق عند وجوده (النسخ المحلية)، ويُحذف عند استخدام مفتاح من الخادم.",
+  "ui.installThumbnailPatternTitle": "نمط URL لصور الحلقات المصغرة",
   "ui.installOtherDevice": "التثبيت على جهاز آخر",
   "ui.listsPartial": "تم تحديث القوائم جزئيًا؛ تم الاحتفاظ بالعناوين السابقة عند حدوث أخطاء",
   "ui.catalogSyncFailed": "حُفظت الكتالوجات محليًا. فشلت المزامنة مع الخادم.",

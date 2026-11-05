@@ -860,6 +860,27 @@
   "ui.episodeMetadataSource": "Episoden-Metadatenquelle",
   "ui.episodeMetadataSourceHint": "TheTVDB oder TMDB für Episoden-Cover und -Beschreibungen verwenden.",
   "ui.episodeThumbnails": "Episode thumbnails",
+
+  "ui.thumbnailsZoneSubtitle": "Titel mit angepassten Episoden-Vorschaubildern. Bearbeiten hier ändert nie das Poster.",
+
+  "ui.thumbnailsZoneEmpty": "Noch keine angepassten Episoden-Vorschaubilder. Öffne ein Poster und nutze Episoden-Vorschaubilder, um sie anzupassen.",
+
+  "ui.thumbnailsZoneEdit": "Vorschaubilder bearbeiten",
+
+
+  "ui.thumbnailsNav": "Vorschaubilder",
+
+
+  "ui.thumbnailsZoneSearch": "Titel suchen",
+
+
+  "ui.thumbnailsZoneClear": "Suche löschen",
+
+
+  "ui.thumbnailsZoneDeleteTitle": "Vorschaubilder löschen?",
+
+
+  "ui.thumbnailsZoneDeleteMsg": "Die angepassten Episoden-Vorschaubilder der ausgewählten Titel entfernen? Die Poster bleiben unberührt. Das kann nicht rückgängig gemacht werden.",
   "ui.episodeThumbnailsHint": "Show episode stills with rating badges on Stremio episode cards. When off, the original TMDB stills are used.",
   "ui.episodeStillPickerTitle": "Episode still",
   "ui.episodeStillPickerChoose": "Use still {ep}",
@@ -1048,6 +1069,9 @@
   "ui.installTabAio": "AIOMetadata",
   "ui.installAioDesc": "Füge diesen Link in AIOMetadata unter Art Providers → Poster URL Pattern ein.",
   "ui.installAioPosterTitle": "Poster-Link-Vorlage",
+  "ui.installThumbnailToggle": "Vorschaubild-Muster für Episoden hinzufügen",
+  "ui.installThumbnailDesc": "Optionales AIOMetadata-Muster für Episoden-Vorschaubilder. Verwendet immer {tmdb_id} (die Thumbnail-Route benötigt die numerische ID). Der API-Schlüssel wird aus der Poster-Vorlage übernommen, wenn diese einen enthält (lokale Instanzen); bei einem serverseitigen Schlüssel entfällt er.",
+  "ui.installThumbnailPatternTitle": "URL-Muster für Episoden-Vorschaubilder",
   "ui.installOtherDevice": "Auf einem anderen Gerät installieren",
   "ui.listsPartial": "Listen teilweise aktualisiert; bisherige Titel bei Anbieterfehlern behalten",
   "ui.catalogSyncFailed": "Kataloge nur lokal gespeichert. Serversynchronisierung fehlgeschlagen.",

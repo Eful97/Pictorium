@@ -240,6 +240,15 @@ const TVDB_STILL_PATH_RE = /^\/[A-Za-z0-9_./-]+\.(?:jpg|jpeg|png|webp)$/
 const MAX_TVDB_STILL_URL_LENGTH = 1024
 const MAX_STILL_BYTES = 10 * 1024 * 1024
 /**
+ * A complete TMDB image URL is accepted as an ALTERNATIVE spelling of the
+ * still path (AIO's Episode Thumbnail URL Pattern passes the episode
+ * thumbnail, e.g. `https://image.tmdb.org/t/p/w500/<file>.jpg`, in the
+ * `{thumbnail}` placeholder). Only the file name is used: the fetch URL is
+ * rebuilt with the existing size policy, so an URL and its path form are the
+ * SAME cache entry and the SAME bytes.
+ */
+const MAX_STILL_URL_LENGTH = 1024
+/**
  * Safe margins of the badge stack from the thumbnail edges, in px on the
  * 320px reference canvas (the width `/meta` always emits).
  *
@@ -304,6 +313,68 @@ export function sanitizeStillPath(raw: string | null | undefined): string | null
   // not part of the contract and are rejected fail-closed.
   if (value.slice(1).split("/").length !== 1) return null
   return value
+}
+
+/**
+ * Sanitized TMDB image URL, or null when not acceptable.
+ *
+ * Same trust bar as the TVDB still URL (`sanitizeTvdbStillUrl`): https only,
+ * exact `image.tmdb.org` host (no subdomains/lookalikes), no userinfo, port,
+ * query or hash, and the documented `/t/p/<size>/<raster-file>` shape with a
+ * single file segment. `isTmdbImageCdnUrl` is the shared gate; the extra
+ * segment check keeps the extraction of the file name unambiguous.
+ */
+export function sanitizeStillUrl(raw: string | null | undefined): string | null {
+  if (!raw) return null
+  const value = raw.trim()
+  if (!value || value.length > MAX_STILL_URL_LENGTH) return null
+  // Reject traversal/backslash BEFORE URL normalization: `new URL` collapses
+  // `..` segments, so a raw check keeps the contract explicit and testable.
+  if (value.includes("..") || value.includes("\\")) return null
+  let u: URL
+  try {
+    u = new URL(value)
+  } catch {
+    return null
+  }
+  if (u.protocol !== "https:") return null
+  if (u.username || u.password) return null
+  if (u.port) return null
+  if (u.search || u.hash) return null
+  // Exact host + `/t/p/<documented-size>/<raster-file>` (shared allowlist).
+  if (!isTmdbImageCdnUrl(value)) return null
+  // `["", "t", "p", <size>, <file>]`: nested paths never pass.
+  if (u.pathname.split("/").length !== 5) return null
+  // The shared gate above is raster-wide (webp/gif/avif included); the still
+  // contract is jpg/jpeg/png only, so the extracted file is re-validated with
+  // the SAME path sanitizer used by the historical form.
+  if (!sanitizeStillPath(`/${u.pathname.split("/")[4]}`)) return null
+  return u.toString()
+}
+
+/**
+ * Still input for the episode thumbnail route.
+ *
+ * Three accepted spellings, in this order:
+ * 1. the historical single-segment TMDB path (byte-identical behavior,
+ *    including the cache key);
+ * 2. a complete TMDB image URL, reduced to its file name so the existing size
+ *    policy (`w780`/`w1280`) and every downstream contract stay unchanged;
+ * 3. a complete TVDB still URL (`https://artworks.thetvdb.com/...`), returned
+ *    CANONICALIZED as the absolute URL: it is a directly fetchable, public
+ *    artwork file, so no TVDB API lookup (and no TVDB key) is involved. The
+ *    raw URL is what enters the cache key, so TVDB-based renders can never
+ *    collide with a TMDB path entry.
+ *
+ * Anything else (other hosts, non-raster paths, credentials, query/fragment,
+ * traversal) is rejected (`null`) before any fetch.
+ */
+export function resolveThumbnailStill(raw: string | null | undefined): string | null {
+  const path = sanitizeStillPath(raw)
+  if (path) return path
+  const url = sanitizeStillUrl(raw)
+  if (url) return sanitizeStillPath(`/${new URL(url).pathname.split("/")[4]}`)
+  return sanitizeTvdbStillUrl(raw)
 }
 
 /**
@@ -512,6 +583,13 @@ export interface ThumbnailCacheKeyInput {
    * unlikely case two buckets resolve to the same still list index.
    */
   readonly rotationBucket?: number
+  /**
+   * Catalog epoch of the namespace (bumped on every defaults/mapping save).
+   * Absent = legacy key (byte-identical). Present = any save invalidates the
+   * cached thumbnail even when the resolved Miniature settings happen to be
+   * unchanged, so a style/source/corner change can never be served stale.
+   */
+  readonly epoch?: string
 }
 
 /**
@@ -563,7 +641,8 @@ export function thumbnailCacheKey(input: ThumbnailCacheKeyInput): string {
   const rotationFragment = typeof input.rotationBucket === "number" && Number.isFinite(input.rotationBucket)
     ? `:rb${Math.trunc(input.rotationBucket)}`
     : ""
-  return `thumbnail:episode:${input.seriesId}:${input.seasonNumber}:${input.episodeNumber}:${stillPathHash(input.still)}:${input.width}:${input.badges}:bs${badgeStyle}:a${anchor}:x${ox}:y${oy}:sc${scale}:mx${THUMBNAIL_BADGE_SAFE_MARGIN_X}:my${THUMBNAIL_BADGE_SAFE_MARGIN_Y}:pr${provider}:src${voteSource}:si${stills}:b${input.blur ? 1 : 0}:${input.languages}${rotationFragment}`
+  const epochFragment = typeof input.epoch === "string" && input.epoch && input.epoch !== "0" ? `:e${input.epoch}` : ""
+  return `thumbnail:episode:${input.seriesId}:${input.seasonNumber}:${input.episodeNumber}:${stillPathHash(input.still)}:${input.width}:${input.badges}:bs${badgeStyle}:a${anchor}:x${ox}:y${oy}:sc${scale}:mx${THUMBNAIL_BADGE_SAFE_MARGIN_X}:my${THUMBNAIL_BADGE_SAFE_MARGIN_Y}:pr${provider}:src${voteSource}:si${stills}:b${input.blur ? 1 : 0}:${input.languages}${rotationFragment}${epochFragment}`
 }
 
 export class ThumbnailRenderError extends Error {
@@ -622,6 +701,22 @@ async function fetchTvdbStillBuffer(rawUrl: string, signal?: AbortSignal): Promi
   const url = sanitizeTvdbStillUrl(rawUrl)
   if (!url) throw new ThumbnailRenderError(502, "Episode still unavailable")
   return fetchImageBuffer(url, signal)
+}
+
+/**
+ * Fetch the base still from whichever trusted source the caller supplied: a
+ * canonical `artworks.thetvdb.com` URL (AIO's direct TVDB `{thumbnail}`) or the
+ * sanitized single-segment TMDB path. Each leg keeps its own sanitizer; the
+ * TVDB one has no size policy because the URL is the complete artwork file.
+ */
+async function fetchStillBufferForInput(
+  still: string,
+  width: ThumbnailWidth,
+  signal?: AbortSignal,
+): Promise<Buffer> {
+  const tvdbUrl = sanitizeTvdbStillUrl(still)
+  if (tvdbUrl) return fetchTvdbStillBuffer(tvdbUrl, signal)
+  return fetchStillBuffer(still, width, signal)
 }
 
 type ThumbnailBadge = { png: Buffer; w: number; h: number; bleed?: BadgeBleed }
@@ -691,7 +786,11 @@ export function pickBrandedThumbnailRating(
 }
 
 export interface RenderEpisodeThumbnailInput {
-  /** Sanitized TMDB still path: the base AND the fail-open fallback. */
+  /**
+   * Base still: a sanitized TMDB still path OR a canonical TVDB still URL
+   * (`artworks.thetvdb.com`, accepted directly with no API lookup). In
+   * `stills: "tvdb"` it is still the fail-open fallback.
+   */
   readonly still: string
   /**
    * Preferred base provider; absent = `tmdb` (historical). `tvdb` only changes
@@ -1020,22 +1119,26 @@ export async function renderEpisodeThumbnail(input: RenderEpisodeThumbnailInput)
   const useScore = badgeStyle === "score"
   const voteBadgeStyle = badgeStyle === "bordo" || badgeStyle === "vetro" ? badgeStyle : "pill"
   // Base image: the TVDB leg is strictly best-effort. Any miss (no URL, invalid
-  // host/path, transport error, non-image body) fails open to the TMDB path, so
-  // a third-party lookup can never turn a thumbnail into a 500. The badges are
-  // composited identically afterwards; only the base bytes change.
+  // host/path, transport error, non-image body) fails open to the supplied
+  // still, so a third-party lookup can never turn a thumbnail into a 500. The
+  // badges are composited identically afterwards; only the base bytes change.
+  // The supplied `still` itself may already be a canonical TVDB URL (AIO's
+  // direct `{thumbnail}`): that leg is fetched as-is, with no TVDB API lookup.
   const preferredStillSource = input.stills ?? DEFAULT_THUMBNAIL_STILL_SOURCE
+  const directTvdbStill = sanitizeTvdbStillUrl(input.still)
   let stillBuffer: Buffer
-  let stillSource: ThumbnailStillSource = "tmdb"
+  let stillSource: ThumbnailStillSource = directTvdbStill ? "tvdb" : "tmdb"
   if (preferredStillSource === "tvdb" && input.tvdbStill) {
     try {
       stillBuffer = await fetchTvdbStillBuffer(input.tvdbStill, input.signal)
       stillSource = "tvdb"
     } catch (e) {
       if (!(e instanceof ThumbnailRenderError)) throw e
-      stillBuffer = await fetchStillBuffer(input.still, width, input.signal)
+      stillBuffer = await fetchStillBufferForInput(input.still, width, input.signal)
+      stillSource = directTvdbStill ? "tvdb" : "tmdb"
     }
   } else {
-    stillBuffer = await fetchStillBuffer(input.still, width, input.signal)
+    stillBuffer = await fetchStillBufferForInput(input.still, width, input.signal)
   }
 
   let base: Buffer

@@ -12,14 +12,22 @@ import { requestSettingsTab } from "@/lib/settings-tab"
 import { ONBOARDING_INSTALL_OPENED_EVENT } from "@/lib/onboarding-progress"
 import { useOnboardingReplayIntent } from "@/lib/use-onboarding-replay"
 import { isMultiUserServer } from "@/lib/guest-guard"
-import { Settings, Plug, QrCode, Images, Library, KeyRound } from "lucide-react"
+import { Settings, Plug, QrCode, Images, Library, KeyRound, Clapperboard } from "lucide-react"
 import { DesktopCommunityLinks, MobileCommunityLinks } from "@/components/HeaderCommunityLinks"
 import { ThemeToggle } from "@/components/ThemeToggle"
+import type { Mapping } from "@/lib/types"
+
+/** Titles with any per-title thumbnail customization (zone badge/count). */
+function hasThumbnailCustomization(mapping: Mapping): boolean {
+  const stills = mapping.episodeThumbnailStills
+  return (!!stills && Object.keys(stills).length > 0) || typeof mapping.thumbnailRotation === "boolean"
+}
 
 // Code-splitting: viste/modali pesanti caricate on-demand per ridurre il JS iniziale.
 const SettingsPanel = dynamic(() => import("@/components/SettingsPanel").then((m) => m.SettingsPanel), { ssr: false })
 const SearchView = dynamic(() => import("@/components/SearchView").then((m) => m.SearchView), { ssr: false })
 const MyPostersView = dynamic(() => import("@/components/MyPostersView").then((m) => m.MyPostersView), { ssr: false })
+const ThumbnailsView = dynamic(() => import("@/components/ThumbnailsView").then((m) => m.ThumbnailsView), { ssr: false })
 const CataloghiView = dynamic(() => import("@/components/CataloghiView").then((m) => m.CataloghiView), { ssr: false })
 const EditView = dynamic(() => import("@/components/EditView"), { ssr: false, loading: () => <div className="h-64 flex items-center justify-center text-xs text-zinc-500 animate-pulse">…</div> })
 const ProxyModal = dynamic(() => import("@/components/ProxyModal").then((m) => m.ProxyModal), { ssr: false })
@@ -244,14 +252,16 @@ export function AppShell() {
 
       {/* Desktop Toolbar — Floating Island */}
       <div className="hidden md:flex absolute top-4 right-4 z-20">
-        <div className="flex items-center gap-1.5 p-1.5 rounded-2xl bg-black/60 backdrop-blur-xl border border-white/10 shadow-2xl shadow-black/50 relative z-50">
+        <div className="flex items-center gap-0.5 p-0.5 rounded-2xl bg-black/60 backdrop-blur-xl border border-white/10 shadow-2xl shadow-black/50 relative z-50">
           {/* Installa Pictorium Hub Pill Button */}
           <button
             type="button"
             onClick={handleInstallCatalog}
             disabled={toolbarLocked}
             aria-disabled={toolbarLocked || undefined}
-            className="top-action-button-primary flex items-center gap-2 px-3.5 py-1.5 rounded-xl font-semibold text-xs shadow-md shadow-accent-orange/20 hover:scale-[1.02] active:scale-[0.97] transition-all duration-150 border cursor-pointer disabled:opacity-40 disabled:cursor-not-allowed disabled:hover:scale-100"
+            aria-label={t("ui.installHub")}
+            title={t("ui.installHub")}
+            className="top-action-button-primary flex items-center gap-2 px-3 py-1.5 rounded-xl font-semibold text-xs shadow-md shadow-accent-orange/20 hover:scale-[1.02] active:scale-[0.97] transition-all duration-150 border cursor-pointer disabled:opacity-40 disabled:cursor-not-allowed disabled:hover:scale-100"
           >
             <QrCode className="w-3.5 h-3.5 text-white" />
             <span>{t("ui.installHub")}</span>
@@ -265,7 +275,9 @@ export function AppShell() {
             onClick={() => { if (toolbarLocked) return; if (view === "cataloghi") { router.push("edit") } else { router.push("cataloghi") } }}
             disabled={toolbarLocked}
             aria-disabled={toolbarLocked || undefined}
-            className={`flex items-center gap-1.5 px-2.5 py-1.5 rounded-xl text-xs font-medium transition-all duration-150 active:scale-[0.95] cursor-pointer disabled:opacity-40 disabled:cursor-not-allowed ${
+            aria-label={t("ui.catalogs")}
+            title={t("ui.catalogs")}
+            className={`flex items-center gap-1.5 px-2 py-1.5 rounded-xl text-xs font-medium transition-all duration-150 active:scale-[0.95] cursor-pointer disabled:opacity-40 disabled:cursor-not-allowed ${
               view === "cataloghi"
                 ? "bg-white/15 text-foreground font-semibold border border-white/20"
                 : "text-zinc-300 hover:text-white hover:bg-white/[0.08]"
@@ -273,6 +285,7 @@ export function AppShell() {
           >
             <Library className="w-3.5 h-3.5 text-accent-orange" />
             <span>{t("ui.catalogs") || "Cataloghi"}</span>
+
           </button>
 
           <div className="h-4 w-px bg-white/10 mx-0.5" />
@@ -285,7 +298,7 @@ export function AppShell() {
             onClick={() => { if (toolbarLocked) return; if (view === "myposters") { router.push("edit") } else { router.push("myposters") } }}
             disabled={toolbarLocked}
             aria-disabled={toolbarLocked || undefined}
-            className={`flex items-center gap-1.5 px-2.5 py-1.5 rounded-xl text-xs font-medium transition-all duration-150 active:scale-[0.95] cursor-pointer disabled:opacity-40 disabled:cursor-not-allowed ${
+            className={`flex items-center gap-1.5 px-2 py-1.5 rounded-xl text-xs font-medium transition-all duration-150 active:scale-[0.95] cursor-pointer disabled:opacity-40 disabled:cursor-not-allowed ${
               view === "myposters"
                 ? "bg-white/15 text-foreground font-semibold border border-white/20"
                 : "text-zinc-300 hover:text-white hover:bg-white/[0.08]"
@@ -293,7 +306,28 @@ export function AppShell() {
           >
             <Images className="w-3.5 h-3.5 text-accent-orange" />
             <span className="hidden lg:inline">{t("ui.myPostersBtn") || "I Miei Poster"}</span>
-            <span className="text-[10px] font-mono px-1.5 py-0.2 rounded-md bg-white/[0.08] text-zinc-300 border border-white/10">{mappings.length}</span>
+            <span className="text-[9px] font-mono px-1 py-0.5 rounded-md bg-white/[0.08] text-zinc-300 border border-white/10">{mappings.length}</span>
+          </button>
+
+          {/* Miniature episodi (top-level zone) */}
+          <button
+            type="button"
+            aria-label={t("ui.thumbnailsNav")}
+            title={t("ui.thumbnailsNav")}
+            onClick={() => { if (toolbarLocked) return; if (view === "thumbnails") { router.push("edit") } else { router.push("thumbnails") } }}
+            disabled={toolbarLocked}
+            aria-disabled={toolbarLocked || undefined}
+            className={`flex items-center gap-1.5 px-2 py-1.5 rounded-xl text-xs font-medium transition-all duration-150 active:scale-[0.95] cursor-pointer disabled:opacity-40 disabled:cursor-not-allowed ${
+              view === "thumbnails"
+                ? "bg-white/15 text-foreground font-semibold border border-white/20"
+                : "text-zinc-300 hover:text-white hover:bg-white/[0.08]"
+            }`}
+            data-testid="thumbnails-nav-desktop"
+          >
+            <Clapperboard className="w-3.5 h-3.5 text-accent-orange" />
+            <span className="text-[9px] font-mono px-1 py-0.5 rounded-md bg-white/[0.08] text-zinc-300 border border-white/10">
+              {mappings.filter((m) => m.mediaType === "tv" && hasThumbnailCustomization(m)).length}
+            </span>
           </button>
 
           {/* Proxy Modal */}
@@ -304,7 +338,7 @@ export function AppShell() {
             onClick={() => { if (toolbarLocked) return; setProxyOpen(true) }}
             disabled={toolbarLocked}
             aria-disabled={toolbarLocked || undefined}
-            className="p-2 rounded-xl text-zinc-400 hover:text-accent-orange hover:bg-white/[0.08] active:scale-90 transition-all duration-150 cursor-pointer disabled:opacity-40 disabled:cursor-not-allowed"
+            className="p-1.5 rounded-xl text-zinc-400 hover:text-accent-orange hover:bg-white/[0.08] active:scale-90 transition-all duration-150 cursor-pointer disabled:opacity-40 disabled:cursor-not-allowed"
           >
             <Plug className="w-4 h-4" />
           </button>
@@ -318,7 +352,7 @@ export function AppShell() {
               onClick={handleUuidShortcut}
               disabled={toolbarLocked}
               aria-disabled={toolbarLocked || undefined}
-              className="p-2 rounded-xl text-zinc-400 hover:text-accent-orange hover:bg-white/[0.08] active:scale-90 transition-all duration-150 cursor-pointer disabled:opacity-40 disabled:cursor-not-allowed"
+              className="p-1.5 rounded-xl text-zinc-400 hover:text-accent-orange hover:bg-white/[0.08] active:scale-90 transition-all duration-150 cursor-pointer disabled:opacity-40 disabled:cursor-not-allowed"
             >
               <KeyRound className="w-4 h-4" />
             </button>
@@ -337,7 +371,7 @@ export function AppShell() {
             onClick={(e) => { e.stopPropagation(); if (toolbarLocked) return; if (settingsOpen) requestSettingsClose(); else setSettingsOpen(true) }}
             disabled={toolbarLocked}
             aria-disabled={toolbarLocked || undefined}
-            className={`p-2 rounded-xl hover:text-white hover:bg-white/[0.08] active:scale-90 transition-all duration-150 cursor-pointer disabled:opacity-40 disabled:cursor-not-allowed ${
+            className={`p-1.5 rounded-xl hover:text-white hover:bg-white/[0.08] active:scale-90 transition-all duration-150 cursor-pointer disabled:opacity-40 disabled:cursor-not-allowed ${
               settingsOpen ? "bg-white/10 text-foreground" : "text-zinc-400"
             }`}
           >
@@ -398,7 +432,7 @@ export function AppShell() {
         <ProxyModal isOpen={proxyOpen} onClose={() => setProxyOpen(false)} />
         <InstallModal isOpen={installOpen} onClose={() => setInstallOpen(false)} posterUrlPattern={urlPattern} posterUrlPatternImdb={urlPatternImdb} posterUrlPatternAuto={urlPatternAuto} posterUrlPatternNuvio={urlPatternNuvio} posterUrlPatternNuvioImdb={urlPatternNuvioImdb} posterUrlPatternNuvioAuto={urlPatternNuvioAuto} linkMode={linkMode} onLinkModeChange={setLinkMode} hasUserSpace={!!currentUserId} />
         <div key={view} className="animate-view-enter">
-          {view === "search" ? <SearchView /> : view === "myposters" ? <MyPostersView /> : view === "cataloghi" ? <CataloghiView /> : <EditView />}
+          {view === "search" ? <SearchView /> : view === "myposters" ? <MyPostersView /> : view === "thumbnails" ? <ThumbnailsView /> : view === "cataloghi" ? <CataloghiView /> : <EditView />}
         </div>
         {/* Strip di stato: presente nelle viste principali, nascosto in editor poster */}
         {!(view === "edit" && selected) && <HomeStatusStrip />}
@@ -411,7 +445,7 @@ export function AppShell() {
           view === "edit" && selected ? "translate-y-full pointer-events-none opacity-0" : "translate-y-0 opacity-100"
         }`}
       >
-        <div className="grid grid-cols-5 items-center justify-around max-w-md mx-auto">
+        <div className="grid grid-cols-6 items-center justify-around max-w-md mx-auto">
           {/* Cataloghi */}
           <button
             type="button"
@@ -483,6 +517,25 @@ export function AppShell() {
               </div>
             </span>
             <span className="text-[10px] tracking-tight truncate">{t("ui.myPostersBtn") || "I Miei"}</span>
+          </button>
+
+          {/* Miniature episodi */}
+          <button
+            type="button"
+            onClick={() => { if (toolbarLocked) return; router.replace("thumbnails") }}
+            disabled={toolbarLocked}
+            aria-disabled={toolbarLocked || undefined}
+            className={`flex flex-col items-center justify-center gap-1 py-1 px-1 rounded-xl transition-all duration-150 active:scale-90 cursor-pointer disabled:opacity-40 disabled:cursor-not-allowed ${
+              view === "thumbnails"
+                ? "text-accent-orange font-semibold"
+                : "text-zinc-400 hover:text-zinc-200"
+            }`}
+            data-testid="thumbnails-nav-mobile"
+          >
+            <span className="h-8 flex items-center justify-center">
+              <Clapperboard className="w-5 h-5" />
+            </span>
+            <span className="text-[10px] tracking-tight truncate">{t("ui.thumbnailsNav")}</span>
           </button>
 
           {/* Impostazioni */}

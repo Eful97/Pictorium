@@ -860,6 +860,27 @@
   "ui.episodeMetadataSource": "エピソードメタデータソース",
   "ui.episodeMetadataSourceHint": "エピソード画像(スクリーンショット)と概要にTheTVDBまたはTMDBを使用。",
   "ui.episodeThumbnails": "Episode thumbnails",
+
+  "ui.thumbnailsZoneSubtitle": "エピソードサムネイルをカスタマイズしたタイトル。ここでの編集はポスターに影響しません。",
+
+  "ui.thumbnailsZoneEmpty": "カスタマイズされたエピソードサムネイルはまだありません。ポスターを開いて「エピソードサムネイル」から設定してください。",
+
+  "ui.thumbnailsZoneEdit": "サムネイルを編集",
+
+
+  "ui.thumbnailsNav": "サムネイル",
+
+
+  "ui.thumbnailsZoneSearch": "タイトルを検索",
+
+
+  "ui.thumbnailsZoneClear": "検索をクリア",
+
+
+  "ui.thumbnailsZoneDeleteTitle": "サムネイルを削除しますか？",
+
+
+  "ui.thumbnailsZoneDeleteMsg": "選択したタイトルのカスタムエピソードサムネイルを削除しますか？ポスターは変更されません。この操作は元に戻せません。",
   "ui.episodeThumbnailsHint": "Show episode stills with rating badges on Stremio episode cards. When off, the original TMDB stills are used.",
   "ui.episodeStillPickerTitle": "Episode still",
   "ui.episodeStillPickerChoose": "Use still {ep}",
@@ -1048,6 +1069,9 @@
   "ui.installTabAio": "AIOMetadata",
   "ui.installAioDesc": "このリンクをAIOMetadataの Art Providers → Poster URL Pattern に貼り付けます。",
   "ui.installAioPosterTitle": "ポスターリンクのテンプレート",
+  "ui.installThumbnailToggle": "エピソードサムネイルのパターンを追加",
+  "ui.installThumbnailDesc": "AIOMetadata のエピソードサムネイル URL パターン（任意）。常に {tmdb_id} を使用し（サムネイルルートには数値 ID が必要）、API キーはポスターテンプレートに含まれている場合に引き継がれます（ローカルインスタンス）。サーバー側のキー使用時は省略されます。",
+  "ui.installThumbnailPatternTitle": "エピソードサムネイル URL パターン",
   "ui.installOtherDevice": "別のデバイスにインストール",
   "ui.listsPartial": "リストを一部更新しました。エラー時には以前の作品を保持します",
   "ui.catalogSyncFailed": "カタログはローカルに保存されました。サーバーとの同期に失敗しました。",

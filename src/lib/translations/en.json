@@ -883,6 +883,27 @@
   "ui.episodeMetadataSource": "Episode Metadata Source",
   "ui.episodeMetadataSourceHint": "Use TheTVDB or TMDB for episode covers (screencaps) and episode overviews.",
   "ui.episodeThumbnails": "Episode thumbnails",
+
+  "ui.thumbnailsZoneSubtitle": "Titles with custom episode thumbnails. Editing here never touches the poster.",
+
+  "ui.thumbnailsZoneEmpty": "No customized episode thumbnails yet. Open a poster and use Episode thumbnails to customize them.",
+
+  "ui.thumbnailsZoneEdit": "Edit thumbnails",
+
+
+  "ui.thumbnailsNav": "Thumbnails",
+
+
+  "ui.thumbnailsZoneSearch": "Search titles",
+
+
+  "ui.thumbnailsZoneClear": "Clear search",
+
+
+  "ui.thumbnailsZoneDeleteTitle": "Delete thumbnails?",
+
+
+  "ui.thumbnailsZoneDeleteMsg": "Remove the custom episode thumbnails for the selected titles? Your posters are not touched. This cannot be undone.",
   "ui.episodeThumbnailsHint": "Show episode stills with rating badges on Stremio episode cards. When off, the original TMDB stills are used.",
   "ui.episodeStillPickerTitle": "Episode still",
   "ui.episodeStillPickerChoose": "Use still {ep}",
@@ -1069,6 +1090,9 @@
   "ui.installTabAio": "AIOMetadata",
   "ui.installAioDesc": "Paste this link in AIOMetadata under Art Providers → Poster URL Pattern.",
   "ui.installAioPosterTitle": "Poster link template",
+  "ui.installThumbnailToggle": "Add episode thumbnail pattern",
+  "ui.installThumbnailDesc": "Optional AIOMetadata Episode Thumbnail URL Pattern. It always uses {tmdb_id} (the thumbnail route needs the numeric id). The API key is inherited from the poster template when it carries one (local instances); setups with a server-side key omit it.",
+  "ui.installThumbnailPatternTitle": "Episode Thumbnail URL Pattern",
   "ui.installOtherDevice": "Install on another device",
   "ui.defaultsAutoSaved": "Changes saved automatically",
   "ui.syncNow": "Sync now",

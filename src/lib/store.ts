@@ -75,9 +75,11 @@ async function kvReadAllCached(): Promise<Record<string, Mapping>> {
   return kvCacheInflight
 }
 
-async function kvUpsert(mapping: Mapping) {
+async function kvUpsert(mapping: Mapping, keepUpdatedAt = false) {
   const key = `${mapping.mediaType}:${mapping.tmdbId}`
-  const next = { ...mapping, updatedAt: new Date().toISOString() }
+  const next = keepUpdatedAt && mapping.updatedAt
+    ? { ...mapping }
+    : { ...mapping, updatedAt: new Date().toISOString() }
   await getKv().hset("mappings", { [key]: next })
   // Dopo un upsert l'utente apre subito il poster (getById): un refetch completo
   // della mappa annullerebbe il beneficio della cache. Update in-place.
@@ -259,9 +261,11 @@ function parseHashEvalCode(raw: unknown): number {
   return code
 }
 
-async function kvUpsertFor(userId: string, mapping: Mapping) {
+async function kvUpsertFor(userId: string, mapping: Mapping, keepUpdatedAt = false) {
   const key = `${mapping.mediaType}:${mapping.tmdbId}`
-  const next = { ...mapping, updatedAt: new Date().toISOString() }
+  const next = keepUpdatedAt && mapping.updatedAt
+    ? { ...mapping }
+    : { ...mapping, updatedAt: new Date().toISOString() }
   // Atomic cross-instance quota insert (Q2b2): the HEXISTS/HLEN check and the
   // HSET run in ONE server-side EVAL, so two instances racing at max-1 admit
   // exactly one writer. Overwrites (HEXISTS=1) bypass the quota, matching the
@@ -605,25 +609,41 @@ export async function getById(type: "movie" | "tv", id: number, userId?: string 
   return data[key] ?? null
 }
 
-export async function upsert(mapping: Mapping, userId?: string | null) {
+export interface UpsertOptions {
+  /**
+   * Preserve the mapping's own `updatedAt` instead of stamping a new one.
+   *
+   * Used ONLY by thumbnail-only writes: `updatedAt` feeds the poster `mv`
+   * URL param and `:mu`/mapVersion poster cache identity, so a thumbnail
+   * change must not rotate poster URLs/cache. Meta/catalog freshness for those
+   * writes is carried by the catalog epoch bump (cross-instance), not by this
+   * timestamp.
+   */
+  keepUpdatedAt?: boolean
+}
+
+export async function upsert(mapping: Mapping, userId?: string | null, options?: UpsertOptions) {
+  const stamp = (): string => options?.keepUpdatedAt && mapping.updatedAt
+    ? mapping.updatedAt
+    : new Date().toISOString()
   if (userId) {
     assertValidUserId(userId)
     if (isKvMode()) {
       // No client pre-read: the authoritative quota decision lives inside the
       // atomic EVAL in kvUpsertFor (cross-instance safe).
-      await kvUpsertFor(userId, mapping)
+      await kvUpsertFor(userId, mapping, options?.keepUpdatedAt)
       return
     }
     return enqueueUserWrite(userId, async () => {
       const data = await loadUserFromDisk(userId)
       const key = `${mapping.mediaType}:${mapping.tmdbId}`
       assertUserQuota(data, key)
-      data[key] = { ...mapping, updatedAt: new Date().toISOString() }
+      data[key] = { ...mapping, updatedAt: stamp() }
       await persistUser(userId, data)
     })
   }
   if (isKvMode()) {
-    await kvUpsert(mapping)
+    await kvUpsert(mapping, options?.keepUpdatedAt)
     return
   }
   return enqueueWrite(async () => {
@@ -634,7 +654,7 @@ export async function upsert(mapping: Mapping, userId?: string | null) {
     // merge deve partire dallo stato reale su disco, non dal mirror.
     const data = await loadFromDisk()
     const key = `${mapping.mediaType}:${mapping.tmdbId}`
-    data[key] = { ...mapping, updatedAt: new Date().toISOString() }
+    data[key] = { ...mapping, updatedAt: stamp() }
     await persist(data)
   })
 }

@@ -204,9 +204,100 @@ credential — `u` alone is no password or key. Even so, your full
 personal-config link is sensitive: never post it, keys, or passwords
 publicly.
 
-## 13. Quick fixes and sibling guide
+## 12.1 Saved covers not appearing on AIOMetadata (cache identity)
 
-Wrong art → confirm you edited the bookmarked space and pressed **Save
+Symptom: you save a poster mapping in Pictorium, but AIOMetadata (and the
+Stremio client behind it) keeps showing the old art.
+
+Why (verified): AIOMetadata resolves your pasted **Poster URL Pattern** by
+substituting only its own placeholders — `{type}`, `{tmdb_id}`, `{imdb_id}`,
+`{shape}`, `{season}`, `{episode}`, `{blur}`, `{thumbnail}`. There is no
+placeholder for a per-title mapping version, so the resolved URL is
+**byte-identical before and after a Pictorium save**. Pictorium's own
+catalog/meta URLs bust caches via the `mv` (mapping.updatedAt) parameter,
+but a static AIO pattern cannot carry `mv`, so both AIOMetadata's meta
+cache and the downstream Stremio client cache serve the stale bytes until
+their TTL expires or the URL changes. This is a limitation of AIO's static
+pattern model, not a Pictorium bug: no random nonce is added (URL stability
+for unchanged titles is preserved by design).
+
+Verified steps to make a saved cover appear on AIOMetadata:
+
+1. In Pictorium, press **Save Poster** on the title (this bumps
+   `mapping.updatedAt`, which drives `mv` on the Stremio/catalog path and
+   invalidates Pictorium's own cache).
+2. In AIOMetadata, open **Configuration Manager** and press
+   **Save Configuration** once (Section 11) so the meta cache is rebuilt.
+3. Reinstall the manifest / reopen the affected views in your client
+   (Section 11, step 2).
+4. If the old art still shows, clear the Stremio client image cache or wait
+   for its TTL: mapped posters are cached up to 24 h server-side and client
+   caches follow their own schedule. Follow links (`live=1`) revalidate per
+   request, but already-cached copies refresh on the client's schedule.
+5. To **verify immediately** that the saved cover renders, use Pictorium's
+   **Testa URL Stremio** (or open the poster URL from **My Posters**): that
+   path embeds `mv` and shows the saved cover at once, proving the save
+   landed. If it shows there but not in AIO, the stale copy is in AIO/client
+   cache, not in Pictorium.
+
+Do **not** edit the pattern to add `mv` or a nonce: AIO does not substitute
+them and the URL would stop resolving.
+
+## 13. Optional: episode thumbnails (Episode Thumbnail URL Pattern)
+
+Posters do not need this. Stremio shows episode stills in season lists and
+Continue Watching, and AIO exposes a separate **Episode Thumbnail URL
+Pattern** for them; Pictorium serves a 16:9 composite of the still plus the
+episode rating pill. Leave the field empty if you only want posters.
+
+In **Art URL Overrides → URL Patterns**, fill **Episode Thumbnail URL
+Pattern** with (replace `<host>`; on a localhost instance whose key is stored
+in the browser, also append the same `api_key=...` the poster pattern carries —
+see the status table below):
+
+```
+https://<host>/api/thumbnail/tv/{tmdb_id}/season/{season}/episode/{episode}?still={thumbnail}&w=320&badges=both&blur={blur}
+```
+
+- `{tmdb_id}`, `{season}`, `{episode}` are required. `{thumbnail}` is AIO's
+  still URL (TMDB, or TheTVDB artwork when that metadata provider is selected);
+  `{blur}` expands to `true`/`false` from AIO's **Blur Thumbnails** switch.
+- Keep `{thumbnail}` **as-is**: AIO already URL-encodes it, so the `still=`
+  value is the complete still URL. For TMDB only the file name is used — the
+  server applies its own source size, so the URL and the bare `/abc.jpg` path
+  are the same image and cache entry. A complete
+  `https://artworks.thetvdb.com/...` raster URL is fetched directly (public
+  artwork, no TVDB API key/lookup) and keeps its own cache entry.
+- `w=320` is the thumbnail width (`160`/`320`/`480`/`640`/`768`/`1280`);
+  `badges=both` draws the episode rating and custom-rating pills.
+- The **Miniature** style/corner/scale/blur/source choices saved in Pictorium
+  apply automatically to the `u=` space when the pattern omits them (explicit
+  query params always win), so changing the style does not require editing the
+  AIO pattern.
+- Only `https://image.tmdb.org/t/p/<size>/<file>.jpg|jpeg|png` and
+  `https://artworks.thetvdb.com/<raster path>.jpg|jpeg|png|webp` are accepted
+  (no `http`, other hosts, query/fragment, `.svg`): those requests answer `400`
+  instead of fetching anything.
+- An episode with no TMDB still passes an empty `{thumbnail}`; the server
+  auto-resolves the episode's first TMDB still (200, same bytes as the
+  explicit path), and answers `400` only when TMDB has no still at all for that
+  episode — those rows then keep the client's own placeholder.
+- Like posters, the image is cached for 30 minutes with an ETag — Save
+  Configuration once (Section 11) after adding the pattern.
+
+**If every thumbnail fails**, the response body names the failing leg. Do not
+diagnose a `502` as "the CDN is blocked" before reading it:
+
+| Response | Meaning | What to do |
+|---|---|---|
+| `400` `Invalid still: expected a TMDB still path/URL or a TVDB still URL` | `{thumbnail}` is not a trusted image value: AIO's own `<aio-host>/missing_thumbnail.png`, another host, `.svg`, query/fragment, nested TMDB path. Rejected **before any fetch**, by design. | Fix the pattern value: only `https://image.tmdb.org/t/p/<size>/<file>.jpg`, the bare `/abc.jpg` path, or `https://artworks.thetvdb.com/<raster path>` are accepted. |
+| `400` `No TMDB still for this episode` | `{thumbnail}` was empty and TMDB has no still for the episode (or the episode-images lookup failed), so there is no base image. | Keep the client placeholder; add/refresh stills on TMDB (AIO TMDB metadata) for that episode. Nothing to fix in Pictorium. |
+| `502` `TMDB episode details unavailable` | The **rating** leg could not resolve the episode vote because the request has no usable TMDB key. The still was never the problem. | Append the same `api_key=...` the poster pattern carries (or save the TMDB key server-side). The Install Hub thumbnail pattern already inherits `u`/`api_key` from the poster template. |
+| `502` `Episode still unavailable` | The still was accepted but TMDB's image CDN did not serve it (404/transport). | Transient upstream issue, not a configuration problem: retry after Save Configuration and re-check the episode's still on TMDB. |
+
+## 14. Quick fixes and sibling guide
+
+Wrong art after a save → see Section 12.1 (cache identity). Wrong art (first time) → confirm you edited the bookmarked space and pressed **Save
 Poster** (Section 4). Pattern dead → re-copy from Install Hub and check
 braces/placeholders (Sections 5–8). Search rows unchanged → expected:
 overrides skip search results (Section 7). Shape ignored → confirm the
@@ -226,5 +317,6 @@ its own Stremio addon instead of art inside AIOMetadata.
 - Pictorium [`docs/INTEGRATION.md`](./INTEGRATION.md): `{tmdb_id|imdb_id}` auto alternation (first non-empty wins) for AIO/custom-URL consumers.
 - AIOMetadata dev-branch source (verified Oct 2026; live-build parity NOT verified, e.g. hosted v3.2.3) — [repo](https://github.com/cedya77/aiometadata/tree/dev):
   - [`configure/src/components/sections/ArtProviderSettings.tsx`](https://github.com/cedya77/aiometadata/blob/dev/configure/src/components/sections/ArtProviderSettings.tsx): **Art Providers** matrix, **Art URL Overrides** with **Rating Poster Provider** (`Custom Art URLs` option), **URL Patterns** card (**Poster / Background / Landscape / Logo / Episode Thumbnail URL Pattern**), **Proxy Rating & Custom Art** switch, `{shape}` docs (*poster-pattern `{shape}` also fills landscape unless a Landscape pattern is set*), overrides-priority + search-results callouts.
+  - [`addon/lib/metaArt.ts`](https://github.com/cedya77/aiometadata/blob/dev/addon/lib/metaArt.ts): **Episode Thumbnail URL Pattern** substitution — `{season}`/`{episode}` from the video id, `{blur}` = `true`/`false`, `{thumbnail}` = `encodeURIComponent(originalThumb)`, so the pattern receives the complete encoded TMDB still URL.
   - [`configure/src/components/sections/CatalogsSettings.tsx`](https://github.com/cedya77/aiometadata/blob/dev/configure/src/components/sections/CatalogsSettings.tsx): per-catalog gear dialogs with **Poster Shape** (**Poster** / **Landscape**) + dialog **Save**; dialogs note changes take effect after saving in the Configuration Manager; landscape falls back to background art.
   - [`configure/src/components/BulkActionBar.tsx`](https://github.com/cedya77/aiometadata/blob/dev/configure/src/components/BulkActionBar.tsx): bulk **Landscape Shape** / **Poster Shape** (desktop) and **Landscape** / **Poster** (mobile) actions for selected catalogs.

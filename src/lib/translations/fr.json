@@ -817,6 +817,27 @@
   "ui.episodeMetadataSource": "Source des métadonnées d'épisodes",
   "ui.episodeMetadataSourceHint": "Utiliser TheTVDB ou TMDB pour les visuels (captures) et les résumés des épisodes.",
   "ui.episodeThumbnails": "Episode thumbnails",
+
+  "ui.thumbnailsZoneSubtitle": "Titres avec des miniatures d’épisodes personnalisées. Modifier ici ne touche jamais l’affiche.",
+
+  "ui.thumbnailsZoneEmpty": "Aucune miniature d’épisode personnalisée pour l’instant. Ouvrez une affiche et utilisez Miniatures d’épisodes pour les personnaliser.",
+
+  "ui.thumbnailsZoneEdit": "Modifier les miniatures",
+
+
+  "ui.thumbnailsNav": "Miniatures",
+
+
+  "ui.thumbnailsZoneSearch": "Rechercher des titres",
+
+
+  "ui.thumbnailsZoneClear": "Effacer la recherche",
+
+
+  "ui.thumbnailsZoneDeleteTitle": "Supprimer les miniatures ?",
+
+
+  "ui.thumbnailsZoneDeleteMsg": "Supprimer les miniatures d’épisodes personnalisées des titres sélectionnés ? Les affiches ne sont pas touchées. Action irréversible.",
   "ui.episodeThumbnailsHint": "Show episode stills with rating badges on Stremio episode cards. When off, the original TMDB stills are used.",
   "ui.episodeStillPickerTitle": "Episode still",
   "ui.episodeStillPickerChoose": "Use still {ep}",
@@ -1048,6 +1069,9 @@
   "ui.installTabAio": "AIOMetadata",
   "ui.installAioDesc": "Collez ce lien dans AIOMetadata sous Art Providers → Poster URL Pattern.",
   "ui.installAioPosterTitle": "Modèle de lien d’affiche",
+  "ui.installThumbnailToggle": "Ajouter le modèle de miniatures d'épisodes",
+  "ui.installThumbnailDesc": "Modèle facultatif d'URL de miniatures d'épisodes pour AIOMetadata. Utilise toujours {tmdb_id} (la route des miniatures exige l'id numérique). La clé API est héritée du modèle de poster lorsqu'il en contient une (instances locales) ; avec une clé côté serveur, elle est omise.",
+  "ui.installThumbnailPatternTitle": "Modèle d'URL des miniatures d'épisodes",
   "ui.installOtherDevice": "Installer sur un autre appareil",
   "ui.listsPartial": "Listes partiellement actualisées ; titres précédents conservés en cas d’erreur",
   "ui.catalogSyncFailed": "Catalogues enregistrés localement. Échec de la synchronisation serveur.",

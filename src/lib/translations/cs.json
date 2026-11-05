@@ -860,6 +860,27 @@
   "ui.episodeMetadataSource": "Zdroj metadat epizod",
   "ui.episodeMetadataSourceHint": "Použij TheTVDB nebo TMDB pro náhledy epizod a přehledy.",
   "ui.episodeThumbnails": "Episode thumbnails",
+
+  "ui.thumbnailsZoneSubtitle": "Tituly s vlastními miniaturami epizod. Úpravy zde nikdy nemění plakát.",
+
+  "ui.thumbnailsZoneEmpty": "Zatím žádné vlastní miniatury epizod. Otevřete plakát a použijte Miniatury epizod.",
+
+  "ui.thumbnailsZoneEdit": "Upravit miniatury",
+
+
+  "ui.thumbnailsNav": "Miniatury",
+
+
+  "ui.thumbnailsZoneSearch": "Hledat názvy",
+
+
+  "ui.thumbnailsZoneClear": "Vymazat hledání",
+
+
+  "ui.thumbnailsZoneDeleteTitle": "Smazat miniatury?",
+
+
+  "ui.thumbnailsZoneDeleteMsg": "Odstranit vlastní miniatury epizod u vybraných titulů? Plakáty zůstanou nedotčeny. Akci nelze vrátit.",
   "ui.episodeThumbnailsHint": "Show episode stills with rating badges on Stremio episode cards. When off, the original TMDB stills are used.",
   "ui.episodeStillPickerTitle": "Episode still",
   "ui.episodeStillPickerChoose": "Use still {ep}",
@@ -1048,6 +1069,9 @@
   "ui.installTabAio": "AIOMetadata",
   "ui.installAioDesc": "Vložte tento odkaz v AIOMetadata do pole Art Providers → Poster URL Pattern.",
   "ui.installAioPosterTitle": "Šablona odkazu na plakát",
+  "ui.installThumbnailToggle": "Přidat vzor miniatur epizod",
+  "ui.installThumbnailDesc": "Volitelný vzor URL miniatur epizod AIOMetadata. Vždy používá {tmdb_id} (trasa miniatur vyžaduje číselné id). Klíč API se dědí ze šablony plakátu, pokud ji obsahuje (lokální instance); při klíči na serveru se vynechá.",
+  "ui.installThumbnailPatternTitle": "Vzor URL miniatur epizod",
   "ui.installOtherDevice": "Nainstalovat na jiném zařízení",
   "ui.listsPartial": "Seznamy částečně aktualizovány; při chybě původní tituly zachovány",
   "ui.catalogSyncFailed": "Katalogy uloženy místně. Synchronizace se serverem selhala.",

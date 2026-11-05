@@ -883,6 +883,27 @@
   "ui.episodeMetadataSource": "Fonte Metadati Episodi",
   "ui.episodeMetadataSourceHint": "Usa TheTVDB o TMDB per le copertine (screenshot) e le trame degli episodi.",
   "ui.episodeThumbnails": "Miniature episodi",
+
+  "ui.thumbnailsZoneSubtitle": "Titoli con miniature episodi personalizzate. Modificare qui non tocca mai il poster.",
+
+  "ui.thumbnailsZoneEmpty": "Nessuna miniatura episodio personalizzata. Apri un poster e usa Miniature episodi per personalizzarle.",
+
+  "ui.thumbnailsZoneEdit": "Modifica miniature",
+
+
+  "ui.thumbnailsNav": "Miniature",
+
+
+  "ui.thumbnailsZoneSearch": "Cerca titoli",
+
+
+  "ui.thumbnailsZoneClear": "Cancella ricerca",
+
+
+  "ui.thumbnailsZoneDeleteTitle": "Eliminare le miniature?",
+
+
+  "ui.thumbnailsZoneDeleteMsg": "Rimuovere le miniature episodio personalizzate per i titoli selezionati? I poster non vengono toccati. L'operazione non può essere annullata.",
   "ui.episodeThumbnailsHint": "Mostra le immagini degli episodi con i badge dei voti nelle card episodio di Stremio. Se disattivato, vengono usate le immagini originali TMDB.",
   "ui.episodeStillPickerTitle": "Immagine episodio",
   "ui.episodeStillPickerChoose": "Usa immagine {ep}",
@@ -1069,6 +1090,9 @@
   "ui.installTabAio": "AIOMetadata",
   "ui.installAioDesc": "Incolla questo link in AIOMetadata sotto Art Providers → Poster URL Pattern.",
   "ui.installAioPosterTitle": "Template link poster",
+  "ui.installThumbnailToggle": "Aggiungi il pattern miniature episodi",
+  "ui.installThumbnailDesc": "Pattern facoltativo per le miniature degli episodi di AIOMetadata. Usa sempre {tmdb_id} (la route delle miniature richiede l'id numerico). La chiave API viene ereditata dal template del poster quando presente (istanze locali); con una chiave lato server viene omessa.",
+  "ui.installThumbnailPatternTitle": "Pattern URL miniature episodi",
   "ui.installOtherDevice": "Installa su un altro dispositivo",
   "ui.defaultsAutoSaved": "Modifiche salvate automaticamente",
   "ui.syncNow": "Sincronizza ora",

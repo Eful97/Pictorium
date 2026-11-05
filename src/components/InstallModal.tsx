@@ -266,6 +266,46 @@ export function InstallModal({
     )
   }, [patternKind, posterUrlPatternNuvio, posterUrlPatternNuvioImdb, posterUrlPatternNuvioAuto])
 
+  /**
+   * AIO Episode Thumbnail URL Pattern. The thumbnail route only accepts a
+   * numeric TMDB id, so the path is always `{tmdb_id}` regardless of the
+   * poster placeholder choice. Host, namespace (`u`), request API key
+   * (`api_key`), live policy (`live=1`) and cache-buster (`rv`) are inherited
+   * from the poster template.
+   *
+   * The API key is NOT an extra exposure: it already travels in the poster
+   * template this same dialog hands to AIO, and local instances (key stored in
+   * localStorage, no server-side key) resolve it only from the request URL on
+   * BOTH routes (`resolveRouteApiKey` reads `api_key`). Dropping it here made
+   * thumbnails answer 502 (TMDB 401) while posters worked. When the key lives
+   * server-side the poster template omits it, so nothing is copied.
+   */
+  const thumbnailPattern = useMemo(() => {
+    if (!displayedPatternAio) return ""
+    try {
+      const source = new URL(displayedPatternAio)
+      const params = new URLSearchParams()
+      params.set("still", "{thumbnail}")
+      params.set("w", "320")
+      params.set("badges", "both")
+      params.set("blur", "{blur}")
+      const namespace = source.searchParams.get("u")
+      if (namespace) params.set("u", namespace)
+      const apiKey = source.searchParams.get("api_key")
+      if (apiKey) params.set("api_key", apiKey)
+      if (source.searchParams.get("live") === "1") params.set("live", "1")
+      const renderVersion = source.searchParams.get("rv")
+      if (renderVersion) params.set("rv", renderVersion)
+      // AIO placeholders travel literally (never percent-encoded): only the
+      // two placeholders inside the query are restored here, the path is
+      // built verbatim.
+      const query = params.toString().replace(/%7B(thumbnail|blur)%7D/gi, "{$1}")
+      return `${source.origin}/api/thumbnail/tv/{tmdb_id}/season/{season}/episode/{episode}?${query}`
+    } catch {
+      return ""
+    }
+  }, [displayedPatternAio])
+
   useEffect(() => {
     if (!isOpen || !resolvedManifestUrl) return
     QRCode.toString(resolvedManifestUrl, {
@@ -506,11 +546,26 @@ export function InstallModal({
                   <LatinRuns text={t("ui.installAioDesc")} />
                 </p>
 
-                {/* Campo URL con pulsante Copia link */}
-                <PatternRow
-                  value={displayedPatternAio}
-                  copyLabel={t("ui.aiomLinkTitle")}
-                />
+                {/* Due URL da copiare, sempre visibili: etichetta statica
+                    sopra ogni riga (solo le due righe in poster + miniature,
+                    nessuna casella e nessun paragrafo descrittivo). */}
+                <div className="space-y-2.5">
+                  <div className="space-y-1.5">
+                    <p dir="auto" className="text-xs sm:text-sm font-medium text-zinc-300">{t("ui.installAioPosterTitle")}</p>
+                    <PatternRow value={displayedPatternAio} copyLabel={t("ui.aiomLinkTitle")} />
+                  </div>
+                  {thumbnailPattern && (
+                    <div className="space-y-1.5">
+                      <p dir="auto" className="text-xs sm:text-sm font-medium text-zinc-300">
+                        {t("ui.installThumbnailPatternTitle")}
+                      </p>
+                      <PatternRow
+                        value={thumbnailPattern}
+                        copyLabel={t("ui.installThumbnailPatternTitle")}
+                      />
+                    </div>
+                  )}
+                </div>
 
                 {/* Breve indicazione modalità corrente */}
                 <p dir="auto" className="text-xs sm:text-sm text-zinc-400 leading-relaxed">

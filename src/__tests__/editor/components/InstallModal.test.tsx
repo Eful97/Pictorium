@@ -241,5 +241,75 @@ describe("InstallModal", () => {
     const aioPanel = document.getElementById("install-panel-aio")!
     expect(aioPanel.textContent).toContain("Art Providers → Poster URL Pattern")
   })
+
+  it("thumbnail pattern inherits the API key carried by the poster template", () => {
+    // Local instances keep the TMDB key in localStorage, so the poster
+    // template carries `api_key=...`. The thumbnail route resolves keys from
+    // the request URL exactly like the poster route; dropping the key made
+    // thumbnails answer 502 while posters worked.
+    const KEYED = "https://pictorium.test/api/poster/{type}/{tmdb_id}?lang=it&rv=1&api_key=secret"
+    renderWithCtx(
+      <InstallModal
+        isOpen={true}
+        onClose={vi.fn()}
+        manifestUrl="https://pictorium.test/manifest.json"
+        posterUrlPattern={KEYED}
+      />,
+      { t: (key) => (itDict as Record<string, string>)[key] ?? key }
+    )
+    openAioTab()
+    const input = screen.getByLabelText(itDict["ui.installThumbnailPatternTitle"]) as HTMLInputElement
+    expect(input.value).toContain("api_key=secret")
+    expect(input.value).toContain("still={thumbnail}")
+    expect(input.value).toContain("blur={blur}")
+    // AIO placeholders travel literally, never percent-encoded.
+    expect(input.value).not.toContain("%7B")
+  })
+
+  it("shows the poster and episode-thumbnail patterns at once, each with its own copy button", async () => {
+    // The AIO tab is a copy-only surface: both URLs are always visible, with
+    // no thumbnail opt-in checkbox and no extra description to dismiss.
+    const writeTextMock = vi.fn().mockResolvedValue(undefined)
+    Object.assign(navigator, { clipboard: { writeText: writeTextMock } })
+    renderWithCtx(
+      <InstallModal
+        isOpen={true}
+        onClose={vi.fn()}
+        manifestUrl="https://pictorium.test/manifest.json"
+        posterUrlPattern="https://pictorium.test/api/poster/{type}/{tmdb_id}?rv=1&api_key=secret"
+      />,
+      { t: (key) => (itDict as Record<string, string>)[key] ?? key }
+    )
+    openAioTab()
+    const aioPanel = document.getElementById("install-panel-aio")!
+
+    // Both rows are mounted without any interaction, each under its own
+    // static label (the top one is the poster template, the bottom one the
+    // episode thumbnails).
+    const posterInput = screen.getByLabelText(itDict["ui.aiomLinkTitle"]) as HTMLInputElement
+    const thumbnailInput = screen.getByLabelText(itDict["ui.installThumbnailPatternTitle"]) as HTMLInputElement
+    expect(posterInput.value).toContain("/api/poster/")
+    expect(thumbnailInput.value).toContain("/api/thumbnail/tv/")
+    expect(aioPanel.textContent).toContain(itDict["ui.installAioPosterTitle"])
+    expect(aioPanel.textContent).toContain(itDict["ui.installThumbnailPatternTitle"])
+    expect(
+      posterInput.compareDocumentPosition(thumbnailInput) & Node.DOCUMENT_POSITION_FOLLOWING,
+    ).toBeTruthy()
+    // The old opt-in checkbox + its description are gone.
+    expect(aioPanel.textContent).not.toContain(itDict["ui.installThumbnailToggle"])
+    expect(aioPanel.textContent).not.toContain(itDict["ui.installThumbnailDesc"])
+
+    // Each row copies its own URL (poster first, thumbnail second).
+    const copyButtons = aioPanel.querySelectorAll("button")
+    expect(copyButtons).toHaveLength(2)
+    fireEvent.click(copyButtons[0])
+    await waitFor(() => {
+      expect(writeTextMock).toHaveBeenLastCalledWith(posterInput.value)
+    })
+    fireEvent.click(copyButtons[1])
+    await waitFor(() => {
+      expect(writeTextMock).toHaveBeenLastCalledWith(thumbnailInput.value)
+    })
+  })
 })
 

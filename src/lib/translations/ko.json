@@ -860,6 +860,27 @@
   "ui.episodeMetadataSource": "에피소드 메타데이터 소스",
   "ui.episodeMetadataSourceHint": "에피소드 이미지(스크린샷)와 개요에 TheTVDB 또는 TMDB를 사용합니다.",
   "ui.episodeThumbnails": "Episode thumbnails",
+
+  "ui.thumbnailsZoneSubtitle": "에피소드 썸네일을 사용자 지정한 제목. 여기서 편집해도 포스터는 변경되지 않습니다.",
+
+  "ui.thumbnailsZoneEmpty": "아직 사용자 지정한 에피소드 썸네일이 없습니다. 포스터를 열고 에피소드 썸네일을 사용하세요.",
+
+  "ui.thumbnailsZoneEdit": "썸네일 편집",
+
+
+  "ui.thumbnailsNav": "썸네일",
+
+
+  "ui.thumbnailsZoneSearch": "제목 검색",
+
+
+  "ui.thumbnailsZoneClear": "검색 지우기",
+
+
+  "ui.thumbnailsZoneDeleteTitle": "썸네일을 삭제할까요?",
+
+
+  "ui.thumbnailsZoneDeleteMsg": "선택한 제목의 사용자 지정 에피소드 썸네일을 제거할까요? 포스터는 변경되지 않습니다. 되돌릴 수 없습니다.",
   "ui.episodeThumbnailsHint": "Show episode stills with rating badges on Stremio episode cards. When off, the original TMDB stills are used.",
   "ui.episodeStillPickerTitle": "Episode still",
   "ui.episodeStillPickerChoose": "Use still {ep}",
@@ -1048,6 +1069,9 @@
   "ui.installTabAio": "AIOMetadata",
   "ui.installAioDesc": "이 링크를 AIOMetadata의 Art Providers → Poster URL Pattern에 붙여넣으세요.",
   "ui.installAioPosterTitle": "포스터 링크 템플릿",
+  "ui.installThumbnailToggle": "에피소드 썸네일 패턴 추가",
+  "ui.installThumbnailDesc": "선택 사항인 AIOMetadata 에피소드 썸네일 URL 패턴입니다. 항상 {tmdb_id}를 사용하며(썸네일 경로에는 숫자 ID 필요), API 키는 포스터 템플릿에 포함된 경우 상속됩니다(로컬 인스턴스). 서버 측 키를 사용하면 생략됩니다.",
+  "ui.installThumbnailPatternTitle": "에피소드 썸네일 URL 패턴",
   "ui.installOtherDevice": "다른 기기에 설치",
   "ui.listsPartial": "목록이 일부 갱신되었습니다. 오류 시 이전 작품을 유지합니다",
   "ui.catalogSyncFailed": "카탈로그가 로컬에 저장되었습니다. 서버 동기화에 실패했습니다.",

@@ -123,11 +123,13 @@ function EpisodeRowThumbnail({ src }: { src: string | null }) {
  *   TVDB shows the single TVDB cover (or an honest empty state). Clicking a
  *   tile STAGES the choice and its provider (no mapping write, no save);
  * - BOTTOM BAR: "Save thumbnails" writes all staged `S:E` overrides into the
- *   editor state and triggers ONE normal mapping save (`saveConfig`, the same
- *   full-save used by the editor — `episodeThumbnailStills` rides it); "Cancel"
- *   clears the staged draft. Closing without saving discards the draft: the
- *   staged map lives only in this component and is never written to the
- *   mapping until the Save button runs.
+ *   editor state and persists them with the THUMBNAIL-ONLY PATCH (only
+ *   `episodeThumbnailStills`/`thumbnailRotation`; poster fields, poster `mv`
+ *   and poster caches are never touched). A title with no mapping yet falls
+ *   back to the full save, which is the only path that creates its record.
+ *   "Cancel" clears the staged draft. Closing without saving discards the
+ *   draft: the staged map lives only in this component and is never written to
+ *   the mapping until the Save button runs.
  */
 function EpisodeStillStudio({
   seriesId,
@@ -162,6 +164,9 @@ function EpisodeStillStudio({
   const { t } = useT()
   const ed = usePosterEditor()
   const saveConfig = usePSelector((v) => v.saveConfig)
+  // Thumbnail-only save (poster fields/`mv` untouched). Optional in the
+  // context type: harnesses that only stub `saveConfig` keep the old path.
+  const saveThumbnailSettings = usePSelector((v) => v.saveThumbnailSettings)
   // Scoped user (multi-user): the composed <img> URL cannot carry session
   // headers, so it must carry the namespace (`u=`) for the server-side TVDB /
   // IMDb-id key resolution to see the same keys the editor used.
@@ -190,13 +195,17 @@ function EpisodeStillStudio({
   )
   const rotationChanged = rotationDraft !== savedRotation
   const pendingRotationRef = useRef<boolean | null>(null)
-  // The save runs in an effect AFTER the editor state commit, so `saveConfig`
+  // The save runs in an effect AFTER the editor state commit, so the saver
   // (rebuilt with the new `episodeThumbnailStills`) serializes the whole batch.
   const pendingSaveRef = useRef<Record<string, StagedStill> | null>(null)
   const saveConfigRef = useRef(saveConfig)
   useEffect(() => {
     saveConfigRef.current = saveConfig
   }, [saveConfig])
+  const saveThumbnailSettingsRef = useRef(saveThumbnailSettings)
+  useEffect(() => {
+    saveThumbnailSettingsRef.current = saveThumbnailSettings
+  }, [saveThumbnailSettings])
 
   // Flat episode index for the left pane. The opening episode wins for its own
   // default still (the caller already resolved it); every other row derives the
@@ -476,7 +485,19 @@ function EpisodeStillStudio({
     pendingSaveRef.current = null
     let active = true
     setSaving(true)
-    Promise.resolve(saveConfigRef.current())
+    // Thumbnail-only save: ONLY `episodeThumbnailStills` + the rotation choice
+    // are written, so poster fields/`mv`/caches stay untouched. The full save
+    // remains the fallback for harnesses without the saver and for a title
+    // with no mapping yet (the PATCH saver delegates internally).
+    const thumbnailSaver = saveThumbnailSettingsRef.current
+    Promise.resolve(
+      thumbnailSaver
+        ? thumbnailSaver({
+          episodeThumbnailStills: ed.episodeThumbnailStills,
+          thumbnailRotation: pendingRotationRef.current,
+        })
+        : saveConfigRef.current(),
+    )
       .then((ok) => {
         if (!active) return
         if (ok !== false) setStaged({})
@@ -491,7 +512,7 @@ function EpisodeStillStudio({
     return () => {
       active = false
     }
-  }, [saveNonce])
+  }, [saveNonce]) // eslint-disable-line react-hooks/exhaustive-deps -- one batch save per nonce; `ed` is read post-commit (the new stills are already in the render that flips the nonce)
 
   return (
     <Modal

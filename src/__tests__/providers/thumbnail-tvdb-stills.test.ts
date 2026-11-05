@@ -32,6 +32,14 @@ vi.mock("@/lib/custom-rating", () => ({
   fetchCustomRatings: vi.fn(async () => []),
 }))
 
+// Empty namespace defaults: these tests pin the explicit-query contract and the
+// historical renderer defaults (the Miniature-default plumbing is covered in
+// thumbnail-episode.test.ts).
+vi.mock("@/lib/server-defaults", async (importOriginal) => {
+  const mod = await importOriginal<typeof import("@/lib/server-defaults")>()
+  return { ...mod, getServerDefaultsForUser: vi.fn(async () => ({})) }
+})
+
 const tvdb = vi.hoisted(() => ({
   key: "tvdb-secret-key" as string | null,
   seriesId: 555 as number | null,
@@ -41,10 +49,20 @@ const tvdb = vi.hoisted(() => ({
 
 vi.mock("@/lib/tmdb", async (importOriginal) => {
   const mod = await importOriginal<typeof import("@/lib/tmdb")>()
+  const tvdbKey = () => (tvdb.key ?? undefined)
   return {
     ...mod,
+    // The route resolves keys through the scoped user resolver (poster
+    // parity); keep the legacy resolver mocked too for any older call site.
+    resolveUserApiKeys: vi.fn(async () => ({
+      tmdb: { key: "tmdb-key", source: "header" as const },
+      mdblist: { key: undefined, source: "none" as const },
+      tvdb: { key: tvdbKey(), source: "header" as const },
+      simkl: { key: undefined, source: "none" as const },
+      fanart: { key: undefined, source: "none" as const },
+    })),
     resolveRouteApiKey: vi.fn(async (_req: unknown, kind?: string) =>
-      kind === "tvdb" ? (tvdb.key ?? undefined) : "tmdb-key",
+      kind === "tvdb" ? tvdbKey() : "tmdb-key",
     ),
     getExternalIds: vi.fn(async () => ({ imdb_id: "tt1234567", tvdb_id: 555 })),
     getTVEpisodeDetails: vi.fn(async () => ({ vote_average: 7.3, vote_count: 10 })),
@@ -70,6 +88,8 @@ const SEASON = 1
 const EPISODE = 2
 const TMDB_STILL = "/still-one.jpg"
 const TVDB_STILL = "https://artworks.thetvdb.com/banners/v4/episode/1/screencap/abc.jpg"
+/** The exact AIO-resolved form from the user report (direct TVDB artwork). */
+const AIO_TVDB_STILL = "https://artworks.thetvdb.com/banners/v4/episode/11873157/screencap/6ac5f06eea473.jpg"
 const TVDB_KEY = "tvdb-secret-key"
 
 const GREEN = { r: 25, g: 200, b: 90 }
@@ -162,17 +182,23 @@ async function cornerRgb(png: Buffer): Promise<[number, number, number]> {
   return [data[i], data[i + 1], data[i + 2]]
 }
 
-function key(stills?: "tmdb" | "tvdb", still = TMDB_STILL, width: 160 | 320 | 480 | 640 | 768 | 1280 = 320) {
+function key(
+  stills?: "tmdb" | "tvdb",
+  still = TMDB_STILL,
+  width: 160 | 320 | 480 | 640 | 768 | 1280 = 320,
+  badges: "both" | "vote" = "vote",
+  voteSource: "tmdb" | "imdb" = "tmdb",
+) {
   return thumbnailCacheKey({
     seriesId: SERIES,
     seasonNumber: SEASON,
     episodeNumber: EPISODE,
     still,
     width,
-    badges: "vote",
+    badges,
     languages: "en,null",
     blur: false,
-    voteSource: "tmdb",
+    voteSource,
     stills,
   })
 }
@@ -273,6 +299,28 @@ describe("renderEpisodeThumbnail (renderer leg)", () => {
     expect(corner[1]).toBeLessThan(140)
     expect(callCount(spy, "artworks.thetvdb.com")).toBe(0)
     expect(callCount(spy, "image.tmdb.org")).toBe(1)
+  })
+
+  it("fetches a supplied TVDB URL directly as the base (no API key, no lookup)", async () => {
+    tvdb.key = null
+    tvdb.seriesId = null
+    const spy = mockUpstream()
+
+    const result = await renderEpisodeThumbnail({
+      still: AIO_TVDB_STILL,
+      width: 320,
+      badgeMode: "vote",
+      voteAverage: 8.2,
+      customRatings: [],
+      blur: false,
+    })
+
+    expect(result.stillSource).toBe("tvdb")
+    const corner = await cornerRgb(result.png)
+    expect(corner[1]).toBeGreaterThan(150)
+    expect(corner[2]).toBeLessThan(140)
+    expect(callCount(spy, "artworks.thetvdb.com")).toBe(1)
+    expect(callCount(spy, "image.tmdb.org")).toBe(0)
   })
 })
 
@@ -392,6 +440,71 @@ describe("GET ?stills=tvdb", () => {
       )
       expect(res.status).toBe(400)
       await expect(res.json()).resolves.toMatchObject({ error: "Invalid stills: must be tmdb or tvdb" })
+    }
+    expect(spy).not.toHaveBeenCalled()
+  })
+})
+
+describe("GET direct TVDB still URL (AIO `{thumbnail}`)", () => {
+  it("renders the exact user URL with a vote badge, no TVDB key and no TMDB image fetch", async () => {
+    tvdb.key = null
+    const spy = mockUpstream()
+
+    // AIO pattern substitution: complete TVDB artwork URL + w/blur/u, exactly
+    // like the reported case.
+    const query =
+      `?still=${encodeURIComponent(AIO_TVDB_STILL)}&w=320&blur=false&badges=both` +
+      "&u=11111111-1111-4111-8111-111111111111"
+    const res = await GET(thumbRequest(query), thumbParams())
+
+    expect(res.status).toBe(200)
+    expect(res.headers.get("content-type")).toBe("image/png")
+    const buffer = Buffer.from(await res.arrayBuffer())
+    const meta = await sharp(buffer).metadata()
+    expect(meta.width).toBe(320)
+    expect(meta.height).toBe(180)
+    // Green TVDB base (the TMDB fallback buffer is blue).
+    const corner = await cornerRgb(buffer)
+    expect(corner[1]).toBeGreaterThan(150)
+    expect(corner[2]).toBeLessThan(140)
+    // ★ pill composited: bright ink top-right.
+    const badge = await regionStats(buffer, 250, 0, 66, 60)
+    expect(badge.brightPixels).toBeGreaterThan(10)
+    expect(callCount(spy, "artworks.thetvdb.com")).toBe(1)
+    expect(callCount(spy, "image.tmdb.org")).toBe(0)
+    // Distinct cache identity: the TVDB URL is its own entry, never the TMDB
+    // path one.
+    expect(cacheGet(key(undefined, AIO_TVDB_STILL, 320, "both", "imdb"))).not.toBeNull()
+    expect(cacheGet(key(undefined, TMDB_STILL, 320, "both", "imdb"))).toBeNull()
+  })
+
+  it("still uses the supplied TVDB URL with ?stills=tvdb but no TVDB key", async () => {
+    tvdb.key = null
+    const spy = mockUpstream()
+
+    const res = await GET(
+      thumbRequest(`?still=${encodeURIComponent(AIO_TVDB_STILL)}&w=320&badges=vote&source=tmdb&stills=tvdb`),
+      thumbParams(),
+    )
+
+    expect(res.status).toBe(200)
+    const corner = await cornerRgb(Buffer.from(await res.arrayBuffer()))
+    expect(corner[1]).toBeGreaterThan(150)
+    expect(callCount(spy, "artworks.thetvdb.com")).toBe(1)
+    expect(callCount(spy, "image.tmdb.org")).toBe(0)
+  })
+
+  it("keeps 400 with zero fetches for an untrusted TVDB-host URL", async () => {
+    const spy = mockUpstream()
+
+    for (const value of [
+      "https://artworks.thetvdb.com.evil.com/banners/v4/episode/1/screencap/a.jpg",
+      "http://artworks.thetvdb.com/banners/v4/episode/1/screencap/a.jpg",
+      "https://artworks.thetvdb.com/banners/v4/episode/1/screencap/a.jpg?token=1",
+      "https://aiometadata.example/missing_thumbnail.png",
+    ]) {
+      const res = await GET(thumbRequest(`?still=${encodeURIComponent(value)}&stills=tvdb`), thumbParams())
+      expect(res.status, value).toBe(400)
     }
     expect(spy).not.toHaveBeenCalled()
   })

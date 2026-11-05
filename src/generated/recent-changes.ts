@@ -11,5 +11,4 @@ export interface RecentChange {
 }
 
 export const RECENT_CHANGES: RecentChange[] = [
-  { type: "feature", text: "Episode thumbnails with rating badges", sha: "257a3dd", date: "2026-11-05" },
 ]

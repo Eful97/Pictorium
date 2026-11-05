@@ -4,10 +4,11 @@
 
 This document is the stable contract for embedding Pictorium posters in a
 third-party project (e.g. a Stremio add-on). It describes only what an
-integrator needs: the poster endpoint, its query parameters, API keys,
-failure behavior, and the license/attribution rules.
+integrator needs: the poster endpoint, the optional episode-thumbnail
+endpoint, its query parameters, API keys, failure behavior, and the
+license/attribution rules.
 
-## Scope: poster endpoint only
+## Scope: poster endpoint (plus the optional episode thumbnail)
 
 Use **only** the poster endpoint and embed the resulting URLs in your own
 catalogs:
@@ -47,6 +48,78 @@ which supports `{tmdb_id}` and `{imdb_id}`), use them in the path
 
 If a title answers `404` via `tt...` while it exists on TMDB, use the
 numeric id or ask the instance operator to stitch a manual alias.
+
+### Optional: episode thumbnail endpoint (AIO `Episode Thumbnail URL Pattern`)
+
+Posters are the required contract. If your consumer also replaces episode
+stills (AIOMetadata exposes a separate **Episode Thumbnail URL Pattern**), the
+same instance serves a 16:9 composite with the episode rating:
+
+```text
+GET {yourInstanceUrl}/api/thumbnail/tv/{tmdbId}/season/{season}/episode/{episode}?still={still}
+```
+
+- `still` (optional): a TMDB still path (`/abc123.jpg`), a complete TMDB
+  image URL (`https://image.tmdb.org/t/p/w500/abc123.jpg`, e.g. AIO's
+  `{thumbnail}`), **or** a complete TVDB artwork URL
+  (`https://artworks.thetvdb.com/banners/v4/episode/<id>/screencap/<file>.jpg`,
+  what AIO sends when the space resolves episode metadata from TheTVDB). The
+  TVDB URL is fetched directly (public artwork: no TVDB API key and no lookup)
+  and keeps its own cache entry. For TMDB inputs only the file name is used;
+  the server applies its own `w780`/`w1280` source policy, so URL and path are
+  the same image and the same cache entry. When `still` is absent/blank (AIO
+  passes an empty `{thumbnail}` for videos with no `originalThumb`) the server
+  picks the episode's first TMDB still and renders exactly like that explicit
+  path; the historical `400` remains only when TMDB has no still for the
+  episode.
+- Accepted URL form: `https:` only, exact `image.tmdb.org` host (no
+  subdomains), no credentials/port/query/fragment, single file segment and a
+  raster `jpg`/`jpeg`/`png` file — or the exact `artworks.thetvdb.com` host with
+  a nested raster `jpg`/`jpeg`/`png`/`webp` path. Anything else answers `400`
+  before any upstream fetch (the historic path form is unchanged).
+- Other query params: `w` (`160|320|480|640|768|1280`, default `320`),
+  `badges=both|vote|custom` (default `both`), `blur=0|1|true|false` (default
+  off), `source=tmdb|imdb` (default `imdb`). The Miniature settings saved in
+  Pictorium (`bstyle`, `anchor`, `ox`/`oy`, `bscale`, `blur`, `source`,
+  `rotate`) apply to the `u=` namespace when the pattern omits them (explicit
+  query params always win); a space with no saved values keeps the historical
+  defaults byte-for-byte.
+- API key: resolved exactly like the poster route (header `x-api-key` > query
+  `api_key` > `u=` namespace > instance store/env). If your instance has no
+  server-side key and the poster template carries `api_key=...`, keep the same
+  parameter here (the Install Hub pattern copies it automatically); without it
+  the rating leg answers `502`, while the poster keeps working. A `u=` that
+  names no existing space is treated as anonymous before key resolution (same
+  collapse as the poster route), so the instance/server key applies again and
+  the same `u` behaves identically on posters and thumbnails.
+- Response: PNG, ETag + `304`, 30-minute cache. Failures never cache.
+
+AIOMetadata **Episode Thumbnail URL Pattern** (paste as-is; AIO already
+URL-encodes `{thumbnail}`, do not encode it again):
+
+```text
+https://<host>/api/thumbnail/tv/{tmdb_id}/season/{season}/episode/{episode}?still={thumbnail}&w=320&badges=both&blur={blur}
+```
+
+`{blur}` expands to `true`/`false` from AIO's **Blur Thumbnails** switch. An
+episode with no TMDB still passes an empty `{thumbnail}`; the server then
+auto-resolves the episode's first TMDB still (200, same bytes as the explicit
+path), and answers `400` only when TMDB has no still at all for that episode,
+so those rows fall back to the client's own placeholder.
+
+Failure legs are distinguishable from the body — never treat every non-200 as
+a CDN problem:
+
+- `400` = the still is not an acceptable TMDB path/URL or TVDB artwork URL
+  (AIO's `<aio-host>/missing_thumbnail.png`, nested TMDB path, non-raster):
+  rejected before any fetch, by design. `400
+  {"error":"No TMDB still for this episode"}` = `still` was empty and TMDB has
+  no still for the episode either (or the episode-images lookup failed).
+- `502 {"error":"TMDB episode details unavailable"}` = no usable TMDB key on
+  the request (the rating leg fails closed before the still is fetched); pass
+  the same `api_key` the poster URL carries, or configure the key server-side.
+- `502 {"error":"Episode still unavailable"}` = the still was accepted but the
+  TMDB image CDN fetch failed (404/transport); transient upstream, not config.
 
 You do **not** need `/catalog/*`, `/meta/*`, the editor UI, or any other
 Pictorium route. There is nothing to strip out of the codebase — simply do

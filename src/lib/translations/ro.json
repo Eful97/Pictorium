@@ -860,6 +860,27 @@
   "ui.episodeMetadataSource": "Sursă metadate episoade",
   "ui.episodeMetadataSourceHint": "Folosește TheTVDB sau TMDB pentru coperțile episoadelor (cadre) și sinopsisurile episoadelor.",
   "ui.episodeThumbnails": "Episode thumbnails",
+
+  "ui.thumbnailsZoneSubtitle": "Titluri cu miniaturi de episod personalizate. Editarea aici nu afectează niciodată posterul.",
+
+  "ui.thumbnailsZoneEmpty": "Încă nu există miniaturi de episod personalizate. Deschide un poster și folosește Miniaturi episoade.",
+
+  "ui.thumbnailsZoneEdit": "Editează miniaturile",
+
+
+  "ui.thumbnailsNav": "Miniaturi",
+
+
+  "ui.thumbnailsZoneSearch": "Caută titluri",
+
+
+  "ui.thumbnailsZoneClear": "Șterge căutarea",
+
+
+  "ui.thumbnailsZoneDeleteTitle": "Ștergi miniaturile?",
+
+
+  "ui.thumbnailsZoneDeleteMsg": "Elimini miniaturile de episod personalizate pentru titlurile selectate? Posterele nu sunt afectate. Acțiunea nu poate fi anulată.",
   "ui.episodeThumbnailsHint": "Show episode stills with rating badges on Stremio episode cards. When off, the original TMDB stills are used.",
   "ui.episodeStillPickerTitle": "Episode still",
   "ui.episodeStillPickerChoose": "Use still {ep}",
@@ -1048,6 +1069,9 @@
   "ui.installTabAio": "AIOMetadata",
   "ui.installAioDesc": "Lipește acest link în AIOMetadata sub Art Providers → Poster URL Pattern.",
   "ui.installAioPosterTitle": "Șablon link poster",
+  "ui.installThumbnailToggle": "Adaugă modelul miniaturilor episoadelor",
+  "ui.installThumbnailDesc": "Model opțional de URL pentru miniaturile episoadelor AIOMetadata. Folosește întotdeauna {tmdb_id} (ruta miniaturilor necesită id-ul numeric). Cheia API este moștenită din șablonul posterului când acesta o conține (instanțe locale); cu o cheie pe server, este omisă.",
+  "ui.installThumbnailPatternTitle": "Model URL miniaturi episoade",
   "ui.installOtherDevice": "Instalează pe alt dispozitiv",
   "ui.listsPartial": "Liste actualizate parțial; titlurile anterioare sunt păstrate în caz de eroare",
   "ui.catalogSyncFailed": "Cataloage salvate local. Sincronizarea cu serverul a eșuat.",
