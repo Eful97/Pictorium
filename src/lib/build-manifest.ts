@@ -377,7 +377,6 @@ export async function buildManifestResponse(req: NextRequest, user?: string | nu
     logo: `${domain}/App.png`,
     background: `${domain}${MANIFEST_BACKGROUND_PATH}`,
     ...(contactEmail ? { contactEmail } : {}),
-    addonCatalogs: [],
     manifestVersion: 1,
     behaviorHints: {
       adult: false,
