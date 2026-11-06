@@ -914,8 +914,8 @@ const NAKED_BADGE_SHADOW_PAD = 8
 // A rounded rect with the big episode score; the fill encodes the vote bucket
 // and NO provider logo is drawn. The chosen vote source still selects WHICH
 // score feeds the bucket (the route already resolved `voteAverage`), it is
-// only hidden visually. Buckets are half-open on purpose: 9.9 is still the
-// dark-green "Awesome" band, exactly 10.0 is blue "Absolute Cinema".
+// only hidden visually. Buckets are half-open on purpose: 9.6 is still the
+// dark-green "Awesome" band, 9.7 and above are blue "Absolute Cinema".
 // ---------------------------------------------------------------------------
 
 /** sRGB linearisation used only by the score-tile ink choice (WCAG). */
@@ -945,8 +945,8 @@ export const THUMBNAIL_SCORE_BUCKETS = [
   { id: "average", label: "Average", color: "#EA580C", ink: thumbnailScoreInk("#EA580C"), min: 6, max: 7 },
   { id: "good", label: "Good", color: "#EAB308", ink: thumbnailScoreInk("#EAB308"), min: 7, max: 8 },
   { id: "great", label: "Great", color: "#15803D", ink: thumbnailScoreInk("#15803D"), min: 8, max: 9 },
-  { id: "awesome", label: "Awesome", color: "#14532D", ink: thumbnailScoreInk("#14532D"), min: 9, max: 10 },
-  { id: "absolute-cinema", label: "Absolute Cinema", color: "#2563EB", ink: thumbnailScoreInk("#2563EB"), min: 10, max: Number.POSITIVE_INFINITY },
+  { id: "awesome", label: "Awesome", color: "#14532D", ink: thumbnailScoreInk("#14532D"), min: 9, max: 9.7 },
+  { id: "absolute-cinema", label: "Absolute Cinema", color: "#2563EB", ink: thumbnailScoreInk("#2563EB"), min: 9.7, max: Number.POSITIVE_INFINITY },
 ] as const
 
 export type ThumbnailScoreBucket = (typeof THUMBNAIL_SCORE_BUCKETS)[number]
