@@ -3,10 +3,12 @@ import {
   CARD_COVER_LAYOUTS,
   CARD_NUMERAL_CONDENSE_X,
   CARD_NUMERAL_ENLARGE,
+  CARD_NUMERAL_STRONG_TOP_SHARE,
   CARD_RANK_MAX,
   CARD_RANK_MIN,
   CARD_REFERENCE,
   cardLayoutGeometry,
+  fitCardNumeralScale,
   isCardRankDisplayable,
   type CardCompositionGeometry,
 } from "@/lib/card-layout-geometry"
@@ -268,5 +270,41 @@ describe("poster card geometry (shared cover composition)", () => {
       expect(pRight).toBeLessThanOrEqual(g.card.x)
       expect(pRight).toBeLessThanOrEqual(t.x)
     }
+  })
+})
+
+describe("card numeral scale clamp (audit F3): fitted scale replaces omission", () => {
+  const CANVASES = [
+    { shape: "poster" as const, w: STD_W, h: STD_H },
+    { shape: "landscape" as const, w: LAND_W, h: LAND_H },
+  ]
+
+  it("leaves every rank at neutral 100 unchanged on both shipped canvases", () => {
+    for (const c of CANVASES) {
+      for (let rank = 1; rank <= CARD_RANK_MAX; rank++) {
+        const n = cardLayoutGeometry(c.shape, c.w, c.h, rank)!.numeral!
+        expect(fitCardNumeralScale(n, c.h, 100)).toBe(100)
+      }
+    }
+  })
+
+  it("clamps landscape rank 5 above 100% to a scale whose measured top stays in-canvas", () => {
+    const n = cardLayoutGeometry("landscape", LAND_W, LAND_H, 5)!.numeral!
+    for (const requested of [150, 200]) {
+      const fit = fitCardNumeralScale(n, LAND_H, requested)
+      // Shrunk to fit, never reset to neutral and never omitted…
+      expect(fit).toBeLessThan(requested)
+      expect(fit).toBeGreaterThan(100)
+      // …with the calibrated strong-ink top still above the canvas edge.
+      expect(((fit * n.fontSize) / 100) * CARD_NUMERAL_STRONG_TOP_SHARE).toBeLessThanOrEqual(n.baselineY)
+    }
+  })
+
+  it("returns the requested scale for invalid/absurd inputs (fail-open, no throw)", () => {
+    const n = cardLayoutGeometry("landscape", LAND_W, LAND_H, 5)!.numeral!
+    expect(fitCardNumeralScale(n, 0, 150)).toBe(150)
+    expect(fitCardNumeralScale({ fontSize: 0, baselineY: 0 }, LAND_H, 150)).toBe(150)
+    expect(fitCardNumeralScale(n, Number.NaN, 150)).toBe(150)
+    expect(fitCardNumeralScale(n, LAND_H, Number.NaN)).toBe(100)
   })
 })

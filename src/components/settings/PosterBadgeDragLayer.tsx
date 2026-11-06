@@ -10,6 +10,7 @@ import { FRESH_TITLE_LOGO_MAX_SCALE, STANDARD_TITLE_LOGO_MAX_SCALE } from "@/lib
 import { VIDEO_FORMAT_OPTIONS } from "@/lib/av-specs"
 import {
   badgeResetApplies,
+  badgeScaleAnchor,
   badgeScaleLimits,
   canvasToScreenDelta,
   deriveEffectiveLogoScale,
@@ -26,10 +27,13 @@ import {
   type BadgeDragItem,
   type BadgeDragBox,
   type BadgeDragSelectionMember,
+  type BadgeScaleAnchor,
+  type BadgeScaleLayout,
   type BadgeSnapGuide,
   type BadgeProfileEffective,
   type BadgeProfileExplicit,
 } from "@/lib/badge-drag-geometry"
+import { cardLayoutGeometry } from "@/lib/card-layout-geometry"
 import {
   BADGE_ITEM_QUALITY_COMBO,
   badgeItemLabelKind,
@@ -252,6 +256,8 @@ interface ResizeState {
   readonly box: BadgeDragBox
   /** Scale the renderer is using for that box (effective value / derived). */
   readonly startScale: number
+  /** Point the renderer scales that element around (active layout/shape). */
+  readonly anchor: BadgeScaleAnchor
   /** Title-logo UI cap of the active layout (badge families ignore it). */
   readonly titleMax: number | null
   /** Clamped proposal, drawn live and written on release. */
@@ -331,14 +337,53 @@ export function PosterBadgeDragLayer({
   // While the next render lands, the previous boxes are still the last
   // authority we have: they only draw handles, they never drive values.
   const shown = geometry ?? lastGeometryRef.current
+  /**
+   * FROZEN network (follow OFF + absolute coords): the renderer composes the
+   * absolute box verbatim in Standard and Fresh and applies NO relative offset
+   * on top of it. Reporting `fixedX` is the server's explicit lock signal for
+   * that state (never set for Card, which applies its provider offsets). A
+   * single X lock is not enough here: a Y handle would still store `noy` that
+   * is reinterpreted as a relative offset later, so the family is offered NO
+   * handle at all and can never be written by a gesture.
+   */
+  const networkHandleLocked = shown?.fixedX.network === true
 
-  // Title-logo UI cap of the ACTIVE layout: Standard keeps the historic 100,
-  // Fresh opens 200 (same constants as the Transform slider). The layout comes
-  // from the adapter, so a per-title editor caps on the TITLE's layout.
+  // Title-logo UI cap and scale basis of the ACTIVE layout: Standard keeps the
+  // historic 100 (canvas basis), Fresh and Card open 200 (their renderer
+  // accepts 10..200 and their scale is a SLOT %, neutral 100 = base slot). The
+  // layout comes from the adapter, so a per-title editor caps on the TITLE's
+  // layout. A configured Card layout that fell back to Standard (no displayed
+  // rank 1..20) reports `layout: "fallback"`: it must NOT be treated as Card,
+  // or an auto title would be derived from a card slot the render never used.
+  const configuredCard =
+    defaults.posterLayout === "provider-glass" ||
+    defaults.posterLayout === "nuvio" ||
+    defaults.posterLayout === "stremio"
+  const cardLayoutActive = configuredCard && shown?.layout === "ranked"
+  const scaleLayout: BadgeScaleLayout =
+    defaults.posterLayout === "fresh" ? "fresh" : cardLayoutActive ? "card" : "standard"
   const titleMax =
-    defaults.posterLayout === "fresh"
-      ? FRESH_TITLE_LOGO_MAX_SCALE
-      : STANDARD_TITLE_LOGO_MAX_SCALE
+    scaleLayout === "standard" ? STANDARD_TITLE_LOGO_MAX_SCALE : FRESH_TITLE_LOGO_MAX_SCALE
+  /**
+   * Width of the ACTIVE layout's base title slot (canvas px), derived from the
+   * SAME geometry the Card compositor uses (`cardLayoutGeometry`). A Card auto
+   * title is neutral 100 at this slot, so deriving its scale from the canvas
+   * width would report ~55 and the first outward drag would shrink it.
+   */
+  const cardTitleSlotWidth = useMemo(() => {
+    if (scaleLayout !== "card" || !shown) return null
+    return cardLayoutGeometry(shape, shown.canvasW, shown.canvasH)?.titleLogo.maxWidth ?? null
+  }, [scaleLayout, shape, shown])
+  /**
+   * Point the renderer scales a family around, for the ACTIVE layout/shape.
+   * Same value drives the live preview and the frame clamp, so the drawn box
+   * and the committed render cannot disagree.
+   */
+  const scaleAnchorOf = useCallback(
+    (family: BadgeDragFamily): BadgeScaleAnchor =>
+      badgeScaleAnchor({ family, layout: scaleLayout, shape }),
+    [scaleLayout, shape],
+  )
 
   // Per-item corrections of the ACTIVE shape (same value the preview URL and
   // the mapping carry). Empty = every item on its automatic box.
@@ -428,15 +473,21 @@ export function PosterBadgeDragLayer({
         case "logo": {
           // Explicit value first (exactly the slider). Auto-fit has no numeric
           // slider value: the renderer's reported box is the only authority, so
-          // the first ratio starts from the scale that box represents.
+          // the first ratio starts from the scale that box represents relative
+          // to the ACTIVE layout's base slot (canvas / Fresh slot / Card slot).
           if (defaults.logoScale != null) return defaults.logoScale
           const box = geometryForScale?.boxes.logo
           if (!box || !geometryForScale) return badgeScaleLimits("logo", { titleMax }).max
-          return deriveEffectiveLogoScale({ box, canvasW: geometryForScale.canvasW, titleMax })
+          return deriveEffectiveLogoScale({
+            box,
+            canvasW: geometryForScale.canvasW,
+            slotWidth: cardTitleSlotWidth,
+            titleMax,
+          })
         }
       }
     },
-    [defaults, itemTransforms, itemWriteId, titleMax],
+    [cardTitleSlotWidth, defaults, itemTransforms, itemWriteId, titleMax],
   )
 
   /**
@@ -515,6 +566,10 @@ export function PosterBadgeDragLayer({
       const familyMoves: BadgeFamilyMove[] = []
       const itemMoves: BadgeItemMove[] = []
       for (const target of targets) {
+        // A frozen network (Standard/Fresh) exposes no handle; keep the writer
+        // defensive as well so no gesture (or stale selection) can persist an
+        // offset the renderer does not apply on top of the absolute box.
+        if (target.kind === "family" && target.family === "network" && networkHandleLocked) continue
         if (target.kind === "item") {
           const id = itemWriteId(target)
           const current = badgeItemTransform(itemTransforms, id)
@@ -535,7 +590,7 @@ export function PosterBadgeDragLayer({
       if (familyMoves.length > 0) defaults.applyFamilyMoves(familyMoves)
       if (itemMoves.length > 0) defaults.applyItemMoves(itemMoves)
     },
-    [defaults, familyProfiles, itemTransforms, itemWriteId, shown],
+    [defaults, familyProfiles, itemTransforms, itemWriteId, networkHandleLocked, shown],
   )
 
   /** Resize write: the same scale the target's own control writes. */
@@ -662,10 +717,13 @@ export function PosterBadgeDragLayer({
     for (const family of FAMILY_ORDER) {
       const box = shown.boxes[family]
       if (!box) continue
+      // Frozen network: the server locks BOTH axes for this family; offering a
+      // handle would promise a movement the renderer ignores.
+      if (family === "network" && networkHandleLocked) continue
       out.push({ family, box, xLocked: shown.fixedX[family] === true })
     }
     return out
-  }, [shown])
+  }, [shown, networkHandleLocked])
 
   // Selection sanitising: a target that disappears from the render
   // (layout/style switch, missing data, merged Dolby combo) cannot stay
@@ -674,10 +732,15 @@ export function PosterBadgeDragLayer({
   // render loop).
   useEffect(() => {
     setSelected((prev) => {
-      const next = prev.filter((target) => !!boxOf(target)).slice(0, 64)
+      const next = prev.filter((target) => {
+        // A family that becomes frozen (follow switched OFF) loses its handle:
+        // drop it from the selection so it can never ride another drag.
+        if (target.kind === "family" && target.family === "network" && networkHandleLocked) return false
+        return !!boxOf(target)
+      }).slice(0, 64)
       return next.length === prev.length ? prev : next
     })
-  }, [shown, boxOf])
+  }, [shown, boxOf, networkHandleLocked])
 
   useEffect(() => {
     setSelected((prev) => (prev.length === 0 ? prev : []))
@@ -892,6 +955,7 @@ export function PosterBadgeDragLayer({
       canvasH: shown.canvasH,
       box,
       startScale,
+      anchor: scaleAnchorOf(target.family),
       titleMax,
       scale: startScale,
     })
@@ -912,6 +976,7 @@ export function PosterBadgeDragLayer({
       current,
       canvasW: resize.canvasW,
       canvasH: resize.canvasH,
+      anchor: resize.anchor,
       titleMax: resize.titleMax,
     })
     if (next.scale !== resize.scale) setResize({ ...resize, scale: next.scale })
@@ -957,6 +1022,7 @@ export function PosterBadgeDragLayer({
       box,
       canvasW: shown.canvasW,
       canvasH: shown.canvasH,
+      anchor: scaleAnchorOf(target.family),
       titleMax,
     })
     if (next.scale === startScale) return
@@ -999,7 +1065,9 @@ export function PosterBadgeDragLayer({
     if (!shown) return []
     if (targetLevel === "group") {
       return FAMILY_ORDER.flatMap((family) =>
-        shown.boxes[family] ? [{ kind: "family", family } as DragTarget] : [],
+        shown.boxes[family] && !(family === "network" && networkHandleLocked)
+          ? [{ kind: "family", family } as DragTarget]
+          : [],
       )
     }
     return itemHandles.map((item) => ({ kind: "item", id: item.id, family: item.family }) as DragTarget)
@@ -1156,8 +1224,13 @@ export function PosterBadgeDragLayer({
           : 1
     const w = box.w * ratio
     const h = box.h * ratio
-    const left = box.left - (w - box.w) / 2
-    const top = box.top - (h - box.h) / 2
+    // Grow about the SAME point the renderer anchors the scale at (quality
+    // right/top, network left/top, title bottom-centre, Card numeral
+    // gutter/baseline, …): a centre-only preview moved the element away from
+    // where the committed render puts it (visible jump on release).
+    const anchor = scaleAnchorOf(target.family)
+    const left = box.left - (w - box.w) * anchor.x
+    const top = box.top - (h - box.h) * anchor.y
     return {
       left: `calc(${(left / shown.canvasW) * 100}% + ${dx}px)`,
       top: `calc(${(top / shown.canvasH) * 100}% + ${dy}px)`,

@@ -521,6 +521,26 @@ describe("normalizePosterCacheParams", () => {
     }
   })
 
+  it("qbs: present-invalid (including empty) collapses onto explicit 'standard', absent stays absent", () => {
+    // The renderer resolves a present-but-invalid `qbs` to the explicit
+    // "standard" style (fail-closed) instead of inheriting the mapping, so the
+    // key must say the same — otherwise ?qbs= and ?qbs=standard would share a
+    // key with a mapping-inherited render.
+    for (const value of ["", "bar", " ", "Standard"]) {
+      expect(normalizePosterCacheParams(new URLSearchParams(`qbs=${value}`)).get("qbs"), `qbs=${value}`).toBe("standard")
+    }
+    // Valid values are never rewritten.
+    for (const style of ["standard", "mono", "color", "knockout", "premium", "nova", "gradient", "outline", "strip", "naked"]) {
+      expect(normalizePosterCacheParams(new URLSearchParams(`qbs=${style}`)).get("qbs")).toBe(style)
+    }
+    // Present-invalid != absent (the absence may inherit the mapping).
+    expect(normalizePosterCacheParams(new URLSearchParams("qbs=")).has("qbs")).toBe(true)
+    expect(normalizePosterCacheParams(new URLSearchParams("")).has("qbs")).toBe(false)
+    expect(normalizePosterCacheParams(new URLSearchParams("qbs=")).toString()).not.toBe(
+      normalizePosterCacheParams(new URLSearchParams("")).toString(),
+    )
+  })
+
   it("does not flatten enum or numeric render controls", () => {
     const normalized = normalizePosterCacheParams(
       new URLSearchParams("side=right&netPos=top&qbs=standard&tint=50"),

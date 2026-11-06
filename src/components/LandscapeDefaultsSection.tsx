@@ -956,8 +956,6 @@ export function LandscapeDefaultsSection({ editVal, editTxt, setEditVal, setEdit
               {gradSlider(t("ui.fade"), <Minus className="w-3.5 h-3.5" />, "blurFade", ed.defaultBlurFade, 0, 100, "%", "lsbf")}
               {gradSlider(t("ui.darkness"), <Circle className="w-3.5 h-3.5" />, "blurDarkness", ed.defaultBlurDarkness, 0, 100, "%", "lsbd")}
               {gradSlider(t("ui.tintStrength"), <Cloud className="w-3.5 h-3.5" />, "tintStrength", ed.defaultTintStrength, 0, 100, "%", "lsts")}
-              {gradSlider(t("ui.topShade"), <Circle className="w-3.5 h-3.5" />, "topShade", ed.defaultTopShade, 0, 100, "%", "lstp")}
-              {gradSlider(t("ui.topShadeHeight"), <Ruler className="w-3.5 h-3.5" />, "topShadeHeight", ed.defaultTopShadeHeight, 0, 100, "%", "lsth")}
             </div>
           </>
         ) : (
@@ -965,6 +963,13 @@ export function LandscapeDefaultsSection({ editVal, editTxt, setEditVal, setEdit
             {t("ui.blurDisabled")}
           </p>
         )}
+
+        {/* Upper shade is applied by the renderer independently of the blur
+            master (poster-service topShade): always editable, same resolvers. */}
+        <div className="space-y-1.5 pt-1">
+          {gradSlider(t("ui.topShade"), <Circle className="w-3.5 h-3.5" />, "topShade", ed.defaultTopShade, 0, 100, "%", "lstp")}
+          {gradSlider(t("ui.topShadeHeight"), <Ruler className="w-3.5 h-3.5" />, "topShadeHeight", ed.defaultTopShadeHeight, 0, 100, "%", "lsth")}
+        </div>
       </div>
 
       <button

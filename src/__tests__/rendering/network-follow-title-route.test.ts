@@ -380,6 +380,28 @@ describe("GET /api/poster debug badge geometry", () => {
     expect({ top: explicitB.top, left: explicitB.left }).toEqual({ top: explicitA.top, left: explicitA.left })
   })
 
+  it("locks the frozen network family on both axes in Standard and Fresh, never on follow or Card", async () => {
+    // Follow (historic): the offset handle is offered (relative offsets apply).
+    const follow = badgesOf((await getDebugGeo("")).body)
+    expect(follow.families.network).toBeTruthy()
+    expect(follow.fixedX.network).toBeUndefined()
+
+    // Frozen Standard: absolute box + both axes ignored -> locked family.
+    const frozen = badgesOf((await getDebugGeo("&netFollow=0&nox=120&noy=300")).body)
+    expect(frozen.families.network).toBeTruthy()
+    expect(frozen.fixedX.network).toBe(true)
+
+    // Frozen Fresh: same contract on the composed provider layer.
+    const fresh = badgesOf((await getDebugGeo("&layout=fresh&rank=7&netFollow=0&nox=120&noy=300")).body)
+    expect(fresh.fixedX.network).toBe(true)
+
+    // Card applies its provider offsets even with follow OFF: no lock, the
+    // handle keeps working (verified slop-1 in the Card test below).
+    const card = badgesOf((await getDebugGeo("&layout=nuvio&rank=7&netFollow=0&nox=120&noy=300")).body)
+    expect(card.families.network).toBeTruthy()
+    expect(card.fixedX.network).toBeUndefined()
+  })
+
   it("reports the landscape canvas for landscape renders", async () => {
     const res = await GET(
       adminReq(`${debugBase}&shape=landscape&debug=1&netgeo=1`),

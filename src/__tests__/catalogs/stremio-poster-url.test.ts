@@ -1,6 +1,7 @@
 import { describe, expect, it } from "vitest"
 import { buildStremioPosterUrl, mappingVersionParam } from "@/lib/stremio-poster-url"
 import { resolvePosterRenderConfig } from "@/lib/poster-config"
+import { hardenPosterSearchParams } from "@/lib/poster-params-hardening"
 import { POSTER_URL_VERSION } from "@/lib/render-version"
 import type { Mapping } from "@/lib/types"
 
@@ -52,6 +53,43 @@ describe("buildStremioPosterUrl", () => {  it("adds a mapping version parameter 
     // Mai segreti nei poster serviti (M2): niente api_key/mdblist_key.
     expect(url.searchParams.has("api_key")).toBe(false)
     expect(url.searchParams.has("mdblist_key")).toBe(false)
+  })
+
+  it("delivers curated mapping tuning exact and survives presets hardening (I1 parity)", () => {
+    const curated: Mapping = {
+      ...mapping("2026-07-16T10:15:30.000Z"),
+      topBadgeScale: 157,
+      topBadgeOffsetX: 3,
+      topBadgeOffsetY: 3,
+    }
+    // `config` = token stateless: tuning esplicito nell'URL (non compatto),
+    // come i template manuali. È il caso in cui la quantizzazione storica
+    // arrotondava i valori curati (tox 3 → 5).
+    const url = buildStremioPosterUrl({
+      origin: "http://localhost:3000",
+      type: "movie",
+      id: 42,
+      defaults: {},
+      mapping: curated,
+      config: "tok",
+    })
+    expect(url.searchParams.get("tox")).toBe("3")
+    expect(url.searchParams.get("tscale")).toBe("157")
+    const base = {
+      presets: true,
+      preview: false,
+      anonymous: true,
+      publicInstance: true,
+    } as const
+    // Curated per-title mapping: exact values survive (preview shows the same).
+    const hardened = hardenPosterSearchParams(url.searchParams, { ...base, hasMapping: true })
+    expect(hardened.get("tox")).toBe("3")
+    expect(hardened.get("toy")).toBe("3")
+    expect(hardened.get("tscale")).toBe("157")
+    // Keyless request (no saved mapping): the coarse anti-abuse steps remain.
+    const keyless = hardenPosterSearchParams(url.searchParams, { ...base, hasMapping: false })
+    expect(keyless.get("tox")).toBe("5")
+    expect(keyless.get("tscale")).toBe("160")
   })
 
   it("emits the mapping title for JustWatch matching", () => {

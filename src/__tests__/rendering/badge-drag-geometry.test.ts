@@ -10,6 +10,7 @@ import {
   BADGE_SCALE_MIN,
   badgeDragLock,
   badgeResetApplies,
+  badgeScaleAnchor,
   badgeScaleLimits,
   canvasToScreenDelta,
   clampBadgeOffset,
@@ -792,6 +793,87 @@ describe("stepBadgeResizeScale", () => {
   })
 })
 
+describe("badgeScaleAnchor", () => {
+  it("maps the documented renderer anchors, per layout and shape", () => {
+    // Standard: top-right quality, top-left network, bottom-centre title.
+    expect(badgeScaleAnchor({ family: "quality" })).toEqual({ x: 1, y: 0 })
+    expect(badgeScaleAnchor({ family: "network" })).toEqual({ x: 0, y: 0 })
+    expect(badgeScaleAnchor({ family: "logo" })).toEqual({ x: 0.5, y: 1 })
+    // Card: numeral gutter + baseline; title bottom-centre inside the card.
+    expect(badgeScaleAnchor({ family: "rank", layout: "card" })).toEqual({ x: 0, y: 1 })
+    expect(badgeScaleAnchor({ family: "logo", layout: "card" })).toEqual({ x: 0.5, y: 1 })
+    // Fresh: glass numeral top-left; landscape title bottom-right.
+    expect(badgeScaleAnchor({ family: "rank", layout: "fresh" })).toEqual({ x: 0, y: 0 })
+    expect(badgeScaleAnchor({ family: "logo", layout: "fresh", shape: "landscape" })).toEqual({ x: 1, y: 1 })
+  })
+})
+
+describe("clampBadgeResizeScale (anchor-aware frame)", () => {
+  it("bounds right-anchored growth by the LEFT room the renderer keeps", () => {
+    // Quality pill anchored at its right edge (150): growth moves the left
+    // edge. The real room is 1.5x; the canvas-width legacy bound would promise
+    // 5x and let the box leave the frame.
+    const box = { top: 12, left: 50, w: 100, h: 26 }
+    const anchored = clampBadgeResizeScale({
+      family: "quality",
+      startScale: 100,
+      scale: 200,
+      box,
+      canvasW: 500,
+      canvasH: 750,
+      anchor: { x: 1, y: 0 },
+    })
+    expect(anchored).toEqual({ scale: 150, clamped: false, frameClamped: true })
+    // No anchor hint = the historical canvas bound (unchanged).
+    expect(
+      clampBadgeResizeScale({ family: "quality", startScale: 100, scale: 200, box, canvasW: 500, canvasH: 750 }).scale,
+    ).toBe(200)
+  })
+
+  it("bounds top-left anchored growth by the RIGHT room", () => {
+    const box = { top: 12, left: 380, w: 100, h: 26 }
+    const result = clampBadgeResizeScale({
+      family: "network",
+      startScale: 100,
+      scale: 200,
+      box,
+      canvasW: 500,
+      canvasH: 750,
+      anchor: { x: 0, y: 0 },
+    })
+    expect(result).toEqual({ scale: 120, clamped: false, frameClamped: true })
+  })
+
+  it("grows a Card numeral from its gutter/baseline anchor", () => {
+    const box = { top: 400, left: 300, w: 150, h: 300 }
+    const result = clampBadgeResizeScale({
+      family: "rank",
+      startScale: 100,
+      scale: 200,
+      box,
+      canvasW: 500,
+      canvasH: 750,
+      anchor: { x: 0, y: 1 },
+    })
+    // Right room 200/150 = 1.333; the baseline keeps the downward room free.
+    expect(result).toEqual({ scale: 133, clamped: false, frameClamped: true })
+  })
+
+  it("never grows a box that already leaves the frame, anchor or not", () => {
+    const box = { top: 20, left: -10, w: 100, h: 30 }
+    const result = clampBadgeResizeScale({
+      family: "quality",
+      startScale: 100,
+      scale: 160,
+      box,
+      canvasW: 500,
+      canvasH: 750,
+      anchor: { x: 1, y: 0 },
+    })
+    expect(result).toEqual({ scale: 100, clamped: false, frameClamped: true })
+  })
+})
+
 describe("deriveEffectiveLogoScale", () => {
   it("starts an auto-fit logo resize from the width the renderer reported", () => {
     expect(deriveEffectiveLogoScale({ box: { top: 0, left: 0, w: 375, h: 80 }, canvasW: 500, titleMax: 100 })).toBe(75)
@@ -804,6 +886,28 @@ describe("deriveEffectiveLogoScale", () => {
     expect(deriveEffectiveLogoScale({ box: { top: 0, left: 0, w: 500, h: 80 }, canvasW: 500, titleMax: 200 })).toBe(100)
     expect(deriveEffectiveLogoScale({ box: { top: 0, left: 0, w: 2, h: 2 }, canvasW: 500, titleMax: 100 })).toBe(BADGE_SCALE_MIN)
     expect(deriveEffectiveLogoScale({ box: { top: 0, left: 0, w: 0, h: 0 }, canvasW: 500 })).toBe(BADGE_SCALE_MIN)
+  })
+
+  it("derives the Card auto title from the card slot, never from canvas %", () => {
+    // Portrait Card @500x750: base title slot = 274px (cardLayoutGeometry).
+    const box = { top: 500, left: 150, w: 274, h: 110 }
+    // Canvas % reports ~55: the old first outward drag SHRANK the title.
+    expect(deriveEffectiveLogoScale({ box, canvasW: 500, titleMax: 200 })).toBe(55)
+    // The card slot makes the same box the neutral 100, so an outward drag
+    // really grows it (and is accepted by the anchor-aware clamp).
+    expect(deriveEffectiveLogoScale({ box, canvasW: 500, slotWidth: 274, titleMax: 200 })).toBe(100)
+    const grown = clampBadgeResizeScale({
+      family: "logo",
+      startScale: 100,
+      scale: 120,
+      box,
+      canvasW: 500,
+      canvasH: 750,
+      titleMax: 200,
+      anchor: { x: 0.5, y: 1 },
+    })
+    expect(grown.scale).toBe(120)
+    expect(grown.frameClamped).toBe(false)
   })
 })
 

@@ -8,7 +8,15 @@ import { usePosterEditor } from "@/lib/contexts/PosterEditorContext"
 import { http, userFetch } from "@/lib/http"
 import { EpisodePreview } from "@/components/EpisodePreview"
 
-export function EpisodeGroupControls() {
+export function EpisodeGroupControls({
+  autoOpenThumbnailStudio = false,
+  onAutoOpenThumbnailStudio,
+}: {
+  /** Miniature-zone entry: open the episode thumbnail studio on first load. */
+  autoOpenThumbnailStudio?: boolean
+  /** Called once the studio has opened, so a remount never re-opens it. */
+  onAutoOpenThumbnailStudio?: () => void
+} = {}) {
   const { t } = useT()
   const selected = usePSelector((v) => v.selected)
   const tmdbKey = usePSelector((v) => v.tmdbKey)
@@ -371,7 +379,10 @@ export function EpisodeGroupControls() {
         </button>
       </div>
 
-      <EpisodePreview />
+      <EpisodePreview
+        autoOpenThumbnailStudio={autoOpenThumbnailStudio}
+        onAutoOpenThumbnailStudio={onAutoOpenThumbnailStudio}
+      />
     </div>
   )
 }

@@ -250,6 +250,46 @@ describe("PosterBadgeDragLayer", () => {
     expect(ctx().defaultGenreBadgeOffsetX).toBe(0)
   })
 
+  it("offers no handle at all for a frozen network (both offset axes are ignored)", async () => {
+    // Frozen state (follow OFF + absolute coords) is reported by the server as
+    // a locked network family. The renderer never applies relative offsets on
+    // top of the absolute box in Standard/Fresh, so the overlay must not offer
+    // a handle that would store a `nox`/`noy` reinterpreted later.
+    seedDefaults({
+      defaultNetworkLogoFollowTitle: false,
+      defaultNetworkLogoOffsetX: 120,
+      defaultNetworkLogoOffsetY: 300,
+    })
+    stubFetch(badges({
+      families: {
+        rank: { top: 20, left: 190, w: 120, h: 40 },
+        network: { top: 300, left: 120, w: 90, h: 30 },
+      },
+      fixedX: { network: true },
+    }))
+    const { ctx } = renderLayer(
+      createElement(PosterBadgeDragLayer, { previewUrl: PREVIEW_URL, shape: "poster", enabled: true }),
+    )
+    // Geometry really arrived (another family is editable)...
+    await waitForHandle("rank")
+    // ...but the frozen network has no handle and no gesture can write it.
+    expect(screen.queryByTestId("badge-drag-handle-network")).toBeNull()
+    expect(ctx().defaultNetworkLogoOffsetX).toBe(120)
+    expect(ctx().defaultNetworkLogoOffsetY).toBe(300)
+  })
+
+  it("keeps the network handle when follow is on (neutral path unchanged)", async () => {
+    seedDefaults({ defaultNetworkLogoFollowTitle: true })
+    stubFetch(badges({
+      families: { network: { top: 34, left: 24, w: 90, h: 30 } },
+      fixedX: {},
+    }))
+    renderLayer(
+      createElement(PosterBadgeDragLayer, { previewUrl: PREVIEW_URL, shape: "poster", enabled: true }),
+    )
+    expect(await waitForHandle("network")).toBeTruthy()
+  })
+
   it("a pointer drag on an anchored axis writes no offset the renderer ignores", async () => {
     seedDefaults({ genreBadgeOffsetX: 0, genreBadgeOffsetY: 0 })
     stubFetch(badges({ fixedX: { genre: true } }))
@@ -579,6 +619,37 @@ describe("PosterBadgeDragLayer — corner resize", () => {
     await waitFor(() => expect(ctx().defaultLogoScale).toBe(72))
     expect(ctx().defaultLogoOffsetX).toBeNull()
     expect(ctx().defaultLogoOffsetY).toBeNull()
+  })
+
+  it("grows an auto Card title outward from the card slot (never a canvas-% shrink)", async () => {
+    seedDefaults({
+      defaultPosterLayout: "provider-glass",
+      defaultLogoScale: null,
+      defaultLogoOffsetX: null,
+      defaultLogoOffsetY: null,
+    })
+    // Portrait Card @500x750: base title slot 274px wide, bottom-centred.
+    stubFetch(badges({ families: { logo: { top: 500, left: 150, w: 274, h: 110 } } }))
+    const { ctx } = renderLayer(
+      createElement(PosterBadgeDragLayer, { previewUrl: PREVIEW_URL, shape: "poster", enabled: true }),
+    )
+    // 274x110 at x2 => 137x55 screen, centred at (143.5, 277.5).
+    await selectFamily("logo", { left: 75, top: 250, width: 137, height: 55 })
+    const corner = screen.getByTestId("badge-resize-handle-logo-se")
+    fireEvent.pointerDown(corner, { button: 0, clientX: 212, clientY: 305, pointerId: 41 })
+    fireEvent.pointerMove(corner, { clientX: 228, clientY: 315, pointerId: 41 })
+    fireEvent.pointerUp(corner, { clientX: 228, clientY: 315, pointerId: 41 })
+    // Auto starts at the neutral slot 100 (not the ~55 canvas %), so the
+    // outward gesture GROWS the title instead of shrinking it.
+    await waitFor(() => expect(ctx().defaultLogoScale).toBeGreaterThan(100))
+    // The preview grows about the renderer anchor (bottom-centre): the box
+    // keeps its bottom and its centre, so the committed render cannot jump.
+    const handle = screen.getByTestId("badge-drag-handle-logo")
+    const ratio = (ctx().defaultLogoScale as number) / 100
+    const stylePct = (css: string) => Number.parseFloat(css.replace("calc(", ""))
+    await waitFor(() => expect(handle.style.width).toBe(`${((274 * ratio) / 500) * 100}%`))
+    expect(stylePct(handle.style.top)).toBeCloseTo(((500 - ((110 * ratio) - 110)) / 750) * 100, 5)
+    expect(stylePct(handle.style.left)).toBeCloseTo(((150 - ((274 * ratio) - 274) / 2) / 500) * 100, 5)
   })
 
   it("writes the separate-ratings RAW scale (the slider's storage contract)", async () => {

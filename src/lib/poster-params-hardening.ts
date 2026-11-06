@@ -5,6 +5,8 @@
 // render, così la CDN assorbe quasi tutto e i pod rendono solo i veri miss:
 //  1. allowlist rigida dei parametri in cache key (junk ?x=1 collassa);
 //  2. quantizzazione dei numerici liberi su step grossolani (non-preview);
+//     esente sui titoli con mapping curato (il deliverable Stremio deve
+//     rendere gli stessi valori esatti della preview, vedi I1 sotto);
 //  3. `ac` solo palette nota, `extra`/`label` solo da mapping curato;
 //  4. niente override poster/logo/backdrop keyless su pubbliche anonime.
 //  5. without a poster override, derivable hints (title, genreName, year,
@@ -476,6 +478,8 @@ export interface HardenPosterQueryInput {
  * Restituisce una COPIA dei parametri con l'hardening applicato (mai mutata
  * la request): quantizzazione + palette ac + canonicalizzazione extra +
  * strip override immagini. Con presets OFF o preview=1 ritorna copia intatta.
+ * I numerici liberi sono quantizzati solo senza mapping curato (I1: il poster
+ * Stremio di un titolo salvato deve rendere i valori esatti della preview).
  */
 export function hardenPosterSearchParams(
   source: URLSearchParams,
@@ -484,8 +488,22 @@ export function hardenPosterSearchParams(
   const params = new URLSearchParams(source)
   if (!input.presets || input.preview) return params
 
-  for (const key of STEP_5_PARAMS) quantizeInPlace(params, key, 5)
-  for (const key of STEP_10_PARAMS) quantizeInPlace(params, key, 10)
+  // I1 (WYSIWYG parity): numeric tuning on a CURATED per-title mapping is
+  // exempt from quantization. The editor preview shows the exact staged
+  // values and the save stores them verbatim; the delivered Stremio URL
+  // carries those same values, so quantizing only the delivered request
+  // rounded the poster within one step (e.g. tox 3 → 5) on presets
+  // instances. Anonymous keyless requests (no saved mapping) keep the coarse
+  // steps and the anti cache-busting behavior. Trade-off (documented): a
+  // request for a title that HAS a mapping is trusted as curated, so its
+  // explicit numerics are not collapsed; this is the only signal available
+  // to the hardening layer (mapping existence), and it is fail-closed for
+  // every unmapped title.
+  const quantizeNumerics = !input.hasMapping
+  if (quantizeNumerics) {
+    for (const key of STEP_5_PARAMS) quantizeInPlace(params, key, 5)
+    for (const key of STEP_10_PARAMS) quantizeInPlace(params, key, 10)
+  }
 
   // Per-ITEM badge corrections (`bit`): the canonical wire form carries free
   // numerics (scale 10..200, offsets ±2000), so unquantized it lets any
@@ -497,7 +515,7 @@ export function hardenPosterSearchParams(
   // garbage fails closed onto that same explicit clear, exactly like
   // normalizePosterCacheParams.
   if (params.has("bit")) {
-    params.set("bit", canonicalizeBadgeItemTransforms(params.get("bit"), { quantize: true }) ?? "")
+    params.set("bit", canonicalizeBadgeItemTransforms(params.get("bit"), { quantize: quantizeNumerics }) ?? "")
   }
 
   if (params.has("ac")) {

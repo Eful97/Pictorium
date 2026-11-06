@@ -240,12 +240,30 @@ describe("ribbonSide legacy restore", () => {
   it("portrait ignores saved flat side without query/config (legacy exact)", () => {
     expect(resolvePosterRenderConfig(baseInput({ sd: { ribbonSide: "right" } as never })).ribbonSide).toBe("left")
   })
-  it("landscape without landscape override keeps legacy", () => {
-    const r = resolvePosterRenderConfig(baseInput({
+  it("landscape inherits the flat side (delivered render agrees with preview and Stremio URL)", () => {
+    const sd = { ribbonSide: "right" } as never
+    // Query-less landscape render: the per-shape profile inherits the flat.
+    expect(resolvePosterRenderConfig(baseInput({
       searchParams: q({ shape: "landscape" }),
-      sd: { ribbonSide: "right" } as never,
-    }))
-    expect(r.ribbonSide).toBe("left")
+      sd,
+    })).ribbonSide).toBe("right")
+    // Stremio builder already emitted the flat side in landscape; the
+    // delivered URL must re-resolve to the same side (no left/right split).
+    const stremio = buildStremioPosterUrl({
+      origin: "https://x.test", type: "movie", id: 1, forceShape: "landscape",
+      defaults: { ribbonSide: "right" },
+    })
+    expect(stremio.searchParams.get("side")).toBe("right")
+    expect(resolvePosterRenderConfig(baseInput({
+      searchParams: new URLSearchParams(stremio.searchParams),
+      sd,
+    })).ribbonSide).toBe("right")
+    // Settings preview of the landscape defaults emits the same side.
+    const preview = new URL(buildDefaultsPreviewUrl({
+      defaultRibbonSide: "right", previewShape: "landscape",
+    })).searchParams
+    expect(preview.get("side")).toBe("right")
+    expect(resolvePosterRenderConfig(baseInput({ searchParams: preview, sd })).ribbonSide).toBe("right")
   })
   it("explicit landscape side applies; live follows effective; query/config win", () => {
     const sd = { ribbonSide: "left", landscape: { ribbonSide: "right" } } as never
@@ -253,11 +271,11 @@ describe("ribbonSide legacy restore", () => {
     expect(resolvePosterRenderConfig(baseInput({ searchParams: q({ shape: "landscape", live: "1" }), sd })).ribbonSide).toBe("right")
     expect(resolvePosterRenderConfig(baseInput({ searchParams: q({ live: "1" }), sd: { ribbonSide: "right" } as never })).ribbonSide).toBe("right")
     expect(resolvePosterRenderConfig(baseInput({ searchParams: q({ shape: "landscape", side: "left" }), sd })).ribbonSide).toBe("left")
-    // Explicit landscape null = no override = legacy.
+    // Explicit landscape null = no override = inherits the flat (per-shape contract).
     expect(resolvePosterRenderConfig(baseInput({
       searchParams: q({ shape: "landscape" }),
       sd: { ribbonSide: "right", landscape: { ribbonSide: null } } as never,
-    })).ribbonSide).toBe("left")
+    })).ribbonSide).toBe("right")
   })
 })
 

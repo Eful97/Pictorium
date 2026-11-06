@@ -222,6 +222,18 @@ export function TransformControls() {
       tintStrength: v.tintStrength,
     })
   }
+  // Section reset restores the gradient recipe only: the blur master is a
+  // separate user choice and must never be force-enabled by a reset (a blur
+  // left OFF keeps its state, so the reset changes zero pixels there).
+  const resetGradientSection = () => {
+    setGradVals({
+      gradientHeight: naturalVals.gradientHeight,
+      blurIntensity: naturalVals.blurIntensity,
+      blurFade: naturalVals.blurFade,
+      blurDarkness: naturalVals.blurDarkness,
+      tintStrength: naturalVals.tintStrength,
+    })
+  }
 
   return (
     <div className="space-y-3.5 text-xs">
@@ -702,7 +714,6 @@ export function TransformControls() {
       </div>
       )}
 
-      {gradVals.blurEnabled && (
       <div className="bg-surface/50 border border-surface2/60 rounded-xl p-3 space-y-2.5 shadow-sm animate-fade-in">
         <div className="flex items-center justify-between px-1">
           <span className="font-semibold text-zinc-200 flex items-center gap-1.5">
@@ -710,24 +721,26 @@ export function TransformControls() {
             {t("ui.blurSection")} · {isLandShape ? t("ui.posterShapeLandscape") : t("ui.posterShapePortrait")}
           </span>
           <button type="button" aria-label={t("ui.reset")}
-                  onClick={() => applyGradientPreset(naturalVals)}
+                  onClick={resetGradientSection}
                   className="text-xs text-muted hover:text-accent transition-colors px-2 py-0.5 rounded-md border border-border/50 hover:border-accent/30">
             {t("ui.reset")}
           </button>
         </div>
 
-        <GradientPresetRow
-          current={{ gradientHeight: gradVals.gradientHeight, blurIntensity: gradVals.blurIntensity, blurFade: gradVals.blurFade, blurDarkness: gradVals.blurDarkness, tintStrength: gradVals.tintStrength, blurEnabled: gradVals.blurEnabled }}
-          onApply={applyGradientPreset}
-          naturalLabel={t("ui.gradientPresetNatural")}
-          colorLabel={t("ui.gradientPresetColor")}
-          neroLabel="Nero"
-          addTitle={t("ui.gradientPresetAdd")}
-          namePlaceholder={t("ui.gradientPresetName")}
-          deleteLabel={t("ui.gradientPresetDelete")}
-        />
+        {gradVals.blurEnabled ? (
+          <>
+            <GradientPresetRow
+              current={{ gradientHeight: gradVals.gradientHeight, blurIntensity: gradVals.blurIntensity, blurFade: gradVals.blurFade, blurDarkness: gradVals.blurDarkness, tintStrength: gradVals.tintStrength, blurEnabled: gradVals.blurEnabled }}
+              onApply={applyGradientPreset}
+              naturalLabel={t("ui.gradientPresetNatural")}
+              colorLabel={t("ui.gradientPresetColor")}
+              neroLabel="Nero"
+              addTitle={t("ui.gradientPresetAdd")}
+              namePlaceholder={t("ui.gradientPresetName")}
+              deleteLabel={t("ui.gradientPresetDelete")}
+            />
 
-        <div className="space-y-1.5 pt-1 animate-fade-in">
+            <div className="space-y-1.5 pt-1 animate-fade-in">
             <SliderRow
               icon={<Ruler className="w-3.5 h-3.5" />}
               label={t("ui.height")}
@@ -813,6 +826,15 @@ export function TransformControls() {
               editingKey="tintStrength"
               suffix="%"
             />
+            </div>
+          </>
+        ) : (
+          <p className="text-[11px] text-zinc-400 italic px-1">{t("ui.blurDisabled")}</p>
+        )}
+
+        {/* Upper shade is applied by the renderer independently of the blur
+            master (poster-service topShade): always editable, same resolvers. */}
+        <div className="space-y-1.5 pt-1">
             <SliderRow
               icon={<Circle className="w-3.5 h-3.5" />}
               label={t("ui.topShade")}
@@ -847,9 +869,8 @@ export function TransformControls() {
               editingKey="topShadeHeight"
               suffix="%"
             />
-          </div>
+        </div>
       </div>
-      )}
     </div>
   )
 }

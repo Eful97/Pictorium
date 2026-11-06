@@ -17,7 +17,7 @@ import {
   resolveNetworkFixedCoords,
   resolveLandscapeNetworkOffsets,
 } from "@/lib/poster-config"
-import { resolveNetworkShapeView, resolveNetworkEffectiveView } from "@/lib/network-follow"
+import { resolveNetworkShapeView, resolveNetworkEffectiveView, isNetworkFixedPosition } from "@/lib/network-follow"
 import { STD_W, STD_H } from "@/lib/poster-render-helpers"
 import type { WikidataResult } from "@/lib/awards"
 import type { ServerDefaults } from "@/lib/server-defaults"
@@ -333,6 +333,16 @@ describe("network follow-title contract", () => {
     expect(cfg.networkLogoFollowTitle).toBe(false)
     expect(cfg.networkFixedX).toBe(100)
     expect(cfg.networkFixedY).toBe(200)
+  })
+
+  it("frozen placement requires follow OFF plus both absolute coords", () => {
+    // Solo lo stato FROZEN (follow spento + coordinate complete) ignora davvero
+    // gli assi di offset: il predicato è la sola fonte per la UI.
+    expect(isNetworkFixedPosition(false, { x: 100, y: 200 })).toBe(true)
+    expect(isNetworkFixedPosition(true, { x: 100, y: 200 })).toBe(false)
+    expect(isNetworkFixedPosition(false, { x: 100, y: null })).toBe(false)
+    expect(isNetworkFixedPosition(false, { x: null, y: 200 })).toBe(false)
+    expect(isNetworkFixedPosition(false, { x: null, y: null })).toBe(false)
   })
 })
 

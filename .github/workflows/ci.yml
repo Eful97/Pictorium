@@ -181,7 +181,24 @@ jobs:
         if: needs.changes.outputs.code == 'true'
       - run: npx playwright install --with-deps chromium
         if: needs.changes.outputs.code == 'true'
-      - run: npx playwright test e2e/pictorium-visual.spec.ts
+      # Parità preview-vs-Stremio (Golden Rule) + visual regression nello stesso
+      # job: la parità non ha snapshot per-OS (confronta due render della stessa
+      # build, bound sui pixel ~0) e condivide app+mock con il visual, quindi un
+      # solo boot di `next dev` copre entrambi. Il check richiesto resta
+      # `visual` (branch protection invariata): nessun job nuovo da aggiungere.
+      #
+      # NON eseguiti qui (fuori scope finché non esistono i baseline Linux):
+      # `e2e/card-layout.spec.ts` (8 golden) e `e2e/colored-light-text.spec.ts`
+      # (1 golden) spediscono SOLO la variante win32. Su ubuntu il baseline
+      # `-chromium-linux` manca e Playwright fallisce con "snapshot doesn't
+      # exist": aggiungerli senza baseline renderebbe il job rosso, e generarle
+      # al volo sarebbe una baseline non revisionata. Follow-up (richiede il
+      # workflow `Update visual snapshots`, oggi limitato a
+      # pictorium-visual.spec.ts): generare e committare i 9 baseline Linux
+      # revisionati. Comando esatto su Linux:
+      #   npx playwright test e2e/card-layout.spec.ts e2e/colored-light-text.spec.ts --update-snapshots
+      # poi estendere la riga sotto con i due spec.
+      - run: npx playwright test e2e/pictorium-visual.spec.ts e2e/pictorium-parity.spec.ts
         if: needs.changes.outputs.code == 'true'
       # Su failure carica i render actual: servono per creare la variante
       # snapshot della piattaforma CI (gli snapshot sono per-OS) dopo revisione.
