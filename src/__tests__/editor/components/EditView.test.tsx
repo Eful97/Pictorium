@@ -1,8 +1,9 @@
-import { describe, it, expect, vi } from "vitest"
+import { describe, it, expect, vi, afterEach } from "vitest"
 import { screen, fireEvent, waitFor } from "@testing-library/react"
 import userEvent from "@testing-library/user-event"
 import EditView from "@/components/EditView"
 import { renderWithCtx } from "@/__tests__/test-utils"
+import { defaultsStorageKey } from "@/lib/useDefaults"
 import type { SearchResult } from "@/lib/types"
 
 const mockSelected: SearchResult = {
@@ -14,7 +15,19 @@ const mockSelected: SearchResult = {
   release_date: "1999-10-15",
 }
 
+const mockTvSelected: SearchResult = {
+  id: 1399,
+  media_type: "tv",
+  name: "Game of Thrones",
+  title: "",
+  poster_path: "/got.jpg",
+  first_air_date: "2011-04-17",
+}
+
 describe("EditView", () => {
+  afterEach(() => {
+    vi.unstubAllGlobals()
+  })
   it("shows search bar when no item selected", () => {
     renderWithCtx(<EditView />)
     expect(screen.getByPlaceholderText("ui.searchPlaceholderLarge")).toBeInTheDocument()
@@ -67,6 +80,18 @@ describe("EditView", () => {
     const transformTab = screen.getByText("ui.transform")
     await u.click(transformTab)
     expect(transformTab.closest("button")).toHaveClass("tab-chip-active")
+  })
+
+  it("lands on the seasons tab when entered from the Miniature zone", () => {
+    vi.stubGlobal("fetch", vi.fn(async () => ({ ok: false, status: 404, json: async () => ({}) })))
+    renderWithCtx(<EditView />, {
+      selected: mockTvSelected,
+      tmdbKey: "test-key",
+      sourceView: "thumbnails",
+    })
+
+    const seasonsTab = screen.getByText("ui.seasons").closest("button")
+    expect(seasonsTab).toHaveClass("tab-chip-active")
   })
 
   it("shows home hero when no item selected and has tmdbKey", () => {
@@ -187,19 +212,30 @@ describe("EditView", () => {
     }
     const mappingsMap = new Map([["movie:550", mapping]])
 
-    // Without edits, matching saved mapping
-    renderWithCtx(
-      <EditView />,
-      {
-        selected: mockSelected,
-        posters: [{ file_path: "/fc.jpg", iso_639_1: null, vote_average: 0, width: 1000, height: 1500 }],
-        previewPoster: { file_path: "/fc.jpg", iso_639_1: null, vote_average: 0, width: 1000, height: 1500 },
-        mappingsMap,
-      }
-    )
+    // renderWithCtx mocks PictoriumProvider, so context.tsx's title-open never
+    // runs and the live editor would stay at the hook seed 0/0. The real
+    // context opens a legacy mapping at the portrait shape defaults (-4/+6);
+    // hydrate the stored defaults with the same shape default so this fixture
+    // reflects production (the editor open path is covered by the real-provider
+    // tests).
+    localStorage.setItem(defaultsStorageKey(), JSON.stringify({ defaultPosterShape: "poster" }))
+    try {
+      // Without edits, matching saved mapping
+      renderWithCtx(
+        <EditView />,
+        {
+          selected: mockSelected,
+          posters: [{ file_path: "/fc.jpg", iso_639_1: null, vote_average: 0, width: 1000, height: 1500 }],
+          previewPoster: { file_path: "/fc.jpg", iso_639_1: null, vote_average: 0, width: 1000, height: 1500 },
+          mappingsMap,
+        }
+      )
 
-    // Should indicate saved
-    expect(screen.getAllByText("ui.savedShort").length).toBeGreaterThan(0)
+      // Should indicate saved
+      expect(screen.getAllByText("ui.savedShort").length).toBeGreaterThan(0)
+    } finally {
+      localStorage.removeItem(defaultsStorageKey())
+    }
   })
 
   it("shows the cover-only save action next to the full save", () => {

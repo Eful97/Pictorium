@@ -9,7 +9,7 @@ import { isMultiUserServer } from "@/lib/guest-guard"
 import { UserSpacesList } from "@/components/UserSpaceSection"
 import { useT } from "@/lib/contexts/TranslationContext"
 import { usePosterEditor } from "@/lib/contexts/PosterEditorContext"
-import type { TMDBImage } from "@/lib/types"
+import type { Mapping, TMDBImage } from "@/lib/types"
 import { effectiveMappingForShape, isPosterLayout, isPosterFreshScope, DEFAULT_POSTER_FRESH_SCOPE, type LandscapeSettings } from "@/lib/types"
 import { perTitleDraftKey } from "@/lib/shape-draft"
 import { MAPPING_SHAPE_FACTORY, mappingShapeChainEffective, type MappingShapeLandKey } from "@/lib/visual-presets"
@@ -37,6 +37,7 @@ import { ScrollReveal } from "@/components/ScrollReveal"
 import { HomeHero } from "@/components/HomeHero"
 import { PosterPreview } from "@/components/PosterPreview"
 import { PerTitleBadgeEditor } from "@/components/PerTitleBadgeEditor"
+import { ConfirmDialog } from "@/components/ConfirmDialog"
 import { PerTitlePresetChooser } from "@/components/PerTitlePresetChooser"
 import { PosterDepthEdge, PosterDepthSheen } from "@/components/PosterDepthGlow"
 import { BadgeControls } from "@/components/BadgeControls"
@@ -89,6 +90,9 @@ export default function EditView() {
   const tmdbKey = usePSelector((v) => v.tmdbKey)
   const currentUserId = usePSelector((v) => v.currentUserId)
   const serverHasTmdbKey = usePSelector((v) => v.serverHasTmdbKey)
+  // Origine della navigazione: la zona "Miniature" apre l'editor sullo studio
+  // delle miniature, non sul pannello di personalizzazione del poster.
+  const sourceView = usePSelector((v) => v.sourceView)
   // Chiave disponibile = browser oppure env d'istanza (fallback server):
   // solo quando mancano entrambe si mostra il pannello di benvenuto.
   const hasTmdbKey = !!tmdbKey || serverHasTmdbKey
@@ -122,7 +126,13 @@ export default function EditView() {
   const saveFlashTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null)
   const [saveFlash, setSaveFlash] = useState(false)
   const [mobileSection, setMobileSection] = useState<"poster" | "preview" | "customize">("preview")
-  const [activeRightTab, setActiveRightTab] = useState<"logo" | "badge" | "transform" | "stagioni">("logo")
+  const [activeRightTab, setActiveRightTab] = useState<"logo" | "badge" | "transform" | "stagioni">(
+    sourceView === "thumbnails" ? "stagioni" : "logo",
+  )
+  // One-shot intent: entering from the Miniature zone must open the episode
+  // thumbnail studio directly. The flag is consumed by EpisodePreview once the
+  // studio has opened, so later tab switches never re-open it.
+  const [autoOpenThumbnailStudio, setAutoOpenThumbnailStudio] = useState(sourceView === "thumbnails")
   // Gate profili stile AIO: con multi-user attivo e senza UUID nel path, la
   // home diventa creazione/selezione spazio — ricerca ed editor restano
   // bloccati finché non apri il tuo spazio (/u/<uuid>/configure). Il gate
@@ -237,6 +247,35 @@ export default function EditView() {
     ed.defaultPosterShape,
   ), [previewPosterFilePath, previewCustomPosterUrl, selectedBackdropFilePath, selectedCustomBackdropUrl, ed.posterShape, selectedLogo?.file_path, ed.logoDisabled, selectedMapping, ed.defaultPosterShape])
 
+  // Default effettivi del formato visualizzato per i controlli che il mapping
+  // può non congelare (badge età, formati A/V, fonti voto): la baseline
+  // "salvata" del dirty è `mapping ?? default di forma`, la stessa catena con
+  // cui l'apertura inizializza il live — un default globale non è una modifica.
+  const mappingVisualDefaults = useMemo(() => ({
+    ageBadge: isLandscapeTuning
+      ? (ed.landscape?.ageBadge ?? ed.defaultAgeBadge)
+      : ed.defaultAgeBadge,
+    ageCountry: isLandscapeTuning
+      ? (ed.landscape?.ageCountry ?? ed.defaultAgeCountry)
+      : ed.defaultAgeCountry,
+    ageBadgeStyle: isLandscapeTuning
+      ? (ed.landscape?.ageBadgeStyle ?? ed.defaultAgeBadgeStyle)
+      : ed.defaultAgeBadgeStyle,
+    videoFormats: isLandscapeTuning
+      ? (ed.landscape?.videoFormats ?? ed.defaultVideoFormats)
+      : ed.defaultVideoFormats,
+    ratingSources: ed.defaultRatingSources,
+    // Legacy mappings often lack the quality offsets: the live editor opens at
+    // the format defaults (-4/+6 portrait, 0/0 landscape), so that is the
+    // baseline — never 0.
+    qualityBadgeOffsetX: isLandscapeTuning
+      ? (ed.landscape?.qualityBadgeOffsetX ?? ed.defaultQualityBadgeOffsetX)
+      : ed.defaultQualityBadgeOffsetX,
+    qualityBadgeOffsetY: isLandscapeTuning
+      ? (ed.landscape?.qualityBadgeOffsetY ?? ed.defaultQualityBadgeOffsetY)
+      : ed.defaultQualityBadgeOffsetY,
+  }), [isLandscapeTuning, ed.landscape, ed.defaultAgeBadge, ed.defaultAgeCountry, ed.defaultAgeBadgeStyle, ed.defaultVideoFormats, ed.defaultRatingSources, ed.defaultQualityBadgeOffsetX, ed.defaultQualityBadgeOffsetY])
+
   const mappingDirtyBase = useMemo(() => isMappingDirty(
     {
       artwork: {
@@ -303,6 +342,21 @@ export default function EditView() {
       badgeFont: ed.badgeFont,
       awardBadgeStyle: ed.awardBadgeStyle,
       customBadge: ed.customBadge,
+      ageBadge: ed.ageBadge,
+      ageCountry: ed.ageCountry,
+      ageBadgeStyle: ed.ageBadgeStyle,
+      videoFormats: ed.videoFormats,
+      ratingSources: ed.ratingSources,
+      seasonalTheme: ed.seasonalTheme,
+      // Accent: valori live raw (la provenance manuale la decide la lib con
+      // la stessa `isManualAccent` del save — mai un hex auto congelato).
+      accentColor,
+      autoAccentColor,
+      // Logo testuale: text-as-logo è una sorgente logo persistita.
+      logoText: ed.logoText,
+      logoFont: ed.logoFont,
+      // Base portrait corrente (crop 2:3): congela/azzera al save portrait.
+      portraitBackdropPath: portraitBaseBackdropPath,
     },
     selectedMapping ?? null,
     isLandscapeTuning
@@ -323,10 +377,24 @@ export default function EditView() {
         topShadeHeight: ed.defaultTopShadeHeight,
       },
     ed.defaultPosterShape,
-  ), [previewPosterFilePath, previewCustomPosterUrl, selectedBackdropFilePath, selectedCustomBackdropUrl, selectedLogo?.file_path, selectedMapping, isLandscapeTuning, ed.posterShape, ed.logoDisabled, ed.landscapeBlur, ed.gradientHeight, ed.blurEnabled, ed.blurIntensity, ed.blurFade, ed.blurDarkness, ed.tintStrength, ed.topShade, ed.topShadeHeight, ed.logoScale, ed.logoOffsetX, ed.logoOffsetY, ed.topBadgeScale, ed.topBadgeOffsetX, ed.topBadgeOffsetY, ed.extraBadgeScale, ed.extraBadgeOffsetX, ed.extraBadgeOffsetY, ed.genreBadgeScale, ed.genreBadgeOffsetX, ed.genreBadgeOffsetY, ed.qualityBadgeScale, ed.qualityBadgeOffsetX, ed.qualityBadgeOffsetY, ed.separateBadgeScale, ed.separateBadgeOffsetX, ed.separateBadgeOffsetY, ed.badgeItemTransforms, ed.networkLogoScale, ed.networkLogoOffsetX, ed.networkLogoOffsetY, ed.backdropScale, ed.backdropOffsetX, ed.backdropOffsetY, ed.globalBadges, ed.rankingBadges, ed.badgeGenre, ed.badgeYear, ed.badgeRating, ed.badgeQuality, ed.customRatings, ed.separateRatings, ed.separateRatingsStyle, ed.posterLayout, ed.posterFreshScope, ed.networkLogo, ed.ribbonEnabled, ed.networkLogoPosition, ed.networkLogoFollowTitle, ed.qualityBadgeStyle, ed.qualityGroupLayout, ed.badgeStyle, ed.rankingBadgeStyle, ed.extraBadgeStyle, ed.badgeFont, ed.awardBadgeStyle, ed.customBadge, ed.landscape, ed.defaultGradientHeight, ed.defaultBlurEnabled, ed.defaultBlurIntensity, ed.defaultBlurFade, ed.defaultBlurDarkness, ed.defaultTintStrength, ed.defaultTopShade, ed.defaultTopShadeHeight, ed.defaultPosterShape])
+    mappingVisualDefaults,
+  ), [previewPosterFilePath, previewCustomPosterUrl, selectedBackdropFilePath, selectedCustomBackdropUrl, selectedLogo?.file_path, selectedMapping, isLandscapeTuning, ed.posterShape, ed.logoDisabled, ed.landscapeBlur, ed.gradientHeight, ed.blurEnabled, ed.blurIntensity, ed.blurFade, ed.blurDarkness, ed.tintStrength, ed.topShade, ed.topShadeHeight, ed.logoScale, ed.logoOffsetX, ed.logoOffsetY, ed.topBadgeScale, ed.topBadgeOffsetX, ed.topBadgeOffsetY, ed.extraBadgeScale, ed.extraBadgeOffsetX, ed.extraBadgeOffsetY, ed.genreBadgeScale, ed.genreBadgeOffsetX, ed.genreBadgeOffsetY, ed.qualityBadgeScale, ed.qualityBadgeOffsetX, ed.qualityBadgeOffsetY, ed.separateBadgeScale, ed.separateBadgeOffsetX, ed.separateBadgeOffsetY, ed.badgeItemTransforms, ed.networkLogoScale, ed.networkLogoOffsetX, ed.networkLogoOffsetY, ed.backdropScale, ed.backdropOffsetX, ed.backdropOffsetY, ed.globalBadges, ed.rankingBadges, ed.badgeGenre, ed.badgeYear, ed.badgeRating, ed.badgeQuality, ed.customRatings, ed.separateRatings, ed.separateRatingsStyle, ed.posterLayout, ed.posterFreshScope, ed.networkLogo, ed.ribbonEnabled, ed.networkLogoPosition, ed.networkLogoFollowTitle, ed.qualityBadgeStyle, ed.qualityGroupLayout, ed.badgeStyle, ed.rankingBadgeStyle, ed.extraBadgeStyle, ed.badgeFont, ed.awardBadgeStyle, ed.customBadge, ed.ageBadge, ed.ageCountry, ed.ageBadgeStyle, ed.videoFormats, ed.ratingSources, ed.seasonalTheme, accentColor, autoAccentColor, ed.logoText, ed.logoFont, portraitBaseBackdropPath, mappingVisualDefaults, ed.landscape, ed.defaultGradientHeight, ed.defaultBlurEnabled, ed.defaultBlurIntensity, ed.defaultBlurFade, ed.defaultBlurDarkness, ed.defaultTintStrength, ed.defaultTopShade, ed.defaultTopShadeHeight, ed.defaultPosterShape])
   const mappingDirty = mappingDirtyBase
 
   const [saveState, setSaveState] = useState<"idle" | "saving" | "error">("idle")
+
+  // Leave the editor immediately: entering/exiting must stay fast, so the
+  // Back/header affordances clear the open title with no prompt. `mappingDirty`
+  // still drives the header "unsaved" banner and the saved/emerald state.
+  // Destructive delete: the Remove button asks first and only clears the
+  // selection on explicit confirm (cancel keeps title + mapping untouched).
+  const [pendingRemove, setPendingRemove] = useState<Mapping | null>(null)
+  const exitEditor = useCallback(() => {
+    setSelected(null)
+    setPreviewPoster(null)
+    setSelectedLogo(null)
+    setPreviewId(null)
+  }, [setSelected, setPreviewPoster, setSelectedLogo, setPreviewId])
   const saveStateRef = useRef(saveState)
   saveStateRef.current = saveState
   // Dual-format: stash degli slider non salvati per formato. Senza, passare
@@ -378,12 +446,17 @@ export default function EditView() {
     shapeLogoExplicitRef.current.clear()
     backdropStashRef.current = { key: null, backdrop: null }
     setShapeStashKey(selectedStashKey)
+    // A pending destructive confirm belongs to the title it was opened on:
+    // a title switch never leaves a stale delete prompt behind.
+    setPendingRemove(null)
     // Claim shared ownership for the new title (drops the previous title's
     // entry): a new title identity can never consume the old title's draft.
     sharedDraftsRef.current.reset(selectedStashKey)
   }, [selectedStashKey])
-  const handleSave = useCallback(async () => {
-    if (saveStateRef.current === "saving") return
+  // Returns whether the staged draft reached the server (false while another
+  // save is in flight or on failure), so callers can keep the draft intact.
+  const handleSave = useCallback(async (): Promise<boolean> => {
+    if (saveStateRef.current === "saving") return false
     // Synchronous guard: the ref assignment above only runs on render, so a
     // second call before rerender would slip through — mark in-flight now.
     saveStateRef.current = "saving"
@@ -408,13 +481,15 @@ export default function EditView() {
         setSaveFlash(true)
         if (saveFlashTimerRef.current) clearTimeout(saveFlashTimerRef.current)
         saveFlashTimerRef.current = setTimeout(() => setSaveFlash(false), 600)
-      } else {
-        saveStateRef.current = "error"
-        setSaveState("error")
+        return true
       }
+      saveStateRef.current = "error"
+      setSaveState("error")
+      return false
     } catch {
       saveStateRef.current = "error"
       setSaveState("error")
+      return false
     }
   }, [saveConfig, ed.posterShape, selected, currentUserId, shapeStashKey])
 
@@ -444,6 +519,19 @@ export default function EditView() {
       setSaveState("error")
     }
   }, [saveCoverOnly])
+
+  // Destructive remove: explicit confirm only. Cancel keeps the open title and
+  // the saved mapping untouched (the delete here is the F10 path).
+  const confirmRemoveMapping = useCallback(() => {
+    const mapping = pendingRemove
+    setPendingRemove(null)
+    if (!mapping) return
+    removeMapping(mapping).catch((e) => console.error("[pictorium] Remove mapping failed:", e))
+    setSelected(null)
+    setPreviewPoster(null)
+    setSelectedLogo(null)
+    setPreviewId(null)
+  }, [pendingRemove, removeMapping, setSelected, setPreviewPoster, setSelectedLogo, setPreviewId])
 
   // Tile custom di sessione (URL esterni aggiunti via box, non ancora salvati):
   // per-titolo, persistiti in localStorage come i draft (sopravvivono al
@@ -1228,6 +1316,14 @@ export default function EditView() {
     ...(selected?.media_type === "tv" ? [{ key: "stagioni", label: t("ui.seasons") || "Stagioni" }] : []),
   ], [t, selected?.media_type])
 
+  // Miniature zone and selected may hydrate on consecutive renders: land on the
+  // seasons tab (the studio host) as soon as the TV title is open, without
+  // overriding a later manual tab choice.
+  useEffect(() => {
+    if (sourceView !== "thumbnails" || selected?.media_type !== "tv") return
+    setActiveRightTab("stagioni")
+  }, [sourceView, selected?.id, selected?.media_type])
+
   useEffect(() => {
     if (!rightTabs.some((tab) => tab.key === activeRightTab)) {
       setActiveRightTab("logo")
@@ -1238,6 +1334,7 @@ export default function EditView() {
   }, [rightTabs, activeRightTab])
 
   return (
+    <>
     <div>
       {selected && !profileGate && (
         <div className="flex flex-col items-center w-full">
@@ -1269,7 +1366,7 @@ export default function EditView() {
             <div className="flex items-center justify-between w-full mb-2.5 gap-2 max-w-md mx-auto">
               <button
                 type="button"
-                onClick={() => { setSelected(null); setPreviewPoster(null); setSelectedLogo(null); setPreviewId(null) }}
+                onClick={exitEditor}
                 className="flex items-center gap-1 px-3 py-2 rounded-xl bg-surface border border-white/10 text-xs font-semibold text-zinc-300 hover:text-white active:scale-95 transition-all shrink-0 cursor-pointer"
               >
                 <ChevronLeft className="w-4 h-4" />
@@ -1483,7 +1580,7 @@ export default function EditView() {
                       const hasMapping = mappingsMap.get(key)
                       if (!hasMapping) return null
                       return (
-                        <button type="button" aria-label={t("ui.remove")} onClick={() => { removeMapping(hasMapping).catch((e) => console.error("[pictorium] Remove mapping failed:", e)); setSelected(null); setPreviewPoster(null); setSelectedLogo(null); setPreviewId(null) }} className="flex w-full h-full min-h-[44px] items-center justify-center gap-2 rounded-xl border border-red-500/25 bg-red-500/10 px-4 py-2 text-center text-xs font-semibold text-red-300 transition-all hover:border-red-500/40 hover:bg-red-500/15 active:scale-[0.97] cursor-pointer">
+                        <button type="button" aria-label={t("ui.remove")} onClick={() => setPendingRemove(hasMapping)} className="flex w-full h-full min-h-[44px] items-center justify-center gap-2 rounded-xl border border-red-500/25 bg-red-500/10 px-4 py-2 text-center text-xs font-semibold text-red-300 transition-all hover:border-red-500/40 hover:bg-red-500/15 active:scale-[0.97] cursor-pointer">
                           <Trash2 className="w-[18px] h-[18px] shrink-0" />
                           <span>{t("ui.remove")}</span>
                         </button>
@@ -1713,7 +1810,12 @@ export default function EditView() {
                 </>}
                 {activeRightTab === "badge" && <BadgeControls />}
                 {activeRightTab === "transform" && <TransformControls />}
-                {activeRightTab === "stagioni" && <EpisodeGroupControls />}
+                {activeRightTab === "stagioni" && (
+                  <EpisodeGroupControls
+                    autoOpenThumbnailStudio={autoOpenThumbnailStudio}
+                    onAutoOpenThumbnailStudio={() => setAutoOpenThumbnailStudio(false)}
+                  />
+                )}
                 </div>
 
               </EditorPanel>
@@ -1847,6 +1949,17 @@ export default function EditView() {
         </div>,
         document.body
       )}
+
+      {/* Destructive remove: explicit confirmation, cancel keeps selection. */}
+      <ConfirmDialog
+        open={pendingRemove !== null}
+        title={t("ui.confirmDelete")}
+        message={t("ui.confirmDeleteMsg", { title: selected ? titleOf(selected) : "" })}
+        confirmLabel={t("ui.delete")}
+        onCancel={() => setPendingRemove(null)}
+        onConfirm={confirmRemoveMapping}
+      />
     </div>
+    </>
   )
 }

@@ -98,6 +98,53 @@ describe("hardenPosterSearchParams", () => {
     expect(out.get("box")).toBe("5")
   })
 
+  // I1: the delivered Stremio URL carries the saved mapping values verbatim
+  // (the preview shows the same exact staged values). Quantizing a curated
+  // mapped title would round the poster within one step (tox 3 → 5) and break
+  // WYSIWYG on presets instances; the coarse steps therefore apply only to
+  // requests without a saved mapping (anonymous keyless abuse).
+  it("keeps curated per-title mapping numerics exact (I1 preview/delivered parity)", () => {
+    const q = "tox=3&toy=3&tscale=157&gradHeight=47&scale=157"
+    const keyless = hardenPosterSearchParams(new URLSearchParams(q), BASE)
+    expect(keyless.get("tox")).toBe("5")
+    expect(keyless.get("tscale")).toBe("160")
+    // Mapping-backed request (space or curated title): byte-identical values,
+    // and the same holds when the request is not anonymous.
+    for (const opts of [{ hasMapping: true }, { hasMapping: true, anonymous: false }] as const) {
+      const curated = hardenPosterSearchParams(new URLSearchParams(q), { ...BASE, ...opts })
+      expect(curated.get("tox")).toBe("3")
+      expect(curated.get("toy")).toBe("3")
+      expect(curated.get("tscale")).toBe("157")
+      expect(curated.get("gradHeight")).toBe("47")
+      expect(curated.get("scale")).toBe("157")
+    }
+  })
+
+  it("keeps curated per-item bit corrections exact, still quantizing keyless ones", () => {
+    const bit = "quality:tier=157,3,3"
+    // User-space request without a saved mapping: keyless numerics quantized
+    // (scale step 10 / offsets step 5 on the canonical wire form).
+    const keyless = hardenPosterSearchParams(new URLSearchParams(`bit=${encodeURIComponent(bit)}`), {
+      ...BASE,
+      anonymous: false,
+    })
+    expect(keyless.get("bit")).toBe("quality:tier=160,5,5")
+    // Mapping-backed request: the curated corrections travel verbatim.
+    const curated = hardenPosterSearchParams(new URLSearchParams(`bit=${encodeURIComponent(bit)}`), {
+      ...BASE,
+      anonymous: false,
+      hasMapping: true,
+    })
+    expect(curated.get("bit")).toBe(bit)
+    // Anonymous mapped title: the query payload is dropped as before, which is
+    // render-equivalent because an absent `bit` inherits the saved mapping.
+    const inherited = hardenPosterSearchParams(new URLSearchParams(`bit=${encodeURIComponent(bit)}`), {
+      ...BASE,
+      hasMapping: true,
+    })
+    expect(inherited.has("bit")).toBe(false)
+  })
+
   it("keeps palette accents (normalized) and drops the rest", () => {
     const out = hardenPosterSearchParams(new URLSearchParams("ac=#E74C3C"), BASE)
     expect(out.get("ac")).toBe("#e74c3c")

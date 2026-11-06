@@ -1,5 +1,12 @@
 import { effectiveMappingForShape, DEFAULT_POSTER_FRESH_SCOPE, type Mapping, type PosterShape } from "./types"
 import { isCustomPosterUrl } from "./utils"
+import { KNOWN_VIDEO_FORMATS, type VideoFormat } from "./av-specs"
+import { DEFAULT_AGE_COUNTRY, normalizeCertificationCountry } from "./certification"
+import { DEFAULT_AGE_BADGE_STYLE, getQualityBadgeOffsetDefault } from "./badge-styles"
+import { normalizeSeasonalThemeChoice } from "./seasonal-theme"
+import { DEFAULT_RATING_SOURCES } from "./rating-weights"
+import { isManualAccent } from "./accent-color"
+import { normalizeLogoFont, sanitizeLogoText } from "./text-logo"
 
 /** I 7 slider del blocco sfumatura/blur (quelli che scrivono i preset). */
 export interface GradientTuning {
@@ -134,6 +141,63 @@ export function isArtworkDirty(
   return false
 }
 
+/**
+ * Default effettivi (per il formato visualizzato) dei controlli che il mapping
+ * può non congelare. L'apertura del titolo inizializza il live con la catena
+ * `mapping effettivo ?? default di forma`: il dirty confronta contro la STESSA
+ * catena, così un default globale (o un profilo Orizzontale dei default) non
+ * viene mai scambiato per una modifica non salvata.
+ */
+export interface MappingVisualDefaults {
+  ageBadge?: boolean | null
+  ageCountry?: string | null
+  ageBadgeStyle?: string | null
+  videoFormats?: readonly VideoFormat[] | null
+  ratingSources?: readonly string[] | null
+  /** Offset qualità effettivo del formato quando il mapping non lo congela. */
+  qualityBadgeOffsetX?: number | null
+  qualityBadgeOffsetY?: number | null
+}
+
+/** Codice paese normalizzato come il resolver di render (ISO-2, mai GLOBAL). */
+function normalizeAgeCountry(value: string | null | undefined): string {
+  return normalizeCertificationCountry(value) ?? DEFAULT_AGE_COUNTRY
+}
+
+/** Confronto ordine-sensibile (le fonti voto si mostrano nell'ordine scelto). */
+function sameStringList(
+  a: readonly string[] | null | undefined,
+  b: readonly string[] | null | undefined,
+): boolean {
+  const left = a ?? []
+  const right = b ?? []
+  return left.length === right.length && left.every((v, i) => v === right[i])
+}
+
+/** Hex normalizzato per il confronto (case-insensitive, vuoto = assente). */
+function normalizeAccentHex(value: string | null | undefined): string | null {
+  if (typeof value !== "string") return null
+  const trimmed = value.trim().toLowerCase()
+  return trimmed || null
+}
+
+/**
+ * Confronto per SELEZIONE dei formati A/V: il renderer itera il proprio ordine
+ * canonico, quindi l'ordine del payload non cambia un pixel. `null` = segue il
+ * default effettivo (stessa normalizzazione su entrambi i lati).
+ */
+function sameFormatSelection(
+  a: readonly VideoFormat[] | null | undefined,
+  b: readonly VideoFormat[] | null | undefined,
+  fallback: readonly VideoFormat[],
+): boolean {
+  const left = new Set(a ?? fallback)
+  const right = new Set(b ?? fallback)
+  if (left.size !== right.size) return false
+  for (const format of left) if (!right.has(format)) return false
+  return true
+}
+
 /** Stato completo dei controlli per il dirty tracking generale. */
 export interface FullMappingCheckState {
   artwork: ArtworkSelection
@@ -198,6 +262,28 @@ export interface FullMappingCheckState {
   /** Modalità top-badge premi ("badge" = resa testuale storica). */
   awardBadgeStyle?: string
   customBadge?: string | null
+  /** Badge età per-titolo (default OFF). */
+  ageBadge?: boolean
+  /** Paese della classificazione età per-titolo (default IT). */
+  ageCountry?: string
+  /** Stile della pill età per-titolo ("standard" = resa storica). */
+  ageBadgeStyle?: string
+  /** Formati A/V abilitati (null/assente = segue il default effettivo). */
+  videoFormats?: readonly VideoFormat[] | null
+  /** Fonti del voto medio ★ per-titolo (assente = default effettivo). */
+  ratingSources?: readonly string[] | null
+  /** Cornice stagionale per-titolo (null = Automatico, segue la lista). */
+  seasonalTheme?: string | null
+  /** Accent live dell'editor (hex manuale o valore auto-rilevato). */
+  accentColor?: string | null
+  /** Accent auto-rilevato dal client (provenienza del manuale, mai un default). */
+  autoAccentColor?: string | null
+  /** Logo testuale digitato (stringa vuota/spazi = nessun logo). */
+  logoText?: string | null
+  /** Font del logo testuale (enum badge; assente/null = inter). */
+  logoFont?: string | null
+  /** Base portrait corrente (crop 2:3 di un backdrop; null = base = poster). */
+  portraitBackdropPath?: string | null
 }
 
 /**
@@ -209,6 +295,7 @@ export function isMappingDirty(
   mapping: Mapping | null | undefined,
   gradientDefaults: GradientTuning,
   defaultShape: PosterShape,
+  visualDefaults?: MappingVisualDefaults,
 ): boolean {
   if (isArtworkDirty(current.artwork, mapping, defaultShape)) return true
   if (isGradientDirtyForShape(current.gradient, mapping, gradientDefaults, current.artwork.posterShape)) return true
@@ -233,8 +320,14 @@ export function isMappingDirty(
   if ((current.genreBadgeOffsetY ?? 0) !== (eff.genreBadgeOffsetY ?? 0)) return true
 
   if ((current.qualityBadgeScale ?? 100) !== (eff.qualityBadgeScale ?? 100)) return true
-  if ((current.qualityBadgeOffsetX ?? 0) !== (eff.qualityBadgeOffsetX ?? 0)) return true
-  if ((current.qualityBadgeOffsetY ?? 0) !== (eff.qualityBadgeOffsetY ?? 0)) return true
+  // Legacy mappings often do not freeze the quality offsets; the live editor
+  // opens at the format defaults (-4/+6 portrait, 0/0 landscape), so that is
+  // the baseline. Comparing against 0 made every legacy title look dirty as
+  // soon as it opened.
+  const qualityOffsetFallbackX = visualDefaults?.qualityBadgeOffsetX ?? getQualityBadgeOffsetDefault(current.artwork.posterShape, "x")
+  const qualityOffsetFallbackY = visualDefaults?.qualityBadgeOffsetY ?? getQualityBadgeOffsetDefault(current.artwork.posterShape, "y")
+  if ((current.qualityBadgeOffsetX ?? qualityOffsetFallbackX) !== (eff.qualityBadgeOffsetX ?? qualityOffsetFallbackX)) return true
+  if ((current.qualityBadgeOffsetY ?? qualityOffsetFallbackY) !== (eff.qualityBadgeOffsetY ?? qualityOffsetFallbackY)) return true
 
   if ((current.networkLogoScale ?? 100) !== (eff.networkLogoScale ?? 100)) return true
   if ((current.networkLogoOffsetX ?? 0) !== (eff.networkLogoOffsetX ?? 0)) return true
@@ -279,6 +372,54 @@ export function isMappingDirty(
   if ((current.badgeFont ?? "inter") !== (eff.badgeFont ?? "inter")) return true
   if ((current.awardBadgeStyle ?? "badge") !== (eff.awardBadgeStyle ?? "badge")) return true
   if ((current.customBadge ?? null) !== (eff.customBadge ?? null)) return true
+
+  // Chiavi per-titolo che il mapping può NON congelare: il valore mostrato
+  // dall'editor all'apertura è `mapping effettivo ?? default di forma` (stessa
+  // catena del server), quindi la baseline salvata usa quella catena — un
+  // default globale non è mai una modifica non salvata.
+  if ((current.ageBadge ?? false) !== (eff.ageBadge ?? visualDefaults?.ageBadge ?? false)) return true
+  if (normalizeAgeCountry(current.ageCountry) !== normalizeAgeCountry(eff.ageCountry ?? visualDefaults?.ageCountry)) return true
+  const savedAgeStyle = eff.ageBadgeStyle ?? visualDefaults?.ageBadgeStyle ?? DEFAULT_AGE_BADGE_STYLE
+  if ((current.ageBadgeStyle ?? DEFAULT_AGE_BADGE_STYLE) !== savedAgeStyle) return true
+  // Formati A/V: selezione (mai ordine), `null` = segue il default effettivo.
+  const formatFallback = visualDefaults?.videoFormats ?? KNOWN_VIDEO_FORMATS
+  if (!sameFormatSelection(current.videoFormats, eff.videoFormats, formatFallback)) return true
+  // Fonti del voto medio (condivise tra i formati, ordine significativo).
+  const sourceFallback = visualDefaults?.ratingSources ?? DEFAULT_RATING_SOURCES
+  if (!sameStringList(
+    current.ratingSources ?? sourceFallback,
+    eff.ratingSources ?? sourceFallback,
+  )) return true
+  // Cornice stagionale (flat unico; null = Automatico, segue la lista).
+  if (normalizeSeasonalThemeChoice(current.seasonalTheme) !== normalizeSeasonalThemeChoice(eff.seasonalTheme)) return true
+
+  // Accent manuale: solo una scelta esplicita è un'edit persistita (il save
+  // scrive manual-or-null, l'auto effettivo non si congela mai). Un valore
+  // auto/null non è mai dirty: un hex manuale salvato che coincide con
+  // l'auto-rilevato perderebbe la provenienza `isManualAccent` e sembrerebbe
+  // per sempre non salvato; il reset ad auto da un manuale diverso resta
+  // invece un'edit (il save sgancerebbe il mapping).
+  const savedAccent = normalizeAccentHex(eff.accentColor)
+  if (isManualAccent(current.accentColor, current.autoAccentColor)) {
+    if (normalizeAccentHex(current.accentColor) !== savedAccent) return true
+  } else {
+    const autoAccent = normalizeAccentHex(current.autoAccentColor)
+    if (savedAccent !== null && savedAccent !== autoAccent) return true
+  }
+
+  // Logo testuale (flat, condiviso tra i formati): vuoto/spazi = nessun logo,
+  // quindi mai una differenza. Il font conta solo quando un testo è mostrato.
+  const currentLogoText = current.artwork.logoDisabled ? null : sanitizeLogoText(current.logoText)
+  const savedLogoText = (eff.logoDisabled ?? false) ? null : sanitizeLogoText(eff.logoText)
+  if (currentLogoText !== savedLogoText) return true
+  if (currentLogoText !== null && normalizeLogoFont(current.logoFont) !== normalizeLogoFont(eff.logoFont)) return true
+
+  // Base portrait dal crop di un backdrop (flat, solo canvas verticale): in
+  // landscape il save la preserva verbatim e il canvas 16:9 non la usa, quindi
+  // non è un'edit di quel formato.
+  if (current.artwork.posterShape !== "landscape") {
+    if ((current.portraitBackdropPath ?? null) !== (eff.portraitBackdropPath ?? null)) return true
+  }
 
   return false
 }

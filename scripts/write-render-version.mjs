@@ -57,6 +57,7 @@ const RENDER_FILES = [
   "src/lib/logo-selection.ts",
   "src/lib/multi-rating-renderer.ts",
   "src/lib/network-files.ts",
+  "src/lib/network-follow.ts",
   "src/lib/network-keys.ts",
   "src/lib/network-svgs.ts",
   "src/lib/poster-auto-fit.ts",

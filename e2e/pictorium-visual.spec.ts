@@ -6,6 +6,22 @@ import { withDefaultsRetry } from "./defaults-retry"
 // JustWatch, Wikidata, IMDb) vengono servite dal mock server locale
 // `e2e/mock-server.mjs`, avviato da playwright.config.ts. Per aggiungere nuovi
 // mock, aggiungi un handler in quel file (vedi header del mock server).
+//
+// TOLLERANZE SNAPSHOT (misurate, non a sentimento): i poster sono renderizzati
+// server-side e riletti 1:1 dal browser (nessuna scala/interpolazione), quindi
+// due run della stessa versione sono byte-identici. Il bound 0.10 NON è una
+// proprietà della resa: è la rete che copre baseline disallineati. Misure sul
+// repo (confronto coppie `-chromium-linux` / `-chromium-win32`): molte coppie
+// storiche sono identiche byte a byte, altre arrivano a ~8.8%
+// (poster-full-feature, placcature badge ~6%), e sui 5 golden
+// `separate-ratings-scale*` il render corrente dista 4-6% dal baseline. Sono
+// baseline STANTII, non varianza OS. Abbassare questi bound senza rigenerare i
+// baseline rompe la CI; aggiornarli alla cieca per far passare il test è
+// vietato. Follow-up (fuori da questo task): rigenerare i baseline Linux
+// revisionati col workflow `Update visual snapshots`, poi scendere a 0.03.
+// Le asserzioni NUOVE devono comunque partire da 0.02-0.03, mai 0.10: la
+// parità preview/Stremio (e2e/pictorium-parity.spec.ts) usa bound propri,
+// molto più stretti, perché confronta due render della stessa build.
 
 const MOVIE_TMDB = 19995 // Avatar (id usato dai dati fittizi del mock server)
 const MEDIA_TYPE = "movie"

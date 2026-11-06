@@ -984,7 +984,15 @@ interface PreviewEpisodeSeed {
   coverUrl?: string | null
 }
 
-export function EpisodePreview() {
+export function EpisodePreview({
+  autoOpenThumbnailStudio = false,
+  onAutoOpenThumbnailStudio,
+}: {
+  /** Miniature-zone entry: open the still studio once the preview resolves. */
+  autoOpenThumbnailStudio?: boolean
+  /** Fired when the one-shot auto-open has been honoured. */
+  onAutoOpenThumbnailStudio?: () => void
+} = {}) {
   const { t } = useT()
   const selected = usePSelector((v) => v.selected)
   const tmdbKey = usePSelector((v) => v.tmdbKey)
@@ -999,6 +1007,12 @@ export function EpisodePreview() {
   // Episode that seeds the studio when the single entry button opens it
   // (closed = null). The season/episode list itself lives inside the studio.
   const [studioEpisode, setStudioEpisode] = useState<PreviewEpisodeSeed | null>(null)
+  // Miniature-zone entry intent: latched so clearing the prop (after the open)
+  // cannot cancel a pending open, and consumed once per mount.
+  const autoOpenRequestedRef = useRef(autoOpenThumbnailStudio)
+  useEffect(() => {
+    if (autoOpenThumbnailStudio) autoOpenRequestedRef.current = true
+  }, [autoOpenThumbnailStudio])
 
   const episodeGroupId = ed.episodeGroupId
   const tvdbOrdering = episodeGroupId === "tvdb" || (episodeGroupId?.startsWith("tvdb:") ?? false)
@@ -1088,6 +1102,16 @@ export function EpisodePreview() {
       break
     }
   }
+
+  // Miniature-zone entry: open the still studio as soon as the first episode of
+  // the visible ordering is available. Consumed once; a later tab switch or a
+  // manual studio close never re-opens it.
+  useEffect(() => {
+    if (!autoOpenRequestedRef.current || !entryEpisode) return
+    autoOpenRequestedRef.current = false
+    setStudioEpisode(entryEpisode)
+    onAutoOpenThumbnailStudio?.()
+  }, [entryEpisode, onAutoOpenThumbnailStudio])
 
   if (!selected || selected.media_type !== "tv") return null
 

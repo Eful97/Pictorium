@@ -83,6 +83,23 @@ describe("Thumbnails zone (top-level)", () => {
     expect(stillRow.querySelector("img")).toBeNull()
   })
 
+  it("opens the still studio entry with the Miniature-zone source (not a plain poster open)", () => {
+    const navigateToPoster = vi.fn()
+    renderWithCtx(<ThumbnailsView />, {
+      lang: "en",
+      navigateToPoster,
+      mappings: [mapping({ tmdbId: 2, title: "With Stills", episodeThumbnailStills: { "1:2": "/still-two.jpg" } })],
+    })
+
+    fireEvent.click(screen.getByLabelText(`${t("ui.details")}: With Stills`))
+    fireEvent.click(screen.getByTestId("thumbnail-zone-edit"))
+
+    expect(navigateToPoster).toHaveBeenCalledTimes(1)
+    const [item, source] = navigateToPoster.mock.calls[0] as [Record<string, unknown>, string]
+    expect(source).toBe("thumbnails")
+    expect(item).toMatchObject({ id: 2, media_type: "tv", title: "With Stills" })
+  })
+
   it("filters by series name client-side and keeps the selection across filters", () => {
     renderWithCtx(<ThumbnailsView />, { lang: "en", mappings: baseMappings() })
     expect(screen.getAllByTestId("thumbnail-zone-row")).toHaveLength(3)
