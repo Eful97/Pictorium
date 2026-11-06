@@ -70,8 +70,9 @@ const ANALYSIS_CACHE_TAG = "poster-extract"
 export async function fetchImg(url: string, signal?: AbortSignal): Promise<Buffer> {
   // Se il chiamante passa un signal esterno, unirlo al timeout interno invece
   // di sostituirlo: un signal mai abortito (es. renderAbort a render riuscito)
-  // lascerebbe il fetch senza tetto in background. Il limite resta 15s.
-  const timeoutSignal = AbortSignal.timeout(15000)
+  // lascerebbe il fetch senza tetto in background. Il limite resta 8s, in
+  // parità con POSTER_TMDB_TIMEOUT_MS: nessun hold illimitato su uno slot render.
+  const timeoutSignal = AbortSignal.timeout(8000)
   let combined: AbortSignal = timeoutSignal
   if (signal) {
     if (typeof (AbortSignal as unknown as { any?: unknown }).any === "function") {
@@ -89,7 +90,7 @@ export async function fetchImg(url: string, signal?: AbortSignal): Promise<Buffe
   }
   // Byte-LRU (F3): a parità di URL i re-download spariscono; SSRF check,
   // signal/timeout e cap size restano dentro doFetch, invariati. Il combined
-  // (caller + 15s interni) viaggia anche come signal del waiter coalesced:
+  // (caller + 8s interni) viaggia anche come signal del waiter coalesced:
   // senza, un waiter resterebbe ostaggio del download del leader oltre la
   // propria scadenza (deadline del suo render / timeout interno).
   return cachedImageBytes(url, async () => {
