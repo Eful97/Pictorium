@@ -72,7 +72,7 @@ describe("cachedImageBytes waiter cancellation", () => {
     waiterCtrl.abort(abortError())
     try {
       // The waiter rejects while the gate is still closed: proof it detached
-      // promptly instead of waiting out the leader (or the 15s image cap).
+      // promptly instead of waiting out the leader (or the 8s image cap).
       expect(await settleKind(waiter)).toBe("rejected:AbortError")
       expect(waiterFetch).not.toHaveBeenCalled()
     } finally {
@@ -251,7 +251,7 @@ describe("fetchImg waiter cancellation (integration through the real path)", () 
 
     // The leader starts the single shared download; waiter and sibling join
     // it through the real fetchImg -> cachedImageBytes path, each with its
-    // own combined (external + internal 15s) signal.
+    // own combined (external + internal 8s) signal.
     const leader = fetchImg(url)
     const waiterCtrl = new AbortController()
     const waiter = fetchImg(url, waiterCtrl.signal)
@@ -262,8 +262,8 @@ describe("fetchImg waiter cancellation (integration through the real path)", () 
       // proof its own external abort is threaded through the joined wait.
       expect(await settleKind(waiter)).toBe("rejected:AbortError")
       expect(net.fetchCalls()).toBe(1)
-      // Every fetchImg arm requested the unchanged 15s internal cap.
-      expect(sched.timeouts.map((t) => t.ms)).toEqual([15000, 15000, 15000])
+      // Every fetchImg arm requested the unchanged 8s internal cap.
+      expect(sched.timeouts.map((t) => t.ms)).toEqual([8000, 8000, 8000])
     } finally {
       net.release(bytes)
       await Promise.allSettled([leader, waiter, sibling])
@@ -285,14 +285,14 @@ describe("fetchImg waiter cancellation (integration through the real path)", () 
     expect(net.spy.mock.calls.length).toBe(callsBefore)
   })
 
-  it("internal 15s timeout detaches only the waiter with TimeoutError (distinct from AbortError); leader + sibling complete, one fetch", async () => {
+  it("internal 8s timeout detaches only the waiter with TimeoutError (distinct from AbortError); leader + sibling complete, one fetch", async () => {
     const sched = stubTimeoutScheduler()
     const net = gatedNetwork()
     const bytes = new Uint8Array([5, 6, 7])
     const url = `${IMG}/w500/cancel-fetchimg-timeout.jpg`
 
     // No external signals anywhere: each fetchImg arm carries only its own
-    // internal 15s cap, so firing one arm's timeout expiry proves the
+    // internal 8s cap, so firing one arm's timeout expiry proves the
     // internal timeout alone threads through the joined wait. (The waiter
     // takes no external signal on purpose: reason propagation through a
     // composed AbortSignal.any is runtime-defined, while the bare internal
@@ -300,9 +300,9 @@ describe("fetchImg waiter cancellation (integration through the real path)", () 
     const leader = fetchImg(url)
     const waiter = fetchImg(url)
     const sibling = fetchImg(url)
-    expect(sched.timeouts.map((t) => t.ms)).toEqual([15000, 15000, 15000])
+    expect(sched.timeouts.map((t) => t.ms)).toEqual([8000, 8000, 8000])
     // Fire ONLY the waiter's internal timeout with a TimeoutError reason —
-    // no real 15s delay, no fake timers (native timeout signals are not
+    // no real 8s delay, no fake timers (native timeout signals are not
     // timer-driven).
     sched.timeouts[1].controller.abort(timeoutError())
     try {
