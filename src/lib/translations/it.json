@@ -919,6 +919,7 @@
   "ui.thumbnailBadgePositionHint": "Trascina il badge nell'anteprima ingrandita per rifinire; ridimensiona dagli angoli; un preset d'angolo azzera la posizione.",
   "ui.thumbnailNumberingNote": "L'ordinamento episodi non è quello standard TMDB: le immagini seguono la numerazione standard, verifica l'episodio prima di salvare.",
   "ui.thumbnailStyleBranded": "Brand",
+  "ui.thumbnailStyleDot": "Pallino",
   "ui.episodeStillResetConfirm": "Ripristinare tutte le miniature degli episodi alle immagini predefinite? L'operazione non può essere annullata.",
   "ui.region": "Paese classifiche",
   "ui.regionGlobal": "Classifica globale",

@@ -59,13 +59,20 @@ export function clampThumbnailBadgeScale(raw: number): number {
   const n = Math.round(raw)
   return Math.max(THUMBNAIL_BADGE_SCALE_MIN, Math.min(THUMBNAIL_BADGE_SCALE_MAX, n))
 }
-/** Thumbnail vote-badge styles (renderer `bstyle` contract; `naked` = brand mark + score, no container; `score` = bucket-coloured big-score tile, no logo). */
-export const THUMBNAIL_BADGE_STYLES = ["pill", "bordo", "vetro", "branded", "naked", "score"] as const
+/**
+ * Thumbnail vote-badge styles (renderer `bstyle` contract; `naked` = brand mark
+ * + score, no container; `score` = bucket-coloured big-score tile, no logo;
+ * `dot` = round variant of `score`: same bucket colour + score, no logo).
+ */
+export const THUMBNAIL_BADGE_STYLES = ["pill", "bordo", "vetro", "branded", "naked", "score", "dot"] as const
 export const DEFAULT_THUMBNAIL_BADGE_STYLE: ThumbnailBadgeStyle = "pill"
 
 export function sanitizeThumbnailBadgeStyle(raw: unknown): ThumbnailBadgeStyle {
-  return (THUMBNAIL_BADGE_STYLES as readonly unknown[]).includes(raw)
-    ? (raw as ThumbnailBadgeStyle)
+  // Same normalization as the renderer parser (`trim` + lowercase): a stored
+  // or queried `" DOT "` resolves to `dot`, invalid values → pill.
+  const value = typeof raw === "string" ? raw.trim().toLowerCase() : raw
+  return (THUMBNAIL_BADGE_STYLES as readonly unknown[]).includes(value)
+    ? (value as ThumbnailBadgeStyle)
     : DEFAULT_THUMBNAIL_BADGE_STYLE
 }
 
