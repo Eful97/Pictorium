@@ -11,4 +11,6 @@ export interface RecentChange {
 }
 
 export const RECENT_CHANGES: RecentChange[] = [
+  { type: "perf", text: "harden render pipeline under load (sharp auto, fail-fast, keepalive)", sha: "777f48d", date: "2026-11-06" },
+  { type: "fix", text: "Keep unsaved editor edits, drag handles and card badges correct", sha: "baee8fe", date: "2026-11-06" },
 ]

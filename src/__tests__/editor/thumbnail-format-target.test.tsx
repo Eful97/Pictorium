@@ -331,9 +331,9 @@ describe("settings format target: thumbnail", () => {
     expect(paramsOf(lastThumbnailUrl()!).get("w")).toBe("320")
     expect(paramsOf(lastThumbnailUrl()!).has("scale")).toBe(false)
 
-    // Style selector carries bstyle (pill/bordo/vetro/branded/naked/score).
+    // Style selector carries bstyle (pill/bordo/vetro/branded/naked/score/dot).
     const styleSelect = screen.getByTestId("thumbnail-badge-style-select")
-    expect(within(styleSelect).getAllByRole("option")).toHaveLength(6)
+    expect(within(styleSelect).getAllByRole("option")).toHaveLength(7)
     fireEvent.change(styleSelect, { target: { value: "bordo" } })
     await settle()
     expect(paramsOf(lastThumbnailUrl()!).get("bstyle")).toBe("bordo")
@@ -349,6 +349,9 @@ describe("settings format target: thumbnail", () => {
     fireEvent.change(styleSelect, { target: { value: "score" } })
     await settle()
     expect(paramsOf(lastThumbnailUrl()!).get("bstyle")).toBe("score")
+    fireEvent.change(styleSelect, { target: { value: "dot" } })
+    await settle()
+    expect(paramsOf(lastThumbnailUrl()!).get("bstyle")).toBe("dot")
 
     // Transform tab: poster geometry is hidden, thumbnail controls stay.
     fireEvent.click(screen.getByRole("tab", { name: "ui.settingsTabTransform" }))

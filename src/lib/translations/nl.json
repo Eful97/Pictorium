@@ -896,6 +896,7 @@
   "ui.thumbnailBadgePositionHint": "Drag the badge on the enlarged preview to fine-tune; resize from the corners; a corner preset resets the position.",
   "ui.thumbnailNumberingNote": "Episode ordering is not standard TMDB: stills follow standard numbering, verify the episode before saving.",
   "ui.thumbnailStyleBranded": "Branded",
+  "ui.thumbnailStyleDot": "Dot",
   "ui.episodeStillResetConfirm": "Reset every episode thumbnail to its default image? This cannot be undone.",
   "ui.region": "Ranglijstland",
   "ui.regionGlobal": "Wereldwijde ranglijst",
