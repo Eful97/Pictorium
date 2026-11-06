@@ -95,6 +95,21 @@ export function resolveEffectiveNetworkFollow(
   return follow
 }
 
+/**
+ * True only for the FROZEN placement: follow explicitly OFF AND both absolute
+ * coordinates known. In that state the renderer uses the fixed top-left
+ * verbatim in Standard and Fresh and never applies the relative offset axes on
+ * top of it, so the drag overlay must not offer offset handles for the family
+ * (a write would only persist `nox`/`noy` to be reinterpreted later).
+ * Puro e testabile in isolamento.
+ */
+export function isNetworkFixedPosition(
+  follow: boolean,
+  fixed: { x: number | null; y: number | null },
+): boolean {
+  return !follow && fixed.x != null && fixed.y != null
+}
+
 function completeCoords(x: unknown, y: unknown): { x: number; y: number } | null {
   if (!finiteNumber(x) || !finiteNumber(y)) return null
   return { x: clampAxis(x), y: clampAxis(y) }

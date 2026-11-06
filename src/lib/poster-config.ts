@@ -1044,11 +1044,18 @@ export function resolvePosterRenderConfig(input: PosterRenderConfigInput): Poste
 
   // Stile icone qualità — catena: query `qbs` > mapping effettivo per formato >
   // config token > server defaults > "standard". Valori non validi → standard.
+  // La query usa `??` e non `||` (come `bfont`): `?qbs=` (stringa vuota) è un
+  // valore presente ma invalido → standard esplicito, cioè lo stesso contratto
+  // fail-closed della chiave cache (`normalizePosterCacheParams` e hardening:
+  // presente-invalido → "standard"). Con `||` cadrebbe sui livelli successivi
+  // (es. mapping `mono`) con la stessa chiave di `qbs=standard` ma byte
+  // diversi (cache poisoning). I livelli non-query sono enum/null validati,
+  // quindi `??` è equivalente a `||` per loro.
   const rawQbs = q.get("qbs")
-    || m?.qualityBadgeStyle
-    || configOverride?.qualityBadgeStyle
-    || esd.qualityBadgeStyle
-    || sd.qualityBadgeStyle
+    ?? m?.qualityBadgeStyle
+    ?? configOverride?.qualityBadgeStyle
+    ?? esd.qualityBadgeStyle
+    ?? sd.qualityBadgeStyle
   const qualityBadgeStyle: QualityBadgeStyle = isQualityBadgeStyle(rawQbs) ? rawQbs : DEFAULT_QUALITY_BADGE_STYLE
 
   // Font dei testi badge — stessa catena degli stili: query `bfont` >
@@ -1328,14 +1335,22 @@ export function resolvePosterRenderConfig(input: PosterRenderConfigInput): Poste
       : (savedNetPos ?? configNetPos ?? ((esd.networkLogoPosition ?? sd.networkLogoPosition) === "top" ? "top" : "auto"))
   // Ribbon side: explicit query wins, then config token, then live spaces
   // follow effective defaults. Otherwise portrait keeps the legacy behavior
-  // (saved flat side ignored); landscape applies an explicit landscape
-  // override only — no landscape override = legacy left.
+  // (saved flat side ignored). Landscape follows the documented per-shape
+  // profile contract (`sd.landscape` wins per key, absent/null inherits the
+  // flat — `.agents/render-params.md`, "Badge per formato"): both the preview
+  // URL builder and the Stremio URL builder already inherit the flat side in
+  // landscape, so ignoring it here made a query-less landscape render left
+  // while the delivered URL said right. Fail-closed: anything but the literal
+  // "right" stays left.
   const qSide = q.get("side")
+  const landscapeRibbonSide = posterShape === "landscape"
+    ? (sd.landscape?.ribbonSide ?? sd.ribbonSide)
+    : undefined
   const ribbonSide: "left" | "right" = qSide === "right"
     ? "right"
     : qSide === "left"
       ? "left"
-      : ((configOverride?.ribbonSide ?? (isLiveFollow ? (esd.ribbonSide ?? sd.ribbonSide) : (posterShape === "landscape" ? sd.landscape?.ribbonSide : undefined))) === "right" ? "right" : "left")
+      : ((configOverride?.ribbonSide ?? (isLiveFollow ? (esd.ribbonSide ?? sd.ribbonSide) : landscapeRibbonSide)) === "right" ? "right" : "left")
 
   // Pre-release pre-digital (movies only): query `pre` > config token >
   // effective per-shape defaults > false. No per-title override.

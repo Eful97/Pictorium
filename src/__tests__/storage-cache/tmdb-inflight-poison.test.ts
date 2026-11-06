@@ -1,6 +1,7 @@
 import { afterEach, describe, expect, it, vi } from "vitest"
 import {
   __clearTMDBCache,
+  __resetErr5xxCache,
   __resetKey401Cache,
   getDetails,
   getImages,
@@ -148,6 +149,11 @@ describe("tmdbFetch owner deadline vs poisoned inflight entry", () => {
       "TMDB fetch failed: 500",
     )
     expect(getTmdbInflightSize()).toBe(before)
+    // A 5xx is now negatively cached per neutral URL for a short TTL
+    // (anti-thunder in outage). The failed request still must not poison the
+    // inflight entry or the data cache: clear the negative cache as the TTL
+    // expiry would, then the SAME key must retry upstream and recover.
+    __resetErr5xxCache()
     vi.restoreAllMocks()
     vi.spyOn(globalThis, "fetch").mockResolvedValue(
       Response.json({ id: 918005, genres: [], vote_average: 7, vote_count: 10 }),

@@ -35,6 +35,11 @@ export default defineConfig({
   },
   fullyParallel: false,
   retries: isCi ? 1 : 0,
+  // CI resta SERIALE (1 worker): gli spec visual mutano i defaults globali
+  // condivisi (es. top shade `ts`/`tsh`) e la parità riusa la stessa app/mock,
+  // quindi un run parallelo renderebbe i risultati dipendenti dall'ordine.
+  // In locale il default di Playwright è libero: gli spec che scrivono i
+  // defaults vanno eseguiti da soli (vedi `.agents/visual-testing.md`).
   workers: isCi ? 1 : undefined,
   use: {
     baseURL: `http://127.0.0.1:${port}`,

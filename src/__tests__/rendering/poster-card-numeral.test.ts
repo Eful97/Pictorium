@@ -13,6 +13,7 @@ import {
   renderCardPoster,
   splitCardNumeralColumns,
   type CardLayoutInput,
+  type CardOverlayGeometry,
 } from "@/lib/card-layout"
 import {
   CARD_NUMERAL_CONDENSE_X,
@@ -1245,4 +1246,54 @@ describe("card numeral P21: 2x-supersampled contour is smoother at the same weig
       expect(newCore / oldCore).toBeLessThanOrEqual(1.1)
     }
   }, 240000)
+})
+
+describe("card numeral F3: oversized tscale clamps instead of vanishing", () => {
+  it("landscape rank 5 at 150/200 still composes a numeral on every skin, unclipped", async () => {
+    const artwork = await solidPng(LAND_W, LAND_H)
+    for (const skin of SKINS) {
+      // Neutral reference for the "still visibly enlarged" check.
+      let neutral: CardOverlayGeometry | null = null
+      await renderCardPoster({
+        ...baseInput(skin, "landscape", artwork, 5),
+        onGeometry: (g) => {
+          neutral = g
+        },
+      })
+      expect(neutral!.numeral).not.toBeNull()
+      for (const numeralScale of [150, 200]) {
+        let geom: CardOverlayGeometry | null = null
+        const png = await renderCardPoster({
+          ...baseInput(skin, "landscape", artwork, 5),
+          numeralScale,
+          onGeometry: (g) => {
+            geom = g
+          },
+        })
+        expect((await sharp(png).metadata()).width).toBe(LAND_W)
+        // The measured placer used to fail closed (~140%+) and omit the
+        // numeral entirely; the scale clamp keeps it painted…
+        expect(geom!.numeral).not.toBeNull()
+        // …fully inside the canvas (never a cropped digit)…
+        expect(geom!.numeral!.left).toBeGreaterThanOrEqual(0)
+        expect(geom!.numeral!.top).toBeGreaterThanOrEqual(0)
+        expect(geom!.numeral!.left + geom!.numeral!.w).toBeLessThanOrEqual(LAND_W)
+        expect(geom!.numeral!.top + geom!.numeral!.h).toBeLessThanOrEqual(LAND_H)
+        // …and still larger than neutral 100 (shrunk to fit, not reset).
+        expect(geom!.numeral!.h).toBeGreaterThan(neutral!.numeral!.h)
+      }
+    }
+  }, 180000)
+
+  it("portrait neutral 100 is byte-identical with the scale absent or explicit", async () => {
+    const artwork = await solidPng(STD_W, STD_H)
+    for (const skin of SKINS) {
+      const absent = await renderCardPoster(baseInput(skin, "poster", artwork, 5))
+      const explicit = await renderCardPoster({
+        ...baseInput(skin, "poster", artwork, 5),
+        numeralScale: 100,
+      })
+      expect(Buffer.compare(absent, explicit)).toBe(0)
+    }
+  }, 120000)
 })

@@ -560,6 +560,31 @@ describe("EpisodePreview still studio", () => {
     })
   }
 
+  it("auto-opens the still studio when entered from the Miniature zone", async () => {
+    mockFetch()
+    const onAutoOpenThumbnailStudio = vi.fn()
+    renderWithCtx(
+      <EpisodePreview
+        autoOpenThumbnailStudio
+        onAutoOpenThumbnailStudio={onAutoOpenThumbnailStudio}
+      />,
+      { selected: selectedSeries(), tmdbKey: "test-key" },
+    )
+
+    // No click on the "Vedi tutti" entry: the Miniature zone lands directly on
+    // the editing studio once the preview payload resolves.
+    expect(await screen.findByTestId("episode-browser-dialog")).toBeTruthy()
+    expect(onAutoOpenThumbnailStudio).toHaveBeenCalledTimes(1)
+  })
+
+  it("leaves the still studio closed on a normal poster entry", async () => {
+    mockFetch()
+    renderWithCtx(<EpisodePreview />, { selected: selectedSeries(), tmdbKey: "test-key" })
+
+    await screen.findByTestId("episode-studio-entry")
+    expect(screen.queryByTestId("episode-browser-dialog")).toBeNull()
+  })
+
   it("opens the studio for TVDB content and lists the single TVDB cover in the TVDB tab", async () => {
     // TVDB publishes ONE image per episode (no variant gallery). The studio is
     // shared by both providers: the right pane exposes TMDB | TVDB, and the

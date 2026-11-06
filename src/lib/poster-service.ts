@@ -35,6 +35,7 @@ import { awardShortName, type AwardBadgeKey } from "./badge-labels"
 import { renderGenreBadge, renderRankingBadge, renderExtraBadge, renderComingSoonRibbon, comingSoonRibbonLayout, renderSVG, renderComposedSvg } from "./svg-badge"
 import { buildLogoScrim, logoContrast, logoInkLuminance, logoScrimStrength, posterLogoZoneLuminance } from "./logo-contrast"
 import { renderFirstMatchingNetworkLogoBadge, renderFirstMatchingNetworkRawBadge, renderFirstMatchingNetworkLogoBadgeHybrid, renderFirstMatchingNetworkRawBadgeHybrid, type NetworkCandidate } from "./network-svgs"
+import { isNetworkFixedPosition } from "./network-follow"
 import { computeLogoLayout, logoAlignPadX, PORTRAIT_LOGO_MAX_HEIGHT_PCT, PORTRAIT_LOGO_TOP_OFFSET, LANDSCAPE_LOGO_MAX_WIDTH_PCT, LANDSCAPE_LOGO_MAX_HEIGHT_PCT, LANDSCAPE_LOGO_BOTTOM_MARGIN_PCT, LANDSCAPE_LOGO_TOP_OFFSET, LANDSCAPE_LOGO_SHIFT_X, LANDSCAPE_LOGO_SHIFT_Y } from "./logo-layout"
 import { logoDefaultScaleFromAspect, FRESH_TITLE_LOGO_DEFAULT_SCALE } from "./logo-selection"
 import fs from "fs"
@@ -3732,7 +3733,10 @@ export async function generatePosterBuffer(input: GenerationInput): Promise<Buff
   // reposition/shrink da titolo/badge/mirror sotto. Le coordinate sono gli
   // actual finali (shift editoriale e offset già inclusi al freeze): nessun
   // clamp dimensionale, nessun ricalcolo. Null/assenti = layout storico.
-  const isFixedNetwork = networkLogoFollowTitle === false && networkFixedX != null && networkFixedY != null
+  const isFixedNetwork = isNetworkFixedPosition(
+    networkLogoFollowTitle !== false,
+    { x: networkFixedX ?? null, y: networkFixedY ?? null },
+  )
   // Actual finale per il freeze senza salto (solo numeri): valorizzato al
   // composite, null se il network non viene reso.
   let netGeo: NetworkGeometry | null = null
@@ -5048,6 +5052,13 @@ export async function generatePosterBuffer(input: GenerationInput): Promise<Buff
     if (geo.provider) badgeGeo.network = geo.provider
     if (geo.title) badgeGeo.logo = geo.title
   }
+  // Frozen network (follow OFF + complete absolute coords): in Standard and
+  // Fresh the renderer uses the absolute box verbatim and never applies the
+  // relative offset axes on top of it. Report the family as locked so the drag
+  // overlay offers no offset handle at all (a Y handle would otherwise write a
+  // `noy` that is reinterpreted as a relative offset later). Card keeps its
+  // provider offsets applied, so it is deliberately excluded.
+  if (isFixedNetwork && !isCard) badgeGeoFixedX.network = true
   onBadgeGeometry?.({
     canvasW: CW,
     canvasH: CH,

@@ -63,9 +63,14 @@ export const DEFAULT_THUMBNAIL_BADGE_MODE: ThumbnailBadgeMode = "both"
  *                IMDb). Missing/zero vote = no badge at all (never a fake
  *                purple bucket). Text ink is white/black by luminance and the
  *                rect carries a dark shadow for light stills.
+ * - `dot`      → same data/colour contract as `score` (bucket colour + big
+ *                score, no provider logo, same bucket/ink and shadow), but the
+ *                container is a ROUND circle (pallino) instead of the rounded
+ *                rect tile. Missing/zero vote = no badge at all, exactly like
+ *                `score` (never a pill fallback).
  * These are the only values accepted by `?bstyle`; absent = `pill`.
  */
-export const THUMBNAIL_BADGE_STYLES = ["pill", "bordo", "vetro", "branded", "naked", "score"] as const
+export const THUMBNAIL_BADGE_STYLES = ["pill", "bordo", "vetro", "branded", "naked", "score", "dot"] as const
 export type ThumbnailBadgeStyle = (typeof THUMBNAIL_BADGE_STYLES)[number]
 export const DEFAULT_THUMBNAIL_BADGE_STYLE: ThumbnailBadgeStyle = "pill"
 
@@ -615,8 +620,9 @@ export function thumbnailCacheKey(input: ThumbnailCacheKeyInput): string {
   // never satisfy a request configured for another provider (and vice versa).
   const provider = input.provider ?? "showgrid"
   // The vote-pill style is part of the identity: pill/bordo/vetro/branded/
-  // naked/score are different images (and ETags) of the same still. Absent =
-  // pill. `score` therefore produces `:bsscore:`.
+  // naked/score/dot are different images (and ETags) of the same still.
+  // Absent = pill. `score` therefore produces `:bsscore:` and `dot` (the round
+  // variant of score) its own `:bsdot:` identity.
   const badgeStyle = input.badgeStyle ?? DEFAULT_THUMBNAIL_BADGE_STYLE
   const anchor = input.anchor ?? DEFAULT_THUMBNAIL_BADGE_ANCHOR
   const ox = input.offsetX ?? 0
@@ -808,7 +814,8 @@ export interface RenderEpisodeThumbnailInput {
   /** Vote-badge style (`pill`/`bordo`/`vetro`; `branded` selects the branded
    *  separate-renderer path; `naked` draws the source brand mark + score with
    *  no container; `score` draws the bucket-coloured big-score tile with no
-   *  brand mark). Absent = `pill`. */
+   *  brand mark; `dot` is the round (circle) variant of `score`). Absent =
+   *  `pill`. */
   readonly badgeStyle?: ThumbnailBadgeStyle
   /** Corner anchor; absent = `tr` (top-right, TOP convention). */
   readonly anchor?: ThumbnailBadgeAnchor
@@ -907,8 +914,8 @@ const NAKED_BADGE_SHADOW_PAD = 8
 // A rounded rect with the big episode score; the fill encodes the vote bucket
 // and NO provider logo is drawn. The chosen vote source still selects WHICH
 // score feeds the bucket (the route already resolved `voteAverage`), it is
-// only hidden visually. Buckets are half-open on purpose: 9.9 is still the
-// dark-green "Awesome" band, exactly 10.0 is blue "Absolute Cinema".
+// only hidden visually. Buckets are half-open on purpose: 9.6 is still the
+// dark-green "Awesome" band, 9.7 and above are blue "Absolute Cinema".
 // ---------------------------------------------------------------------------
 
 /** sRGB linearisation used only by the score-tile ink choice (WCAG). */
@@ -938,8 +945,8 @@ export const THUMBNAIL_SCORE_BUCKETS = [
   { id: "average", label: "Average", color: "#EA580C", ink: thumbnailScoreInk("#EA580C"), min: 6, max: 7 },
   { id: "good", label: "Good", color: "#EAB308", ink: thumbnailScoreInk("#EAB308"), min: 7, max: 8 },
   { id: "great", label: "Great", color: "#15803D", ink: thumbnailScoreInk("#15803D"), min: 8, max: 9 },
-  { id: "awesome", label: "Awesome", color: "#14532D", ink: thumbnailScoreInk("#14532D"), min: 9, max: 10 },
-  { id: "absolute-cinema", label: "Absolute Cinema", color: "#2563EB", ink: thumbnailScoreInk("#2563EB"), min: 10, max: Number.POSITIVE_INFINITY },
+  { id: "awesome", label: "Awesome", color: "#14532D", ink: thumbnailScoreInk("#14532D"), min: 9, max: 9.7 },
+  { id: "absolute-cinema", label: "Absolute Cinema", color: "#2563EB", ink: thumbnailScoreInk("#2563EB"), min: 9.7, max: Number.POSITIVE_INFINITY },
 ] as const
 
 export type ThumbnailScoreBucket = (typeof THUMBNAIL_SCORE_BUCKETS)[number]
@@ -960,7 +967,7 @@ export function thumbnailScoreBucket(value: number): ThumbnailScoreBucket | null
   return THUMBNAIL_SCORE_BUCKETS[THUMBNAIL_SCORE_BUCKETS.length - 1]!
 }
 
-const SCORE_BADGE_BASE_FONT = 42
+const SCORE_BADGE_BASE_FONT = 36
 /** Shadow padding around the score tile (same family as the naked badge). */
 const SCORE_BADGE_SHADOW_PAD = 8
 
@@ -1094,6 +1101,63 @@ async function renderScoreVoteBadge(
 }
 
 /**
+ * Score dot: the ROUND variant of the score tile — same data/colour contract
+ * (bucket colour fill, same white/black ink, same big score, NO provider logo,
+ * same shadow), but the container is a filled circle instead of the rounded
+ * rect. The circle diameter is the larger of the score tile's box width/height,
+ * so the score keeps the exact same font/display/metrics inside a round canvas.
+ *
+ * Returns `null` when there is no real score (0/missing/non-finite), exactly
+ * like `renderScoreVoteBadge`: the caller skips the badge and never falls back
+ * to a neutral pill or an invented bucket.
+ */
+async function renderScoreDotVoteBadge(
+  voteSource: ThumbnailVoteSource,
+  value: number,
+  canvasWidth: ThumbnailWidth,
+): Promise<ThumbnailBadge | null> {
+  const bucket = thumbnailScoreBucket(value)
+  if (!bucket) return null
+  // Same sizing family as the score tile: canvas-scaled font + value formatter.
+  const fs = Math.max(12, Math.round((SCORE_BADGE_BASE_FONT * canvasWidth) / 380))
+  const display = formatSeparateValue(voteSource, value)
+  const textW = Math.max(1, Math.round(estimateTextWidth(display, fs, "inter")))
+  const padX = Math.max(6, Math.round(fs * 0.42))
+  const padY = Math.max(4, Math.round(fs * 0.24))
+  const boxW = textW + padX * 2
+  const boxH = fs + padY * 2
+  // Round container: the diameter is the score tile's larger dimension, so the
+  // score keeps the same metrics and the badge is a true circle.
+  const diameter = Math.max(boxW, boxH)
+  const radius = diameter / 2
+  const pad = SCORE_BADGE_SHADOW_PAD
+  const canvasSize = diameter + pad * 2
+  const center = pad + radius
+  const svg =
+    `<svg xmlns="http://www.w3.org/2000/svg" width="${canvasSize}" height="${canvasSize}">` +
+    // Same dark halo as the score tile: keeps the coloured circle separated
+    // from a bright still without adding a second container.
+    `<defs><filter id="scoreDotShadow" x="-50%" y="-50%" width="200%" height="200%">` +
+    `<feDropShadow dx="0" dy="2" stdDeviation="2.5" flood-color="#000000" flood-opacity="0.55"/>` +
+    `</filter></defs>` +
+    `<g filter="url(#scoreDotShadow)">` +
+    `<circle cx="${center}" cy="${center}" r="${radius}" fill="${bucket.color}"/>` +
+    `</g>` +
+    `<text x="${center}" y="${center}" text-anchor="middle" dominant-baseline="central" ` +
+    `font-family="${fontFamilyFor(display, "inter")}" font-weight="900" font-size="${fs}" fill="${bucket.ink}" ` +
+    `textLength="${textW}" lengthAdjust="spacingAndGlyphs">${escSvg(display)}</text>` +
+    `</svg>`
+  const png = await renderSVG(svg, canvasSize)
+  // Placement anchors the visible circle, never the transparent shadow canvas.
+  return {
+    png,
+    w: canvasSize,
+    h: canvasSize,
+    bleed: { x: pad, y: pad, w: diameter, h: diameter },
+  }
+}
+
+/**
  * Fetch the chosen still, resize it to the 16:9 thumbnail canvas and draw the
  * requested rating pills bottom-right. Missing vote / unavailable custom
  * ratings simply skip the corresponding pill (never a placeholder).
@@ -1117,6 +1181,9 @@ export async function renderEpisodeThumbnail(input: RenderEpisodeThumbnailInput)
   const useNaked = badgeStyle === "naked"
   // `score` is its own local material (bucket-coloured rounded tile, no logo).
   const useScore = badgeStyle === "score"
+  // `dot` is the ROUND variant of the score material: same bucket/ink/score and
+  // the same "no badge on missing/zero vote" contract, only the shape differs.
+  const useDot = badgeStyle === "dot"
   const voteBadgeStyle = badgeStyle === "bordo" || badgeStyle === "vetro" ? badgeStyle : "pill"
   // Base image: the TVDB leg is strictly best-effort. Any miss (no URL, invalid
   // host/path, transport error, non-image body) fails open to the supplied
@@ -1204,9 +1271,16 @@ export async function renderEpisodeThumbnail(input: RenderEpisodeThumbnailInput)
     const scoreVote = useScore
       ? await renderScoreVoteBadge(voteSource, input.voteAverage, width)
       : null
-    const voteSourceBadge = useScore
-      ? scoreVote
-      : brandedVote ?? nakedVote ?? await renderGenreBadge(
+    // Score dot: same bucket colour + score as `score`, round container. `null`
+    // (missing / zero vote) stays null: dot never falls back to a pill either.
+    const dotVote = useDot
+      ? await renderScoreDotVoteBadge(voteSource, input.voteAverage, width)
+      : null
+    const voteSourceBadge = useDot
+      ? dotVote
+      : useScore
+        ? scoreVote
+        : brandedVote ?? nakedVote ?? await renderGenreBadge(
         "",
         input.voteAverage,
         width,

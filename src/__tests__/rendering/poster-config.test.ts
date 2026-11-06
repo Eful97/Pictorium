@@ -1,6 +1,7 @@
 import { describe, expect, it } from "vitest"
 import { resolvePosterRenderConfig, resolvePosterShape, clamp, type PosterRenderConfigInput } from "@/lib/poster-config"
 import { buildStremioPosterSearchParams } from "@/lib/stremio-poster-params"
+import { normalizePosterCacheParams } from "@/lib/poster-runtime-cache"
 import type { Mapping } from "@/lib/types"
 import type { PictoriumUserConfig } from "@/lib/config-token"
 
@@ -743,6 +744,42 @@ describe("resolvePosterRenderConfig", () => {
       mapping: mapping({ qualityBadgeStyle: "bar" as never }),
     }))
     expect(rMapping.qualityBadgeStyle).toBe("standard")
+  })
+
+  it("present-but-invalid qbs is the explicit standard, never the mapping style", () => {
+    // Absent qbs inherits the mapping style (unchanged contract).
+    expect(resolvePosterRenderConfig(baseInput({
+      mapping: mapping({ qualityBadgeStyle: "mono" }),
+    })).qualityBadgeStyle).toBe("mono")
+    // Present-invalid (empty included) is fail-closed standard — same contract
+    // as the cache key, which canonicalizes it to "standard".
+    for (const value of ["", "bar"]) {
+      expect(resolvePosterRenderConfig(baseInput({
+        searchParams: new URLSearchParams(`qbs=${value}`),
+        mapping: mapping({ qualityBadgeStyle: "mono" }),
+        configOverride: config({ qualityBadgeStyle: "color" }),
+        sd: { qualityBadgeStyle: "knockout" },
+      })).qualityBadgeStyle, `qbs=${value}`).toBe("standard")
+    }
+  })
+
+  it("cache key and render resolver agree on qbs (no key shared by different bytes)", () => {
+    // Key side: present-invalid -> "standard"; absence stays absent.
+    expect(normalizePosterCacheParams(new URLSearchParams("qbs=")).get("qbs")).toBe("standard")
+    expect(normalizePosterCacheParams(new URLSearchParams("qbs=standard")).get("qbs")).toBe("standard")
+    expect(normalizePosterCacheParams(new URLSearchParams("")).has("qbs")).toBe(false)
+    // Render side: the mapping style survives only when qbs is absent.
+    const withMapping = (params: URLSearchParams) => resolvePosterRenderConfig(baseInput({
+      searchParams: params,
+      mapping: mapping({ qualityBadgeStyle: "mono" }),
+    })).qualityBadgeStyle
+    expect(withMapping(new URLSearchParams("qbs="))).toBe("standard")
+    expect(withMapping(new URLSearchParams("qbs=standard"))).toBe("standard")
+    expect(withMapping(new URLSearchParams(""))).toBe("mono")
+    // Absent (mapping-inherited render) and present-invalid must never share a key.
+    expect(normalizePosterCacheParams(new URLSearchParams("")).toString()).not.toBe(
+      normalizePosterCacheParams(new URLSearchParams("qbs=")).toString(),
+    )
   })
 
   it("query qbs=knockout is accepted across the chain", () => {

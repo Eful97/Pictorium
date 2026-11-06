@@ -48,7 +48,7 @@ import type { ActivePresetBaseline, ActivePresetMeta } from "@/lib/active-preset
 export type EditTargetShape = "portrait" | "landscape" | "thumbnail"
 
 /** Thumbnail vote-badge style (mirrors the renderer `bstyle` contract). */
-export type ThumbnailBadgeStyle = "pill" | "bordo" | "vetro" | "branded" | "naked" | "score"
+export type ThumbnailBadgeStyle = "pill" | "bordo" | "vetro" | "branded" | "naked" | "score" | "dot"
 
 /** Thumbnail badge-stack corner anchor (renderer `anchor` contract). */
 export type ThumbnailBadgeAnchor = "tl" | "tr" | "bl" | "br"

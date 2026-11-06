@@ -5,6 +5,37 @@ import type { SearchResult, TMDBImage } from "./types"
 import { detectSeasonalThemeFromCatalogName, type SeasonalCustomKeywordsInput, type SeasonalTheme } from "./seasonal-theme"
 import { pushView, replaceView, goBack, type View } from "./router"
 
+/**
+ * SPA navigation guard for the per-title editor draft.
+ *
+ * A browser Back/Forward (popstate) leaves the editor view and clears the open
+ * title, which rehydrates the live editor from the SAVED mapping: every
+ * unstaged edit would be lost. The editor registers its live dirty state here;
+ * a dirty popstate is cancelled (the editor history entry is restored) and the
+ * editor's existing three-way confirm dialog is requested instead. Clean
+ * drafts keep the historic immediate navigation, so no global nav regression.
+ *
+ * Single registration by design: only the open per-title editor can own a
+ * draft. `requestConfirm` is expected to open the same dialog used by the
+ * in-app exit affordances (save / keep editing / discard).
+ */
+export interface EditorNavigationGuard {
+  /** Live dirty state of the open title (same `isMappingDirty` as the dialog). */
+  isDirty: () => boolean
+  /** Ask before discarding; `discard` performs the pending SPA transition. */
+  requestConfirm: (discard: () => void) => void
+}
+
+let editorNavigationGuard: EditorNavigationGuard | null = null
+
+/** Register the (single) editor guard; returns the unmount cleanup. */
+export function registerEditorNavigationGuard(guard: EditorNavigationGuard): () => void {
+  editorNavigationGuard = guard
+  return () => {
+    if (editorNavigationGuard === guard) editorNavigationGuard = null
+  }
+}
+
 export function useNavigation() {
   const [view, setViewState] = useState<View>("edit")
   const [selected, setSelected] = useState<SearchResult | null>(null)
@@ -16,6 +47,14 @@ export function useNavigation() {
   const fetchIdRef = useRef(0)
 
   const [sourceView, setSourceView] = useState<View | null>(null)
+  // Ultima view effettiva (lettura sincrona dal popstate, che gira fuori dal
+  // render): serve a ripristinare l'entry dell'editor quando un back SPA con
+  // bozza dirty viene annullato.
+  const viewRef = useRef<View>("edit")
+  viewRef.current = view
+  // Un solo salto "sbloccato" dopo la conferma di scarto: senza, il goBack
+  // richiesto dal dialog verrebbe ri-guardato all'infinito.
+  const guardBypassRef = useRef(false)
 
   // Contesto effimero della lista/catalogo di origine (nome visibile della
   // lista da cui il titolo è stato aperto): guida SOLO il `theme=` della
@@ -97,6 +136,22 @@ export function useNavigation() {
 
   useEffect(() => {
     const handler = (e: PopStateEvent) => {
+      // Il bypass vale per UN solo salto: è il goBack() richiesto dal dialog
+      // dopo la conferma di scarto (o il default pulito, che non lo attiva).
+      const bypass = guardBypassRef.current
+      guardBypassRef.current = false
+      const guard = editorNavigationGuard
+      if (!bypass && guard?.isDirty()) {
+        // Il browser ha già spostato la history: ripristina l'entry
+        // dell'editor (truncate del forward) così lo stato non viene perso,
+        // poi chiedi conferma con lo stesso dialog delle uscite in-app.
+        pushView(viewRef.current)
+        guard.requestConfirm(() => {
+          guardBypassRef.current = true
+          goBack()
+        })
+        return
+      }
       incrementFetchId()
       setSeasonalTheme(null)
       setListRank(null)

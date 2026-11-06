@@ -138,6 +138,7 @@ import sharp from "sharp"
 import type { PosterShape } from "./types"
 import {
   cardLayoutGeometry,
+  fitCardNumeralScale,
   isCardRankDisplayable,
 } from "./card-layout-geometry"
 import {
@@ -1777,10 +1778,20 @@ export async function renderCardPoster(input: CardLayoutInput): Promise<Buffer> 
   const rank =
     isCardRankDisplayable(input.displayedRank) ? input.displayedRank : null
   const geo = cardLayoutGeometry(shape, CW, CH, rank)
-  const numeralScale =
+  const requestedNumeralScale =
     typeof input.numeralScale === "number" && Number.isFinite(input.numeralScale)
       ? Math.max(10, Math.min(200, Math.round(input.numeralScale)))
       : 100
+  // Audit F3: a large `tscale` can push the numeral's top edge off-canvas in
+  // landscape (rank 5 fails ~140%), where the measured placer fails closed
+  // and omits the numeral entirely. Clamp the scale to the largest value whose
+  // measured strong ink still fits above the baseline (shrink over omission);
+  // neutral 100% already fits on every shipped canvas and is returned
+  // unchanged (byte-identical neutral path). No new param, no renderer.
+  const numeralScale =
+    geo?.numeral
+      ? fitCardNumeralScale(geo.numeral, CH, requestedNumeralScale)
+      : requestedNumeralScale
   if (!geo) throw new Error(`Card geometry collapsed for ${CW}x${CH}`)
   const normOff = (v: number | null | undefined): number =>
     typeof v === "number" && Number.isFinite(v) ? Math.round(v) : 0

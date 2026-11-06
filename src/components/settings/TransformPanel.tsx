@@ -345,13 +345,17 @@ function PortraitEffectiveGeometry({ editVal, editTxt, setEditVal, setEditTxt, e
             {slider(<Minus className="w-3.5 h-3.5" />, t("ui.fade"), ed.defaultBlurFade, 0, 100, 0, 100, (v) => { ed.setDefaultBlurFade(v) }, () => { ed.setDefaultBlurFade(NATURAL_GRADIENT_DEFAULTS.blurFade) }, "bf", "%")}
             {slider(<Circle className="w-3.5 h-3.5" />, t("ui.darkness"), ed.defaultBlurDarkness, 0, 100, 0, 100, (v) => { ed.setDefaultBlurDarkness(v) }, () => { ed.setDefaultBlurDarkness(30) }, "bd", "%")}
             {slider(<Cloud className="w-3.5 h-3.5" />, t("ui.tintStrength"), ed.defaultTintStrength, 0, 100, 0, 100, (v) => { ed.setDefaultTintStrength(v) }, () => { ed.setDefaultTintStrength(20) }, "tint", "%")}
-            {slider(<Circle className="w-3.5 h-3.5" />, t("ui.topShade"), ed.defaultTopShade, 0, 100, 0, 100, (v) => { ed.setDefaultTopShade(v) }, () => { ed.setDefaultTopShade(50) }, "tsdef", "%")}
-            {slider(<Ruler className="w-3.5 h-3.5" />, t("ui.topShadeHeight"), ed.defaultTopShadeHeight, 0, 100, 0, 100, (v) => { ed.setDefaultTopShadeHeight(v) }, () => { ed.setDefaultTopShadeHeight(25) }, "tshdef", "%")}
           </div>
         </>
       ) : (
         <p className="text-[11px] text-zinc-400 italic">{t("ui.blurDisabled")}</p>
       )}
+      {/* Upper shade is applied by the renderer independently of the blur
+          master (poster-service topShade): always editable, same resolvers. */}
+      <div className="space-y-1.5 pt-1">
+        {slider(<Circle className="w-3.5 h-3.5" />, t("ui.topShade"), ed.defaultTopShade, 0, 100, 0, 100, (v) => { ed.setDefaultTopShade(v) }, () => { ed.setDefaultTopShade(50) }, "tsdef", "%")}
+        {slider(<Ruler className="w-3.5 h-3.5" />, t("ui.topShadeHeight"), ed.defaultTopShadeHeight, 0, 100, 0, 100, (v) => { ed.setDefaultTopShadeHeight(v) }, () => { ed.setDefaultTopShadeHeight(25) }, "tshdef", "%")}
+      </div>
     </div>
   )
   const gated: { key: string; active: boolean; hidden: boolean | undefined; name: string; hintTab: string; testId: string; node: React.ReactNode }[] = [
@@ -1511,6 +1515,17 @@ export function TransformPanel({ active, previewShape, onPreviewShapeChange, onP
               editingKey="tint"
               suffix="%"
             />
+          </div>
+          </>
+        ) : (
+          <p className="text-[11px] text-zinc-400 italic">
+            {t("ui.blurDisabled")}
+          </p>
+        )}
+
+        {/* Upper shade is applied by the renderer independently of the blur
+            master (poster-service topShade): always editable, same resolvers. */}
+        <div className="space-y-1.5 pt-1">
             <SliderRow
               icon={<Circle className="w-3.5 h-3.5" />}
               label={t("ui.topShade")}
@@ -1553,13 +1568,7 @@ export function TransformPanel({ active, previewShape, onPreviewShapeChange, onP
               editingKey="tshdef"
               suffix="%"
             />
-          </div>
-          </>
-        ) : (
-          <p className="text-[11px] text-zinc-400 italic">
-            {t("ui.blurDisabled")}
-          </p>
-        )}
+        </div>
       </div>
       <button
         type="button"

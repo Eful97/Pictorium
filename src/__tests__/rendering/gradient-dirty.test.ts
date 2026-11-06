@@ -1,5 +1,6 @@
 import { describe, expect, it } from "vitest"
 import { isGradientDirty, isGradientDirtyForShape, isArtworkDirty, isMappingDirty, type GradientTuning, type FullMappingCheckState } from "@/lib/gradient-dirty"
+import { KNOWN_VIDEO_FORMATS, type VideoFormat } from "@/lib/av-specs"
 import type { Mapping } from "@/lib/types"
 
 const DEFAULTS: GradientTuning = {
@@ -287,5 +288,237 @@ describe("isMappingDirty", () => {
     const mFont = mapping({ ...baseArtwork, ...DEFAULTS, logoScale: 100, showBadges: true, badgeFont: "oswald" });
     expect(isMappingDirty({ ...baseState, badgeFont: "oswald" }, mFont, DEFAULTS, "poster")).toBe(false);
     expect(isMappingDirty({ ...baseState, badgeFont: "inter" }, mFont, DEFAULTS, "poster")).toBe(true);
+  });
+});
+
+/**
+ * Audit Task 4 F1: `isMappingDirty` omitted per-title persisted keys that move
+ * pixels (age badge/country/style, A/V formats, rating sources, seasonal
+ * frame). A false "Saved" state let those edits ship silently. The comparisons
+ * use the SAME chain the editor opens with (`effective mapping ?? shape
+ * default`), so a global default is never mistaken for an unsaved edit.
+ */
+describe("isMappingDirty — per-title visual keys (audit F1)", () => {
+  const baseArtwork = { posterPath: "/p.jpg", backdropPath: "/b.jpg", posterShape: "poster" as const, logoPath: "/l.png" };
+  const baseState: FullMappingCheckState = { artwork: baseArtwork, gradient: { ...DEFAULTS } };
+  // Fully "frozen" mapping: only the key under test can make it dirty.
+  const saved = (partial: Partial<Mapping> = {}) => mapping({ ...baseArtwork, ...DEFAULTS, ...partial });
+
+  it("badge età: OFF di default pulito, cambio ON dirty, default globale ON pulito", () => {
+    const m = saved();
+    const defaults = { ageBadge: false, ageCountry: "IT", ageBadgeStyle: "standard" };
+    expect(isMappingDirty({ ...baseState, ageBadge: false }, m, DEFAULTS, "poster", defaults)).toBe(false);
+    expect(isMappingDirty({ ...baseState, ageBadge: true }, m, DEFAULTS, "poster", defaults)).toBe(true);
+    // Default globale ON: senza chiave nel mapping l'apertura parte da ON.
+    expect(isMappingDirty({ ...baseState, ageBadge: true }, m, DEFAULTS, "poster", { ...defaults, ageBadge: true })).toBe(false);
+    // Mapping che congela OFF vince sul default ON.
+    expect(isMappingDirty({ ...baseState, ageBadge: true }, saved({ ageBadge: false }), DEFAULTS, "poster", { ...defaults, ageBadge: true })).toBe(true);
+  });
+
+  it("paese età: default globale non è una modifica, il cambio sì (normalizzato)", () => {
+    const m = saved();
+    expect(isMappingDirty({ ...baseState, ageCountry: "US" }, m, DEFAULTS, "poster", { ageCountry: "US" })).toBe(false);
+    expect(isMappingDirty({ ...baseState, ageCountry: "IT" }, m, DEFAULTS, "poster", { ageCountry: "US" })).toBe(true);
+    expect(isMappingDirty({ ...baseState, ageCountry: "US" }, saved({ ageCountry: "US" }), DEFAULTS, "poster", { ageCountry: "IT" })).toBe(false);
+    // Valore legacy invalido = fallback fail-closed, mai falso positivo.
+    expect(isMappingDirty({ ...baseState, ageCountry: "IT" }, saved({ ageCountry: "GLOBAL" }), DEFAULTS, "poster", { ageCountry: "IT" })).toBe(false);
+  });
+
+  it("stile pill età: standard di default pulito, stile diverso dirty", () => {
+    const m = saved();
+    expect(isMappingDirty({ ...baseState, ageBadgeStyle: "standard" }, m, DEFAULTS, "poster")).toBe(false);
+    expect(isMappingDirty({ ...baseState, ageBadgeStyle: "mono" }, m, DEFAULTS, "poster")).toBe(true);
+    expect(isMappingDirty({ ...baseState, ageBadgeStyle: "mono" }, saved({ ageBadgeStyle: "mono" }), DEFAULTS, "poster")).toBe(false);
+    expect(isMappingDirty({ ...baseState, ageBadgeStyle: "standard" }, saved({ ageBadgeStyle: "mono" }), DEFAULTS, "poster")).toBe(true);
+  });
+
+  it("formati A/V: selezione (ordine irrilevante), null segue il default effettivo", () => {
+    const all: VideoFormat[] = [...KNOWN_VIDEO_FORMATS];
+    const m = saved();
+    const defaults = { videoFormats: all };
+    // Mapping senza chiave e live null: stessa resa (segue il default) → pulito.
+    expect(isMappingDirty({ ...baseState, videoFormats: null }, m, DEFAULTS, "poster", defaults)).toBe(false);
+    // La selezione intera esplicita equivale al default senza restrizione.
+    expect(isMappingDirty({ ...baseState, videoFormats: all }, m, DEFAULTS, "poster", defaults)).toBe(false);
+    // Restrizione non salvata → dirty.
+    expect(isMappingDirty({ ...baseState, videoFormats: ["dv", "hdr"] }, m, DEFAULTS, "poster", defaults)).toBe(true);
+    // Mapping ristretto: ordine diverso non conta.
+    const mDv = saved({ videoFormats: ["dv"] });
+    expect(isMappingDirty({ ...baseState, videoFormats: ["dv"] }, mDv, DEFAULTS, "poster", defaults)).toBe(false);
+    expect(isMappingDirty({ ...baseState, videoFormats: ["dv", "hdr"] }, mDv, DEFAULTS, "poster", defaults)).toBe(true);
+    // "nessun formato" salvato ([]) è diverso da null (segue il default).
+    expect(isMappingDirty({ ...baseState, videoFormats: null }, saved({ videoFormats: [] }), DEFAULTS, "poster", defaults)).toBe(true);
+    expect(isMappingDirty({ ...baseState, videoFormats: [] }, saved({ videoFormats: [] }), DEFAULTS, "poster", defaults)).toBe(false);
+  });
+
+  it("fonti voto: default globale non è una modifica, ordine significativo", () => {
+    const m = saved();
+    const defaults = { ratingSources: ["imdb", "tmdb"] };
+    expect(isMappingDirty({ ...baseState, ratingSources: ["imdb", "tmdb"] }, m, DEFAULTS, "poster", defaults)).toBe(false);
+    expect(isMappingDirty({ ...baseState, ratingSources: ["imdb"] }, m, DEFAULTS, "poster", defaults)).toBe(true);
+    expect(isMappingDirty({ ...baseState, ratingSources: ["tmdb"] }, saved({ ratingSources: ["tmdb"] }), DEFAULTS, "poster", defaults)).toBe(false);
+    // Stessa selezione, ordine diverso = ordine delle pill diverso → dirty.
+    expect(isMappingDirty({ ...baseState, ratingSources: ["tmdb", "imdb"] }, saved({ ratingSources: ["imdb", "tmdb"] }), DEFAULTS, "poster", defaults)).toBe(true);
+  });
+
+  it("cornice stagionale: Automatico vs scelta esplicita (none compreso)", () => {
+    const m = saved();
+    expect(isMappingDirty({ ...baseState, seasonalTheme: null }, m, DEFAULTS, "poster")).toBe(false);
+    expect(isMappingDirty({ ...baseState, seasonalTheme: "halloween" }, m, DEFAULTS, "poster")).toBe(true);
+    expect(isMappingDirty({ ...baseState, seasonalTheme: "halloween" }, saved({ seasonalTheme: "halloween" }), DEFAULTS, "poster")).toBe(false);
+    // "none" esplicito sopprime un tema ereditato: diverso da Automatico.
+    expect(isMappingDirty({ ...baseState, seasonalTheme: null }, saved({ seasonalTheme: "none" }), DEFAULTS, "poster")).toBe(true);
+    expect(isMappingDirty({ ...baseState, seasonalTheme: "none" }, saved({ seasonalTheme: "none" }), DEFAULTS, "poster")).toBe(false);
+  });
+
+  it("profilo landscape: badge età e formati letti dal profilo di forma", () => {
+    const m = saved({
+      posterShape: "landscape",
+      landscape: { ageBadge: true, ageCountry: "GB", ageBadgeStyle: "mono", videoFormats: ["dv"] },
+    });
+    const state: FullMappingCheckState = {
+      ...baseState,
+      artwork: { ...baseArtwork, posterShape: "landscape" },
+      ageBadge: true,
+      ageCountry: "GB",
+      ageBadgeStyle: "mono",
+      videoFormats: ["dv"],
+    };
+    expect(isMappingDirty(state, m, DEFAULTS, "poster")).toBe(false);
+    expect(isMappingDirty({ ...state, ageCountry: "IT" }, m, DEFAULTS, "poster")).toBe(true);
+    expect(isMappingDirty({ ...state, videoFormats: ["hdr"] }, m, DEFAULTS, "poster")).toBe(true);
+  });
+});
+
+/**
+ * Audit Task 1b follow-up: accent manuale, logo testuale e base portrait
+ * (crop backdrop) erano persistiti e muovono pixel ma restavano fuori dal
+ * dirty tracking. Stessa catena dell'apertura (`mapping effettivo ?? default
+ * di forma`), nessun valore auto-rilevato trattato come edit.
+ */
+describe("isMappingDirty — accent / logo testuale / base portrait (audit F1 follow-up)", () => {
+  const baseArtwork = { posterPath: "/p.jpg", backdropPath: "/b.jpg", posterShape: "poster" as const, logoPath: null };
+  const saved = (partial: Partial<Mapping> = {}) => mapping({ ...baseArtwork, ...DEFAULTS, ...partial });
+  const state = (partial: Partial<FullMappingCheckState> = {}): FullMappingCheckState => ({
+    artwork: baseArtwork,
+    gradient: { ...DEFAULTS },
+    ...partial,
+  });
+
+  it("accent: manuale salvato uguale è pulito, cambio è dirty, auto mai dirty", () => {
+    const m = saved({ accentColor: "#E67E22" });
+    const auto = "#E50914";
+    expect(isMappingDirty(state({ accentColor: "#E67E22", autoAccentColor: auto }), m, DEFAULTS, "poster")).toBe(false);
+    // Hex case-insensitive (il mapping può arrivare con maiuscole diverse).
+    expect(isMappingDirty(state({ accentColor: "#e67e22", autoAccentColor: auto }), m, DEFAULTS, "poster")).toBe(false);
+    expect(isMappingDirty(state({ accentColor: "#123456", autoAccentColor: auto }), m, DEFAULTS, "poster")).toBe(true);
+    // Nessun manuale salvato → scelta manuale non ancora salvata.
+    expect(isMappingDirty(state({ accentColor: "#123456", autoAccentColor: auto }), saved(), DEFAULTS, "poster")).toBe(true);
+    // Auto = mai un edit, nemmeno senza chiave nel mapping.
+    expect(isMappingDirty(state({ accentColor: auto, autoAccentColor: auto }), saved(), DEFAULTS, "poster")).toBe(false);
+    // Hex salvato == auto-rilevato: la provenance manuale è indistinguibile,
+    // quindi mai un falso "non salvato".
+    expect(isMappingDirty(state({ accentColor: auto, autoAccentColor: auto }), saved({ accentColor: auto }), DEFAULTS, "poster")).toBe(false);
+    // Reset ad auto di un manuale DIVERSO: il save sgancerebbe il mapping.
+    expect(isMappingDirty(state({ accentColor: auto, autoAccentColor: auto }), m, DEFAULTS, "poster")).toBe(true);
+  });
+
+  it("accent: in landscape legge il profilo Orizzontale (null = automatico)", () => {
+    const m = saved({ posterShape: "landscape", accentColor: "#ff0000", landscape: { accentColor: "#00ff00" } });
+    const landArt = { ...baseArtwork, posterShape: "landscape" as const };
+    const auto = "#0000ff";
+    expect(isMappingDirty(state({ artwork: landArt, accentColor: "#00ff00", autoAccentColor: auto }), m, DEFAULTS, "poster")).toBe(false);
+    expect(isMappingDirty(state({ artwork: landArt, accentColor: "#ff0000", autoAccentColor: auto }), m, DEFAULTS, "poster")).toBe(true);
+    // Profilo con null esplicito = automatico: il flat manuale non resuscita.
+    const mLandAuto = saved({ posterShape: "landscape", accentColor: "#ff0000", landscape: { accentColor: null } });
+    expect(isMappingDirty(state({ artwork: landArt, accentColor: null, autoAccentColor: auto }), mLandAuto, DEFAULTS, "poster")).toBe(false);
+  });
+
+  it("logo testuale: testo normalizzato, font solo con testo, vuoto = nessun logo", () => {
+    const m = saved({ logoText: "The Title", logoFont: "oswald" });
+    expect(isMappingDirty(state({ logoText: "The Title", logoFont: "oswald" }), m, DEFAULTS, "poster")).toBe(false);
+    // Spazi/newline extra: il renderer normalizza, nessuna differenza.
+    expect(isMappingDirty(state({ logoText: "  The   Title ", logoFont: "oswald" }), m, DEFAULTS, "poster")).toBe(false);
+    // Testo nuovo non salvato → dirty.
+    expect(isMappingDirty(state({ logoText: "Other", logoFont: "oswald" }), m, DEFAULTS, "poster")).toBe(true);
+    expect(isMappingDirty(state({ logoText: "Other", logoFont: "oswald" }), saved(), DEFAULTS, "poster")).toBe(true);
+    // Svuotato (o soli spazi) = nessun logo → dirty contro un testo salvato.
+    expect(isMappingDirty(state({ logoText: "   ", logoFont: "oswald" }), m, DEFAULTS, "poster")).toBe(true);
+    expect(isMappingDirty(state({ logoText: "", logoFont: "inter" }), saved(), DEFAULTS, "poster")).toBe(false);
+    // Il font conta solo quando un testo è mostrato.
+    expect(isMappingDirty(state({ logoText: "The Title", logoFont: "inter" }), m, DEFAULTS, "poster")).toBe(true);
+    expect(isMappingDirty(state({ logoText: "", logoFont: "oswald" }), saved(), DEFAULTS, "poster")).toBe(false);
+  });
+
+  it("logo testuale: flat condiviso, il profilo landscape non lo sovrascrive", () => {
+    const m = saved({ posterShape: "landscape", logoText: "The Title", landscape: { logoScale: 120 } });
+    const landArt = { ...baseArtwork, posterShape: "landscape" as const };
+    expect(isMappingDirty(state({ artwork: landArt, logoText: "The Title" }), m, DEFAULTS, "poster")).toBe(false);
+    expect(isMappingDirty(state({ artwork: landArt, logoText: "Other" }), m, DEFAULTS, "poster")).toBe(true);
+  });
+
+  it("base portrait: path del crop confrontato solo sul canvas verticale", () => {
+    const m = saved({ portraitBackdropPath: "/bd.jpg" });
+    expect(isMappingDirty(state({ portraitBackdropPath: "/bd.jpg" }), m, DEFAULTS, "poster")).toBe(false);
+    // Nuova scelta dal picker / ritorno al poster → dirty.
+    expect(isMappingDirty(state({ portraitBackdropPath: "/other.jpg" }), m, DEFAULTS, "poster")).toBe(true);
+    expect(isMappingDirty(state({ portraitBackdropPath: null }), m, DEFAULTS, "poster")).toBe(true);
+    // Nessuna base salvata e nessuna scelta → pulito.
+    expect(isMappingDirty(state({ portraitBackdropPath: null }), saved(), DEFAULTS, "poster")).toBe(false);
+    // Landscape: il save preserva la base portrait verbatim e il canvas 16:9
+    // non la usa → mai un edit di quel formato.
+    const mLand = saved({ posterShape: "landscape", portraitBackdropPath: "/bd.jpg" });
+    const landArt = { ...baseArtwork, posterShape: "landscape" as const };
+    expect(isMappingDirty(state({ artwork: landArt, portraitBackdropPath: null }), mLand, DEFAULTS, "poster")).toBe(false);
+  });
+});
+
+/**
+ * Task 4b: legacy mappings written before the quality offsets were frozen have
+ * no `qualityBadgeOffsetX/Y`. The editor opens such a title at the shape
+ * defaults (-4/+6 portrait, 0/0 landscape), so the dirty baseline must be the
+ * same chain — comparing against 0 flagged every legacy title as unsaved.
+ */
+describe("isMappingDirty — legacy quality offsets follow the shape defaults", () => {
+  const portraitArt = { posterPath: "/p.jpg", backdropPath: "/b.jpg", posterShape: "poster" as const, logoPath: null };
+  const landscapeArt = { ...portraitArt, posterShape: "landscape" as const };
+  const state = (art: FullMappingCheckState["artwork"], offsets: Partial<FullMappingCheckState>): FullMappingCheckState => ({
+    artwork: art,
+    gradient: { ...DEFAULTS },
+    ...offsets,
+  });
+
+  it("portrait legacy mapping: live -4/+6 (factory defaults) is clean", () => {
+    const legacy = mapping({ posterPath: "/p.jpg", backdropPath: "/b.jpg", logoPath: null });
+    expect(isMappingDirty(state(portraitArt, { qualityBadgeOffsetX: -4, qualityBadgeOffsetY: 6 }), legacy, DEFAULTS, "poster")).toBe(false);
+    // A real edit (or the retired 0 default) is still dirty.
+    expect(isMappingDirty(state(portraitArt, { qualityBadgeOffsetX: 0, qualityBadgeOffsetY: 0 }), legacy, DEFAULTS, "poster")).toBe(true);
+    expect(isMappingDirty(state(portraitArt, { qualityBadgeOffsetX: -10, qualityBadgeOffsetY: 6 }), legacy, DEFAULTS, "poster")).toBe(true);
+  });
+
+  it("landscape legacy profile: 0/0 is clean, portrait defaults are not", () => {
+    const legacy = mapping({ posterPath: "/p.jpg", backdropPath: "/b.jpg", logoPath: null, posterShape: "landscape" });
+    expect(isMappingDirty(state(landscapeArt, { qualityBadgeOffsetX: 0, qualityBadgeOffsetY: 0 }), legacy, DEFAULTS, "poster")).toBe(false);
+    expect(isMappingDirty(state(landscapeArt, { qualityBadgeOffsetX: -4, qualityBadgeOffsetY: 6 }), legacy, DEFAULTS, "poster")).toBe(true);
+  });
+
+  it("an offset frozen in the mapping still wins over the shape fallback", () => {
+    const frozen = mapping({ posterPath: "/p.jpg", backdropPath: "/b.jpg", logoPath: null, qualityBadgeOffsetX: 0, qualityBadgeOffsetY: 0 });
+    expect(isMappingDirty(state(portraitArt, { qualityBadgeOffsetX: -4, qualityBadgeOffsetY: 6 }), frozen, DEFAULTS, "poster")).toBe(true);
+    expect(isMappingDirty(state(portraitArt, { qualityBadgeOffsetX: 0, qualityBadgeOffsetY: 0 }), frozen, DEFAULTS, "poster")).toBe(false);
+  });
+
+  it("the space default (visualDefaults) wins over the factory shape fallback", () => {
+    const legacy = mapping({ posterPath: "/p.jpg", backdropPath: "/b.jpg", logoPath: null });
+    expect(isMappingDirty(
+      state(portraitArt, { qualityBadgeOffsetX: 0, qualityBadgeOffsetY: 0 }),
+      legacy, DEFAULTS, "poster",
+      { qualityBadgeOffsetX: 0, qualityBadgeOffsetY: 0 },
+    )).toBe(false);
+    expect(isMappingDirty(
+      state(portraitArt, { qualityBadgeOffsetX: -4, qualityBadgeOffsetY: 6 }),
+      legacy, DEFAULTS, "poster",
+      { qualityBadgeOffsetX: 0, qualityBadgeOffsetY: 0 },
+    )).toBe(true);
   });
 });

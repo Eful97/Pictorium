@@ -7,6 +7,10 @@
  * per-Response observation for opt-in body telemetry (never outlives its
  * Response, dropped on reset).
  * Solo osservabilità: non cambia retry, timeout o cache di nessun caller.
+ * Unica eccezione, di sola rete: all'import installa UNA volta un `Agent`
+ * undici come global dispatcher (keep-alive + cap connessioni per origin),
+ * quindi le fetch upstream condividono i socket. Non tocca firma o semantica
+ * di `timedFetch` (delega 1:1, nessun retry/timeout/cache) e fallisce aperta.
  *
  * Field semantics (backwards compatible):
  * - `requests`/`errors`/`avgMs`/`lastMs`: legacy, unchanged. `errors` counts
@@ -30,6 +34,48 @@
  *   reads only (denominator `bodyReads`); `lastBodyReadMs` is the duration of
  *   the latest `arrayBuffer()`, success or failure.
  */
+
+/**
+ * Keep-alive condiviso per le fetch upstream (solo riuso di connessioni).
+ *
+ * Le raffiche parallele (es. ~20 `getDetails` TMDB) aprirebbero un socket per
+ * chiamata con il dispatcher di default; un solo `Agent` installato come
+ * global dispatcher una volta per processo riusa i socket fino a
+ * `keepAliveTimeout` e limita le connessioni per origin.
+ *
+ * Fail-open: se `undici` non è raggiungibile (o una versione futura rifiuta
+ * queste opzioni) l'installazione viene saltata e il processo resta sul
+ * dispatcher di default di Node. Nessun throw, nessun cambio osservabile di
+ * `timedFetch` (firma, argomenti e promise invariati: la delega resta 1:1).
+ */
+const UPSTREAM_DISPATCHER_OPTIONS = {
+  connections: 50,
+  keepAliveTimeout: 4000,
+  keepAliveMaxTimeout: 30000,
+  pipelining: 1,
+} as const
+
+let upstreamDispatcherInstalled = false
+
+function installUpstreamKeepAliveDispatcher(): void {
+  // "Once" anche in caso di fallimento: un secondo tentativo non aggiunge
+  // nulla e potrebbe solo sovrascrivere un dispatcher scelto da altri.
+  if (upstreamDispatcherInstalled) return
+  upstreamDispatcherInstalled = true
+  try {
+    // Require (non import statico) per restare fail-open dove `undici` non è
+    // raggiungibile: un import statico farebbe fallire il caricamento del
+    // modulo, qui l'assenza è solo un dispatcher di default in più.
+    // eslint-disable-next-line @typescript-eslint/no-require-imports
+    const undici = require("undici") as typeof import("undici")
+    if (typeof undici?.Agent !== "function" || typeof undici?.setGlobalDispatcher !== "function") return
+    undici.setGlobalDispatcher(new undici.Agent(UPSTREAM_DISPATCHER_OPTIONS))
+  } catch {
+    // Fail-open: la telemetria (e ogni caller) non dipende da questo tuning.
+  }
+}
+
+installUpstreamKeepAliveDispatcher()
 
 export interface OutboundHostStats {
   readonly requests: number

@@ -7,8 +7,8 @@
  * - draw NO provider logo (the source only selects which score feeds the
  *   bucket);
  * - pick white/black ink by luminance (measured WCAG contrast >= 4.5);
- * - map the intermediate tenths exactly (4.9 purple, 5.0 red, 9.9 dark green,
- *   10.0 blue);
+ * - map the intermediate tenths exactly (4.9 purple, 5.0 red, 9.6 dark green,
+ *   9.7 blue);
  * - skip the badge entirely on a missing/zero vote (never a fake purple tile);
  * - be part of the cache identity (`bsscore`), carried by the preview builder,
  *   while the default remains `pill`.
@@ -136,7 +136,11 @@ describe("thumbnail score bucket map", () => {
     expect(thumbnailScoreBucket(7.0)?.id).toBe("good")
     expect(thumbnailScoreBucket(8.0)?.id).toBe("great")
     expect(thumbnailScoreBucket(9.0)?.id).toBe("awesome")
-    expect(thumbnailScoreBucket(9.9)?.id).toBe("awesome")
+    expect(thumbnailScoreBucket(9.5)?.id).toBe("awesome")
+    expect(thumbnailScoreBucket(9.6)?.id).toBe("awesome")
+    expect(thumbnailScoreBucket(9.69)?.id).toBe("awesome")
+    expect(thumbnailScoreBucket(9.7)?.id).toBe("absolute-cinema")
+    expect(thumbnailScoreBucket(9.9)?.id).toBe("absolute-cinema")
     expect(thumbnailScoreBucket(10.0)?.id).toBe("absolute-cinema")
     // Above the documented scale the last bucket still applies.
     expect(thumbnailScoreBucket(10.2)?.id).toBe("absolute-cinema")
@@ -235,7 +239,7 @@ describe("thumbnail score tile render", () => {
 
     expect(result.rendered.vote).toBe(true)
     const { geometry } = result
-    // Inside the tile the ink (white on the dark-green bucket) is present.
+    // Inside the tile the ink (white on the blue bucket) is present.
     const { data, info } = await sharp(result.png).raw().toBuffer({ resolveWithObject: true })
     let inkPixels = 0
     for (let y = Math.floor(geometry.top); y < Math.ceil(geometry.top + geometry.h); y++) {
@@ -245,7 +249,7 @@ describe("thumbnail score tile render", () => {
       }
     }
     expect(inkPixels).toBeGreaterThan(5)
-    // The tile itself is the dark-green bucket, so it is visible on white.
+    // The tile itself is the blue bucket (9.9), so it is visible on white.
     expect(bucket.ink).toBe("#ffffff")
   })
 

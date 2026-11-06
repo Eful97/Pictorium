@@ -21,8 +21,10 @@
  * selected element: both write the same stored values the Transform sliders
  * write (X/Y and the family scale), so the two stay synchronized. Scale
  * proposals are clamped to the server scale contract and -- only when the
- * element already fits -- to the frame the reported box shows around it. The
- * reset writes position AND scale.
+ * element already fits -- to the frame the reported box shows around it,
+ * measured from the point the renderer scales around (family/layout anchor),
+ * and the live box is drawn about that same anchor so the preview and the
+ * committed render are the same movement. The reset writes position AND scale.
 
  * While dragging, the box snaps to the poster centre and to the other
  * rendered badges' edges/centres; the returned guides are EDITOR-ONLY overlay
@@ -288,19 +290,127 @@ export interface BadgeResizeInput {
   readonly canvasH: number
   /** Title-logo UI cap of the ACTIVE layout (ignored by badge families). */
   readonly titleMax?: number | null
+  /**
+   * Point of the reported box the renderer scales AROUND (see
+   * `badgeScaleAnchor`). When supplied the frame bound is measured from that
+   * anchor, so growth stops before the box leaves the canvas on the side it
+   * actually grows toward. Absent = legacy canvas-bound (kept for callers
+   * without a layout hint).
+   */
+  readonly anchor?: BadgeScaleAnchor | null
+}
+
+/**
+ * Which whole-poster renderer the title scale belongs to. Mirrors the
+ * `PosterLayout` families that change how `scale` is applied: Standard (canvas
+ * basis), Fresh (base slot, neutral 100), Card (card slot, neutral 100).
+ */
+export type BadgeScaleLayout = "standard" | "fresh" | "card"
+
+/**
+ * Relative position of the renderer's scale anchor inside the reported box:
+ * `0` = left/top edge, `0.5` = centre, `1` = right/bottom edge. Scale is
+ * applied by the renderer around this point, so both the frame bound and the
+ * live preview must use it — growing about the centre when the renderer keeps
+ * the right edge fixed would move the drawn box away from the committed one.
+ */
+export interface BadgeScaleAnchor {
+  readonly x: number
+  readonly y: number
+}
+
+const CENTER_ANCHOR: BadgeScaleAnchor = { x: 0.5, y: 0.5 }
+
+/** Standard layout anchors (from the documented renderer geometry). */
+const STANDARD_ANCHORS: Record<BadgeDragFamily, BadgeScaleAnchor> = {
+  // Centred by body, top edge fixed (`left = (pw - w) / 2 + tox`).
+  rank: { x: 0.5, y: 0 },
+  extra: { x: 0.5, y: 0 },
+  // Top-right chrome: right and top edges are margins (`left = CW - pad - w`).
+  quality: { x: 1, y: 0 },
+  // Column aligned to the quality box's right edge, top below it.
+  separate: { x: 1, y: 0 },
+  // Top-left chrome: left and top edges are margins.
+  network: { x: 0, y: 0 },
+  // Bottom-centred line (`top = ph - h - margin`).
+  genre: { x: 0.5, y: 1 },
+  // Title logo: bottom-centred with `logoAlign` (portrait always centred;
+  // landscape left align keeps the left edge, documented limit).
+  logo: { x: 0.5, y: 1 },
+}
+
+/** Fresh layout anchors (glass numeral top-left, meta column top-left). */
+const FRESH_ANCHORS: Record<BadgeDragFamily, BadgeScaleAnchor> = {
+  // `numeralTop` and `box.left - rim` stay fixed while the glyph scales.
+  rank: { x: 0, y: 0 },
+  extra: { x: 0.5, y: 0 },
+  quality: { x: 1, y: 0 },
+  // Separate ratings are baked rows inside the meta block: no own layer.
+  separate: CENTER_ANCHOR,
+  // Provider mark is placed centred in its own slot.
+  network: CENTER_ANCHOR,
+  // Meta column starts at its top-left and grows right/down.
+  genre: { x: 0, y: 0 },
+  logo: { x: 0.5, y: 1 },
+}
+
+/** Card layout anchors (numeral gutter/baseline, card-bottom title). */
+const CARD_ANCHORS: Record<BadgeDragFamily, BadgeScaleAnchor> = {
+  // Gutter `anchorX` + `baselineY` (left edge, bottom baseline).
+  rank: { x: 0, y: 1 },
+  extra: { x: 0.5, y: 0 },
+  quality: { x: 1, y: 0 },
+  separate: { x: 1, y: 0 },
+  // Provider mark is fitted centred in the gutter slot.
+  network: CENTER_ANCHOR,
+  // Metadata band is placed as one centred overlay under the card.
+  genre: { x: 0.5, y: 0 },
+  // Title is fitted bottom-centred inside the card.
+  logo: { x: 0.5, y: 1 },
+}
+
+/**
+ * Scale anchor of one family for the layout the overlay is editing.
+ *
+ * The anchors come from the documented renderer placement rules, never from a
+ * guess about the current box: they are what makes the live resize preview
+ * move like the committed render. A landscape Fresh title is bottom-RIGHT
+ * (its own documented slot); every other title is bottom-centred.
+ *
+ * Callers without a layout hint get Standard, the historical placement.
+ */
+export function badgeScaleAnchor(input: {
+  readonly family: BadgeDragFamily
+  readonly layout?: BadgeScaleLayout | null
+  readonly shape?: "poster" | "landscape"
+}): BadgeScaleAnchor {
+  const layout = input.layout ?? "standard"
+  if (layout === "card") return CARD_ANCHORS[input.family]
+  if (layout === "fresh") {
+    if (input.family === "logo" && input.shape === "landscape") return { x: 1, y: 1 }
+    return FRESH_ANCHORS[input.family]
+  }
+  return STANDARD_ANCHORS[input.family]
 }
 
 /**
  * Clamp a proposed scale to the family limits and to the frame.
  *
  * The frame bound is derived from the AUTHORITATIVE box the renderer already
- * reported for this exact URL: growing the element by `scale / startScale`
- * predicts its new size, so growth stops where its predicted box would touch
- * the canvas edge. An element that already overflows the frame cannot be fully
- * contained by scaling (the renderer's anchors are margins, not absolute
- * geometry): it may shrink but never grow. Shrinking is always allowed inside
- * the family range. Both are honest: a full-width element (box as wide as the
- * canvas) reports no growth room, because growing it would leave the frame.
+ * reported for this exact URL and from the point the renderer scales around
+ * (`anchor`): growing the element by `scale / startScale` predicts its new
+ * size and the new margin each edge keeps. With `anchor` the bound is measured
+ * on the side the element really grows toward (a right-anchored quality badge
+ * grows LEFT, a top-left network mark grows right/down), so the clamp can no
+ * longer promise room the renderer cannot use nor let the box leave the canvas
+ * on the anchored side. Without `anchor` the legacy canvas-bound is kept for
+ * callers with no layout hint.
+ *
+ * An element that already overflows the frame cannot be fully contained by
+ * scaling (the renderer's anchors are margins, not absolute geometry): it may
+ * shrink but never grow. Shrinking is always allowed inside the family range.
+ * Both are honest: a full-width element (box as wide as the canvas) reports no
+ * growth room, because growing it would leave the frame.
  *
  * Position containment is deliberately NOT promised here: scale is applied by
  * the renderer around its own anchor, so a bigger element may still cross an
@@ -324,26 +434,56 @@ export function clampBadgeResizeScale(
     clamped = true
   }
   let frameClamped = false
-  if (
-    next > start &&
-    finite(box.w) &&
-    finite(box.h) &&
-    box.w > 0 &&
-    box.h > 0 &&
-    finite(canvasW) &&
-    finite(canvasH) &&
-    canvasW > 0 &&
-    canvasH > 0
-  ) {
-    // Room the reported box still has, as a growth factor (>= 1 = fits).
-    const fit = Math.min(canvasW / box.w, canvasH / box.h)
-    const maxScale = Math.max(limits.min, Math.floor(start * Math.max(fit, 1)))
+  const hasBox =
+    finite(box.w) && finite(box.h) && box.w > 0 && box.h > 0 &&
+    finite(canvasW) && finite(canvasH) && canvasW > 0 && canvasH > 0
+  if (next > start && hasBox) {
+    let growth: number
+    if (input.anchor) {
+      // Growth is refused outright when the reported box is already outside
+      // the frame (same documented contract as the box-sized case).
+      const overflows =
+        !finite(box.left) || !finite(box.top) ||
+        box.left < 0 || box.top < 0 || box.left + box.w > canvasW || box.top + box.h > canvasH
+      growth = overflows
+        ? 1
+        : Math.max(
+            1,
+            Math.min(
+              anchorAxisGrowth(input.anchor.x, box.left, box.w, canvasW),
+              anchorAxisGrowth(input.anchor.y, box.top, box.h, canvasH),
+            ),
+          )
+    } else {
+      // Legacy canvas basis (no anchor hint): how much larger the box can get
+      // before it reaches the canvas sides from its top-left placement.
+      growth = Math.max(Math.min(canvasW / box.w, canvasH / box.h), 1)
+    }
+    const maxScale = Math.max(limits.min, Math.floor(start * growth))
     if (next > maxScale) {
       next = maxScale
       frameClamped = true
     }
   }
   return { scale: next, clamped, frameClamped }
+}
+
+/**
+ * How much one axis may grow before the box leaves the canvas, measured from
+ * the renderer's scale anchor. `share` is the anchor position inside the box
+ * (0 = leading edge, 0.5 = centre, 1 = trailing edge); the box grows away from
+ * that point, keeping the anchor pixel fixed.
+ */
+function anchorAxisGrowth(share: number, start: number, size: number, canvas: number): number {
+  if (!finite(share) || !finite(start) || !finite(size) || !finite(canvas) || size <= 0) {
+    return Number.POSITIVE_INFINITY
+  }
+  const s = Math.min(Math.max(share, 0), 1)
+  const anchorPos = start + s * size
+  let growth = Number.POSITIVE_INFINITY
+  if (s > 0) growth = Math.min(growth, anchorPos / (s * size))
+  if (s < 1) growth = Math.min(growth, (canvas - anchorPos) / ((1 - s) * size))
+  return growth
 }
 
 export interface BadgeResizeVector {
@@ -387,19 +527,30 @@ export function stepBadgeResizeScale(input: BadgeResizeInput & { readonly step: 
 
 /**
  * Effective numeric scale of the title logo when its stored value is `null`
- * (auto-fit): the renderer's own box says how wide the logo currently is, so
- * the first resize starts from the scale that box represents instead of a
- * guessed 100. The renderer's own caps still apply afterwards, and the
- * derived value is only a BASELINE for the ratio (never written on its own).
+ * (auto-fit): the renderer's own box says how big the logo currently is
+ * relative to the SCALE BASIS the active layout uses, so the first resize
+ * starts from the scale that box represents instead of a guessed 100.
+ *
+ * The basis is the layout's slot, never always the canvas: Standard scales
+ * against the canvas width, Fresh against its base title slot and Card against
+ * the card title slot. Deriving Card from the canvas width reports ~half the
+ * neutral 100 (the slot is ~55% of the canvas), so the first outward drag
+ * would SHRINK the title. `slotWidth` absent = canvas basis (legacy callers).
+ * The renderer's own caps still apply afterwards, and the derived value is only
+ * a BASELINE for the ratio (never written on its own).
  */
 export function deriveEffectiveLogoScale(input: {
   readonly box: BadgeDragBox
   readonly canvasW: number
+  /** Width of the layout's base title slot (canvas px). Absent = canvas width. */
+  readonly slotWidth?: number | null
   readonly titleMax?: number | null
 }): number {
   const limits = badgeScaleLimits("logo", { titleMax: input.titleMax })
-  if (!finite(input.canvasW) || input.canvasW <= 0 || !finite(input.box.w) || input.box.w <= 0) return limits.min
-  const derived = Math.round((input.box.w * 100) / input.canvasW)
+  const basis =
+    finite(input.slotWidth) && input.slotWidth > 0 ? input.slotWidth : input.canvasW
+  if (!finite(basis) || basis <= 0 || !finite(input.box.w) || input.box.w <= 0) return limits.min
+  const derived = Math.round((input.box.w * 100) / basis)
   return Math.min(Math.max(derived, limits.min), limits.max)
 }
 

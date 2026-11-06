@@ -27,6 +27,7 @@ const STYLE_LABEL_KEY: Record<(typeof THUMBNAIL_BADGE_STYLES)[number], string> =
   // Reuses the existing "Rating"/"Voto" dictionary entry: no new i18n key,
   // and the label is exactly what the tile renders (the episode score).
   score: "ui.badgeRating",
+  dot: "ui.thumbnailStyleDot",
 }
 const ANCHOR_GLYPH: Record<ThumbnailBadgeAnchor, string> = {
   tl: "↖",
@@ -57,7 +58,7 @@ const CHOICE_OFF = "bg-white/[0.03] border-white/10 text-zinc-300 hover:bg-white
  * poster panels and are hidden whenever this section is active.
  *
  * Applicable controls (<=6, one row each):
- * - vote badge style           → real: pill/bordo/vetro/branded/naked/score (`bstyle`)
+ * - vote badge style           → real: pill/bordo/vetro/branded/naked/score/dot (`bstyle`)
  * - vote provider source       → real: TMDB|IMDb segmented switch (`source`)
  * - spoiler blur               → real: maps to /api/thumbnail `blur`
  * - episode thumbnails enable  → real: persisted `/meta` toggle

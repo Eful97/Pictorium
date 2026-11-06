@@ -1,5 +1,13 @@
+import os from "node:os"
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest"
 import sharp from "sharp"
+
+/** Stesso calcolo di AUTO_CONCURRENCY in src/lib/sharp-config.ts (clamp 2..8). */
+function expectedAutoConcurrency(): number {
+  const cpus = typeof os.availableParallelism === "function" ? os.availableParallelism() : os.cpus().length
+  const detected = Number.isFinite(cpus) && cpus > 0 ? Math.floor(cpus) : 2
+  return Math.min(8, Math.max(2, detected))
+}
 
 async function initWithEnv(env: Record<string, string | undefined>): Promise<void> {
   for (const [k, v] of Object.entries(env)) {
@@ -26,7 +34,7 @@ afterEach(() => {
 describe("initSharp (D3)", () => {
   it("applies conservative defaults without env (not libvips core-count)", async () => {
     await initWithEnv({})
-    expect(sharp.concurrency()).toBe(2)
+    expect(sharp.concurrency()).toBe(expectedAutoConcurrency())
     expect(sharp.cache()).toMatchObject({ memory: expect.objectContaining({ max: 32 }), items: expect.objectContaining({ max: 50 }) })
   })
 
@@ -38,7 +46,7 @@ describe("initSharp (D3)", () => {
 
   it("falls back to defaults on invalid env", async () => {
     await initWithEnv({ SHARP_CONCURRENCY: "abc", SHARP_CACHE_MEMORY_MB: "-5" })
-    expect(sharp.concurrency()).toBe(2)
+    expect(sharp.concurrency()).toBe(expectedAutoConcurrency())
     expect(sharp.cache()).toMatchObject({ memory: expect.objectContaining({ max: 32 }) })
   })
 })

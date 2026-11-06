@@ -518,6 +518,36 @@ export function __resetKey401Cache(): void {
   key401At.clear()
 }
 
+// Negative cache per errori 5xx TMDB: un upstream in outage risponde 5xx a
+// ogni richiesta, quindi un catalogo freddo (decine di getDetails per pagina)
+// martella TMDB e amplifica il guasto. Keyed per URL neutra senza api_key
+// (condivisa tra utenti, come `fetchCache`), TTL breve perché il 5xx è
+// transiente: scaduto, il primo chiamante riprova davvero. Cap come il 401.
+// Solo 5xx: un 404 è un miss genuino e non va mai memorizzato.
+const ERR_5XX_TTL_MS = 10 * 1000
+const ERR_5XX_CAP = 500
+const err5xxAt = new Map<string, { at: number; status: number }>()
+
+function err5xxStatus(cacheKey: string): number | null {
+  const entry = err5xxAt.get(cacheKey)
+  if (!entry) return null
+  if (Date.now() - entry.at > ERR_5XX_TTL_MS) {
+    err5xxAt.delete(cacheKey)
+    return null
+  }
+  return entry.status
+}
+
+function markErr5xx(cacheKey: string, status: number): void {
+  if (err5xxAt.size >= ERR_5XX_CAP) err5xxAt.delete(err5xxAt.keys().next().value!)
+  err5xxAt.set(cacheKey, { at: Date.now(), status })
+}
+
+/** Solo per i test: azzera la negative cache 5xx. */
+export function __resetErr5xxCache(): void {
+  err5xxAt.clear()
+}
+
 interface TMDBStats {
   totalCalls: number
   cacheHits: number
@@ -579,6 +609,11 @@ async function tmdbFetch(path: string, apiKey?: string, signal?: AbortSignal, ti
     fetchCache.set(cacheKey, cached)
     return cached.data
   }
+
+  // 5xx già osservato su questa URL entro il TTL: fallisci subito senza rete
+  // (anti-thunder in outage), preservando lo status nel messaggio.
+  const err5xx = err5xxStatus(cacheKey)
+  if (err5xx !== null) throw new Error(`TMDB fetch failed: ${err5xx}`)
 
   // Deduplicate concurrent requests for the same URL
   const existing = inflight.get(cacheKey)
@@ -642,6 +677,7 @@ async function tmdbFetch(path: string, apiKey?: string, signal?: AbortSignal, ti
         transportSignal,
       )) as Response
       if (res.status === 401) markKey401(key)
+      if (res.status >= 500) markErr5xx(cacheKey, res.status)
       if (!res.ok) throw new Error(`TMDB fetch failed: ${res.status}`)
       // Il body non ha signal: stessa deadline totale dell'owner, mai attesa
       // illimitata con l'entry trattenuta.
@@ -1222,6 +1258,7 @@ export async function personTvCredits(personId: number, language = "it-IT", apiK
 export function __clearTMDBCache(): void {
   fetchCache.clear()
   key401At.clear()
+  err5xxAt.clear()
 }
 
 /**

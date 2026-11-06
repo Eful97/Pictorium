@@ -79,6 +79,43 @@ export const CARD_NUMERAL_CONDENSE_X = 0.6
  */
 export const CARD_NUMERAL_ENLARGE = 1.18
 
+/**
+ * Measured distance from the numeral baseline to the visible STRONG ink top
+ * (ring + bright glow fringe, the mask the placer proves), as a share of the
+ * numeral font size. Calibrated on rasterized ranks 1..20 across all three
+ * skins and both shapes (measured max 0.759): the shipped layer's cap height
+ * plus half ring plus glow fringe scales linearly with the font size, so the
+ * share is canvas-scale invariant. The 0.77 value keeps a ~1% safety margin
+ * so a clamped scale can never fail the measured top proof by rounding.
+ */
+export const CARD_NUMERAL_STRONG_TOP_SHARE = 0.77
+
+/**
+ * Largest integer numeral scale % (<= requested) whose strong ink stays
+ * inside the canvas above the baseline. Context (audit F3): a `tscale`
+ * enlargement pushes the numeral's top edge off-canvas (landscape rank 5
+ * failed at ~140%, inside the 10..200% UI range) and the measured placer
+ * fails closed by omitting the numeral. Clamping the scale keeps the numeral
+ * visible at the largest size that still proves in-canvas, instead of
+ * vanishing. Neutral 100% is returned unchanged wherever it already fits
+ * (every rank/shape at the shipped canvases), so the neutral path stays
+ * byte-identical. Pure: no raster, no I/O.
+ */
+export function fitCardNumeralScale(
+  numeral: Pick<CardRankNumeral, "fontSize" | "baselineY">,
+  canvasHeight: number,
+  requestedScale: number,
+): number {
+  const requested = Number.isFinite(requestedScale) ? Math.round(requestedScale) : 100
+  if (!isFinitePositive(numeral.fontSize) || !isFinitePositive(numeral.baselineY) || !isFinitePositive(canvasHeight)) {
+    return requested
+  }
+  const maxScalePercent = Math.floor(
+    ((numeral.baselineY / CARD_NUMERAL_STRONG_TOP_SHARE) / numeral.fontSize) * 100,
+  )
+  return Math.max(1, Math.min(requested, maxScalePercent))
+}
+
 /** Whether a rank may draw the Card numeral: integer 1..20, never invented. */
 export function isCardRankDisplayable(rank: unknown): rank is number {
   return (

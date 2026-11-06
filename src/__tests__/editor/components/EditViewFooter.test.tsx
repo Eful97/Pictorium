@@ -3,6 +3,7 @@ import { screen, waitFor, within } from "@testing-library/react"
 import userEvent from "@testing-library/user-event"
 import EditView from "@/components/EditView"
 import { renderWithCtx } from "@/__tests__/test-utils"
+import { defaultsStorageKey } from "@/lib/useDefaults"
 import { t } from "@/lib/i18n"
 import type { SearchResult } from "@/lib/types"
 
@@ -113,14 +114,25 @@ describe("EditView footer action grid", () => {
     expect(screen.queryByRole("button", { name: "ui.remove" })).not.toBeInTheDocument()
   })
 
-  it("shows Remove and invokes removal with the mapping when it exists", async () => {
+  it("shows Remove and deletes the mapping only after explicit confirmation", async () => {
     const u = userEvent.setup()
     const removeMapping = vi.fn(async () => {})
     const mappingsMap = new Map([["movie:550", savedMapping]])
     const { buttons, byLabel } = renderFooter({ mappingsMap, removeMapping })
     expect(buttons).toHaveLength(4)
+
+    // Cancel keeps the title and the saved mapping: no DELETE.
     await u.click(byLabel("ui.remove"))
-    expect(removeMapping).toHaveBeenCalledTimes(1)
+    const cancelDialog = await screen.findByRole("dialog", { name: t("ui.confirmDelete") })
+    await u.click(within(cancelDialog).getByRole("button", { name: t("ui.cancelAction") }))
+    await waitFor(() => expect(screen.queryByRole("dialog", { name: t("ui.confirmDelete") })).toBeNull())
+    expect(removeMapping).not.toHaveBeenCalled()
+
+    // Explicit confirm deletes with the saved mapping.
+    await u.click(byLabel("ui.remove"))
+    const confirmDialog = await screen.findByRole("dialog", { name: t("ui.confirmDelete") })
+    await u.click(within(confirmDialog).getByRole("button", { name: t("ui.delete") }))
+    await waitFor(() => expect(removeMapping).toHaveBeenCalledTimes(1))
     expect(removeMapping).toHaveBeenCalledWith(savedMapping)
   })
 
@@ -190,10 +202,18 @@ describe("EditView footer action grid", () => {
   it("keeps the emerald saved status (not primary) when the mapping is clean", () => {
     const mappingsMap = new Map([["movie:550", savedMapping]])
     const fcPoster = { file_path: "/fc.jpg", iso_639_1: null, vote_average: 0, width: 1000, height: 1500 }
-    const { byLabel } = renderFooter({ mappingsMap, posters: [fcPoster], previewPoster: fcPoster })
-    const save = byLabel("ui.savePoster")
-    expect(save.textContent).toBe("ui.savedShort")
-    expect(save).not.toHaveClass("btn-primary")
-    expect(save.className).toContain("emerald")
+    // renderWithCtx mocks PictoriumProvider: hydrate the stored defaults with
+    // the portrait shape default so the live editor matches the real
+    // title-open chain (-4/+6 quality offsets) instead of the 0/0 hook seed.
+    localStorage.setItem(defaultsStorageKey(), JSON.stringify({ defaultPosterShape: "poster" }))
+    try {
+      const { byLabel } = renderFooter({ mappingsMap, posters: [fcPoster], previewPoster: fcPoster })
+      const save = byLabel("ui.savePoster")
+      expect(save.textContent).toBe("ui.savedShort")
+      expect(save).not.toHaveClass("btn-primary")
+      expect(save.className).toContain("emerald")
+    } finally {
+      localStorage.removeItem(defaultsStorageKey())
+    }
   })
 })

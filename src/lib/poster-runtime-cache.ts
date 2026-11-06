@@ -420,7 +420,8 @@ export function normalizePosterCacheParams(searchParams: URLSearchParams): URLSe
   // qbs: present-invalid renders as "standard" (fail-closed, distinct from
   // absent which may inherit). Keep the valid value; canonicalize garbage to
   // the explicit "standard" sentinel (NOT delete — absent vs present-invalid
-  // are distinct renders).
+  // are distinct renders). The resolver (`poster-config.ts`) matches with `??`
+  // on the query level, so an empty `qbs=` renders standard too.
   const qbs = params.get("qbs")
   if (qbs !== null) {
     params.set("qbs", isQualityBadgeStyle(qbs) ? qbs : "standard")
