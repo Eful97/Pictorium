@@ -79,6 +79,7 @@
 
 import { BADGE_OFFSET_NUMERIC_LIMIT } from "./badge-offset-ranges"
 import { VIDEO_FORMAT_OPTIONS } from "./av-specs"
+import { packMarkHome } from "./quality-badge-pack"
 
 /** One item correction: percentage scale + canvas px offsets. */
 export interface BadgeItemTransform {
@@ -173,8 +174,13 @@ export function homeIdForPainted(id: string): string | null {
   if (id === BADGE_ITEM_QUALITY_AGE) return BADGE_ITEM_QUALITY_HOME_AGE
   if (id === BADGE_ITEM_QUALITY_COMBO) return BADGE_ITEM_QUALITY_HOME_DOLBY
   if (id.startsWith("quality:format:")) {
-    const kind = FORMAT_HOME_KIND[id.slice("quality:format:".length)]
-    return kind ? QUALITY_HOME_IDS[kind] : null
+    const markId = id.slice("quality:format:".length)
+    const kind = FORMAT_HOME_KIND[markId]
+    if (kind) return QUALITY_HOME_IDS[kind]
+    // Pack marks declare an optional home (`dolby`/`hdr`/`imax`/…); without
+    // one they stay identity-only (no home, no ghost — unchanged behavior).
+    const packHome = packMarkHome(markId)
+    return packHome ? QUALITY_HOME_IDS[packHome] : null
   }
   return null
 }

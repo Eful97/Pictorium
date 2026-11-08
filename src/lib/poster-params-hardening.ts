@@ -27,7 +27,7 @@ import { isSeparateRatingsStyle, isQualityGroupLayout, DEFAULT_QUALITY_GROUP_LAY
 import { parseRegion } from "./regions"
 import { isPosterLayout, isPosterFreshScope, DEFAULT_POSTER_FRESH_SCOPE } from "./types"
 import { ANIME_RANK_MAX, parseSashOrder } from "./badge-priority"
-import { isVideoFormat } from "./av-specs"
+import { MAX_QUALITY_MARKS, isQualityMarkId } from "./quality-badge-pack"
 import { normalizeLogoFont, sanitizeLogoText } from "./text-logo"
 import { canonicalizeBadgeItemTransforms } from "./badge-item-transforms"
 
@@ -292,11 +292,12 @@ function canonicalizeSash(params: URLSearchParams): void {
 }
 
 /**
- * `formats`: lista A/V (dv/hdr/hdr10plus/atmos/imax) o sentinel `none`.
- * Il renderer filtra già i token sconosciuti e tratta `none`/vuoto/zero-token
- * come "nessun marchio": canonicalizzare a quella stessa semantica è
- * render-identico e impedisce che `formats=garbage1`/`formats=garbage2`
- * creino due chiavi per lo stesso render vuoto.
+ * `formats`: lista di marchi qualità (formati A/V built-in + marchi del pack)
+ * o sentinel `none`. Il renderer filtra già i token sconosciuti e tratta
+ * `none`/vuoto/zero-token come "nessun marchio": canonicalizzare a quella
+ * stessa semantica è render-identico e impedisce che
+ * `formats=garbage1`/`formats=garbage2` creino due chiavi per lo stesso render
+ * vuoto. Il cap è lo stesso del renderer (`MAX_QUALITY_MARKS`).
  */
 function canonicalizeFormats(params: URLSearchParams): void {
   const raw = params.get("formats")
@@ -306,7 +307,8 @@ function canonicalizeFormats(params: URLSearchParams): void {
     params.set("formats", "none")
     return
   }
-  const valid = [...new Set(trimmed.split(",").map((t) => t.trim().toLowerCase()).filter(isVideoFormat))]
+  const valid = [...new Set(trimmed.split(",").map((t) => t.trim().toLowerCase()).filter(isQualityMarkId))]
+    .slice(0, MAX_QUALITY_MARKS)
   params.set("formats", valid.length > 0 ? valid.join(",") : "none")
 }
 

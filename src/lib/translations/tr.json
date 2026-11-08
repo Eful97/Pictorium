@@ -115,6 +115,7 @@
   "ui.defaultVideoFormats": "Varsayılan Ses/Görüntü Formatları",
   "ui.videoFormatsHint": "Video ve ses rozetlerini etkinleştirin veya devre dışı bırakın (DV, Atmos, IMAX, HDR, HDR10+).",
   "ui.videoFormatsAutoHint": "Veritabanından otomatik algılanır",
+  "ui.videoFormatsPackHint": "Rozet paketindeki işaretler manueldir: yalnızca seçtiğiniz yerlerde görünür.",
   "ui.formatsAll": "Tümü",
   "ui.formatsNone": "Hiçbiri",
   "ui.activeCount": "etkin",

@@ -73,6 +73,9 @@ const RENDER_FILES = [
   "src/lib/poster-url.ts",
   "src/lib/pre-release.ts",
   "src/lib/provider-brand-palette.ts",
+  "src/lib/quality-badge-pack.ts",
+  "src/lib/quality-marks-selection.ts",
+  "src/data/quality-badge-pack.json",
   "src/lib/ratings.ts",
   "src/lib/release-badge.ts",
   "src/lib/separate-rating-renderer.ts",
@@ -122,20 +125,48 @@ const RENDER_FILES = [
 
 const outputPath = path.join(rootDir, "src", "lib", "render-version.ts")
 
+// Cartelle i cui file (ricorsivi) entrano nell'hash: aggiungere un asset del
+// pack non richiede di elencarlo a mano. Ordine deterministico, path
+// repo-relative con "/" (identico su Windows e Linux).
+const RENDER_DIRS = [
+  "public/quality-badges/pack",
+]
+
+async function walkRenderDir(rel) {
+  const out = []
+  const entries = await fs.readdir(path.join(rootDir, rel), { withFileTypes: true })
+  for (const entry of entries) {
+    const child = `${rel}/${entry.name}`
+    if (entry.isDirectory()) out.push(...(await walkRenderDir(child)))
+    else out.push(child)
+  }
+  return out
+}
+
 // Normalizza i fine riga (CRLF -> LF): la working copy su Windows usa CRLF,
 // mentre CI/Linux usa LF. Senza normalizzazione l'hash differirebbe tra le
-// due, invalidando la cache in modo non deterministico.
-async function readNormalized(filePath) {
-  const raw = await fs.readFile(filePath, "utf-8")
-  return raw.replace(/\r\n?/g, "\n")
+// due, invalidando la cache in modo non deterministico. I file binari
+// (PNG/WebP dei pack) entrano come byte grezzi: la normalizzazione testo li
+// corromperebbe e renderebbe l'hash dipendente dalla decodifica UTF-8.
+const TEXT_RENDER_EXT_RE = /\.(ts|tsx|json|svg|mjs|css)$/i
+async function readRenderFile(rel) {
+  const raw = await fs.readFile(path.join(rootDir, rel))
+  if (!TEXT_RENDER_EXT_RE.test(rel)) return raw
+  return Buffer.from(raw.toString("utf-8").replace(/\r\n?/g, "\n"), "utf-8")
 }
 
 const hash = crypto.createHash("sha256")
 for (const rel of RENDER_FILES) {
-  const content = await readNormalized(path.join(rootDir, rel))
   hash.update(rel)
   hash.update("\0")
-  hash.update(content)
+  hash.update(await readRenderFile(rel))
+  hash.update("\0")
+}
+const dirFiles = (await Promise.all(RENDER_DIRS.map(walkRenderDir))).flat().sort()
+for (const rel of dirFiles) {
+  hash.update(rel)
+  hash.update("\0")
+  hash.update(await readRenderFile(rel))
   hash.update("\0")
 }
 const version = hash.digest("hex").slice(0, 10)

@@ -115,6 +115,7 @@
   "ui.defaultVideoFormats": "Výchozí A/V formáty",
   "ui.videoFormatsHint": "Povolit nebo zakázat odznaky videa a zvuku (DV, Atmos, IMAX, HDR, HDR10+).",
   "ui.videoFormatsAutoHint": "Automaticky zjištěno z databáze",
+  "ui.videoFormatsPackHint": "Značky z balíčku odznaků jsou ruční: zobrazí se jen tam, kde je vyberete.",
   "ui.formatsAll": "Vše",
   "ui.formatsNone": "Žádné",
   "ui.activeCount": "aktivní",

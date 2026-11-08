@@ -25,7 +25,8 @@ import { canonicalizeBadgeItemTransforms } from "./badge-item-transforms"
 import { isExtraBadgeStyle, isExtraFollowRank } from "./badge-styles"
 import { DEFAULT_QUALITY_BADGE_OFFSET_X, DEFAULT_QUALITY_BADGE_OFFSET_Y } from "./badge-styles"
 import type { RetiredBadgeFamilyBindings } from "./types"
-import { KNOWN_VIDEO_FORMATS, isVideoFormat, type VideoFormat } from "./av-specs"
+import { KNOWN_VIDEO_FORMATS } from "./av-specs"
+import { isQualityMarkId, type QualityMarkId } from "./quality-badge-pack"
 import type {
   ThumbnailBadgeAnchor,
   ThumbnailBadgeStyle,
@@ -66,7 +67,7 @@ export interface DefaultsState {
   /** Layout del gruppo qualità di default ("stacked" = colonna storica, "row" = orizzontale). */
   defaultQualityGroupLayout: QualityGroupLayout
   /** Formati A/V abilitati di default (dv, atmos, imax, hdr, hdr10plus). */
-  defaultVideoFormats: VideoFormat[]
+  defaultVideoFormats: QualityMarkId[]
   defaultBlurEnabled: boolean
   defaultBlurIntensity: number
   defaultBlurFade: number
@@ -300,7 +301,7 @@ export interface DefaultsState {
   /** Layout del gruppo qualità del poster in editing ("stacked"/"row"). */
   qualityGroupLayout: QualityGroupLayout
   /** Formati A/V del poster in editing (null = segui default / spec locale). */
-  videoFormats: VideoFormat[] | null
+  videoFormats: QualityMarkId[] | null
   /** Scala % logo di default (null = auto-fit per aspect, storico). */
   defaultLogoScale: number | null
   /** Offset px logo di default (null = 0). */
@@ -480,8 +481,8 @@ const DEFAULTS: DefaultsState = {
 }
 
 interface StoredDefaults {
-  videoFormats?: VideoFormat[] | null
-  defaultVideoFormats?: VideoFormat[] | null
+  videoFormats?: QualityMarkId[] | null
+  defaultVideoFormats?: QualityMarkId[] | null
   globalBadges?: boolean
   rankingBadges?: boolean
   badgeGenre?: boolean
@@ -956,8 +957,8 @@ function buildFromStored(d: StoredDefaults | null): DefaultsState {
       ? (d.defaultQualityGroupLayout ?? d.qualityGroupLayout) as QualityGroupLayout
       : DEFAULT_QUALITY_GROUP_LAYOUT,
     defaultVideoFormats: Array.isArray(d.defaultVideoFormats)
-      ? d.defaultVideoFormats.filter(isVideoFormat)
-      : (Array.isArray(d.videoFormats) ? d.videoFormats.filter(isVideoFormat) : [...KNOWN_VIDEO_FORMATS]),
+      ? d.defaultVideoFormats.filter(isQualityMarkId)
+      : (Array.isArray(d.videoFormats) ? d.videoFormats.filter(isQualityMarkId) : [...KNOWN_VIDEO_FORMATS]),
     defaultBlurEnabled: d.defaultBlurEnabled ?? d.blurEnabled ?? true,
     defaultBlurIntensity: d.defaultBlurIntensity ?? d.blurIntensity ?? 20,
     defaultBlurFade: d.defaultBlurFade ?? d.blurFade ?? 50,
@@ -1155,7 +1156,7 @@ function buildFromStored(d: StoredDefaults | null): DefaultsState {
     qualityGroupLayout: isQualityGroupLayout(d.qualityGroupLayout ?? d.defaultQualityGroupLayout)
       ? (d.qualityGroupLayout ?? d.defaultQualityGroupLayout) as QualityGroupLayout
       : DEFAULT_QUALITY_GROUP_LAYOUT,
-    videoFormats: Array.isArray(d.videoFormats) ? d.videoFormats.filter(isVideoFormat) : null,
+    videoFormats: Array.isArray(d.videoFormats) ? d.videoFormats.filter(isQualityMarkId) : null,
     defaultLogoScale: typeof d.defaultLogoScale === "number" ? d.defaultLogoScale : (typeof d.logoScale === "number" ? d.logoScale : null),
     defaultLogoOffsetX: typeof d.defaultLogoOffsetX === "number" ? d.defaultLogoOffsetX : (typeof d.logoOffsetX === "number" ? d.logoOffsetX : null),
     defaultLogoOffsetY: typeof d.defaultLogoOffsetY === "number" ? d.defaultLogoOffsetY : (typeof d.logoOffsetY === "number" ? d.logoOffsetY : null),

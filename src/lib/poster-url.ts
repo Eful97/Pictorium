@@ -29,7 +29,7 @@ import { DEFAULT_SASH_ORDER, NEXT_EPISODE_BADGE_KEY, type SashBucket } from "./b
 import { sanitizeDisabledContentTags } from "./content-tags"
 import { sanitizeDisabledNetworks } from "./network-keys"
 import { normalizeLogoFont, sanitizeLogoText } from "./text-logo"
-import type { VideoFormat } from "./av-specs"
+import type { QualityMarkId } from "./quality-badge-pack"
 import type { PosterShape, NetworkLogoPosition, PosterLayout, PosterFreshScope } from "./types"
 import { isPosterLayout } from "./types"
 import type { DateFormat } from "./release-badge"
@@ -46,7 +46,7 @@ interface BadgeParams {
   /** Stile icone del badge qualità (default "standard"). */
   qualityBadgeStyle?: QualityBadgeStyle | null
   /** Formati A/V abilitati (dv, atmos, imax, hdr, hdr10plus). */
-  videoFormats?: VideoFormat[] | null
+  videoFormats?: QualityMarkId[] | null
   /** Componenti del badge genere/rating: `false` emette `bg/by/br=0`. */
   badgeGenre?: boolean
   badgeYear?: boolean
@@ -811,7 +811,7 @@ export interface DefaultsPreviewParams {
   defaultExtraBadgeStyle?: ExtraBadgeStyle | ExtraBadgeFollowRank | null
   defaultBadgeFont?: BadgeFont | null
   defaultQualityBadgeStyle?: QualityBadgeStyle | null
-  defaultVideoFormats?: readonly VideoFormat[] | null
+  defaultVideoFormats?: readonly QualityMarkId[] | null
   defaultBlurEnabled?: boolean
   defaultBlurIntensity?: number
   defaultBlurFade?: number

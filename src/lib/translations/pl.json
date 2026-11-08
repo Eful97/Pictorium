@@ -115,6 +115,7 @@
   "ui.defaultVideoFormats": "Domyślne formaty A/W",
   "ui.videoFormatsHint": "Włącz lub wyłącz odznaki wideo i audio (DV, Atmos, IMAX, HDR, HDR10+).",
   "ui.videoFormatsAutoHint": "Wykrywane automatycznie z bazy danych",
+  "ui.videoFormatsPackHint": "Znaki z pakietu odznak są ręczne: pojawiają się tylko tam, gdzie je wybierzesz.",
   "ui.formatsAll": "Wszystkie",
   "ui.formatsNone": "Brak",
   "ui.activeCount": "aktywnych",

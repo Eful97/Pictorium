@@ -116,6 +116,7 @@
   "ui.defaultVideoFormats": "Định dạng A/V mặc định",
   "ui.videoFormatsHint": "Bật hoặc tắt huy hiệu video và âm thanh (DV, Atmos, IMAX, HDR, HDR10+).",
   "ui.videoFormatsAutoHint": "Tự động nhận diện từ cơ sở dữ liệu",
+  "ui.videoFormatsPackHint": "Các nhãn trong gói huy hiệu là thủ công: chúng chỉ xuất hiện ở nơi bạn chọn.",
   "ui.formatsAll": "Tất cả",
   "ui.formatsNone": "Không",
   "ui.activeCount": "đang bật",

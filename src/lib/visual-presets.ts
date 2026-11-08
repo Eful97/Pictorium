@@ -1,6 +1,7 @@
 import { z } from "zod"
 import { BADGE_STYLES, RANKING_BADGE_STYLES, EXTRA_BADGE_STYLES, EXTRA_BADGE_FOLLOW_RANK, QUALITY_BADGE_STYLES, AGE_BADGE_STYLES, BADGE_FONTS, SEPARATE_RATINGS_STYLES, DEFAULT_AGE_BADGE_STYLE, DEFAULT_AWARD_BADGE_MODE, DEFAULT_BADGE_FONT, DEFAULT_BADGE_STYLE, DEFAULT_QUALITY_BADGE_STYLE, DEFAULT_RANKING_BADGE_STYLE, isAgeBadgeStyle, isAwardBadgeMode, isBadgeFont, isBadgeStyle, isExtraBadgeStyle, isExtraFollowRank, isQualityBadgeStyle, isRankingBadgeStyle, DEFAULT_QUALITY_BADGE_OFFSET_X_LANDSCAPE, DEFAULT_QUALITY_BADGE_OFFSET_Y_LANDSCAPE, QUALITY_GROUP_LAYOUTS, DEFAULT_QUALITY_GROUP_LAYOUT, isQualityGroupLayout } from "./badge-styles"
-import { KNOWN_VIDEO_FORMATS, isVideoFormat, type VideoFormat } from "./av-specs"
+import { KNOWN_VIDEO_FORMATS } from "./av-specs"
+import { MAX_QUALITY_MARKS, isQualityMarkId } from "./quality-badge-pack"
 import { SASH_BUCKETS } from "./badge-priority"
 import { DEFAULT_AGE_COUNTRY, normalizeCertificationCountry } from "./certification"
 import { DEFAULT_POSTER_FRESH_SCOPE, DEFAULT_POSTER_LAYOUT, POSTER_FRESH_SCOPES, POSTER_LAYOUTS } from "./types"
@@ -43,7 +44,7 @@ const landscapeSchema = z.object({
   badgeFont: z.enum(BADGE_FONTS).nullable().optional(),
   qualityBadgeStyle: z.enum(QUALITY_BADGE_STYLES).nullable().optional(),
   qualityGroupLayout: z.enum(QUALITY_GROUP_LAYOUTS).nullable().optional(),
-  videoFormats: z.array(z.enum(["dv", "hdr", "hdr10plus", "atmos", "imax"])).max(5).nullable().optional(),
+  videoFormats: z.array(z.string().max(64).refine((v) => isQualityMarkId(v))).max(MAX_QUALITY_MARKS).nullable().optional(),
   sashOrder: z.array(z.enum(SASH_BUCKETS)).max(SASH_BUCKETS.length).optional(),
   networkLogo: z.boolean().optional(), networkLogoPosition: z.enum(["auto", "top"]).optional(),
   preRelease: z.boolean().optional(),
@@ -82,7 +83,7 @@ export const visualPresetValuesSchema = z.object({
   // Optional (no default): legacy presets keep parsing byte-identically and
   // simply leave the live quality group layout untouched when applied.
   defaultQualityGroupLayout: z.enum(QUALITY_GROUP_LAYOUTS).optional(),
-  defaultVideoFormats: z.array(z.enum(["dv", "hdr", "hdr10plus", "atmos", "imax"])).max(5),
+  defaultVideoFormats: z.array(z.string().max(64).refine((v) => isQualityMarkId(v))).max(MAX_QUALITY_MARKS),
   defaultLogoScale: logoScale, defaultLogoOffsetX: offset.nullable(), defaultLogoOffsetY: offset.nullable(),
   defaultBlurEnabled: z.boolean(), defaultBlurIntensity: percent, defaultBlurFade: percent, defaultBlurDarkness: percent,
   defaultTintStrength: percent, defaultTopShade: percent, defaultTopShadeHeight: percent.default(25), defaultGradientHeight: percent,
@@ -1095,7 +1096,7 @@ export function canonicalInheritFreeze(
       return {
         freeze: true,
         value: Array.isArray(flatValue)
-          ? (flatValue as unknown[]).filter((v): v is VideoFormat => isVideoFormat(typeof v === "string" ? v : null))
+          ? (flatValue as unknown[]).filter((v): v is string => isQualityMarkId(v))
           : [...KNOWN_VIDEO_FORMATS],
       }
     case "networkLogoFollowTitle":

@@ -1,6 +1,7 @@
 import { effectiveMappingForShape, DEFAULT_POSTER_FRESH_SCOPE, type Mapping, type PosterShape } from "./types"
 import { isCustomPosterUrl } from "./utils"
-import { KNOWN_VIDEO_FORMATS, type VideoFormat } from "./av-specs"
+import { KNOWN_VIDEO_FORMATS } from "./av-specs"
+import type { QualityMarkId } from "./quality-badge-pack"
 import { DEFAULT_AGE_COUNTRY, normalizeCertificationCountry } from "./certification"
 import { DEFAULT_AGE_BADGE_STYLE, getQualityBadgeOffsetDefault } from "./badge-styles"
 import { normalizeSeasonalThemeChoice } from "./seasonal-theme"
@@ -152,7 +153,7 @@ export interface MappingVisualDefaults {
   ageBadge?: boolean | null
   ageCountry?: string | null
   ageBadgeStyle?: string | null
-  videoFormats?: readonly VideoFormat[] | null
+  videoFormats?: readonly QualityMarkId[] | null
   ratingSources?: readonly string[] | null
   /** Offset qualità effettivo del formato quando il mapping non lo congela. */
   qualityBadgeOffsetX?: number | null
@@ -187,9 +188,9 @@ function normalizeAccentHex(value: string | null | undefined): string | null {
  * default effettivo (stessa normalizzazione su entrambi i lati).
  */
 function sameFormatSelection(
-  a: readonly VideoFormat[] | null | undefined,
-  b: readonly VideoFormat[] | null | undefined,
-  fallback: readonly VideoFormat[],
+  a: readonly QualityMarkId[] | null | undefined,
+  b: readonly QualityMarkId[] | null | undefined,
+  fallback: readonly QualityMarkId[],
 ): boolean {
   const left = new Set(a ?? fallback)
   const right = new Set(b ?? fallback)
@@ -269,7 +270,7 @@ export interface FullMappingCheckState {
   /** Stile della pill età per-titolo ("standard" = resa storica). */
   ageBadgeStyle?: string
   /** Formati A/V abilitati (null/assente = segue il default effettivo). */
-  videoFormats?: readonly VideoFormat[] | null
+  videoFormats?: readonly QualityMarkId[] | null
   /** Fonti del voto medio ★ per-titolo (assente = default effettivo). */
   ratingSources?: readonly string[] | null
   /** Cornice stagionale per-titolo (null = Automatico, segue la lista). */

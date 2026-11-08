@@ -6,8 +6,8 @@ import { createLogger } from "@/lib/logger"
 import type { BadgeStyle, RankingBadgeStyle, QualityBadgeStyle, BadgeFont, SeparateRatingsStyle, ExtraBadgeStyle, ExtraBadgeFollowRank, AgeBadgeStyle, AwardBadgeMode } from "@/lib/badge-styles"
 import type { StreamQuality } from "@/lib/quality-tiers"
 import type { SashBucket } from "@/lib/badge-priority"
-import type { VideoFormat } from "@/lib/av-specs"
-import { isVideoFormat } from "@/lib/av-specs"
+import type { QualityMarkId } from "@/lib/quality-badge-pack"
+import { isQualityMarkId } from "@/lib/quality-badge-pack"
 import { isBadgeStyle, isRankingBadgeStyle, isQualityBadgeStyle, isBadgeFont, isAwardBadgeMode, type QualityGroupLayout } from "@/lib/badge-styles"
 import type { DateFormat } from "@/lib/release-badge"
 import type { RetiredBadgeFamilyBindings } from "@/lib/types"
@@ -86,8 +86,8 @@ export interface LandscapeServerDefaults {
   badgeFont?: BadgeFont | null
   /** Quality badge icon style (standard = text pill). */
   qualityBadgeStyle?: QualityBadgeStyle | null
-  /** Enabled A/V formats (dv, hdr, hdr10plus, atmos, imax). */
-  videoFormats?: VideoFormat[] | null
+  /** Enabled quality marks (built-in A/V formats + pack marks). */
+  videoFormats?: QualityMarkId[] | null
   globalBadges?: boolean
   rankingBadges?: boolean
   badgeGenre?: boolean
@@ -176,9 +176,9 @@ export interface ServerDefaults {
   qualityBadgeStyle?: QualityBadgeStyle | null
   /** Layout del gruppo qualità ("stacked" = colonna storica, "row" = orizzontale). Assente = stacked. */
   qualityGroupLayout?: QualityGroupLayout | null
-  /** Formati A/V abilitati di default (dv, hdr, hdr10plus, atmos, imax). */
-  videoFormats?: VideoFormat[] | null
-  defaultVideoFormats?: VideoFormat[] | null
+  /** Marchi qualità abilitati di default (formati A/V + marchi del pack). */
+  videoFormats?: QualityMarkId[] | null
+  defaultVideoFormats?: QualityMarkId[] | null
   blurEnabled?: boolean
   blurIntensity?: number
   blurFade?: number
@@ -696,7 +696,7 @@ function defaultsFromEnv(): ServerDefaults {
   if (networkLogoOY !== undefined) d.networkLogoOffsetY = networkLogoOY
   const vfEnv = getEnv("VIDEO_FORMATS")?.split(",").map((s) => s.trim().toLowerCase()).filter(Boolean)
   if (vfEnv && vfEnv.length > 0) {
-    const valid = vfEnv.filter(isVideoFormat)
+    const valid = vfEnv.filter(isQualityMarkId)
     if (valid.length > 0) d.videoFormats = valid
   }
   return d

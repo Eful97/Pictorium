@@ -1,5 +1,5 @@
 import type { BadgeStyle, RankingBadgeStyle, QualityBadgeStyle, QualityGroupLayout, BadgeFont, SeparateRatingsStyle, ExtraBadgeStyle, ExtraBadgeFollowRank, AgeBadgeStyle, AwardBadgeMode } from "./badge-styles"
-import type { VideoFormat } from "./av-specs"
+import type { QualityMarkId } from "./quality-badge-pack"
 
 /**
  * Retired Badge Lab persistence leftovers (custom badge library removed).
@@ -362,7 +362,7 @@ export interface Mapping {
   /** Stile icone del badge qualità per-titolo (standard = pill testuale). */
   qualityBadgeStyle?: QualityBadgeStyle | null
   /** Formati A/V abilitati per il badge qualità (dv, hdr, hdr10plus, atmos, imax). */
-  videoFormats?: VideoFormat[] | null
+  videoFormats?: QualityMarkId[] | null
   blurEnabled?: boolean | null
   blurIntensity?: number | null
   blurFade?: number | null
@@ -582,7 +582,7 @@ export interface LandscapeSettings {
   /** Stile icone del badge qualità (null = eredita). */
   qualityBadgeStyle?: QualityBadgeStyle | null
   /** Formati A/V abilitati (null = eredita). */
-  videoFormats?: VideoFormat[] | null
+  videoFormats?: QualityMarkId[] | null
   /** Logo network (default ON). */
   networkLogo?: boolean | null
   /** Ancoraggio logo network ("auto" = specchio dinamico). */
