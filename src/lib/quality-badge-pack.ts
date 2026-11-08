@@ -149,6 +149,30 @@ export function isQualityMarkId(value: unknown): value is string {
   return typeof value === "string" && QUALITY_MARK_ID_SET.has(value)
 }
 
+/**
+ * Canonicalize a quality mark selection at the write boundary.
+ *
+ * Manifest drift is expected: replacing the vendored pack retires ids that may
+ * still be stored in a mapping/defaults/preset. Unknown ids are therefore
+ * dropped exactly like the renderer already fails closed (no raise, no 400),
+ * duplicates collapse, and the list is capped to `MAX_QUALITY_MARKS` preserving
+ * the selection order. Built-in A/V ids that are still known pass unchanged.
+ *
+ * The defaults/mappings responses have no warning channel, so dropped ids are
+ * silent; this comment is the disclosure of that contract.
+ */
+export function canonicalQualityMarkSelection(ids: readonly string[]): string[] {
+  const seen = new Set<string>()
+  const out: string[] = []
+  for (const id of ids) {
+    if (out.length >= MAX_QUALITY_MARKS) break
+    if (!isQualityMarkId(id) || seen.has(id)) continue
+    seen.add(id)
+    out.push(id)
+  }
+  return out
+}
+
 export function isPackMark(value: unknown): value is string {
   return typeof value === "string" && PACK_BY_ID.has(value)
 }

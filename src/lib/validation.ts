@@ -4,11 +4,19 @@ import { TEXT_LOGO_MAX_LENGTH } from "./text-logo"
 import { POSTER_LAYOUTS, POSTER_FRESH_SCOPES, RETIRED_BADGE_FAMILY_IDS, type RetiredBadgeFamilyBindings, type RetiredBadgeFamilyFollows } from "./types"
 import { QUALITY_GROUP_LAYOUTS } from "./badge-styles"
 import { MAX_EPISODE_STILL_OVERRIDES, sanitizeEpisodeThumbnailStills } from "./episode-stills"
-import { MAX_QUALITY_MARKS, isQualityMarkId } from "./quality-badge-pack"
+import { canonicalQualityMarkSelection } from "./quality-badge-pack"
 
-/** Built-in A/V format id or a vendored pack mark id. */
-const qualityMarkIdSchema = z.string().max(64).refine((value) => isQualityMarkId(value))
-const qualityMarkListSchema = z.array(qualityMarkIdSchema).max(MAX_QUALITY_MARKS)
+/**
+ * Quality mark selection shared by every write boundary (mapping, defaults,
+ * preset): a built-in A/V format id or a vendored pack mark id.
+ *
+ * Tolerant on purpose. The renderer already fails closed on unknown ids, so a
+ * hard refine here turned manifest drift (pack A replaced by pack B) into a
+ * 400 on the next save. Unknown ids are dropped, duplicates collapse and the
+ * list is capped to `MAX_QUALITY_MARKS` in selection order (see
+ * `canonicalQualityMarkSelection`); per-id type/length bounds are unchanged.
+ */
+export const qualityMarkListSchema = z.array(z.string().max(64)).transform(canonicalQualityMarkSelection)
 
 /**
  * Retired Badge Lab write-boundary schemas (custom badge library removed).

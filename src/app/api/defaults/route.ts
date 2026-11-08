@@ -15,17 +15,12 @@ import { QUALITY_GROUP_LAYOUTS } from "@/lib/badge-styles"
 import { readJsonBody, BodyTooLargeError, DEFAULT_MAX_BODY_BYTES } from "@/lib/read-body"
 import { envWithFallback } from "@/lib/env-compat"
 import { SHAPE_FLAT_TO_LANDSCAPE, snapshotMissingLandscape } from "@/lib/visual-presets"
-import { retiredBadgeFamilyBindingsSchema } from "@/lib/validation"
+import { qualityMarkListSchema, retiredBadgeFamilyBindingsSchema } from "@/lib/validation"
 import { parseGenericVariantId } from "@/lib/streaming-catalogs"
 import { isLandscapeResetKey, sanitizeLandscapeReset } from "@/lib/landscape-reset"
 import { getInstanceKeyStatus } from "@/lib/instance-keys"
-import { MAX_QUALITY_MARKS, isQualityMarkId } from "@/lib/quality-badge-pack"
 
 const log = createLogger("defaults")
-
-/** Built-in A/V format id or a vendored pack mark id. */
-const qualityMarkIdSchema = z.string().max(64).refine((value) => isQualityMarkId(value))
-const qualityMarkListSchema = z.array(qualityMarkIdSchema).max(MAX_QUALITY_MARKS)
 
 const addonExtraSchema = z.object({
   name: z.string().max(40),
@@ -99,6 +94,8 @@ const defaultsSchema = z.object({
   qualityBadgeStyle: z.enum(QUALITY_BADGE_STYLES).nullable().optional(),
   /** Modalità del top-badge premi (default "badge" = resa testuale storica). */
   awardBadgeStyle: z.enum(AWARD_BADGE_MODES).nullable().optional(),
+  // Shared tolerant schema: stale pack ids dropped, capped, never a 400 (the
+  // renderer already fails closed on unknown ids).
   videoFormats: qualityMarkListSchema.nullable().optional(),
   defaultVideoFormats: qualityMarkListSchema.nullable().optional(),
   blurEnabled: z.boolean().optional(),
