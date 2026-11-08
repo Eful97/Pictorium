@@ -33,10 +33,11 @@ import { mappingHasBothShapeBases } from "@/lib/catalog-shape"
 import { normalizeSeasonalTheme, resolveEffectiveSeasonalTheme } from "@/lib/seasonal-theme"
 import { getOriginFromRequest } from "@/lib/poster-public-url"
 import { enrichVideosWithTvdbDetailed } from "@/lib/tvdb"
-import { buildVideosFromAnizip, buildVideosFromGroups, buildVideosFromTvdbDetailed, concurrentMap, isSeasonEpisodesComplete } from "@/lib/episode-ordering"
+import { buildVideosFromAnizip, buildVideosFromGroupsDetailed, buildVideosFromTvdbDetailed, concurrentMap, isSeasonEpisodesComplete } from "@/lib/episode-ordering"
 import { groupDetailsEpisodeCount, groupDetailsRegularEpisodeCount, resolveDefaultEpisodeGroupId } from "@/lib/episode-group-default"
 import { createLogger } from "@/lib/logger"
 import { sanitizeEpisodeStillPath } from "@/lib/episode-stills"
+import { resolveFillerStatus } from "@/lib/anime-filler"
 import { fetchCinemetaRating } from "@/lib/cinemeta"
 import type {
   ThumbnailBadgeAnchor,
@@ -158,6 +159,20 @@ interface EpisodeThumbnailOptions {
   /** Daily still rotation (`rotate`): default OFF (fixed still). */
   rotation: boolean
   /**
+   * Anime filler classification banner (`fill=`): default OFF. When ON the
+   * compositor URL carries the language-neutral code (`manga` | `anime` |
+   * `filler` | `mixed`) only for titles/episodes known to the bundled
+   * snapshot, and only on standard TMDB ordering (never on remapped S:E).
+   */
+  fillerBadge: boolean
+  /**
+   * Layout of the classification banner (`fillStyle`): `corner`/`strip`.
+   * Display-only, resolved token > defaults > corner. `corner` is omitted from
+   * the compositor URL (it is the absent render), so pre-style URLs stay
+   * byte-identical; `strip` is emitted only when a classification is drawn.
+   */
+  fillerStyle: "corner" | "strip"
+  /**
    * Base still provider: `tvdb` when the space resolves episode metadata from
    * TheTVDB (the compositor's `?stills=` contract), `tmdb` otherwise.
    */
@@ -265,6 +280,27 @@ async function resolveEpisodeThumbnailOptions(
     return false
   }
 
+  // Anime filler banner toggle: no ephemeral query override (the banner is a
+  // persisted space choice), so it resolves token > defaults > OFF. The
+  // resolved value is emitted per-episode as an explicit `fill=` code, so the
+  // compositor URL stays self-contained (no config token needed).
+  const pickFillerBadge = (): boolean => {
+    for (const candidate of [config?.thumbnailFillerBadge, defaults.thumbnailFillerBadge]) {
+      if (typeof candidate === "boolean") return candidate
+    }
+    return false
+  }
+
+  // Banner layout: token > space default > corner. Only the non-default
+  // `strip` travels on the compositor URL (corner is the absent render), so a
+  // space that never chose a style keeps byte-identical URLs.
+  const pickFillerStyle = (): "corner" | "strip" => {
+    for (const candidate of [config?.thumbnailFillerStyle, defaults.thumbnailFillerStyle]) {
+      if (candidate === "strip" || candidate === "corner") return candidate
+    }
+    return "corner"
+  }
+
   const pickScale = (queryName: string, configValue: unknown, storedValue: unknown): number => {
     const queryRaw = searchParams.get(queryName)
     if (queryRaw !== null) {
@@ -306,6 +342,8 @@ async function resolveEpisodeThumbnailOptions(
     badgeScale: pickScale("bscale", config?.thumbnailBadgeScale, defaults.thumbnailBadgeScale),
     blur: pickBlur(),
     rotation: pickRotation(),
+    fillerBadge: pickFillerBadge(),
+    fillerStyle: pickFillerStyle(),
     voteSource: pick(
       "source",
       config?.thumbnailVoteSource,
@@ -326,7 +364,14 @@ function thumbnailOptionsCacheFragment(options: EpisodeThumbnailOptions): string
   // OFF keeps the historical fragment byte-identical; rotation is a
   // representation change and must never reuse a fixed-still body.
   const rotationFragment = options.rotation ? ":tr1" : ""
-  return `:tb${options.badgeStyle}:ta${options.anchor}:tx${options.offsetX}:ty${options.offsetY}:sc${options.badgeScale}:tv${options.voteSource}:tz${options.blur ? 1 : 0}${stillsFragment}${rotationFragment}`
+  // Filler banner: OFF keeps the historical fragment byte-identical; ON is a
+  // representation change for known titles (per-episode `fill=`), so it must
+  // never reuse a body composed with the banner disabled.
+  const fillerFragment = options.fillerBadge ? ":fi1" : ""
+  // Only a non-default layout changes the composed URLs (and therefore the
+  // body): corner stays the historical fragment.
+  const fillerStyleFragment = options.fillerBadge && options.fillerStyle === "strip" ? ":fsstrip" : ""
+  return `:tb${options.badgeStyle}:ta${options.anchor}:tx${options.offsetX}:ty${options.offsetY}:sc${options.badgeScale}:tv${options.voteSource}:tz${options.blur ? 1 : 0}${stillsFragment}${rotationFragment}${fillerFragment}${fillerStyleFragment}`
 }
 
 /**
@@ -375,6 +420,19 @@ async function applyEpisodeThumbnails(
    * the route to resolve the same TVDB/TMDB keys this /meta request used.
    */
   scopedUser?: string | null,
+  /**
+   * Absolute-episode offsets per regular season (`season` → episodes before
+   * it) for the filler classification. Present only when the space enabled the
+   * banner and the ordering can be resolved to a standard absolute episode
+   * (standard numbering, or an Episode Group carrying the original TMDB S:E).
+   */
+  seasonAbsoluteOffsets?: Map<number, number> | null,
+  /**
+   * Visible video id → ORIGINAL TMDB S:E for Episode Group orderings (their
+   * visible S:E is remapped). Present only for group videos: their filler
+   * absolute is computed from this pair, never from the visible numbering.
+   */
+  videoStillSources?: Map<string, { season: number; episode: number }> | null,
 ): Promise<StremioVideo[]> {
   const rawBase = posterUrl("", "w500")
   const origin = getOriginFromRequest(req)
@@ -420,6 +478,28 @@ async function applyEpisodeThumbnails(
     if (options.blur) params.set("blur", "1")
     // Daily still rotation: opt-in only, absent keeps the historical URL.
     if (options.rotation) params.set("rotate", "1")
+    // Anime filler banner: only when the snapshot classifies this absolute
+    // episode. Standard videos use their own S:E; Episode Group videos use the
+    // ORIGINAL TMDB S:E (the visible one is remapped). TVDB/AniZip expose
+    // neither and keep offsets null, so they never get a guessed banner.
+    if (options.fillerBadge && seasonAbsoluteOffsets) {
+      const source = videoStillSources?.get(video.id)
+      const seasonNumber = videoStillSources ? source?.season : video.season
+      const episodeNumber = videoStillSources ? source?.episode : video.episode
+      const absoluteStart =
+        seasonNumber === undefined ? undefined : seasonAbsoluteOffsets.get(seasonNumber)
+      if (absoluteStart !== undefined && episodeNumber !== undefined) {
+        const fillerStatus = resolveFillerStatus(seriesId, absoluteStart + episodeNumber)
+        if (fillerStatus) {
+          params.set("fill", fillerStatus)
+          // Layout: only the non-default `strip` travels; the compositor route
+          // resolves an absent `fillStyle` from the same space defaults, but
+          // token-only spaces have no namespace for that fallback, so emitting
+          // it here is what keeps their Stremio thumbnails WYSIWYG.
+          if (options.fillerStyle === "strip") params.set("fillStyle", "strip")
+        }
+      }
+    }
     // Namespace keys (multi-user): absent for global requests, so legacy URLs
     // stay byte-identical.
     if (scopedUser) params.set("u", scopedUser)
@@ -829,6 +909,13 @@ export async function pictoriumMeta(
     // requires a TMDB still as its fail-open fallback, so it is captured
     // before the overwrite (only when the TVDB base can actually be used).
     let tmdbStillsByEpisode: Map<string, string> | null = null
+    // Filler banner numbering: `season` → absolute episodes before that season,
+    // computed once from the declared regular seasons. Null unless the space
+    // enabled the banner and the ordering can resolve a standard absolute.
+    let seasonAbsoluteOffsets: Map<number, number> | null = null
+    // Episode Group filler support: visible video id → ORIGINAL TMDB S:E, so a
+    // remapped group video keeps the same absolute episode as its standard row.
+    let groupStillSources: Map<string, { season: number; episode: number }> | null = null
 
     if (stType === "series") {
       videos = []
@@ -873,7 +960,9 @@ export async function pictoriumMeta(
       }
 
       if (groupDetails?.groups && groupDetails.groups.length > 0) {
-        videos.push(...(buildVideosFromGroups(groupDetails, primaryId) as StremioVideo[]))
+        const built = buildVideosFromGroupsDetailed(groupDetails, primaryId)
+        videos.push(...(built.videos as StremioVideo[]))
+        groupStillSources = built.stillSources
         videosFromGroup = true
       }
 
@@ -909,7 +998,9 @@ export async function pictoriumMeta(
                 autoDetails.groups.length > 0 &&
                 countMatches
               ) {
-                videos.push(...(buildVideosFromGroups(autoDetails, primaryId) as StremioVideo[]))
+                const built = buildVideosFromGroupsDetailed(autoDetails, primaryId)
+                videos.push(...(built.videos as StremioVideo[]))
+                groupStillSources = built.stillSources
                 videosFromGroup = true
               }
             }
@@ -972,10 +1063,32 @@ export async function pictoriumMeta(
         const enrichComplete = await enrichVideosWithTvdbDetailed(videos, imdbId, tmdbId, tvdbApiKey, "ita", apiKey, enrichSignal)
         if (!enrichComplete) isPartialSeasonData = true
       }
+
+      // Anime filler classification. Standard TMDB numbering resolves the
+      // absolute directly; an Episode Group resolves it from the ORIGINAL TMDB
+      // S:E carried by the group payload. TVDB/AniZip expose neither, so they
+      // stay suppressed instead of labelling the wrong episode. The resolver
+      // itself is fail-closed on unknown ids and out-of-window episodes.
+      const standardFillerOrdering =
+        (sentinel === null || sentinel === "standard") && !videosFromGroup
+      const groupFillerOrdering =
+        videosFromGroup && groupStillSources !== null && groupStillSources.size > 0
+      if (episodeThumbnailOptions?.fillerBadge && (standardFillerOrdering || groupFillerOrdering)) {
+        const offsets = new Map<number, number>()
+        let absoluteStart = 0
+        const regularSeasons = [...(details.seasons ?? [])]
+          .filter((season) => typeof season.season_number === "number" && season.season_number > 0)
+          .sort((a, b) => a.season_number! - b.season_number!)
+        for (const season of regularSeasons) {
+          offsets.set(season.season_number!, absoluteStart)
+          absoluteStart += season.episode_count ?? 0
+        }
+        if (offsets.size > 0) seasonAbsoluteOffsets = offsets
+      }
     }
 
     if (stType === "series" && episodeThumbnailsEnabled && episodeThumbnailOptions && videos && videos.length > 0) {
-      videos = await applyEpisodeThumbnails(req, tmdbId, videos, episodeThumbnailOptions, preMappingForCache?.episodeThumbnailStills, tmdbStillsByEpisode, scopedUser)
+      videos = await applyEpisodeThumbnails(req, tmdbId, videos, episodeThumbnailOptions, preMappingForCache?.episodeThumbnailStills, tmdbStillsByEpisode, scopedUser, seasonAbsoluteOffsets, groupStillSources)
     }
 
     const genres = (details.genres || []).map((g) => g.name)

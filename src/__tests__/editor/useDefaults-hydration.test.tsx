@@ -117,6 +117,10 @@ const USER_SAVED = {
   thumbnailBlur: false,
   thumbnailVoteSource: "imdb",
   thumbnailRotation: false,
+  // Anime filler banner: always explicit in the payload (default OFF).
+  thumbnailFillerBadge: false,
+  // Filler banner layout: always explicit in the payload (default corner).
+  thumbnailFillerStyle: "corner",
   region: "IT",
   dateFormat: "locale",
   logoScale: null,

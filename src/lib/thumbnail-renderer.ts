@@ -3,7 +3,7 @@ import sharp from "sharp"
 import { renderGenreBadge, renderSVG } from "@/lib/svg-badge"
 import { renderMultiRatings } from "@/lib/multi-rating-renderer"
 import { loadSeparateRatingLogo, renderSeparateRatingsBottom } from "@/lib/separate-rating-renderer"
-import { escSvg, estimateTextWidth, fontFamilyFor } from "@/lib/badge-svg-shared"
+import { TOP_SHADOW_FILTER, escSvg, estimateTextWidth, fontFamilyFor } from "@/lib/badge-svg-shared"
 import { formatSeparateValue } from "@/lib/ratings"
 import { badgeBody, badgeCanvasForBody, fitBadgeToCanvas, scaleBadgeBleed } from "@/lib/poster-render-helpers"
 import type { BadgeBleed } from "@/lib/poster-render-helpers"
@@ -63,14 +63,16 @@ export const DEFAULT_THUMBNAIL_BADGE_MODE: ThumbnailBadgeMode = "both"
  *                IMDb). Missing/zero vote = no badge at all (never a fake
  *                purple bucket). Text ink is white/black by luminance and the
  *                rect carries a dark shadow for light stills.
- * - `dot`      → same data/colour contract as `score` (bucket colour + big
+ * - `circle`   → same data/colour contract as `score` (bucket colour + big
  *                score, no provider logo, same bucket/ink and shadow), but the
- *                container is a ROUND circle (pallino) instead of the rounded
- *                rect tile. Missing/zero vote = no badge at all, exactly like
- *                `score` (never a pill fallback).
- * These are the only values accepted by `?bstyle`; absent = `pill`.
+ *                container is a ROUND circle instead of the rounded rect tile.
+ *                Missing/zero vote = no badge at all, exactly like `score`
+ *                (never a pill fallback).
+ * These are the only values accepted by `?bstyle`; absent = `pill`. The legacy
+ * `dot` id is accepted by `parseThumbnailBadgeStyle` and normalized to
+ * `circle` (never a separate value, so there is only one cache identity).
  */
-export const THUMBNAIL_BADGE_STYLES = ["pill", "bordo", "vetro", "branded", "naked", "score", "dot"] as const
+export const THUMBNAIL_BADGE_STYLES = ["pill", "bordo", "vetro", "branded", "naked", "score", "circle"] as const
 export type ThumbnailBadgeStyle = (typeof THUMBNAIL_BADGE_STYLES)[number]
 export const DEFAULT_THUMBNAIL_BADGE_STYLE: ThumbnailBadgeStyle = "pill"
 
@@ -219,6 +221,235 @@ export function parseThumbnailRotation(raw: string | null | undefined): boolean 
   if (value === "1" || value === "true") return true
   if (value === "0" || value === "false") return false
   return null
+}
+
+// ---------------------------------------------------------------------------
+// Anime filler classification chip (`?fill=manga|anime|filler|mixed`).
+//
+// The `/meta` resolver classifies each episode against the bundled anime
+// snapshot (`resolveFillerStatus`) and emits the language-NEUTRAL code; this
+// compositor only draws it. The codes are the resolver's own vocabulary, never
+// a display label: localized labels live in the i18n dictionaries and are
+// passed in by the caller (`fillerLabel`), exactly like `ribbonLabel` on the
+// poster path. There is no second renderer: the chip is a local top-left
+// corner plate built with the shared SVG primitives below.
+//
+// Legacy compatibility: `canon` is accepted on input as an alias of `manga`
+// (the historical v1 code). It normalizes before the cache key, so an old URL
+// and a new one share the `manga` entry and render identical bytes.
+// ---------------------------------------------------------------------------
+
+/** Classification codes accepted by `?fill` (same vocabulary as the resolver). */
+export const THUMBNAIL_FILLER_STATUSES = ["manga", "anime", "filler", "mixed"] as const
+export type ThumbnailFillerStatus = (typeof THUMBNAIL_FILLER_STATUSES)[number]
+
+/**
+ * Layout of the classification banner (`?fillStyle`). `corner` is the
+ * historical compact chip (default, and the exact pre-style render when the
+ * parameter is absent); `strip` is the full-width top banner.
+ */
+export const THUMBNAIL_FILLER_STYLES = ["corner", "strip"] as const
+export type ThumbnailFillerStyle = (typeof THUMBNAIL_FILLER_STYLES)[number]
+export const DEFAULT_THUMBNAIL_FILLER_STYLE: ThumbnailFillerStyle = "corner"
+
+/**
+ * `?fillStyle` parser. Absent/blank (or unusable) = null; the route treats a
+ * blank value like an absent one and rejects an explicitly invalid value, the
+ * same contract as every other enum parameter.
+ */
+export function parseThumbnailFillerStyle(raw: string | null | undefined): ThumbnailFillerStyle | null {
+  const value = (raw ?? "").trim().toLowerCase()
+  if (!value) return null
+  return (THUMBNAIL_FILLER_STYLES as readonly string[]).includes(value)
+    ? (value as ThumbnailFillerStyle)
+    : null
+}
+
+/**
+ * `?fill` parser.
+ *
+ * Returns the canonical code for `manga`/`anime`/`filler`/`mixed`
+ * (case-insensitive) and `null` for an ABSENT or unusable value. The legacy
+ * `canon` code is accepted as an alias of `manga` (same green bytes, same
+ * `:flmanga` cache entry). Absent and invalid are the same render (no banner);
+ * the route distinguishes them from the raw parameter presence and rejects an
+ * explicit invalid value with 400, mirroring `?still`. A blank value counts as
+ * absent (no banner), like a blank still does.
+ */
+export function parseThumbnailFillerStatus(raw: string | null | undefined): ThumbnailFillerStatus | null {
+  const value = (raw ?? "").trim().toLowerCase()
+  if (!value) return null
+  if (value === "canon") return "manga"
+  return (THUMBNAIL_FILLER_STATUSES as readonly string[]).includes(value)
+    ? (value as ThumbnailFillerStatus)
+    : null
+}
+
+/**
+ * Corner chip height as a fraction of the canvas width: 24px on the 320px
+ * reference (the width `/meta` emits), scaled with the canvas like every other
+ * local badge dimension. The chip is a top-left corner plate, NOT a full-width
+ * strip, so only its height uses this ratio.
+ */
+export const THUMBNAIL_FILLER_BANNER_RATIO = 0.075
+
+/** Corner chip height for a canvas width (px). */
+export function thumbnailFillerBannerHeight(width: number): number {
+  return Math.max(1, Math.round(width * THUMBNAIL_FILLER_BANNER_RATIO))
+}
+
+/**
+ * Status accent of the corner chip. Pictorium design choices (never a claim of
+ * official colours): green = manga canon (same hex as the historical canon),
+ * violet = anime canon, amber = filler, sky = mixed. The flat plate carries the
+ * status colour and the label is drawn in dark ink on top of it.
+ */
+const FILLER_BANNER_ACCENTS: Record<ThumbnailFillerStatus, string> = {
+  manga: "#22C55E",
+  anime: "#A78BFA",
+  filler: "#F59E0B",
+  mixed: "#38BDF8",
+}
+
+/** Dark ink used on the flat accent plate (same ink as the `rs=corner` chip). */
+const FILLER_BANNER_INK = "rgba(0,0,0,0.88)"
+
+/**
+ * English labels used only when the caller supplies no localized label (direct
+ * renderer callers/tests). The route always passes the dictionary string, so a
+ * rendered chip never falls back to a raw key and never has empty text.
+ */
+const FILLER_BANNER_FALLBACK_LABELS: Record<ThumbnailFillerStatus, string> = {
+  manga: "Manga Canon",
+  anime: "Anime Canon",
+  filler: "Filler",
+  mixed: "Mixed",
+}
+
+/** Letter-spacing of the chip label, as a fraction of the font size. */
+const FILLER_BANNER_LABEL_TRACKING = 0.08
+/** Inset of the chip from the top-left canvas edge (px). */
+const FILLER_CHIP_MARGIN = 10
+/** Transparent margin around the plate that keeps the drop shadow visible. */
+const FILLER_BANNER_SHADOW_PAD = 10
+const FILLER_BANNER_MIN_FONT = 8
+/** Horizontal padding of the chip, as a fraction of the chip height. */
+const FILLER_CHIP_PAD_X_FACTOR = 0.55
+/** Corner radius of the chip, as a fraction of the chip height (~10px @320). */
+const FILLER_CHIP_RADIUS_FACTOR = 0.45
+/** Cap the chip width so a long localized label never turns it into a strip. */
+const FILLER_CHIP_MAX_WIDTH_FACTOR = 0.6
+
+/**
+ * Top-left corner chip for the filler classification.
+ *
+ * One local plate on the shared primitives: a flat status accent rectangle
+ * (`FILLER_BANNER_ACCENTS`) with the shared 3D shadow (`TOP_SHADOW_FILTER`) and
+ * the caller's localized label in dark uppercase ink, mirroring the `rs=corner`
+ * ranking chip family. Text metrics use `estimateTextWidth`/`fontFamilyFor`
+ * (Rubik for Hebrew/Arabic) and `textLength` + `lengthAdjust` stabilization, so
+ * Win/Linux rasterizers agree.
+ *
+ * The returned bitmap is inset by `FILLER_CHIP_MARGIN` (the chip sits 10px from
+ * the top-left edge when composited at 0,0) and includes a transparent shadow
+ * pad; `w`/`h` are the VISIBLE plate dimensions, used for the collision check
+ * against a top-right stack.
+ */
+async function renderFillerBanner(
+  status: ThumbnailFillerStatus,
+  width: ThumbnailWidth,
+  label?: string | null,
+): Promise<ThumbnailBadge> {
+  const chipH = thumbnailFillerBannerHeight(width)
+  const text = ((label ?? "").trim() || FILLER_BANNER_FALLBACK_LABELS[status]).toUpperCase()
+  const padX = Math.max(6, Math.round(chipH * FILLER_CHIP_PAD_X_FACTOR))
+  const maxChipW = Math.max(padX * 2 + 1, Math.round(width * FILLER_CHIP_MAX_WIDTH_FACTOR))
+  const maxTextW = Math.max(1, maxChipW - padX * 2)
+  let fs = Math.max(FILLER_BANNER_MIN_FONT, Math.round(chipH * 0.52))
+  const glyphs = [...text].length
+  const measure = (candidateFs: number): number => {
+    const tracking = candidateFs * FILLER_BANNER_LABEL_TRACKING
+    return Math.max(
+      1,
+      Math.round(estimateTextWidth(text, candidateFs, "inter") + tracking * Math.max(0, glyphs - 1)),
+    )
+  }
+  let textW = measure(fs)
+  // Long localized labels shrink the FONT instead of widening the chip past its
+  // cap (same intent as the shared badge fit loops); a short label keeps base.
+  for (let i = 0; i < 3 && textW > maxTextW && fs > FILLER_BANNER_MIN_FONT; i++) {
+    fs = Math.max(FILLER_BANNER_MIN_FONT, Math.floor((fs * maxTextW) / textW))
+    textW = measure(fs)
+  }
+  textW = Math.min(textW, maxTextW)
+  const boxW = padX * 2 + textW
+  const tracking = fs * FILLER_BANNER_LABEL_TRACKING
+  const rx = Math.round(chipH * FILLER_CHIP_RADIUS_FACTOR)
+  const bitmapW = FILLER_CHIP_MARGIN + boxW + FILLER_BANNER_SHADOW_PAD
+  const bitmapH = FILLER_CHIP_MARGIN + chipH + FILLER_BANNER_SHADOW_PAD
+  const svg =
+    `<svg xmlns="http://www.w3.org/2000/svg" width="${bitmapW}" height="${bitmapH}">` +
+    `<defs>${TOP_SHADOW_FILTER}</defs>` +
+    // Flat accent plate with the shared 3D shadow: the chip separates from a
+    // bright or a dark still without a second material.
+    `<g filter="url(#tds)">` +
+    `<rect x="${FILLER_CHIP_MARGIN}" y="${FILLER_CHIP_MARGIN}" width="${boxW}" height="${chipH}" rx="${rx}" fill="${FILLER_BANNER_ACCENTS[status]}"/>` +
+    `</g>` +
+    `<text x="${FILLER_CHIP_MARGIN + boxW / 2}" y="${FILLER_CHIP_MARGIN + chipH / 2}" text-anchor="middle" dominant-baseline="central" ` +
+    `font-family="${fontFamilyFor(text, "inter")}" font-weight="700" font-size="${fs}" fill="${FILLER_BANNER_INK}" ` +
+    `letter-spacing="${tracking.toFixed(1)}" textLength="${textW}" lengthAdjust="spacingAndGlyphs">${escSvg(text)}</text>` +
+    `</svg>`
+  const png = await renderSVG(svg, bitmapW)
+  return { png, w: boxW, h: chipH }
+}
+
+/**
+ * Full-width top strip for the filler classification (`?fillStyle=strip`).
+ *
+ * Same material/label rules as the corner chip (status accent, dark ink,
+ * `estimateTextWidth`/`fontFamilyFor`, `textLength` stabilization), but the
+ * plate spans the whole canvas top edge and the label is centred. A one-pixel
+ * darker bottom rule separates the strip from the still without a second
+ * material or a shadow that the canvas edge would clip.
+ *
+ * The returned width is the full canvas width, so a top-anchored badge stack
+ * can move below the real plate.
+ */
+async function renderFillerStrip(
+  status: ThumbnailFillerStatus,
+  width: ThumbnailWidth,
+  label?: string | null,
+): Promise<ThumbnailBadge> {
+  const stripH = thumbnailFillerBannerHeight(width)
+  const text = ((label ?? "").trim() || FILLER_BANNER_FALLBACK_LABELS[status]).toUpperCase()
+  const padX = Math.max(6, Math.round(stripH * FILLER_CHIP_PAD_X_FACTOR))
+  const maxTextW = Math.max(1, width - padX * 2)
+  let fs = Math.max(FILLER_BANNER_MIN_FONT, Math.round(stripH * 0.52))
+  const glyphs = [...text].length
+  const measure = (candidateFs: number): number => {
+    const tracking = candidateFs * FILLER_BANNER_LABEL_TRACKING
+    return Math.max(
+      1,
+      Math.round(estimateTextWidth(text, candidateFs, "inter") + tracking * Math.max(0, glyphs - 1)),
+    )
+  }
+  let textW = measure(fs)
+  for (let i = 0; i < 3 && textW > maxTextW && fs > FILLER_BANNER_MIN_FONT; i++) {
+    fs = Math.max(FILLER_BANNER_MIN_FONT, Math.floor((fs * maxTextW) / textW))
+    textW = measure(fs)
+  }
+  textW = Math.min(textW, maxTextW)
+  const tracking = fs * FILLER_BANNER_LABEL_TRACKING
+  const svg =
+    `<svg xmlns="http://www.w3.org/2000/svg" width="${width}" height="${stripH}">` +
+    `<rect x="0" y="0" width="${width}" height="${stripH}" fill="${FILLER_BANNER_ACCENTS[status]}"/>` +
+    `<rect x="0" y="${Math.max(0, stripH - 1)}" width="${width}" height="1" fill="rgba(0,0,0,0.22)"/>` +
+    `<text x="${width / 2}" y="${stripH / 2}" text-anchor="middle" dominant-baseline="central" ` +
+    `font-family="${fontFamilyFor(text, "inter")}" font-weight="700" font-size="${fs}" fill="${FILLER_BANNER_INK}" ` +
+    `letter-spacing="${tracking.toFixed(1)}" textLength="${textW}" lengthAdjust="spacingAndGlyphs">${escSvg(text)}</text>` +
+    `</svg>`
+  const png = await renderSVG(svg, width)
+  return { png, w: width, h: stripH }
 }
 
 /**
@@ -427,8 +658,13 @@ export function parseThumbnailBadgeMode(raw: string | null | undefined): Thumbna
 export function parseThumbnailBadgeStyle(raw: string | null | undefined): ThumbnailBadgeStyle | null {
   if (raw === null || raw === undefined) return DEFAULT_THUMBNAIL_BADGE_STYLE
   const value = raw.trim().toLowerCase()
-  return (THUMBNAIL_BADGE_STYLES as readonly string[]).includes(value)
-    ? (value as ThumbnailBadgeStyle)
+  // Backward-compatible alias: the former `dot` id (round score badge) is
+  // normalized to the canonical `circle`, so stored defaults/config tokens and
+  // old `?bstyle=dot` URLs keep rendering the same badge without a second
+  // style value or cache identity. Invalid values still fail closed to `null`.
+  const canonical = value === "dot" ? "circle" : value
+  return (THUMBNAIL_BADGE_STYLES as readonly string[]).includes(canonical)
+    ? (canonical as ThumbnailBadgeStyle)
     : null
 }
 
@@ -595,6 +831,35 @@ export interface ThumbnailCacheKeyInput {
    * unchanged, so a style/source/corner change can never be served stale.
    */
   readonly epoch?: string
+  /**
+   * Anime filler classification drawn as a top-left corner chip; absent = no
+   * banner (byte-identical historical thumbnail). Present = a different image,
+   * so the entry can never be reused across statuses.
+   */
+  readonly filler?: ThumbnailFillerStatus
+  /**
+   * Banner layout (`?fillStyle`). Only meaningful with `filler`; absent or
+   * `corner` keeps the historical key (the chip is the pre-style render), while
+   * `strip` is a different image (full-width top plate) with its own entry.
+   */
+  readonly fillerStyle?: ThumbnailFillerStyle
+  /**
+   * Locale of the chip label (only meaningful with `filler`). The chip TEXT
+   * is localized, so two locales are different images and must never share an
+   * entry; absent = `en`. Canonicalized to a short language tag before hashing
+   * so a garbage value can never fragment the cache.
+   */
+  readonly fillerLang?: string
+}
+
+/**
+ * Canonical short language tag for the banner label (`it`, `pt-br`, `es-419`).
+ * Anything else collapses to `en`: the cache identity only has to distinguish
+ * the shipped dictionaries, never arbitrary client strings.
+ */
+function fillerLanguageTag(raw: string | null | undefined): string {
+  const value = (raw ?? "").trim().toLowerCase()
+  return /^[a-z]{2,3}(?:-[a-z0-9]{2,8})?$/.test(value) ? value : "en"
 }
 
 /**
@@ -620,9 +885,10 @@ export function thumbnailCacheKey(input: ThumbnailCacheKeyInput): string {
   // never satisfy a request configured for another provider (and vice versa).
   const provider = input.provider ?? "showgrid"
   // The vote-pill style is part of the identity: pill/bordo/vetro/branded/
-  // naked/score/dot are different images (and ETags) of the same still.
-  // Absent = pill. `score` therefore produces `:bsscore:` and `dot` (the round
-  // variant of score) its own `:bsdot:` identity.
+  // naked/score/circle are different images (and ETags) of the same still.
+  // Absent = pill. `score` therefore produces `:bsscore:` and `circle` (the
+  // round variant of score) its own `:bscircle:` identity (legacy `dot`
+  // normalizes to the same key).
   const badgeStyle = input.badgeStyle ?? DEFAULT_THUMBNAIL_BADGE_STYLE
   const anchor = input.anchor ?? DEFAULT_THUMBNAIL_BADGE_ANCHOR
   const ox = input.offsetX ?? 0
@@ -648,7 +914,22 @@ export function thumbnailCacheKey(input: ThumbnailCacheKeyInput): string {
     ? `:rb${Math.trunc(input.rotationBucket)}`
     : ""
   const epochFragment = typeof input.epoch === "string" && input.epoch && input.epoch !== "0" ? `:e${input.epoch}` : ""
-  return `thumbnail:episode:${input.seriesId}:${input.seasonNumber}:${input.episodeNumber}:${stillPathHash(input.still)}:${input.width}:${input.badges}:bs${badgeStyle}:a${anchor}:x${ox}:y${oy}:sc${scale}:mx${THUMBNAIL_BADGE_SAFE_MARGIN_X}:my${THUMBNAIL_BADGE_SAFE_MARGIN_Y}:pr${provider}:src${voteSource}:si${stills}:b${input.blur ? 1 : 0}:${input.languages}${rotationFragment}${epochFragment}`
+  // Filler chip (`?fill=`): the status + the label locale are part of the
+  // identity because the chip carries localized TEXT (a different locale is a
+  // different image). Absent = no fragment, so the historical key — and every
+  // entry already cached under it — stays byte-identical. The locale is
+  // canonicalized to a short tag so only real dialects can fragment.
+  //
+  // Layout (`?fillStyle`) is ALSO part of the identity and is emitted for BOTH
+  // layouts (`:flscorner` / `:flsstrip`). This is deliberately not "corner =
+  // absent": pre-layout entries cached under the old `:fl<status>:fln<locale>`
+  // key could be full-width strip PNGs from the earlier renderer, and a corner
+  // request must never be served those stale pixels. Keeping an explicit
+  // fragment rotates every filler entry once when the layout became explicit.
+  const fillerFragment = input.filler
+    ? `:fl${input.filler}:fln${fillerLanguageTag(input.fillerLang)}:fls${input.fillerStyle ?? "corner"}`
+    : ""
+  return `thumbnail:episode:${input.seriesId}:${input.seasonNumber}:${input.episodeNumber}:${stillPathHash(input.still)}:${input.width}:${input.badges}:bs${badgeStyle}:a${anchor}:x${ox}:y${oy}:sc${scale}:mx${THUMBNAIL_BADGE_SAFE_MARGIN_X}:my${THUMBNAIL_BADGE_SAFE_MARGIN_Y}:pr${provider}:src${voteSource}:si${stills}:b${input.blur ? 1 : 0}:${input.languages}${rotationFragment}${epochFragment}${fillerFragment}`
 }
 
 export class ThumbnailRenderError extends Error {
@@ -814,8 +1095,8 @@ export interface RenderEpisodeThumbnailInput {
   /** Vote-badge style (`pill`/`bordo`/`vetro`; `branded` selects the branded
    *  separate-renderer path; `naked` draws the source brand mark + score with
    *  no container; `score` draws the bucket-coloured big-score tile with no
-   *  brand mark; `dot` is the round (circle) variant of `score`). Absent =
-   *  `pill`. */
+   *  brand mark; `circle` is the round (circle) variant of `score`, also
+   *  reachable through the legacy `dot` alias). Absent = `pill`. */
   readonly badgeStyle?: ThumbnailBadgeStyle
   /** Corner anchor; absent = `tr` (top-right, TOP convention). */
   readonly anchor?: ThumbnailBadgeAnchor
@@ -835,6 +1116,24 @@ export interface RenderEpisodeThumbnailInput {
   readonly voteSource?: ThumbnailVoteSource
   /** Blur the still (spoiler protection); badges are always composited after. */
   readonly blur: boolean
+  /**
+   * Anime filler classification to draw as a top-left corner chip; absent =
+   * no banner (historical bytes). The status is a language-neutral code: the
+   * caller passes the localized label in `fillerLabel`.
+   */
+  readonly filler?: ThumbnailFillerStatus | null
+  /**
+   * Banner layout (`?fillStyle`): `corner` (default compact chip) or `strip`
+   * (full-width top plate). Only meaningful with `filler`; absent renders the
+   * historical chip so pre-style URLs keep byte-identical output.
+   */
+  readonly fillerStyle?: ThumbnailFillerStyle | null
+  /**
+   * Localized chip label (dictionary string supplied by the route). Empty or
+   * absent falls back to the built-in English label, so a technically
+   * classified episode never renders an unlabeled or raw-key chip.
+   */
+  readonly fillerLabel?: string | null
   readonly signal?: AbortSignal
 }
 
@@ -842,8 +1141,13 @@ export interface RenderEpisodeThumbnailResult {
   readonly png: Buffer
   readonly w: number
   readonly h: number
-  /** Whether each pill was actually drawn (used by tests and diagnostics). */
-  readonly rendered: { readonly vote: boolean; readonly custom: boolean }
+  /**
+   * Whether each pill was actually drawn (used by tests and diagnostics).
+   * `filler` is an ADDITIVE presence flag: it is `true` only when the filler
+   * chip was drawn at least once, so the historical `{vote, custom}` shape
+   * of every no-banner render stays byte-identical for existing assertions.
+   */
+  readonly rendered: { readonly vote: boolean; readonly custom: boolean; readonly filler?: true }
   /** Provenance of the drawn ★ value, echoed for diagnostics/tests. */
   readonly voteSource: ThumbnailVoteSource
   /** Base actually used (TVDB can fail open to the TMDB path). */
@@ -1101,7 +1405,7 @@ async function renderScoreVoteBadge(
 }
 
 /**
- * Score dot: the ROUND variant of the score tile — same data/colour contract
+ * Score circle: the ROUND variant of the score tile — same data/colour contract
  * (bucket colour fill, same white/black ink, same big score, NO provider logo,
  * same shadow), but the container is a filled circle instead of the rounded
  * rect. The circle diameter is the larger of the score tile's box width/height,
@@ -1111,7 +1415,7 @@ async function renderScoreVoteBadge(
  * like `renderScoreVoteBadge`: the caller skips the badge and never falls back
  * to a neutral pill or an invented bucket.
  */
-async function renderScoreDotVoteBadge(
+async function renderScoreCircleVoteBadge(
   voteSource: ThumbnailVoteSource,
   value: number,
   canvasWidth: ThumbnailWidth,
@@ -1137,10 +1441,10 @@ async function renderScoreDotVoteBadge(
     `<svg xmlns="http://www.w3.org/2000/svg" width="${canvasSize}" height="${canvasSize}">` +
     // Same dark halo as the score tile: keeps the coloured circle separated
     // from a bright still without adding a second container.
-    `<defs><filter id="scoreDotShadow" x="-50%" y="-50%" width="200%" height="200%">` +
+    `<defs><filter id="scoreCircleShadow" x="-50%" y="-50%" width="200%" height="200%">` +
     `<feDropShadow dx="0" dy="2" stdDeviation="2.5" flood-color="#000000" flood-opacity="0.55"/>` +
     `</filter></defs>` +
-    `<g filter="url(#scoreDotShadow)">` +
+    `<g filter="url(#scoreCircleShadow)">` +
     `<circle cx="${center}" cy="${center}" r="${radius}" fill="${bucket.color}"/>` +
     `</g>` +
     `<text x="${center}" y="${center}" text-anchor="middle" dominant-baseline="central" ` +
@@ -1181,9 +1485,10 @@ export async function renderEpisodeThumbnail(input: RenderEpisodeThumbnailInput)
   const useNaked = badgeStyle === "naked"
   // `score` is its own local material (bucket-coloured rounded tile, no logo).
   const useScore = badgeStyle === "score"
-  // `dot` is the ROUND variant of the score material: same bucket/ink/score and
-  // the same "no badge on missing/zero vote" contract, only the shape differs.
-  const useDot = badgeStyle === "dot"
+  // `circle` is the ROUND variant of the score material: same bucket/ink/score
+  // and the same "no badge on missing/zero vote" contract, only the shape
+  // differs. Legacy `dot` is normalized to `circle` by the parser.
+  const useCircle = badgeStyle === "circle"
   const voteBadgeStyle = badgeStyle === "bordo" || badgeStyle === "vetro" ? badgeStyle : "pill"
   // Base image: the TVDB leg is strictly best-effort. Any miss (no URL, invalid
   // host/path, transport error, non-image body) fails open to the supplied
@@ -1271,13 +1576,14 @@ export async function renderEpisodeThumbnail(input: RenderEpisodeThumbnailInput)
     const scoreVote = useScore
       ? await renderScoreVoteBadge(voteSource, input.voteAverage, width)
       : null
-    // Score dot: same bucket colour + score as `score`, round container. `null`
-    // (missing / zero vote) stays null: dot never falls back to a pill either.
-    const dotVote = useDot
-      ? await renderScoreDotVoteBadge(voteSource, input.voteAverage, width)
+    // Score circle: same bucket colour + score as `score`, round container.
+    // `null` (missing / zero vote) stays null: circle never falls back to a
+    // pill either.
+    const circleVote = useCircle
+      ? await renderScoreCircleVoteBadge(voteSource, input.voteAverage, width)
       : null
-    const voteSourceBadge = useDot
-      ? dotVote
+    const voteSourceBadge = useCircle
+      ? circleVote
       : useScore
         ? scoreVote
         : brandedVote ?? nakedVote ?? await renderGenreBadge(
@@ -1323,7 +1629,29 @@ export async function renderEpisodeThumbnail(input: RenderEpisodeThumbnailInput)
   }
 
   const composites: { input: Buffer; left: number; top: number }[] = []
-  const rendered = { vote: false, custom: false }
+  const rendered: { vote: boolean; custom: boolean; filler?: true } = { vote: false, custom: false }
+  // Filler banner: composed FIRST (so the badge stack draws above it) and only
+  // when the classification travels on the URL. Absent = zero extra pixels and
+  // the historical render byte-identical. `corner` is the compact chip (the
+  // pre-style default); `strip` is the full-width top plate.
+  const fillerStyle = input.fillerStyle === "strip" ? "strip" : "corner"
+  const fillerBanner = input.filler
+    ? fillerStyle === "strip"
+      ? await renderFillerStrip(
+          input.filler,
+          width,
+          input.fillerLabel ?? FILLER_BANNER_FALLBACK_LABELS[input.filler],
+        )
+      : await renderFillerBanner(
+          input.filler,
+          width,
+          input.fillerLabel ?? FILLER_BANNER_FALLBACK_LABELS[input.filler],
+        )
+    : null
+  if (fillerBanner) {
+    composites.push({ input: fillerBanner.png, left: 0, top: 0 })
+    rendered.filler = true
+  }
   // Corner-anchored stack (default top-right = TOP convention). `badgeBody`
   // anchors the visible body, so the transparent shadow padding is kept
   // inside the safe margin. `ox`/`oy` are user offsets from that corner;
@@ -1345,15 +1673,35 @@ export async function renderEpisodeThumbnail(input: RenderEpisodeThumbnailInput)
   const stackH = stackBodies.reduce((sum, body) => sum + body.h, 0)
     + THUMBNAIL_BADGE_GAP * Math.max(0, stackBodies.length - 1)
   const widestBody = stackBodies.reduce((max, body) => Math.max(max, body.w), 0)
+  // The corner chip occupies the top-left. A `tl` stack always starts below it;
+  // a `tr` stack moves ONLY when the chip actually reaches its box (long label),
+  // and bottom anchors never move. `fillerBanner.w` is the visible plate width.
+  // A full-width strip covers the whole top edge, so both top anchors move
+  // below it; bottom anchors keep their historical placement.
+  const cornerChipWidth = fillerBanner && fillerStyle === "corner" ? FILLER_CHIP_MARGIN + fillerBanner.w : 0
+  const topStackBody = stackBodies[0]
+  const trCollides =
+    fillerStyle === "corner" && anchor === "tr" && topStackBody
+      ? cornerChipWidth + THUMBNAIL_BADGE_GAP > width - safeMarginX - topStackBody.w
+      : false
+  const bannerShift = fillerBanner && !anchorBottom
+    ? fillerStyle === "strip"
+      ? fillerBanner.h + THUMBNAIL_BADGE_GAP
+      : anchor === "tl" || trCollides
+        ? thumbnailFillerBannerHeight(width) + THUMBNAIL_BADGE_GAP
+        : 0
+    : 0
   const maxOffsetX = Math.max(0, width - safeMarginX * 2 - widestBody)
-  const maxOffsetY = Math.max(0, height - safeMarginY * 2 - stackH)
+  // A shifted top stack starts below the chip, so its downward range loses
+  // exactly that inset; every other anchor keeps the historical range.
+  const maxOffsetY = Math.max(0, height - safeMarginY * 2 - stackH - bannerShift)
   const offsetX = anchorRight
     ? Math.max(-maxOffsetX, Math.min(0, rawOffsetX))
     : Math.max(0, Math.min(maxOffsetX, rawOffsetX))
   const offsetY = anchorBottom
     ? Math.max(-maxOffsetY, Math.min(0, rawOffsetY))
     : Math.max(0, Math.min(maxOffsetY, rawOffsetY))
-  let cursorTop = (anchorBottom ? height - safeMarginY - stackH : safeMarginY) + offsetY
+  let cursorTop = (anchorBottom ? height - safeMarginY - stackH : safeMarginY + bannerShift) + offsetY
   let unionLeft = Number.POSITIVE_INFINITY
   let unionTop = Number.POSITIVE_INFINITY
   let unionRight = 0

@@ -67,6 +67,15 @@ export interface UseEpisodeStillsInput {
   readonly seriesId: number | null | undefined
   readonly season: number
   readonly episode: number
+  /**
+   * ORIGINAL TMDB S:E of this episode when the visible ordering is remapped
+   * (Episode Groups). The stills endpoint only knows standard numbering, so the
+   * fetch uses this pair; the override stays keyed by the visible
+   * `season:episode` because that is the key `/meta` applies to the video.
+   * Absent = the visible numbering is standard.
+   */
+  readonly stillSeason?: number
+  readonly stillEpisode?: number
   readonly tmdbKey?: string | null
   /**
    * Still the raw episode currently uses (the video thumbnail path), shown as
@@ -112,6 +121,8 @@ export function useEpisodeStills({
   seriesId,
   season,
   episode,
+  stillSeason,
+  stillEpisode,
   tmdbKey,
   defaultStill,
   enabled = true,
@@ -123,6 +134,10 @@ export function useEpisodeStills({
   const [error, setError] = useState<string | null>(null)
 
   const key = episodeStillKey(season, episode)
+  // The endpoint only speaks standard TMDB numbering: a remapped row carries
+  // the original pair, otherwise the visible S:E is already standard.
+  const fetchSeason = stillSeason ?? season
+  const fetchEpisode = stillEpisode ?? episode
   const override = sanitizeEpisodeStillPath(ed.episodeThumbnailStills?.[key])
   const fallback = sanitizeEpisodeStillPath(defaultStill)
 
@@ -136,7 +151,7 @@ export function useEpisodeStills({
     let active = true
     setLoading(true)
     setError(null)
-    fetchEpisodeStills(seriesId, season, episode, tmdbKey)
+    fetchEpisodeStills(seriesId, fetchSeason, fetchEpisode, tmdbKey)
       .then((clean) => {
         if (!active) return
         setStills(clean)
@@ -152,7 +167,7 @@ export function useEpisodeStills({
     return () => {
       active = false
     }
-  }, [enabled, seriesId, season, episode, tmdbKey])
+  }, [enabled, seriesId, fetchSeason, fetchEpisode, tmdbKey])
 
   const listHasFallback = fallback ? stills.some((s) => s.file_path === fallback) : false
   const selected = override ?? (listHasFallback ? fallback : stills[0]?.file_path ?? null)

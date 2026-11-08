@@ -193,7 +193,13 @@ const defaultsSchema = z.object({
   episodeThumbnails: z.boolean().optional(),
   // Miniature visual choices (default renderer look: pill/tr/0/0/no blur/imdb).
   // Meta-only: stored so the /meta composited URL matches the preview exactly.
-  thumbnailBadgeStyle: z.enum(["pill", "bordo", "vetro", "branded", "naked", "score"]).optional(),
+  thumbnailBadgeStyle: z
+    .enum(["pill", "bordo", "vetro", "branded", "naked", "score", "circle", "dot"])
+    // Backward-compatible alias: the retired `dot` id (round score badge) is
+    // normalized to the canonical `circle`, so stored/defaults payloads from
+    // older clients keep working without persisting the legacy value.
+    .transform((v) => (v === "dot" ? "circle" : v))
+    .optional(),
   thumbnailAnchor: z.enum(["tl", "tr", "bl", "br"]).optional(),
   thumbnailOffsetX: z.number().min(-2000).max(2000).optional(),
   thumbnailOffsetY: z.number().min(-2000).max(2000).optional(),
@@ -203,6 +209,12 @@ const defaultsSchema = z.object({
   // Daily still rotation for composed episode thumbnails (default OFF: absent
   // keeps the fixed still and byte-identical /meta bodies).
   thumbnailRotation: z.boolean().optional(),
+  // Anime filler classification banner (default OFF: absent keeps the
+  // compositor URL byte-identical; no display strings, only neutral codes).
+  thumbnailFillerBadge: z.boolean().optional(),
+  // Banner layout for composed episode thumbnails: `corner` (default compact
+  // chip, absent render) or `strip` (full-width top plate). Display-only, flat.
+  thumbnailFillerStyle: z.enum(["corner", "strip"]).optional(),
   region: z.string().max(32).optional(),
   dateFormat: z.enum(["locale", "dmy", "mdy", "iso"]).optional(),
   /**

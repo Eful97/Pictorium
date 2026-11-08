@@ -29,6 +29,7 @@ import { KNOWN_VIDEO_FORMATS, isVideoFormat, type VideoFormat } from "./av-specs
 import type {
   ThumbnailBadgeAnchor,
   ThumbnailBadgeStyle,
+  ThumbnailFillerStyle,
   ThumbnailVoteSource,
 } from "./contexts/PosterEditorContext"
 
@@ -200,6 +201,10 @@ export interface DefaultsState {
   defaultThumbnailVoteSource: ThumbnailVoteSource
   /** Miniature daily still rotation (`rotate`; default OFF). */
   defaultThumbnailRotation: boolean
+  /** Anime filler classification banner (`fill=`; default OFF). */
+  defaultThumbnailFillerBadge: boolean
+  /** Layout of the filler banner (`fillStyle`; default `corner`). */
+  defaultThumbnailFillerStyle: ThumbnailFillerStyle
   /** Regione classifiche (codice JW canonico, es. "IT"). */
   defaultRegion: string
   /** Formato data badge "in uscita" (default `locale` = segue la lingua). */
@@ -396,6 +401,8 @@ const DEFAULT_FLAT_DEFAULTS: Omit<DefaultsState, "landscape"> = {
   defaultThumbnailBlur: false,
   defaultThumbnailVoteSource: "imdb",
   defaultThumbnailRotation: false,
+  defaultThumbnailFillerBadge: false,
+  defaultThumbnailFillerStyle: "corner",
   defaultDateFormat: "locale",
   defaultRegion: "IT",
   region: "IT",
@@ -662,6 +669,12 @@ interface StoredDefaults {
   thumbnailVoteSource?: ThumbnailVoteSource
   defaultThumbnailRotation?: boolean
   thumbnailRotation?: boolean
+  /** Anime filler classification banner (`fill=`; default OFF). */
+  defaultThumbnailFillerBadge?: boolean
+  thumbnailFillerBadge?: boolean
+  /** Filler banner layout (`fillStyle`; default `corner`). */
+  defaultThumbnailFillerStyle?: ThumbnailFillerStyle
+  thumbnailFillerStyle?: ThumbnailFillerStyle
   defaultDateFormat?: DateFormat
   /** Chiave server/local piatta (saveDefaults/defaultsToPayload): fallback di lettura. */
   dateFormat?: DateFormat
@@ -857,21 +870,30 @@ function hydrateLandscapeBadgePresets(
   return { badgePresets: raw as RetiredBadgeFamilyBindings }
 }
 
-const THUMBNAIL_BADGE_STYLE_VALUES = ["pill", "bordo", "vetro", "branded", "naked", "score"] as const
+const THUMBNAIL_BADGE_STYLE_VALUES = ["pill", "bordo", "vetro", "branded", "naked", "score", "circle"] as const
+const THUMBNAIL_FILLER_STYLE_VALUES = ["corner", "strip"] as const
 const THUMBNAIL_ANCHOR_VALUES = ["tl", "tr", "bl", "br"] as const
 const THUMBNAIL_VOTE_SOURCE_VALUES = ["imdb", "tmdb"] as const
 const THUMBNAIL_OFFSET_LIMIT = 2000
 
 /** Storage is unvalidated JSON: unknown values fail closed to the defaults. */
 function sanitizeStoredThumbnailStyle(raw: unknown): ThumbnailBadgeStyle {
-  return (THUMBNAIL_BADGE_STYLE_VALUES as readonly unknown[]).includes(raw)
-    ? (raw as ThumbnailBadgeStyle)
+  // Legacy `dot` (retired round score badge id) maps to the canonical `circle`
+  // instead of falling back to `pill`: old stored spaces keep their look.
+  const canonical = raw === "dot" ? "circle" : raw
+  return (THUMBNAIL_BADGE_STYLE_VALUES as readonly unknown[]).includes(canonical)
+    ? (canonical as ThumbnailBadgeStyle)
     : "pill"
 }
 function sanitizeStoredThumbnailAnchor(raw: unknown): ThumbnailBadgeAnchor {
   return (THUMBNAIL_ANCHOR_VALUES as readonly unknown[]).includes(raw)
     ? (raw as ThumbnailBadgeAnchor)
     : "tr"
+}
+function sanitizeStoredThumbnailFillerStyle(raw: unknown): ThumbnailFillerStyle {
+  return (THUMBNAIL_FILLER_STYLE_VALUES as readonly unknown[]).includes(raw)
+    ? (raw as ThumbnailFillerStyle)
+    : "corner"
 }
 function sanitizeStoredThumbnailOffset(raw: unknown): number {
   if (typeof raw !== "number" || !Number.isFinite(raw)) return 0
@@ -1052,6 +1074,14 @@ function buildFromStored(d: StoredDefaults | null): DefaultsState {
     defaultThumbnailRotation: typeof (d.defaultThumbnailRotation ?? d.thumbnailRotation) === "boolean"
       ? (d.defaultThumbnailRotation ?? d.thumbnailRotation) === true
       : false,
+    // Anime filler banner: absent everywhere = OFF (no `fill=` param).
+    defaultThumbnailFillerBadge: typeof (d.defaultThumbnailFillerBadge ?? d.thumbnailFillerBadge) === "boolean"
+      ? (d.defaultThumbnailFillerBadge ?? d.thumbnailFillerBadge) === true
+      : false,
+    // Banner layout: absent/invalid = `corner` (the historical chip).
+    defaultThumbnailFillerStyle: sanitizeStoredThumbnailFillerStyle(
+      d.defaultThumbnailFillerStyle ?? d.thumbnailFillerStyle,
+    ),
     defaultDateFormat: parseDateFormat(d.defaultDateFormat ?? d.dateFormat) ?? "locale",
     defaultRegion: normalizeRegion(d.defaultRegion ?? d.region),
     region: normalizeRegion(d.region ?? d.defaultRegion),
@@ -1268,6 +1298,11 @@ export function defaultsToPayload(d: DefaultsState): Record<string, unknown> {
     thumbnailVoteSource: d.defaultThumbnailVoteSource,
     // Always explicit (PUT merges): going back OFF must clear a stored true.
     thumbnailRotation: d.defaultThumbnailRotation,
+    // Always explicit (PUT merges): going back OFF must clear a stored true.
+    thumbnailFillerBadge: d.defaultThumbnailFillerBadge,
+    // Always explicit: a staged choice must round-trip even when it equals the
+    // absent default (`corner`).
+    thumbnailFillerStyle: d.defaultThumbnailFillerStyle,
     region: d.defaultRegion,
     dateFormat: d.defaultDateFormat,
     videoFormats: d.defaultVideoFormats,

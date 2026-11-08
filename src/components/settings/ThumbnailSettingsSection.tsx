@@ -7,8 +7,10 @@ import { Toggle } from "@/components/Toggle"
 import {
   THUMBNAIL_BADGE_ANCHORS,
   THUMBNAIL_BADGE_STYLES,
+  THUMBNAIL_FILLER_STYLES,
   THUMBNAIL_VOTE_SOURCES,
   sanitizeThumbnailBadgeStyle,
+  sanitizeThumbnailFillerStyle,
 } from "@/components/settings/thumbnail-preview"
 import type { ThumbnailBadgeAnchor } from "@/lib/contexts/PosterEditorContext"
 
@@ -27,7 +29,7 @@ const STYLE_LABEL_KEY: Record<(typeof THUMBNAIL_BADGE_STYLES)[number], string> =
   // Reuses the existing "Rating"/"Voto" dictionary entry: no new i18n key,
   // and the label is exactly what the tile renders (the episode score).
   score: "ui.badgeRating",
-  dot: "ui.thumbnailStyleDot",
+  circle: "ui.thumbnailStyleCircle",
 }
 const ANCHOR_GLYPH: Record<ThumbnailBadgeAnchor, string> = {
   tl: "↖",
@@ -58,7 +60,7 @@ const CHOICE_OFF = "bg-white/[0.03] border-white/10 text-zinc-300 hover:bg-white
  * poster panels and are hidden whenever this section is active.
  *
  * Applicable controls (<=6, one row each):
- * - vote badge style           → real: pill/bordo/vetro/branded/naked/score/dot (`bstyle`)
+ * - vote badge style           → real: pill/bordo/vetro/branded/naked/score/circle (`bstyle`)
  * - vote provider source       → real: TMDB|IMDb segmented switch (`source`)
  * - spoiler blur               → real: maps to /api/thumbnail `blur`
  * - episode thumbnails enable  → real: persisted `/meta` toggle
@@ -157,7 +159,45 @@ export function ThumbnailSettingsSection({ active }: { active: boolean }) {
             </div>
           </div>
 
-          {/* 4. Spoiler blur: real thumbnail param, default OFF. */}
+          {/* 4. Anime filler banner: meta-only classification strip. Off
+              keeps the compositor URL byte-identical; on lets /meta append
+              `fill=` only for titles known to the bundled snapshot. */}
+          <div data-testid="thumbnail-control-filler-badge" className={ROW_CLASS}>
+            <span className={LABEL_CLASS}>{t("ui.thumbnailFillerBadge")}</span>
+            <Toggle
+              value={ed.defaultThumbnailFillerBadge}
+              onChange={(v) => ed.setDefaultThumbnailFillerBadge(v)}
+              label={t("ui.thumbnailFillerBadge")}
+            />
+          </div>
+          <p data-testid="thumbnail-filler-hint" className={`${HINT_CLASS} px-0.5`}>
+            {t("ui.thumbnailFillerBadgeHint")}
+          </p>
+
+          {/* 4b. Filler banner layout: explicit user choice (corner chip vs
+              full-width strip). Persisted like every other Miniature default
+              and carried by the preview + /meta compositor URL. */}
+          <div data-testid="thumbnail-control-filler-style" className={ROW_CLASS}>
+            <span className={LABEL_CLASS}>{t("ui.thumbnailFillerStyle")}</span>
+            <select
+              data-testid="thumbnail-filler-style-select"
+              aria-label={t("ui.thumbnailFillerStyle")}
+              value={ed.defaultThumbnailFillerStyle}
+              onChange={(e) => ed.setDefaultThumbnailFillerStyle(sanitizeThumbnailFillerStyle(e.target.value))}
+              className={`bg-black/40 border border-white/10 rounded-lg px-2.5 py-1 text-[11px] text-zinc-100 min-h-[40px] cursor-pointer ${FOCUS_RING}`}
+            >
+              {THUMBNAIL_FILLER_STYLES.map((style) => (
+                <option key={style} value={style}>
+                  {t(style === "strip" ? "ui.thumbnailFillerStyleStrip" : "ui.thumbnailFillerStyleCorner")}
+                </option>
+              ))}
+            </select>
+          </div>
+          <p data-testid="thumbnail-filler-style-hint" className={`${HINT_CLASS} px-0.5`}>
+            {t("ui.thumbnailFillerPreviewSample")}
+          </p>
+
+          {/* 5. Spoiler blur: real thumbnail param, default OFF. */}
           <div data-testid="thumbnail-control-blur" className={ROW_CLASS}>
             <span className={LABEL_CLASS}>{t("ui.blurEnabled")}</span>
             <Toggle

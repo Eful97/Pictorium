@@ -175,6 +175,20 @@ const itDict: Record<string, string> = {
   "ui.deleteFailed": "Errore nella cancellazione di {count} poster",
   // Miniature position hint: asserted by text in the settings target spec.
   "ui.thumbnailBadgePositionHint": "Trascina il badge nell'anteprima ingrandita per rifinire; ridimensiona dagli angoli; un preset d'angolo azzera la posizione.",
+  // Filler banner labels: the route renders them on the episode thumbnail.
+  "ui.thumbnailFillerStatusManga": "Manga Canon",
+  "ui.thumbnailFillerStatusAnime": "Anime Canon",
+  "ui.thumbnailFillerStatusFiller": "Filler",
+  "ui.thumbnailFillerStatusMixed": "Misto",
+  // Filler toggle (settings): label + honest scope hint.
+  "ui.thumbnailFillerBadge": "Banner filler",
+  "ui.thumbnailFillerBadgeHint": "Mostra un banner con il tipo di episodio (manga canon, anime canon, filler, misto) sulle miniature degli episodi anime. Compare solo per gli episodi classificati: gli anime sconosciuti non mostrano alcun banner.",
+  // Filler banner layout + honest editor note.
+  "ui.thumbnailFillerStyle": "Stile banner filler",
+  "ui.thumbnailFillerStyleCorner": "Angolo",
+  "ui.thumbnailFillerStyleStrip": "Barra",
+  "ui.thumbnailFillerPreviewSample": "L'anteprima mostra un esempio: il banner reale compare solo per gli episodi classificati.",
+  "ui.thumbnailFillerUnavailable": "Nessuna classificazione filler disponibile per questo episodio: l'anime potrebbe non essere ancora coperto.",
   "ui.loadingCatalogs": "Caricamento cataloghi...",
   "ui.confirmDelete": "Eliminare questo poster?",
   "ui.confirmDeleteMsg": "Vuoi eliminare {title}? Non può essere annullata.",

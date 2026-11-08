@@ -123,3 +123,6 @@ skills-lock.json
 # review artifacts locali (log, png, zip, audit rigenerabili — mai nel repo)
 /artifacts/
 
+# local agent tooling dir
+.commandcode/
+

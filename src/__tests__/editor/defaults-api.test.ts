@@ -115,6 +115,38 @@ describe("PUT /api/defaults", () => {
     expect(data.defaultRotationIncludeNonClean).toBe(true)
   })
 
+  it("persists the anime filler banner toggle through PUT and GET", async () => {
+    process.env.ADMIN_TOKEN = TEST_ADMIN_TOKEN
+    // Serializer contract: the toggle always travels as `thumbnailFillerBadge`
+    // (PUT merges, so going back OFF must explicitly clear a stored true).
+    expect(defaultsToPayload({ defaultThumbnailFillerBadge: true } as DefaultsState).thumbnailFillerBadge).toBe(true)
+
+    const on = await PUT(mockPutRequest({ thumbnailFillerBadge: true }) as unknown as NextRequest)
+    expect(on.status).toBe(200)
+    const onBody = await (await GET(new Request("http://localhost:3000/api/defaults", { headers: { "x-real-ip": testClientIp } }) as unknown as NextRequest)).json()
+    expect(onBody.thumbnailFillerBadge).toBe(true)
+
+    const off = await PUT(mockPutRequest({ thumbnailFillerBadge: false }) as unknown as NextRequest)
+    expect(off.status).toBe(200)
+    const offBody = await (await GET(new Request("http://localhost:3000/api/defaults", { headers: { "x-real-ip": testClientIp } }) as unknown as NextRequest)).json()
+    expect(offBody.thumbnailFillerBadge).toBe(false)
+  })
+
+  it("persists the filler banner layout through PUT and GET", async () => {
+    process.env.ADMIN_TOKEN = TEST_ADMIN_TOKEN
+    expect(defaultsToPayload({ defaultThumbnailFillerStyle: "strip" } as DefaultsState).thumbnailFillerStyle).toBe("strip")
+
+    const strip = await PUT(mockPutRequest({ thumbnailFillerStyle: "strip" }) as unknown as NextRequest)
+    expect(strip.status).toBe(200)
+    const stripBody = await (await GET(new Request("http://localhost:3000/api/defaults", { headers: { "x-real-ip": testClientIp } }) as unknown as NextRequest)).json()
+    expect(stripBody.thumbnailFillerStyle).toBe("strip")
+
+    const corner = await PUT(mockPutRequest({ thumbnailFillerStyle: "corner" }) as unknown as NextRequest)
+    expect(corner.status).toBe(200)
+    const cornerBody = await (await GET(new Request("http://localhost:3000/api/defaults", { headers: { "x-real-ip": testClientIp } }) as unknown as NextRequest)).json()
+    expect(cornerBody.thumbnailFillerStyle).toBe("corner")
+  })
+
   it("preserves custom catalog datasetId through PUT and GET", async () => {
     process.env.ADMIN_TOKEN = TEST_ADMIN_TOKEN
     const catalogs = [
