@@ -11,6 +11,7 @@ export interface RecentChange {
 }
 
 export const RECENT_CHANGES: RecentChange[] = [
+  { type: "fix", text: "Accept a full quality mark selection and restore selector order", sha: "7393683", date: "2026-11-08" },
   { type: "fix", text: "Keep poster settings saveable after a quality badge pack changes", sha: "6dd7b81", date: "2026-11-08" },
   { type: "feature", text: "Add importable quality badge packs", sha: "1c048c5", date: "2026-11-08" },
   { type: "fix", text: "Episode titles follow the selected language", sha: "54b130d", date: "2026-11-08" },
@@ -18,5 +19,4 @@ export const RECENT_CHANGES: RecentChange[] = [
   { type: "fix", text: "Show blue Absolute Cinema badge from 9.7 on thumbnails", sha: "8b9c679", date: "2026-11-06" },
   { type: "feature", text: "Add round Dot vote badge for episode thumbnails", sha: "7e164db", date: "2026-11-06" },
   { type: "perf", text: "harden render pipeline under load (sharp auto, fail-fast, keepalive)", sha: "777f48d", date: "2026-11-06" },
-  { type: "fix", text: "Keep unsaved editor edits, drag handles and card badges correct", sha: "baee8fe", date: "2026-11-06" },
 ]
