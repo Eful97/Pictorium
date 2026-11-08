@@ -354,6 +354,14 @@ async function resolveEpisodeThumbnailOptions(
   }
 }
 
+/**
+ * Compositor URL shape version. v2: the path carries the ORIGINAL TMDB S:E on
+ * Episode Group rows (v1 emitted the remapped visible pair, whose vote fallback
+ * fails closed with a 502). Bodies composed before the fix must not be served
+ * for 12h.
+ */
+const THUMBNAIL_URL_SHAPE_FRAGMENT = ":tpath2"
+
 /** Cache-key fragment for the resolved Miniature choices (never a secret). */
 function thumbnailOptionsCacheFragment(options: EpisodeThumbnailOptions): string {
   // `stills` is explicit only when it changes the representation (TVDB base);
@@ -371,7 +379,7 @@ function thumbnailOptionsCacheFragment(options: EpisodeThumbnailOptions): string
   // Only a non-default layout changes the composed URLs (and therefore the
   // body): corner stays the historical fragment.
   const fillerStyleFragment = options.fillerBadge && options.fillerStyle === "strip" ? ":fsstrip" : ""
-  return `:tb${options.badgeStyle}:ta${options.anchor}:tx${options.offsetX}:ty${options.offsetY}:sc${options.badgeScale}:tv${options.voteSource}:tz${options.blur ? 1 : 0}${stillsFragment}${rotationFragment}${fillerFragment}${fillerStyleFragment}`
+  return `:tb${options.badgeStyle}:ta${options.anchor}:tx${options.offsetX}:ty${options.offsetY}:sc${options.badgeScale}:tv${options.voteSource}:tz${options.blur ? 1 : 0}${stillsFragment}${rotationFragment}${fillerFragment}${fillerStyleFragment}${THUMBNAIL_URL_SHAPE_FRAGMENT}`
 }
 
 /**
@@ -438,6 +446,13 @@ async function applyEpisodeThumbnails(
   const origin = getOriginFromRequest(req)
   const { sanitizeStillPath } = await import("@/lib/thumbnail-renderer")
   return videos.map((video) => {
+    // Episode Group rows remap the visible S:E: the compositor URL path must
+    // carry the ORIGINAL TMDB pair, because the route resolves the episode
+    // vote/details with it (a visible group pair like `2:17` does not exist on
+    // TMDB and fails the ★ fallback closed with a 502).
+    const stillSource = videoStillSources?.get(video.id)
+    const sourceSeason = stillSource?.season ?? video.season
+    const sourceEpisode = stillSource?.episode ?? video.episode
     const overrideStill = sanitizeEpisodeStillPath(overrides?.[`${video.season}:${video.episode}`])
     let still: string | null = overrideStill
     // An override is a TMDB still path by contract: compose it against TMDB.
@@ -483,13 +498,9 @@ async function applyEpisodeThumbnails(
     // ORIGINAL TMDB S:E (the visible one is remapped). TVDB/AniZip expose
     // neither and keep offsets null, so they never get a guessed banner.
     if (options.fillerBadge && seasonAbsoluteOffsets) {
-      const source = videoStillSources?.get(video.id)
-      const seasonNumber = videoStillSources ? source?.season : video.season
-      const episodeNumber = videoStillSources ? source?.episode : video.episode
-      const absoluteStart =
-        seasonNumber === undefined ? undefined : seasonAbsoluteOffsets.get(seasonNumber)
-      if (absoluteStart !== undefined && episodeNumber !== undefined) {
-        const fillerStatus = resolveFillerStatus(seriesId, absoluteStart + episodeNumber)
+      const absoluteStart = seasonAbsoluteOffsets.get(sourceSeason)
+      if (absoluteStart !== undefined) {
+        const fillerStatus = resolveFillerStatus(seriesId, absoluteStart + sourceEpisode)
         if (fillerStatus) {
           params.set("fill", fillerStatus)
           // Layout: only the non-default `strip` travels; the compositor route
@@ -505,7 +516,7 @@ async function applyEpisodeThumbnails(
     if (scopedUser) params.set("u", scopedUser)
     return {
       ...video,
-      thumbnail: `${origin}/api/thumbnail/tv/${seriesId}/season/${video.season}/episode/${video.episode}?${params.toString()}`,
+      thumbnail: `${origin}/api/thumbnail/tv/${seriesId}/season/${sourceSeason}/episode/${sourceEpisode}?${params.toString()}`,
     }
   })
 }

@@ -872,16 +872,22 @@ function EpisodeStillStudio({
    * badge per episode.
    */
   const composeThumbnailUrl = (
+    // Visible S:E: only the per-episode filler guard below is keyed by it.
     seasonNumber: number,
     episodeNumber: number,
     still: string | null,
     provider: StillSource,
+    // ORIGINAL TMDB S:E for the compositor path (Episode Groups remap the
+    // visible pair, and the route resolves vote/details with it: a visible
+    // group pair that does not exist on TMDB fails closed with a 502).
+    sourceSeason: number = seasonNumber,
+    sourceEpisode: number = episodeNumber,
   ): string | null => {
     if (!still || seriesId <= 0) return null
     const base = buildEpisodeThumbnailUrl({
       seriesId,
-      season: seasonNumber,
-      episode: episodeNumber,
+      season: sourceSeason,
+      episode: sourceEpisode,
       still,
       badgeStyle: sanitizeThumbnailBadgeStyle(ed.thumbnailBadgeStyle),
       anchor: sanitizeThumbnailBadgeAnchor(ed.thumbnailBadgeAnchor),
@@ -911,6 +917,8 @@ function EpisodeStillStudio({
     current.episode,
     effectiveStill,
     effectiveProvider,
+    current.stillSeason ?? current.season,
+    current.stillEpisode ?? current.episode,
   )
 
   const stagedCount = Object.keys(staged).length
