@@ -16,7 +16,18 @@ import { useT } from "@/lib/contexts/TranslationContext"
 import { usePosterEditor } from "@/lib/contexts/PosterEditorContext"
 import { userFetch } from "@/lib/http"
 import { useEpisodeStills, fetchEpisodeStills, type TMDBEpisodeStill } from "@/lib/useEpisodeStills"
-import { buildEpisodeThumbnailUrl, episodeStillKey, sanitizeEpisodeStillPath } from "@/lib/episode-stills"
+import { buildEpisodeThumbnailUrl, episodeStillKey, EPISODE_FILLER_COLORS, sanitizeEpisodeFillerStatus, sanitizeEpisodeStillPath, type EpisodeFillerStatus } from "@/lib/episode-stills"
+import {
+  buildBulkFillerCorrectionIssue,
+  buildFillerCorrectionIssueUrl,
+  compressEpisodeNumbers,
+  FILLER_CORRECTION_DIRECT_VIEWING,
+  FILLER_CORRECTION_SOURCES,
+  FILLER_CORRECTION_STATUS_LABELS,
+  isFillerCorrectionPrototypeEnabled,
+  MAX_BULK_CORRECTION_EPISODES,
+  type FillerCorrectionSource,
+} from "@/lib/filler-correction-issue"
 import {
   clampThumbnailBadgeOffset,
   clampThumbnailBadgeScale,
@@ -29,8 +40,86 @@ import { Modal } from "@/components/ui/Modal"
 
 const STILL_THUMB_BASE = "https://image.tmdb.org/t/p/w185"
 
+/**
+ * Session cache + in-flight coalescing for the read-only filler lookups.
+ *
+ * The studio needs the classification of EVERY row it lists, so the endpoint is
+ * called once per open regular season (`episodes=`) instead of once per S:E.
+ * The promise itself is stored, so a second mount while the first is still in
+ * flight joins it instead of firing a duplicate. Any failure resolves to an
+ * empty map (no dots/banner): the editor never blocks and never fabricates a
+ * classification.
+ */
+const fillerStatusRequests = new Map<string, Promise<Record<string, EpisodeFillerStatus | null>>>()
+
+function fetchEpisodeFillerStatuses(input: {
+  seriesId: number
+  season: number
+  episodes: number[]
+  tmdbKey?: string | null
+  user?: string | null
+}): Promise<Record<string, EpisodeFillerStatus | null>> {
+  const key = `${input.seriesId}:${input.season}:${input.episodes.join(",")}`
+  const cached = fillerStatusRequests.get(key)
+  if (cached) return cached
+
+  const params = new URLSearchParams({
+    tmdb: String(input.seriesId),
+    season: String(input.season),
+    episodes: input.episodes.join(","),
+  })
+  // Scoped user: the server resolves the SAME namespace keys the editor used
+  // (BYOK), exactly like the composed image URLs.
+  if (input.user) params.set("u", input.user)
+
+  const request = userFetch(`/api/filler-status?${params.toString()}`, {
+    headers: input.tmdbKey ? { "x-api-key": input.tmdbKey } : undefined,
+  })
+    .then(async (res) => {
+      const out: Record<string, EpisodeFillerStatus | null> = {}
+      if (!res.ok) return out
+      const json = (await res.json()) as { statuses?: unknown }
+      const raw = json?.statuses
+      if (!raw || typeof raw !== "object" || Array.isArray(raw)) return out
+      for (const [episode, value] of Object.entries(raw as Record<string, unknown>)) {
+        out[episode] = sanitizeEpisodeFillerStatus(value)
+      }
+      return out
+    })
+    .catch(() => ({} as Record<string, EpisodeFillerStatus | null>))
+  fillerStatusRequests.set(key, request)
+  return request
+}
+
+/** i18n keys of the four classification labels (same text as the banner). */
+const FILLER_STATUS_LABEL_KEYS: Record<EpisodeFillerStatus, string> = {
+  manga: "ui.thumbnailFillerStatusManga",
+  anime: "ui.thumbnailFillerStatusAnime",
+  filler: "ui.thumbnailFillerStatusFiller",
+  mixed: "ui.thumbnailFillerStatusMixed",
+}
+
 /** Still provider chosen in the right-pane tabs. */
 type StillSource = "tmdb" | "tvdb"
+
+/** One episode of the left pane, in the visible ordering. */
+interface StudioEpisodeRow {
+  key: string
+  season: number
+  episode: number
+  /**
+   * Original TMDB S:E when the visible ordering is remapped (Episode Groups):
+   * stills are fetched with this pair, the override stays keyed by `key`.
+   */
+  stillSeason?: number
+  stillEpisode?: number
+  name: string
+  defaultStill: string | null
+  tvdbImage: string | null
+}
+
+/** Draft key of the shared bulk-correction fields (never a real S:E). */
+const BULK_CORRECTION_DRAFT_KEY = "__bulk__"
 
 /**
  * Draft choice for one episode. `tmdb` carries the explicit still path (the
@@ -135,6 +224,8 @@ function EpisodeStillStudio({
   seriesId,
   season,
   episode,
+  title,
+  malId,
   tmdbKey,
   defaultStill,
   seasons,
@@ -146,10 +237,16 @@ function EpisodeStillStudio({
   seriesId: number
   season: number
   episode: number
+  /** Visible series title, prefilled in the correction issue. */
+  title: string
+  /** MAL id when the loaded title carries one, else null. */
+  malId?: number | null
   tmdbKey?: string | null
   defaultStill?: string | null
   seasons: PreviewSeason[]
-  /** False = visible ordering is Parts/TVDB/AniZip; TMDB stills use standard S:E. */
+  /** False = visible ordering is Parts/TVDB/AniZip. Stills use the original
+   * TMDB S:E when the payload carries it (Parts/Episode Groups), otherwise the
+   * standard S:E of the same visible numbers (TVDB/AniZip). */
   standardNumbering: boolean
   /**
    * Read-only studio (no tabs, no batch bar): kept for callers that only need
@@ -161,7 +258,7 @@ function EpisodeStillStudio({
   stills?: "tmdb" | "tvdb"
   onClose: () => void
 }) {
-  const { t } = useT()
+  const { t, lang } = useT()
   const ed = usePosterEditor()
   const saveConfig = usePSelector((v) => v.saveConfig)
   // Thumbnail-only save (poster fields/`mv` untouched). Optional in the
@@ -211,15 +308,8 @@ function EpisodeStillStudio({
   // default still (the caller already resolved it); every other row derives the
   // TMDB path from its own thumbnail and falls back to the picker's first still.
   const episodes = useMemo(() => {
-    const rows: {
-      key: string
-      season: number
-      episode: number
-      name: string
-      defaultStill: string | null
-      /** Single TVDB episode cover from the preview payload (or null). */
-      tvdbImage: string | null
-    }[] = []
+    /** Single TVDB episode cover from the preview payload (or null). */
+    const rows: StudioEpisodeRow[] = []
     const seen = new Set<string>()
     for (const s of seasons) {
       for (const ep of s.episodes) {
@@ -230,6 +320,8 @@ function EpisodeStillStudio({
           key,
           season: ep.season,
           episode: ep.episode,
+          stillSeason: ep.stillSeason,
+          stillEpisode: ep.stillEpisode,
           name: ep.name,
           defaultStill:
             key === initialKey
@@ -251,6 +343,27 @@ function EpisodeStillStudio({
     }
     return rows
   }, [seasons, initialKey, season, episode, defaultStill])
+
+  /**
+   * True when EVERY visible row carries the ORIGINAL TMDB S:E (Episode Groups):
+   * stills are fetched with that pair, so the numbering caveat no longer
+   * applies. TVDB/AniZip rows have no such pair, and a partial group payload
+   * keeps the honest caveat.
+   */
+  const stillNumberingKnown = useMemo(
+    () =>
+      episodes.length > 0 &&
+      episodes.every((row) => typeof row.stillSeason === "number" && typeof row.stillEpisode === "number"),
+    [episodes],
+  )
+
+  /**
+   * Filler classification is keyed by ABSOLUTE episode. It is resolvable with
+   * standard TMDB numbering, or with a remapped ordering that carries the
+   * ORIGINAL TMDB S:E (Episode Groups): the lookup then uses that pair, never
+   * the visible one. TVDB/AniZip expose no such pair and stay suppressed.
+   */
+  const fillerNumberingKnown = standardNumbering || stillNumberingKnown
 
   // Default still per S:E (opening episode's caller-resolved still, every other
   // row from its own TMDB thumbnail): the grid preview composes THAT base
@@ -289,7 +402,13 @@ function EpisodeStillStudio({
   }, [])
   useEffect(() => {
     if (seriesId <= 0) return
-    const targets: { key: string; season: number; episode: number }[] = []
+    const targets: {
+      key: string
+      season: number
+      episode: number
+      stillSeason?: number
+      stillEpisode?: number
+    }[] = []
     for (const row of episodes) {
       if (!openSeasons.has(row.season)) continue
       if (gridFallbackAttempted.current.has(row.key)) continue
@@ -301,7 +420,13 @@ function EpisodeStillStudio({
         // A TVDB-only choice has its own raw cover: no TMDB fallback lookup.
         (stagedEntry?.provider === "tvdb" ? row.tvdbImage : null)
       if (known) continue
-      targets.push({ key: row.key, season: row.season, episode: row.episode })
+      targets.push({
+        key: row.key,
+        season: row.season,
+        episode: row.episode,
+        stillSeason: row.stillSeason,
+        stillEpisode: row.stillEpisode,
+      })
     }
     if (targets.length === 0) return
     // Mark BEFORE fetching so a re-render (or another expanded season) never
@@ -310,7 +435,12 @@ function EpisodeStillStudio({
     void (async () => {
       for (const target of targets) {
         try {
-          const rows = await fetchEpisodeStills(seriesId, target.season, target.episode, tmdbKey)
+          const rows = await fetchEpisodeStills(
+            seriesId,
+            target.stillSeason ?? target.season,
+            target.stillEpisode ?? target.episode,
+            tmdbKey,
+          )
           const first = rows[0]?.file_path
           if (!first || !mountedRef.current) continue
           setGridFallbackStills((prev) =>
@@ -344,10 +474,374 @@ function EpisodeStillStudio({
     seriesId,
     season: current.season,
     episode: current.episode,
+    stillSeason: current.stillSeason,
+    stillEpisode: current.stillEpisode,
     tmdbKey,
     defaultStill: current.defaultStill,
     user: userId,
   })
+
+  /**
+   * Real anime filler classification for the studio's episode list (never a
+   * sample). Fetched from the read-only `/api/filler-status` endpoint only when
+   * the space toggle is ON and the visible ordering is standard TMDB: `/meta`
+   * suppresses the banner for remapped orderings (Episode Groups / TVDB /
+   * AniZip), so asking there would label the wrong episode's absolute number.
+   *
+   * One BATCH request per open regular season covers every row (the endpoint
+   * resolves them against the bundled snapshot), so each episode can show its
+   * colored dot and the selected one its composed banner. Results are stored per
+   * `S:E`: switching episodes can never show the previous episode's status while
+   * the new lookup is in flight. Unknown or failed lookups stay absent
+   * (fail-open to no dot/banner).
+   */
+  const [fillerStatusByKey, setFillerStatusByKey] = useState<Record<string, EpisodeFillerStatus>>({})
+  // Keys whose lookup actually COMPLETED (success or null). Lets the studio tell
+  // "still loading" apart from "not classified", so an unknown title gets an
+  // honest note instead of silently rendering no banner.
+  const [fillerResolvedByKey, setFillerResolvedByKey] = useState<Record<string, true>>({})
+  const fillerBadgeEnabled = ed.defaultThumbnailFillerBadge === true
+  useEffect(() => {
+    if (!fillerBadgeEnabled || !fillerNumberingKnown || seriesId <= 0) return
+    // Visible S:E -> the ORIGINAL TMDB S:E used for the absolute-episode
+    // lookup. Standard ordering uses its own S:E; an Episode Group uses the
+    // original pair carried by the payload. Rows without a resolvable pair are
+    // skipped (never a guessed label).
+    const bySourceSeason = new Map<number, { key: string; sourceEpisode: number }[]>()
+    for (const entry of seasons) {
+      if (entry.season <= 0 || !openSeasons.has(entry.season)) continue
+      for (const ep of entry.episodes) {
+        if (ep.season !== entry.season || ep.episode <= 0) continue
+        const sourceSeason = standardNumbering ? ep.season : ep.stillSeason
+        const sourceEpisode = standardNumbering ? ep.episode : ep.stillEpisode
+        if (
+          sourceSeason === undefined ||
+          sourceSeason <= 0 ||
+          sourceEpisode === undefined ||
+          sourceEpisode <= 0
+        ) {
+          continue
+        }
+        const row = { key: episodeStillKey(ep.season, ep.episode), sourceEpisode }
+        const list = bySourceSeason.get(sourceSeason)
+        if (list) list.push(row)
+        else bySourceSeason.set(sourceSeason, [row])
+      }
+    }
+    if (bySourceSeason.size === 0) return
+    let active = true
+    for (const [sourceSeason, rows] of bySourceSeason) {
+      const sourceEpisodes = [...new Set(rows.map((row) => row.sourceEpisode))]
+      // The helper stores the in-flight promise per season list, so re-runs
+      // (StrictMode double-invoke, expand/collapse) join it instead of firing a
+      // duplicate request. Never keep a ref that makes the second run skip:
+      // the first run's cleanup would then cancel the only live subscriber and
+      // the banner/dots would never appear in development.
+      void fetchEpisodeFillerStatuses({
+        seriesId,
+        season: sourceSeason,
+        episodes: sourceEpisodes,
+        tmdbKey,
+        user: userId,
+      }).then((statuses) => {
+        if (!active) return
+        const resolvedKeys = rows.map((row) => row.key)
+        setFillerResolvedByKey((prev) => {
+          let changed = false
+          const next = { ...prev }
+          for (const key of resolvedKeys) {
+            if (next[key] !== true) {
+              next[key] = true
+              changed = true
+            }
+          }
+          return changed ? next : prev
+        })
+        setFillerStatusByKey((prev) => {
+          let next = prev
+          for (const row of rows) {
+            const status = statuses[String(row.sourceEpisode)]
+            if (!status) continue
+            if (next[row.key] === status) continue
+            if (next === prev) next = { ...prev }
+            next[row.key] = status
+          }
+          return next
+        })
+      })
+    }
+    return () => {
+      active = false
+    }
+  }, [fillerBadgeEnabled, fillerNumberingKnown, standardNumbering, seriesId, seasons, openSeasons, tmdbKey, userId])
+  const fillerStatus =
+    fillerBadgeEnabled && fillerNumberingKnown ? fillerStatusByKey[current.key] ?? null : null
+  /** Lookup finished with no classification: honest note, never a fake banner. */
+  const fillerUnavailable =
+    fillerBadgeEnabled &&
+    fillerNumberingKnown &&
+    fillerResolvedByKey[current.key] === true &&
+    fillerStatus === null
+
+  /**
+   * "Suggest filler correction" panel (opt-in: hidden by default; the build
+   * must set `NEXT_PUBLIC_PICTORIUM_FILLER_CORRECTION=1` to show it).
+   *
+   * The link only PREFILLS a public GitHub issue: the user reviews and submits
+   * with their own account. No token, no fetch, no issue created by Pictorium.
+   * The in-app origin is logically direct viewing (the user is looking at the
+   * episode), so the attestation starts checked; unchecking it requires a
+   * clean source, fail-closed.
+   *
+   * Per-episode drafts: navigating the left pane can never carry a proposal
+   * (or an unchecked attestation) from another S:E.
+   *
+   * Bulk mode: checking episode rows switches the panel to a multi-episode
+   * selection (S:E keys). One type applies to the selection, per-row
+   * dropdowns override it, and the panel prefills compressed ranges, titles
+   * and one shared reason/attestation. Clearing the selection returns to the
+   * historical single-episode mode, where the current episode is the target.
+   */
+  const correctionEnabled = isFillerCorrectionPrototypeEnabled()
+  const [correctionOpen, setCorrectionOpen] = useState(false)
+  const [proposalDraft, setProposalDraft] = useState<Record<string, EpisodeFillerStatus | "">>({})
+  const [reasonDraft, setReasonDraft] = useState<Record<string, string>>({})
+  const [watchedDraft, setWatchedDraft] = useState<Record<string, boolean>>({})
+  const [sourceDraft, setSourceDraft] = useState<Record<string, FillerCorrectionSource | "">>({})
+  const [sourceNotesDraft, setSourceNotesDraft] = useState<Record<string, string>>({})
+  // Bulk correction: checkbox selection of S:E keys. Empty = the historical
+  // single-episode mode, where the current episode is the implicit target.
+  const [selectedCorrectionKeys, setSelectedCorrectionKeys] = useState<Set<string>>(
+    () => new Set(),
+  )
+  // Optional per-episode overrides; blank = follow the bulk type.
+  const [perEpisodeTypeDraft, setPerEpisodeTypeDraft] = useState<
+    Record<string, EpisodeFillerStatus | "">
+  >({})
+  const [continuationDraft, setContinuationDraft] = useState("")
+  const selectionEnabled = correctionEnabled && fillerBadgeEnabled && standardNumbering
+  const bulkMode = selectedCorrectionKeys.size > 0
+  // Single and bulk drafts never share fields: switching modes can never leak
+  // an unchecked attestation (or a type) from one target to the other.
+  const correctionDraftKey = bulkMode ? BULK_CORRECTION_DRAFT_KEY : current.key
+  const proposedStatus =
+    proposalDraft[correctionDraftKey] ?? (bulkMode ? "" : fillerStatus ?? "")
+  const correctionReason = reasonDraft[correctionDraftKey] ?? ""
+  const correctionWatched = watchedDraft[correctionDraftKey] ?? true
+  const correctionSource = sourceDraft[correctionDraftKey] ?? ""
+  const correctionSourceNotes = sourceNotesDraft[correctionDraftKey] ?? ""
+  const updateProposal = useCallback(
+    (value: EpisodeFillerStatus | "") => {
+      setProposalDraft((prev) => ({ ...prev, [correctionDraftKey]: value }))
+    },
+    [correctionDraftKey],
+  )
+  const updateReason = useCallback(
+    (value: string) => {
+      setReasonDraft((prev) => ({ ...prev, [correctionDraftKey]: value }))
+    },
+    [correctionDraftKey],
+  )
+  const updateWatched = useCallback(
+    (value: boolean) => {
+      setWatchedDraft((prev) => ({ ...prev, [correctionDraftKey]: value }))
+    },
+    [correctionDraftKey],
+  )
+  const updateSource = useCallback(
+    (value: FillerCorrectionSource | "") => {
+      setSourceDraft((prev) => ({ ...prev, [correctionDraftKey]: value }))
+    },
+    [correctionDraftKey],
+  )
+  const updateSourceNotes = useCallback(
+    (value: string) => {
+      setSourceNotesDraft((prev) => ({ ...prev, [correctionDraftKey]: value }))
+    },
+    [correctionDraftKey],
+  )
+  const updateRowType = useCallback((key: string, value: EpisodeFillerStatus | "") => {
+    setPerEpisodeTypeDraft((prev) => {
+      if (value === "") {
+        if (!(key in prev)) return prev
+        const next = { ...prev }
+        delete next[key]
+        return next
+      }
+      return { ...prev, [key]: value }
+    })
+  }, [])
+  const toggleCorrectionSelection = useCallback((key: string) => {
+    setSelectedCorrectionKeys((prev) => {
+      const next = new Set(prev)
+      if (next.has(key)) next.delete(key)
+      else next.add(key)
+      return next
+    })
+  }, [])
+  const clearCorrectionSelection = useCallback(() => {
+    setSelectedCorrectionKeys(new Set())
+  }, [])
+  // "Visible" = rows of the currently expanded seasons, the only ones the
+  // user can see and therefore the only ones bulk-select can pick.
+  const selectAllVisibleCorrections = useCallback(() => {
+    setSelectedCorrectionKeys((prev) => {
+      const next = new Set(prev)
+      for (const row of episodes) {
+        if (row.season > 0 && openSeasons.has(row.season)) next.add(row.key)
+      }
+      return next
+    })
+  }, [episodes, openSeasons])
+  /** Regular seasons only: `N` of the issue form excludes specials/season 0. */
+  const regularEpisodeTotal = useMemo(
+    () => seasons.reduce((sum, s) => (s.season > 0 ? sum + s.episodes.length : sum), 0),
+    [seasons],
+  )
+  /** Absolute episode from the visible standard ordering (null when remapped). */
+  const absoluteEpisode = useMemo(() => {
+    if (!standardNumbering || current.season <= 0 || current.episode <= 0) return null
+    let before = 0
+    for (const s of seasons) {
+      if (s.season > 0 && s.season < current.season) before += s.episodes.length
+    }
+    return before + current.episode
+  }, [standardNumbering, seasons, current.season, current.episode])
+  /**
+   * Absolute episode of EVERY visible row (same regular-season offsets as the
+   * single flow). Bulk ranges are absolute; specials are excluded upstream.
+   */
+  const absoluteEpisodeByKey = useMemo(() => {
+    const map = new Map<string, number>()
+    if (!standardNumbering) return map
+    for (const season of seasons) {
+      if (season.season <= 0) continue
+      let before = 0
+      for (const other of seasons) {
+        if (other.season > 0 && other.season < season.season) {
+          before += other.episodes.length
+        }
+      }
+      for (const episode of season.episodes) {
+        map.set(episodeStillKey(episode.season, episode.episode), before + episode.episode)
+      }
+    }
+    return map
+  }, [standardNumbering, seasons])
+  const correctionRowsByKey = useMemo(
+    () => new Map(episodes.map((row) => [row.key, row] as const)),
+    [episodes],
+  )
+  const selectedCorrectionRows = useMemo(
+    () =>
+      [...selectedCorrectionKeys]
+        .map((key) => correctionRowsByKey.get(key))
+        .filter((row): row is StudioEpisodeRow => row !== undefined && row.season > 0)
+        .sort((a, b) => a.season - b.season || a.episode - b.episode),
+    [selectedCorrectionKeys, correctionRowsByKey],
+  )
+  /** Live range preview, independent from the validity of the other fields. */
+  const bulkRangePreview = useMemo(() => {
+    const filler: number[] = []
+    const mixed: number[] = []
+    for (const row of selectedCorrectionRows) {
+      const type = perEpisodeTypeDraft[row.key] || proposedStatus
+      // Same fallback as the builder (absolute unknown -> local episode).
+      const absolute = absoluteEpisodeByKey.get(row.key) ?? row.episode
+      if (!type) continue
+      if (type === "filler") filler.push(absolute)
+      else if (type === "mixed") mixed.push(absolute)
+    }
+    return {
+      filler: compressEpisodeNumbers(filler),
+      mixed: compressEpisodeNumbers(mixed),
+    }
+  }, [selectedCorrectionRows, perEpisodeTypeDraft, proposedStatus, absoluteEpisodeByKey])
+  const bulkCorrection = useMemo(() => {
+    if (!selectionEnabled || selectedCorrectionRows.length === 0) return null
+    const continuedFrom = /^\d+$/.test(continuationDraft.trim())
+      ? Number(continuationDraft.trim())
+      : null
+    return buildBulkFillerCorrectionIssue({
+      title,
+      tmdbId: seriesId,
+      malId,
+      totalEpisodes: regularEpisodeTotal > 0 ? regularEpisodeTotal : null,
+      episodes: selectedCorrectionRows.map((row) => ({
+        season: row.season,
+        episode: row.episode,
+        absoluteEpisode: absoluteEpisodeByKey.get(row.key) ?? null,
+        title: row.name,
+        proposedStatus: perEpisodeTypeDraft[row.key] || proposedStatus,
+      })),
+      reason: correctionReason,
+      watched: correctionWatched,
+      source: correctionSource === "" ? null : correctionSource,
+      sourceNotes: correctionWatched ? null : correctionSourceNotes,
+      continuedFrom,
+    })
+  }, [
+    selectionEnabled,
+    selectedCorrectionRows,
+    continuationDraft,
+    title,
+    seriesId,
+    malId,
+    regularEpisodeTotal,
+    absoluteEpisodeByKey,
+    perEpisodeTypeDraft,
+    proposedStatus,
+    correctionReason,
+    correctionWatched,
+    correctionSource,
+    correctionSourceNotes,
+  ])
+  const correctionUrl = useMemo(() => {
+    if (!correctionEnabled || !fillerBadgeEnabled || !standardNumbering) return null
+    if (bulkMode) return bulkCorrection?.ok ? bulkCorrection.url : null
+    // Season 0/specials are outside the public regular-season absolute
+    // numbering: never propose a correction that would mislabel episode 1.
+    if (current.season <= 0) return null
+    return buildFillerCorrectionIssueUrl({
+      title,
+      tmdbId: seriesId,
+      malId,
+      season: current.season,
+      episode: current.episode,
+      absoluteEpisode,
+      totalEpisodes: regularEpisodeTotal > 0 ? regularEpisodeTotal : null,
+      currentStatus: fillerStatus,
+      proposedStatus: proposedStatus === "" ? null : proposedStatus,
+      reason: correctionReason,
+      watched: correctionWatched,
+      source: correctionSource === "" ? null : correctionSource,
+      sourceNotes: correctionWatched ? null : correctionSourceNotes,
+    })
+  }, [
+    correctionEnabled,
+    fillerBadgeEnabled,
+    standardNumbering,
+    bulkMode,
+    bulkCorrection,
+    title,
+    seriesId,
+    malId,
+    current.season,
+    current.episode,
+    absoluteEpisode,
+    regularEpisodeTotal,
+    fillerStatus,
+    proposedStatus,
+    correctionReason,
+    correctionWatched,
+    correctionSource,
+    correctionSourceNotes,
+  ])
+  const openCorrectionIssue = useCallback(() => {
+    if (!correctionUrl) return
+    // User submits; Pictorium never authenticates to GitHub.
+    window.open(correctionUrl, "_blank", "noopener,noreferrer")
+  }, [correctionUrl])
 
   // Effective provider for the selected S:E, same precedence as `/meta`:
   // staged choice > saved TMDB override (always TMDB by contract) > the space
@@ -398,6 +892,14 @@ function EpisodeStillStudio({
       // Effective rotation: per-title draft (explicit) wins on the space
       // default, exactly like `/meta`.
       rotation: rotationDraft ?? ed.defaultThumbnailRotation,
+      // Real classification only (null = no banner). The per-episode guard
+      // keeps the banner on the episode it was resolved for.
+      filler:
+        seasonNumber === current.season && episodeNumber === current.episode
+          ? fillerStatus
+          : null,
+      fillerStyle: ed.defaultThumbnailFillerStyle,
+      fillerLang: lang,
       user: userId,
     })
     if (!base) return null
@@ -541,10 +1043,12 @@ function EpisodeStillStudio({
           </button>
         </div>
 
-        {!standardNumbering && (
-          // Honest caveat instead of silently picking another episode's image:
-          // the visible ordering is not TMDB standard, so stills resolve by the
-          // standard S:E of the same numbers.
+        {!standardNumbering && !stillNumberingKnown && (
+          // Honest caveat only where it still applies: TVDB/AniZip orderings
+          // expose no original TMDB S:E, so their stills resolve by the standard
+          // numbering of the same visible numbers. Episode Groups carry the
+          // original pair (stillSeason/stillEpisode), so their stills ARE the
+          // right episode's and the note is hidden.
           <p
             data-testid="episode-studio-numbering-note"
             className="shrink-0 flex items-start gap-2 rounded-lg bg-amber-500/10 border border-amber-500/30 px-3 py-2 text-[11px] leading-relaxed text-amber-200"
@@ -575,6 +1079,36 @@ function EpisodeStillStudio({
                 {seasons.length}
               </span>
             </div>
+            {selectionEnabled && episodes.length > 0 && (
+              <div
+                data-testid="episode-bulk-selection"
+                className="flex flex-wrap items-center gap-1.5 px-1 pb-1.5 border-b border-white/[0.06]"
+              >
+                <button
+                  type="button"
+                  data-testid="episode-select-all-visible"
+                  onClick={selectAllVisibleCorrections}
+                  className="min-h-[26px] px-2 rounded-md border border-white/10 bg-white/5 text-[10px] font-semibold text-zinc-300 hover:bg-white/10 transition-all cursor-pointer active:scale-95 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-accent-orange/60 focus-visible:ring-offset-2 focus-visible:ring-offset-zinc-950"
+                >
+                  Select all visible
+                </button>
+                <button
+                  type="button"
+                  data-testid="episode-select-clear"
+                  disabled={selectedCorrectionKeys.size === 0}
+                  onClick={clearCorrectionSelection}
+                  className="min-h-[26px] px-2 rounded-md border border-white/10 bg-white/5 text-[10px] font-semibold text-zinc-300 hover:bg-white/10 disabled:opacity-40 disabled:cursor-not-allowed transition-all cursor-pointer active:scale-95 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-accent-orange/60 focus-visible:ring-offset-2 focus-visible:ring-offset-zinc-950"
+                >
+                  Clear
+                </button>
+                <span
+                  data-testid="episode-select-count"
+                  className="ml-auto text-[10px] font-mono tabular-nums text-zinc-500"
+                >
+                  {selectedCorrectionKeys.size} selected
+                </span>
+              </div>
+            )}
             {episodes.length === 0 ? (
               <p className="text-[11px] text-zinc-500 italic px-1 py-2">{t("ui.noEpisodes")}</p>
             ) : (
@@ -606,6 +1140,13 @@ function EpisodeStillStudio({
                         {s.episodes.map((ep) => {
                           const key = episodeStillKey(ep.season, ep.episode)
                           const active = key === selectedKey
+                          // Known classification of THIS row. Groups are
+                          // resolved through their original TMDB S:E, so the
+                          // dots follow the banner instead of disappearing.
+                          const rowFillerStatus =
+                            fillerBadgeEnabled && fillerNumberingKnown
+                              ? fillerStatusByKey[key] ?? null
+                              : null
                           const stagedEntry = staged[key]
                           const stagedTmdb =
                             stagedEntry?.provider === "tmdb"
@@ -626,36 +1167,59 @@ function EpisodeStillStudio({
                               ? tvdbImageByKey.get(key) ?? rawStillUrl(thumbStill)
                               : rawStillUrl(thumbStill)
                           return (
-                            <button
-                              key={ep.id}
-                              type="button"
-                              data-testid="episode-browser-episode"
-                              aria-pressed={active}
-                              onClick={() => setSelectedKey(key)}
-                              className={`w-full min-h-[40px] flex items-center gap-2 px-1.5 py-1.5 rounded-lg border text-left transition-all cursor-pointer focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-accent-orange/60 focus-visible:ring-offset-2 focus-visible:ring-offset-zinc-950 ${
-                                active
-                                  ? "border-accent-orange/70 bg-accent-orange/15"
-                                  : "border-transparent hover:bg-white/[0.06]"
-                              }`}
-                            >
-                              <span className="relative block w-14 h-8 shrink-0 overflow-hidden rounded-md bg-zinc-800 border border-white/10">
-                                <EpisodeRowThumbnail src={thumbUrl} />
-                              </span>
-                              <span className="min-w-0 flex-1">
-                                <span className="block text-[11px] font-medium text-zinc-100 truncate">{ep.name}</span>
-                                <span className="block text-[10px] font-mono tabular-nums text-zinc-500">
-                                  S{ep.season}:E{ep.episode}
-                                  {stagedEntry && (
-                                    <span
-                                      data-testid="episode-stage-dot"
-                                      data-provider={stagedEntry.provider}
-                                      className="ml-1.5 inline-block w-1.5 h-1.5 rounded-full bg-accent-orange align-middle"
-                                      aria-hidden="true"
-                                    />
-                                  )}
+                            <div key={ep.id} className="flex items-center gap-1.5">
+                              {selectionEnabled && ep.season > 0 && (
+                                <input
+                                  type="checkbox"
+                                  data-testid="episode-browser-select"
+                                  data-episode-key={key}
+                                  aria-label={`Select S${ep.season}:E${ep.episode} for a bulk correction`}
+                                  checked={selectedCorrectionKeys.has(key)}
+                                  onChange={() => toggleCorrectionSelection(key)}
+                                  className="w-3.5 h-3.5 shrink-0 accent-accent-orange cursor-pointer focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-accent-orange/60 focus-visible:ring-offset-2 focus-visible:ring-offset-zinc-950"
+                                />
+                              )}
+                              <button
+                                type="button"
+                                data-testid="episode-browser-episode"
+                                aria-pressed={active}
+                                onClick={() => setSelectedKey(key)}
+                                className={`min-w-0 flex-1 min-h-[40px] flex items-center gap-2 px-1.5 py-1.5 rounded-lg border text-left transition-all cursor-pointer focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-accent-orange/60 focus-visible:ring-offset-2 focus-visible:ring-offset-zinc-950 ${
+                                  active
+                                    ? "border-accent-orange/70 bg-accent-orange/15"
+                                    : "border-transparent hover:bg-white/[0.06]"
+                                }`}
+                              >
+                                <span className="relative block w-14 h-8 shrink-0 overflow-hidden rounded-md bg-zinc-800 border border-white/10">
+                                  <EpisodeRowThumbnail src={thumbUrl} />
                                 </span>
-                              </span>
-                            </button>
+                                <span className="min-w-0 flex-1">
+                                  <span className="block text-[11px] font-medium text-zinc-100 truncate">{ep.name}</span>
+                                  <span className="block text-[10px] font-mono tabular-nums text-zinc-500">
+                                    S{ep.season}:E{ep.episode}
+                                    {rowFillerStatus && (
+                                      <span
+                                        data-testid="episode-filler-dot"
+                                        data-status={rowFillerStatus}
+                                        role="img"
+                                        aria-label={t(FILLER_STATUS_LABEL_KEYS[rowFillerStatus])}
+                                        title={t(FILLER_STATUS_LABEL_KEYS[rowFillerStatus])}
+                                        className="ml-1.5 inline-block w-2 h-2 rounded-full align-middle ring-1 ring-black/40"
+                                        style={{ backgroundColor: EPISODE_FILLER_COLORS[rowFillerStatus] }}
+                                      />
+                                    )}
+                                    {stagedEntry && (
+                                      <span
+                                        data-testid="episode-stage-dot"
+                                        data-provider={stagedEntry.provider}
+                                        className="ml-1.5 inline-block w-1.5 h-1.5 rounded-full bg-accent-orange align-middle"
+                                        aria-hidden="true"
+                                      />
+                                    )}
+                                  </span>
+                                </span>
+                              </button>
+                            </div>
                           )
                         })}
                       </div>
@@ -724,6 +1288,292 @@ function EpisodeStillStudio({
                 </div>
               )}
             </div>
+
+            {/* Honest explanation when the filler toggle is ON but the bundled
+                snapshot has no classification for this title/episode. The
+                settings preview sample never claims a real status: without
+                data there is no banner (by design, no guessed label). */}
+            {fillerUnavailable && (
+              <p
+                data-testid="episode-filler-unavailable"
+                className="shrink-0 flex items-start gap-2 rounded-lg bg-white/[0.04] border border-white/10 px-3 py-2 text-[11px] leading-relaxed text-zinc-300"
+              >
+                <AlertTriangle className="w-3.5 h-3.5 shrink-0 mt-px text-zinc-400" aria-hidden="true" />
+                <span>{t("ui.thumbnailFillerUnavailable")}</span>
+              </p>
+            )}
+
+            {/* Opt-in panel: prefilled public GitHub issue. The user reviews
+                and submits; no token, no fetch, no auto-create. Hidden unless
+                the build sets NEXT_PUBLIC_PICTORIUM_FILLER_CORRECTION=1. */}
+            {correctionEnabled && fillerBadgeEnabled && standardNumbering && (current.season > 0 || bulkMode) && (
+              <div
+                data-testid="filler-correction"
+                className="shrink-0 rounded-lg border border-white/10 bg-white/[0.04] px-3 py-2"
+              >
+                <button
+                  type="button"
+                  data-testid="filler-correction-toggle"
+                  aria-expanded={correctionOpen}
+                  onClick={() => setCorrectionOpen((open) => !open)}
+                  className="w-full min-h-[28px] flex items-center justify-between gap-2 text-left text-[11px] font-semibold text-zinc-200 hover:text-zinc-50 transition-colors cursor-pointer focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-accent-orange/60 focus-visible:ring-offset-2 focus-visible:ring-offset-zinc-950 rounded-md"
+                >
+                  <span>
+                    Suggest filler correction
+                    {bulkMode ? ` · ${selectedCorrectionRows.length} selected` : ""}
+                  </span>
+                  {correctionOpen ? (
+                    <ChevronDown className="w-3.5 h-3.5 shrink-0 text-zinc-400" aria-hidden="true" />
+                  ) : (
+                    <ChevronRight className="w-3.5 h-3.5 shrink-0 text-zinc-500" aria-hidden="true" />
+                  )}
+                </button>
+
+                {correctionOpen && (
+                  <div data-testid="filler-correction-panel" className="mt-2 space-y-2">
+                    {bulkMode ? (
+                      <p
+                        data-testid="filler-correction-bulk-summary"
+                        className="text-[11px] leading-relaxed text-zinc-400"
+                      >
+                        Bulk selection:{" "}
+                        <span className="font-semibold text-zinc-200">
+                          {selectedCorrectionRows.length} episodes
+                        </span>
+                        {selectedCorrectionRows.length > MAX_BULK_CORRECTION_EPISODES
+                          ? ` (max ${MAX_BULK_CORRECTION_EPISODES} per issue)`
+                          : ""}
+                        {" · "}the type below applies to all; override a row when needed.
+                      </p>
+                    ) : (
+                      <p className="text-[11px] leading-relaxed text-zinc-400">
+                        Current:{" "}
+                        <span className="font-semibold text-zinc-200">
+                          {fillerStatus ? FILLER_CORRECTION_STATUS_LABELS[fillerStatus] : "unknown"}
+                        </span>
+                        {" · "}S{current.season}:E{current.episode}
+                        {absoluteEpisode !== null ? ` (absolute ${absoluteEpisode})` : ""}
+                      </p>
+                    )}
+
+                    <label className="block text-[10px] uppercase tracking-wide text-zinc-500">
+                      {bulkMode ? "Proposed type for the selection" : "Proposed type"}
+                      <select
+                        data-testid="filler-correction-proposed"
+                        aria-label={bulkMode ? "Proposed type for the selection" : "Proposed type"}
+                        value={proposedStatus}
+                        onChange={(e) =>
+                          updateProposal(e.target.value as EpisodeFillerStatus | "")
+                        }
+                        className="mt-1 block w-full min-h-[30px] rounded-md border border-white/10 bg-black/40 px-2 text-[11px] text-zinc-100 focus:outline-none focus-visible:ring-2 focus-visible:ring-accent-orange/60"
+                      >
+                        <option value="" disabled>
+                          Select…
+                        </option>
+                        {(Object.keys(FILLER_CORRECTION_STATUS_LABELS) as EpisodeFillerStatus[]).map(
+                          (status) => (
+                            <option key={status} value={status}>
+                              {FILLER_CORRECTION_STATUS_LABELS[status]}
+                            </option>
+                          ),
+                        )}
+                      </select>
+                    </label>
+
+                    {bulkMode && selectedCorrectionRows.length > 0 && (
+                      <div
+                        data-testid="filler-correction-bulk-rows"
+                        className="max-h-44 overflow-y-auto space-y-1 rounded-md border border-white/10 bg-black/30 p-1.5"
+                      >
+                        {selectedCorrectionRows.map((row) => (
+                          <div key={row.key} className="flex items-center gap-2">
+                            <span className="shrink-0 font-mono text-[10px] tabular-nums text-zinc-400">
+                              S{row.season}:E{row.episode}
+                            </span>
+                            <span className="min-w-0 flex-1 truncate text-[10px] text-zinc-300">
+                              {row.name || "—"}
+                            </span>
+                            <select
+                              data-testid="filler-correction-row-type"
+                              data-episode-key={row.key}
+                              aria-label={`Proposed type for S${row.season}:E${row.episode}`}
+                              value={perEpisodeTypeDraft[row.key] ?? ""}
+                              onChange={(e) =>
+                                updateRowType(row.key, e.target.value as EpisodeFillerStatus | "")
+                              }
+                              className="shrink-0 min-h-[26px] max-w-[112px] rounded-md border border-white/10 bg-black/40 px-1 text-[10px] text-zinc-100 focus:outline-none focus-visible:ring-2 focus-visible:ring-accent-orange/60"
+                            >
+                              <option value="">
+                                {proposedStatus
+                                  ? `Bulk: ${FILLER_CORRECTION_STATUS_LABELS[proposedStatus]}`
+                                  : "Bulk type"}
+                              </option>
+                              {(Object.keys(FILLER_CORRECTION_STATUS_LABELS) as EpisodeFillerStatus[]).map(
+                                (status) => (
+                                  <option key={status} value={status}>
+                                    {FILLER_CORRECTION_STATUS_LABELS[status]}
+                                  </option>
+                                ),
+                              )}
+                            </select>
+                          </div>
+                        ))}
+                      </div>
+                    )}
+
+                    {bulkMode && (
+                      <div
+                        data-testid="filler-correction-bulk-preview"
+                        className="space-y-0.5 rounded-md border border-white/10 bg-black/30 px-2 py-1.5 text-[10px] leading-relaxed text-zinc-400"
+                      >
+                        <p>
+                          Filler:{" "}
+                          <span
+                            data-testid="filler-correction-range-filler"
+                            className="font-mono text-zinc-200"
+                          >
+                            {bulkRangePreview.filler}
+                          </span>
+                        </p>
+                        <p>
+                          Mixed:{" "}
+                          <span
+                            data-testid="filler-correction-range-mixed"
+                            className="font-mono text-zinc-200"
+                          >
+                            {bulkRangePreview.mixed}
+                          </span>
+                        </p>
+                        <p>
+                          Titles: {selectedCorrectionRows.filter((row) => row.name).length}/
+                          {selectedCorrectionRows.length} from TMDB
+                          {selectedCorrectionRows.some((row) => !row.name)
+                            ? " · missing titles are flagged, not invented"
+                            : ""}
+                        </p>
+                      </div>
+                    )}
+
+                    {bulkMode && bulkCorrection && !bulkCorrection.ok && (
+                      <p
+                        data-testid="filler-correction-bulk-error"
+                        className="text-[10px] leading-relaxed text-amber-200"
+                      >
+                        {bulkCorrection.message}
+                      </p>
+                    )}
+
+                    <label className="block text-[10px] uppercase tracking-wide text-zinc-500">
+                      Because (optional)
+                      <input
+                        data-testid="filler-correction-reason"
+                        aria-label="Reason"
+                        type="text"
+                        maxLength={600}
+                        value={correctionReason}
+                        onChange={(e) => updateReason(e.target.value)}
+                        placeholder="e.g. episode 12 adapts manga chapters 30-31"
+                        className="mt-1 block w-full min-h-[30px] rounded-md border border-white/10 bg-black/40 px-2 text-[11px] text-zinc-100 placeholder:text-zinc-600 focus:outline-none focus-visible:ring-2 focus-visible:ring-accent-orange/60"
+                      />
+                    </label>
+
+                    <label className="flex items-start gap-2 text-[11px] leading-relaxed text-zinc-300">
+                      <input
+                        data-testid="filler-correction-watched"
+                        type="checkbox"
+                        checked={correctionWatched}
+                        onChange={(e) => updateWatched(e.target.checked)}
+                        className="mt-0.5 accent-accent-orange"
+                      />
+                      <span>
+                        {bulkMode
+                          ? "I watched these episodes (direct viewing). Uncheck if you did not: a clean source is then required."
+                          : "I watched this episode (direct viewing). Uncheck if you did not: a clean source is then required."}
+                      </span>
+                    </label>
+
+                    {!correctionWatched && (
+                      <>
+                        <label className="block text-[10px] uppercase tracking-wide text-zinc-500">
+                          Source (required)
+                          <select
+                            data-testid="filler-correction-source"
+                            aria-label="Source"
+                            value={correctionSource}
+                            onChange={(e) =>
+                              updateSource(e.target.value as FillerCorrectionSource | "")
+                            }
+                            className="mt-1 block w-full min-h-[30px] rounded-md border border-white/10 bg-black/40 px-2 text-[11px] text-zinc-100 focus:outline-none focus-visible:ring-2 focus-visible:ring-accent-orange/60"
+                          >
+                            <option value="" disabled>
+                              Select a source…
+                            </option>
+                            {FILLER_CORRECTION_SOURCES.filter(
+                              (option) => option !== FILLER_CORRECTION_DIRECT_VIEWING,
+                            ).map((option) => (
+                              <option key={option} value={option}>
+                                {option}
+                              </option>
+                            ))}
+                          </select>
+                        </label>
+                        <label className="block text-[10px] uppercase tracking-wide text-zinc-500">
+                          Citation (URL, revision/date, license)
+                          <textarea
+                            data-testid="filler-correction-source-notes"
+                            aria-label="Citation"
+                            rows={2}
+                            maxLength={600}
+                            value={correctionSourceNotes}
+                            onChange={(e) => updateSourceNotes(e.target.value)}
+                            placeholder="https://… — revision/date, license, attribution"
+                            className="mt-1 block w-full rounded-md border border-white/10 bg-black/40 px-2 py-1.5 text-[11px] text-zinc-100 placeholder:text-zinc-600 focus:outline-none focus-visible:ring-2 focus-visible:ring-accent-orange/60"
+                          />
+                        </label>
+                      </>
+                    )}
+
+                    {bulkMode && (
+                      <label className="block text-[10px] uppercase tracking-wide text-zinc-500">
+                        Continued from issue # (only when splitting a large selection)
+                        <input
+                          data-testid="filler-correction-continued-from"
+                          aria-label="Continued from issue number"
+                          type="number"
+                          min={1}
+                          step={1}
+                          inputMode="numeric"
+                          value={continuationDraft}
+                          onChange={(e) => setContinuationDraft(e.target.value)}
+                          placeholder="e.g. 123"
+                          className="mt-1 block w-full min-h-[30px] rounded-md border border-white/10 bg-black/40 px-2 text-[11px] text-zinc-100 placeholder:text-zinc-600 focus:outline-none focus-visible:ring-2 focus-visible:ring-accent-orange/60"
+                        />
+                      </label>
+                    )}
+
+                    <button
+                      type="button"
+                      data-testid="filler-correction-open"
+                      disabled={!correctionUrl}
+                      onClick={openCorrectionIssue}
+                      className="w-full min-h-[32px] rounded-lg border border-accent-orange/60 bg-accent-orange/20 px-3 text-[11px] font-semibold text-zinc-50 hover:bg-accent-orange/30 disabled:opacity-40 disabled:cursor-not-allowed transition-all cursor-pointer active:scale-95 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-accent-orange/60 focus-visible:ring-offset-2 focus-visible:ring-offset-zinc-950"
+                    >
+                      {bulkMode
+                        ? `Open prefilled GitHub issue (${selectedCorrectionRows.length} episodes)`
+                        : "Open prefilled GitHub issue"}
+                    </button>
+                    <p
+                      data-testid="filler-correction-help"
+                      className="text-[10px] leading-relaxed text-zinc-500"
+                    >
+                      {bulkMode
+                        ? "The ranges and the episode titles are compiled from the selection: choose one type, open the prefilled issue, review it and submit it with your own account (two clicks after selecting). Pictorium sends no token and creates nothing automatically."
+                        : "GitHub opens the public add-series issue prefilled. You review and submit with your own account: Pictorium sends no token and creates nothing automatically. Check several episodes in the list to switch to a bulk correction."}
+                    </p>
+                  </div>
+                )}
+              </div>
+            )}
           </section>
 
           {/* RIGHT — source tabs: TMDB variant grid | TVDB single episode cover. */}
@@ -957,6 +1807,9 @@ interface PreviewVideo {
   thumbnail?: string
   released?: string
   rating?: string
+  /** Original TMDB S:E when the visible ordering is remapped (Episode Groups). */
+  stillSeason?: number
+  stillEpisode?: number
 }
 
 interface PreviewSeason {
@@ -1228,6 +2081,8 @@ export function EpisodePreview({
           seriesId={selected.id}
           season={studioEpisode.season}
           episode={studioEpisode.episode}
+          title={selected.title || selected.name || ""}
+          malId={selected.anime_ids?.mal?.[0] ?? null}
           tmdbKey={tmdbKey}
           defaultStill={studioEpisode.defaultStill}
           seasons={data?.seasons ?? []}

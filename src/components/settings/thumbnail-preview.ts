@@ -22,7 +22,7 @@
 import { buildEpisodeThumbnailUrl, sanitizeEpisodeStillPath } from "@/lib/episode-stills"
 import { userFetch } from "@/lib/http"
 import type { DefaultsPreviewDemoMedia } from "@/lib/poster-url"
-import type { ThumbnailBadgeAnchor, ThumbnailBadgeStyle } from "@/lib/contexts/PosterEditorContext"
+import type { ThumbnailBadgeAnchor, ThumbnailBadgeStyle, ThumbnailFillerStyle } from "@/lib/contexts/PosterEditorContext"
 import { getDomain } from "@/lib/utils"
 
 /** Stable public TV sample used as the fallback. */
@@ -62,17 +62,19 @@ export function clampThumbnailBadgeScale(raw: number): number {
 /**
  * Thumbnail vote-badge styles (renderer `bstyle` contract; `naked` = brand mark
  * + score, no container; `score` = bucket-coloured big-score tile, no logo;
- * `dot` = round variant of `score`: same bucket colour + score, no logo).
+ * `circle` = round variant of `score`: same bucket colour + score, no logo).
  */
-export const THUMBNAIL_BADGE_STYLES = ["pill", "bordo", "vetro", "branded", "naked", "score", "dot"] as const
+export const THUMBNAIL_BADGE_STYLES = ["pill", "bordo", "vetro", "branded", "naked", "score", "circle"] as const
 export const DEFAULT_THUMBNAIL_BADGE_STYLE: ThumbnailBadgeStyle = "pill"
 
 export function sanitizeThumbnailBadgeStyle(raw: unknown): ThumbnailBadgeStyle {
   // Same normalization as the renderer parser (`trim` + lowercase): a stored
-  // or queried `" DOT "` resolves to `dot`, invalid values → pill.
+  // or queried `" CIRCLE "` resolves to `circle`, the legacy `dot` id maps to
+  // `circle`, invalid values → pill.
   const value = typeof raw === "string" ? raw.trim().toLowerCase() : raw
-  return (THUMBNAIL_BADGE_STYLES as readonly unknown[]).includes(value)
-    ? (value as ThumbnailBadgeStyle)
+  const canonical = value === "dot" ? "circle" : value
+  return (THUMBNAIL_BADGE_STYLES as readonly unknown[]).includes(canonical)
+    ? (canonical as ThumbnailBadgeStyle)
     : DEFAULT_THUMBNAIL_BADGE_STYLE
 }
 
@@ -98,6 +100,20 @@ export function sanitizeThumbnailVoteSource(raw: unknown): ThumbnailVoteSource {
 /** Corner anchors (renderer `anchor` contract); default top-right. */
 export const THUMBNAIL_BADGE_ANCHORS = ["tl", "tr", "bl", "br"] as const
 export const DEFAULT_THUMBNAIL_BADGE_ANCHOR: ThumbnailBadgeAnchor = "tr"
+
+/**
+ * Filler banner layouts (renderer `fillStyle` contract). `corner` is the
+ * historical compact chip and the default; `strip` is the full-width top plate.
+ */
+export const THUMBNAIL_FILLER_STYLES = ["corner", "strip"] as const
+export const DEFAULT_THUMBNAIL_FILLER_STYLE: ThumbnailFillerStyle = "corner"
+
+export function sanitizeThumbnailFillerStyle(raw: unknown): ThumbnailFillerStyle {
+  const value = typeof raw === "string" ? raw.trim().toLowerCase() : raw
+  return (THUMBNAIL_FILLER_STYLES as readonly unknown[]).includes(value)
+    ? (value as ThumbnailFillerStyle)
+    : DEFAULT_THUMBNAIL_FILLER_STYLE
+}
 
 export function sanitizeThumbnailBadgeAnchor(raw: unknown): ThumbnailBadgeAnchor {
   return (THUMBNAIL_BADGE_ANCHORS as readonly unknown[]).includes(raw)
@@ -125,6 +141,16 @@ export interface ThumbnailPreviewInput {
   badgeScale?: number | null
   /** Master ON = composed badges; OFF = raw still, no /api/thumbnail call. */
   showBadges?: boolean
+  /**
+   * Preview-only sample classification: adds `fill=manga` (+ `flang`) so the
+   * settings editor shows the banner layout. Delivered thumbnails still get
+   * their classification only from `/meta`; an unknown title never shows one.
+   */
+  sampleFiller?: boolean
+  /** Filler banner layout (`fillStyle`; ignored without `sampleFiller`). */
+  fillerStyle?: ThumbnailFillerStyle | null
+  /** Locale of the sample banner label (`flang`; ignored without `sampleFiller`). */
+  fillerLang?: string | null
   /** Poster blur default → thumbnail spoiler blur (`blur=1`). */
   blur?: boolean
   /** Badge master → `both` (vote + custom) or `vote` only when disabled. */
@@ -195,6 +221,16 @@ export async function fetchFirstEpisodeStill(args: {
 }
 
 /**
+ * Display-only locale tag for the sample banner (`flang`): a BCP47-ish tag
+ * only, so a stray value can never grow the preview URL unbounded. Absent =
+ * the route falls back to `Accept-Language` / `en`.
+ */
+function sanitizeFillerPreviewLang(raw: string | null | undefined): string | null {
+  const value = (raw ?? "").trim()
+  return /^[A-Za-z]{2,3}(?:-[A-Za-z0-9]{2,8})*$/.test(value) ? value : null
+}
+
+/**
  * Absolute thumbnail preview URL (same origin). Uses the title's own first
  * still when available; otherwise the stable fallback. Never throws.
  */
@@ -230,5 +266,18 @@ export function buildThumbnailPreviewUrl(input: ThumbnailPreviewInput = {}): str
   const params = [`bstyle=${style}`, `anchor=${anchor}`, `ox=${ox}`, `oy=${oy}`, `bscale=${badgeScale}`, `source=${source}`]
   // OFF is the default: no blur param at all (byte-identical plain still).
   if (input.blur) params.push("blur=1")
+  // Preview-only sample banner: the settings editor shows the strip layout
+  // when the toggle is ON. Real classifications travel only on `/meta` URLs,
+  // so an unclassified title still renders without a banner everywhere else.
+  if (input.sampleFiller === true) {
+    // Explicit manga-canon sample (the historical `canon` code is an alias):
+    // the same green chip, now on the canonical `:flmanga` cache entry.
+    params.push("fill=manga")
+    // Explicit layout (WYSIWYG): a staged `corner` must override a saved
+    // `strip` space default, so the preview never relies on the fallback.
+    params.push(`fillStyle=${sanitizeThumbnailFillerStyle(input.fillerStyle)}`)
+    const flang = sanitizeFillerPreviewLang(input.fillerLang)
+    if (flang) params.push(`flang=${flang}`)
+  }
   return `${getDomain()}${base}&${params.join("&")}`
 }

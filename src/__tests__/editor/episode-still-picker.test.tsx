@@ -111,7 +111,16 @@ interface PreviewPayloadFixture {
   seasons: {
     season: number
     name: string
-    episodes: { id: number; name: string; season: number; episode: number; thumbnail?: string }[]
+    episodes: {
+      id: number
+      name: string
+      season: number
+      episode: number
+      thumbnail?: string
+      /** Original TMDB S:E of a remapped (Episode Group) row. */
+      stillSeason?: number
+      stillEpisode?: number
+    }[]
   }[]
   totalEpisodes: number
   totalSeasons: number
@@ -454,6 +463,48 @@ describe("useEpisodeStills", () => {
     expect(result.current.editor.episodeThumbnailStills).toEqual({ "1:1": "/still-two.jpg" })
     expect(result.current.state.selected).toBe("/still-two.jpg")
   })
+
+  it("fetches a remapped episode by its ORIGINAL TMDB S:E but keys the override by the visible S:E", async () => {
+    // Episode Groups expose the original TMDB numbering: stills must come from
+    // that episode, while the override stays under the visible key `/meta`
+    // applies to the group video.
+    const REMAPPED_STILLS = {
+      id: 270001,
+      stills: [
+        { file_path: "/orig-a.jpg", width: 1920, height: 1080, iso_639_1: "en", vote_average: 7.1 },
+        { file_path: "/orig-b.jpg", width: 1920, height: 1080, iso_639_1: null, vote_average: 0 },
+      ],
+    }
+    const fetchMock = mockFetch({ "2:7": REMAPPED_STILLS })
+    const wrapper = createWrapper()
+    const { result } = renderHook(() => ({
+      state: useEpisodeStills({
+        seriesId: SERIES_ID,
+        season: 3,
+        episode: 1,
+        stillSeason: 2,
+        stillEpisode: 7,
+        tmdbKey: "test-key",
+      }),
+      editor: usePosterEditor(),
+    }), { wrapper })
+
+    await waitFor(() => expect(result.current.state.stills).toHaveLength(2))
+    expect(result.current.state.stills.map((s) => s.file_path)).toEqual(["/orig-a.jpg", "/orig-b.jpg"])
+    const imageCall = fetchMock.mock.calls
+      .map(([url]) => String(url))
+      .find((url) => url.includes("/images"))
+    expect(imageCall).toContain(`/api/tmdb/${SERIES_ID}/season/2/episode/7/images`)
+
+    act(() => {
+      result.current.state.select("/orig-b.jpg")
+    })
+    expect(result.current.editor.episodeThumbnailStills).toEqual({ "3:1": "/orig-b.jpg" })
+    // The composed preview stays the visible episode's request (same as /meta).
+    expect(result.current.state.previewUrl).toBe(
+      `/api/thumbnail/tv/${SERIES_ID}/season/3/episode/1?still=%2Forig-b.jpg&w=320&badges=both&bstyle=pill&anchor=tr&ox=0&oy=0&bscale=100&source=imdb`,
+    )
+  })
 })
 
 describe("EpisodePreview still studio", () => {
@@ -540,6 +591,9 @@ describe("EpisodePreview still studio", () => {
         </button>
         <button type="button" data-testid="knob-anizip-order" onClick={() => ed.setEpisodeGroupId("anizip")}>
           anizip ordering
+        </button>
+        <button type="button" data-testid="knob-group-order" onClick={() => ed.setEpisodeGroupId("remap-group")}>
+          group ordering
         </button>
       </>
     )
@@ -755,8 +809,9 @@ describe("EpisodePreview still studio", () => {
   })
 
   it("still opens the studio for non-standard episode ordering, with an honest numbering note", async () => {
-    // TVDB/AniZip/Parts ordering resolves TMDB stills by standard S:E: the
-    // button must never be dead (click no-op); the caveat lives in the studio.
+    // TVDB/AniZip orderings expose no original TMDB S:E: stills resolve by the
+    // standard version of the same visible numbers, so the caveat stays. The
+    // button must never be dead (click no-op); the note lives in the studio.
     const fetchMock = mockFetch()
     renderWithCtx(
       <>
@@ -781,6 +836,58 @@ describe("EpisodePreview still studio", () => {
     const dialog = await screen.findByTestId("episode-browser-dialog")
     expect(within(dialog).getByTestId("episode-studio-numbering-note")).toBeInTheDocument()
     expect(expand).toHaveAttribute("aria-expanded", "true")
+  })
+
+  it("uses the original TMDB S:E for Episode Group stills and hides the numbering note", async () => {
+    // Episode Groups carry the original TMDB season/episode of each remapped
+    // row: stills come from that episode, so the caveat no longer applies.
+    const REMAPPED_STILLS = {
+      id: 280001,
+      stills: [{ file_path: "/orig-part.jpg", width: 1920, height: 1080, iso_639_1: "en", vote_average: 8 }],
+    }
+    const remappedPayload = {
+      videos: [],
+      seasons: [
+        {
+          season: 1,
+          name: "Parte 1",
+          episodes: [
+            { id: 7001, name: "Episodio 1", season: 1, episode: 1, stillSeason: 4, stillEpisode: 12 },
+          ],
+        },
+      ],
+      totalEpisodes: 1,
+      totalSeasons: 1,
+    }
+    const fetchMock = mockFetch({ "4:12": REMAPPED_STILLS }, remappedPayload)
+    renderWithCtx(
+      <>
+        <EpisodePreview />
+        <EditorKnobs />
+      </>,
+      { selected: selectedSeries(), tmdbKey: "test-key" },
+    )
+
+    await screen.findByTestId("episode-studio-entry")
+    act(() => {
+      fireEvent.click(screen.getByTestId("knob-group-order"))
+    })
+    await settlePreviewFetch(fetchMock, 2)
+
+    const dialog = await openEpisodeBrowser()
+    expect(within(dialog).queryByTestId("episode-studio-numbering-note")).toBeNull()
+
+    // The left grid's first-still fallback asks TMDB for the ORIGINAL episode
+    // (4:12), never the visible 1:1.
+    await waitFor(() => {
+      const row = within(dialog).getAllByTestId("episode-browser-episode")[0]
+      expect(within(row).getByTestId("episode-row-thumb").getAttribute("src")).toBe(
+        "https://image.tmdb.org/t/p/w185/orig-part.jpg",
+      )
+    })
+    const imageUrls = fetchMock.mock.calls.map(([url]) => String(url))
+    expect(imageUrls.some((url) => url.includes(`/api/tmdb/${SERIES_ID}/season/4/episode/12/images`))).toBe(true)
+    expect(imageUrls.some((url) => url.includes(`/api/tmdb/${SERIES_ID}/season/1/episode/1/images`))).toBe(false)
   })
 
   it("renders the empty state only when the series truly has no seasons", async () => {

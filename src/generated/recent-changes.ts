@@ -11,6 +11,7 @@ export interface RecentChange {
 }
 
 export const RECENT_CHANGES: RecentChange[] = [
+  { type: "fix", text: "Show blue Absolute Cinema badge from 9.7 on thumbnails", sha: "8b9c679", date: "2026-11-06" },
   { type: "feature", text: "Add round Dot vote badge for episode thumbnails", sha: "7e164db", date: "2026-11-06" },
   { type: "perf", text: "harden render pipeline under load (sharp auto, fail-fast, keepalive)", sha: "777f48d", date: "2026-11-06" },
   { type: "fix", text: "Keep unsaved editor edits, drag handles and card badges correct", sha: "baee8fe", date: "2026-11-06" },

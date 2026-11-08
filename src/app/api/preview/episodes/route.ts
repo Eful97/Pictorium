@@ -12,7 +12,7 @@ import {
   evictTVSeasonCache,
 } from "@/lib/tmdb"
 import { enrichVideosWithTvdbDetailed } from "@/lib/tvdb"
-import { buildVideosFromAnizip, buildVideosFromGroups, buildVideosFromTvdbDetailed, concurrentMap, isSeasonEpisodesComplete, resolveSeasonNumbers, seasonNumberForGroup } from "@/lib/episode-ordering"
+import { buildVideosFromAnizip, buildVideosFromGroupsDetailed, buildVideosFromTvdbDetailed, concurrentMap, isSeasonEpisodesComplete, resolveSeasonNumbers, seasonNumberForGroup } from "@/lib/episode-ordering"
 import { groupDetailsEpisodeCount, groupDetailsRegularEpisodeCount, resolveDefaultEpisodeGroupId } from "@/lib/episode-group-default"
 import { combineAbortSignals } from "@/lib/abort-signal"
 
@@ -27,6 +27,25 @@ interface PreviewVideo {
   thumbnail?: string
   released?: string
   rating?: string
+  /**
+   * ORIGINAL TMDB S:E of this episode when the visible ordering is remapped
+   * (Episode Groups): the stills endpoint only knows standard numbering, so the
+   * picker must fetch with these while saving the override under the visible
+   * `season:episode` key (`/meta` applies it to this same video).
+   */
+  stillSeason?: number
+  stillEpisode?: number
+}
+
+/** Attach the original TMDB still numbering (when the group payload has it). */
+function withStillSources(
+  built: ReturnType<typeof buildVideosFromGroupsDetailed>,
+): PreviewVideo[] {
+  return built.videos.map((video) => {
+    const source = built.stillSources.get(video.id)
+    const row = video as unknown as PreviewVideo
+    return source ? { ...row, stillSeason: source.season, stillEpisode: source.episode } : row
+  })
 }
 
 function hashFragment(value: string): string {
@@ -142,7 +161,7 @@ export async function GET(req: NextRequest) {
     }
 
     if (groupDetails?.groups && groupDetails.groups.length > 0) {
-      videos.push(...(buildVideosFromGroups(groupDetails, primaryId) as unknown as PreviewVideo[]))
+      videos.push(...withStillSources(buildVideosFromGroupsDetailed(groupDetails, primaryId)))
     }
     // true se i videos seguono un Episode Group (esplicito o automatico):
     // vedi meta-handler, l'arricchimento TVDB su S:E standard misallineerebbe.
@@ -174,7 +193,7 @@ export async function GET(req: NextRequest) {
               countMatches
             ) {
               groupDetails = autoDetails
-              videos.push(...(buildVideosFromGroups(autoDetails, primaryId) as unknown as PreviewVideo[]))
+              videos.push(...withStillSources(buildVideosFromGroupsDetailed(autoDetails, primaryId)))
               videosFromGroup = true
               autoDefault = { groupId: autoId, name: autoDetails.name || autoId }
             }

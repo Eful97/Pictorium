@@ -229,7 +229,13 @@ export const configTokenSchema = z.object({
   // Miniature visual choices (meta-only, flat): persisted so /meta composited
   // URLs match the settings preview. Absent/invalid = renderer defaults
   // (pill / tr / 0 / 0 / no blur / imdb); bounds re-checked at every read.
-  thumbnailBadgeStyle: z.enum(["pill", "bordo", "vetro", "branded", "naked", "score"]).optional(),
+  thumbnailBadgeStyle: z
+    .enum(["pill", "bordo", "vetro", "branded", "naked", "score", "circle", "dot"])
+    // Backward-compatible alias: the retired `dot` id (round score badge) is
+    // normalized to the canonical `circle`, so old config tokens keep working
+    // without ever persisting the legacy value.
+    .transform((v) => (v === "dot" ? "circle" : v))
+    .optional(),
   thumbnailAnchor: z.enum(["tl", "tr", "bl", "br"]).optional(),
   thumbnailOffsetX: z.number().min(-2000).max(2000).optional(),
   thumbnailOffsetY: z.number().min(-2000).max(2000).optional(),
@@ -239,6 +245,13 @@ export const configTokenSchema = z.object({
   // Daily episode-thumbnail still rotation (meta-only, flat). Absent = OFF:
   // /meta keeps the historical fixed still and byte-identical bodies.
   thumbnailRotation: z.boolean().optional(),
+  // Anime filler classification banner (meta-only, flat): absent = OFF and the
+  // compositor URL stays byte-identical. The emitted `fill=` code is explicit,
+  // so the image request is self-contained even for token-only spaces.
+  thumbnailFillerBadge: z.boolean().optional(),
+  // Layout of the filler banner (meta-only, flat): `corner` is the historical
+  // compact chip and also the absent default; `strip` is the full-width plate.
+  thumbnailFillerStyle: z.enum(["corner", "strip"]).optional(),
   hubMode: z.enum(["all", "catalogs", "search"]).optional(),
   // Regione classifiche (codice JW "IT"/"US"... o slug FlixPatrol): validazione
   // lasca di proposito, la normalizzazione fail-closed avviene in risoluzione.

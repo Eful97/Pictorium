@@ -295,7 +295,7 @@ function thumbParams() {
 function cacheKey(overrides: {
   width?: 160 | 320 | 480 | 640 | 768 | 1280
   badges?: "both" | "vote" | "custom"
-  badgeStyle?: "pill" | "bordo" | "vetro" | "branded" | "naked"
+  badgeStyle?: "pill" | "bordo" | "vetro" | "branded" | "naked" | "score" | "circle"
   anchor?: "tl" | "tr" | "bl" | "br"
   offsetX?: number
   offsetY?: number
@@ -305,6 +305,8 @@ function cacheKey(overrides: {
   still?: string
   source?: "tmdb" | "imdb"
   rotationBucket?: number
+  fill?: "manga" | "anime" | "filler" | "mixed"
+  fillerLang?: string
 } = {}) {
   return thumbnailCacheKey({
     seriesId: SERIES,
@@ -323,6 +325,8 @@ function cacheKey(overrides: {
     // The cache-key default mirrors the route default: absent = imdb.
     voteSource: overrides.source ?? "imdb",
     rotationBucket: overrides.rotationBucket,
+    filler: overrides.fill,
+    fillerLang: overrides.fillerLang,
   })
 }
 
@@ -365,6 +369,13 @@ interface BrightBbox {
   readonly top: number
   readonly right: number
   readonly bottom: number
+}
+
+/** RGB of one pixel of a PNG (used by the filler banner assertions). */
+async function pixelAt(png: Buffer, x: number, y: number): Promise<{ r: number; g: number; b: number }> {
+  const { data, info } = await sharp(png).raw().toBuffer({ resolveWithObject: true })
+  const offset = (Math.round(y) * info.width + Math.round(x)) * info.channels
+  return { r: data[offset], g: data[offset + 1], b: data[offset + 2] }
 }
 
 /**
@@ -886,6 +897,123 @@ describe("GET /api/thumbnail/tv/[id]/season/[season]/episode/[episode]", () => {
     // Cache identity: naked is `bsnaked`, distinct from the default pill entry.
     expect(cacheGet(cacheKey({ badges: "vote", badgeStyle: "naked", source: "tmdb" }))).not.toBeNull()
     expect(cacheGet(cacheKey({ badges: "vote", source: "tmdb" }))).toBeNull()
+  })
+
+  it("aliases the legacy bstyle=dot id to circle (same bytes, one circle cache entry)", async () => {
+    mockUpstream()
+
+    const circleRes = await GET(
+      thumbRequest(`?still=${encodeURIComponent(STILL)}&w=320&badges=vote&bstyle=circle&source=tmdb`),
+      thumbParams(),
+    )
+    expect(circleRes.status).toBe(200)
+    const circleBuf = Buffer.from(await circleRes.arrayBuffer())
+
+    // Legacy `dot` still renders: 200 and byte-identical to the canonical id
+    // (both resolve to `circle`, so this is a cache hit, not a second render).
+    const dotRes = await GET(
+      thumbRequest(`?still=${encodeURIComponent(STILL)}&w=320&badges=vote&bstyle=dot&source=tmdb`),
+      thumbParams(),
+    )
+    expect(dotRes.status).toBe(200)
+    expect(Buffer.from(await dotRes.arrayBuffer()).equals(circleBuf)).toBe(true)
+
+    // Canonical `bscircle` identity, distinct from score and from the pill entry.
+    expect(cacheGet(cacheKey({ badges: "vote", badgeStyle: "circle", source: "tmdb" }))).not.toBeNull()
+    expect(cacheGet(cacheKey({ badges: "vote", source: "tmdb" }))).toBeNull()
+
+    // Invalid ids are still rejected with a 400.
+    const invalid = await GET(
+      thumbRequest(`?still=${encodeURIComponent(STILL)}&w=320&badges=vote&bstyle=nope&source=tmdb`),
+      thumbParams(),
+    )
+    expect(invalid.status).toBe(400)
+  })
+
+  it("rejects an explicit unknown fill with 400 before any upstream call", async () => {
+    const fetchSpy = mockUpstream()
+    for (const value of ["nope", "canonical", "true", "0"]) {
+      const res = await GET(
+        thumbRequest(`?still=${encodeURIComponent(STILL)}&badges=vote&source=tmdb&fill=${value}`),
+        thumbParams(),
+      )
+      expect(res.status, value).toBe(400)
+    }
+    expect(fetchSpy).not.toHaveBeenCalled()
+    expect(cacheGet(cacheKey({ badges: "vote", source: "tmdb" }))).toBeNull()
+  })
+
+  it("draws the filler banner on fill=manga (canon alias) and scopes status + locale in the cache key", async () => {
+    mockUpstream()
+
+    // Legacy `canon` alias: accepted and normalized to the manga-canon entry.
+    const banner = await GET(
+      thumbRequest(`?still=${encodeURIComponent(STILL)}&badges=vote&source=tmdb&fill=canon&flang=it`),
+      thumbParams(),
+    )
+    expect(banner.status).toBe(200)
+    const bannerBuffer = Buffer.from(await banner.arrayBuffer())
+
+    // Manga-canon status accent (green, same hex as the historical canon) on
+    // the top-left corner chip @320: the chip plate is really composited there,
+    // not just a different encode.
+    const accent = await pixelAt(bannerBuffer, 13, 22)
+    expect(accent.g).toBeGreaterThan(accent.r)
+    expect(accent.g).toBeGreaterThan(accent.b)
+
+    // The alias and the explicit code are the SAME representation and the
+    // SAME cache entry (`:flmanga`), never a duplicate `:flcanon`.
+    const explicit = await GET(
+      thumbRequest(`?still=${encodeURIComponent(STILL)}&badges=vote&source=tmdb&fill=manga&flang=it`),
+      thumbParams(),
+    )
+    expect(Buffer.from(await explicit.arrayBuffer()).equals(bannerBuffer)).toBe(true)
+
+    // Distinct representation: the banner entry is NOT the historical one.
+    expect(cacheGet(cacheKey({ badges: "vote", source: "tmdb", fill: "manga", fillerLang: "it" }))).not.toBeNull()
+    expect(cacheGet(cacheKey({ badges: "vote", source: "tmdb" }))).toBeNull()
+
+    // The label locale is part of the identity too (the dictionaries are
+    // mocked to Italian in this suite, so only the KEY is asserted here): an
+    // `en` request never reuses the `it` chip.
+    cacheClear()
+    const english = await GET(
+      thumbRequest(`?still=${encodeURIComponent(STILL)}&badges=vote&source=tmdb&fill=manga&flang=en`),
+      thumbParams(),
+    )
+    expect(english.status).toBe(200)
+    expect(cacheGet(cacheKey({ badges: "vote", source: "tmdb", fill: "manga", fillerLang: "en" }))).not.toBeNull()
+    expect(cacheGet(cacheKey({ badges: "vote", source: "tmdb", fill: "manga", fillerLang: "it" }))).toBeNull()
+
+    // Without the parameter the historical entries are the ones written.
+    cacheClear()
+    const plain = await GET(
+      thumbRequest(`?still=${encodeURIComponent(STILL)}&badges=vote&source=tmdb`),
+      thumbParams(),
+    )
+    expect(plain.status).toBe(200)
+    expect(Buffer.from(await plain.arrayBuffer()).equals(bannerBuffer)).toBe(false)
+    expect(cacheGet(cacheKey({ badges: "vote", source: "tmdb" }))).not.toBeNull()
+  })
+
+  it("treats a blank fill as absent: historical bytes and historical cache entry", async () => {
+    mockUpstream()
+
+    const base = await GET(
+      thumbRequest(`?still=${encodeURIComponent(STILL)}&badges=vote&source=tmdb`),
+      thumbParams(),
+    )
+    expect(base.status).toBe(200)
+    const baseBuffer = Buffer.from(await base.arrayBuffer())
+
+    cacheClear()
+    const blank = await GET(
+      thumbRequest(`?still=${encodeURIComponent(STILL)}&badges=vote&source=tmdb&fill=`),
+      thumbParams(),
+    )
+    expect(blank.status).toBe(200)
+    expect(Buffer.from(await blank.arrayBuffer()).equals(baseBuffer)).toBe(true)
+    expect(cacheGet(cacheKey({ badges: "vote", source: "tmdb" }))).not.toBeNull()
   })
 
   it("renders a 1280x720 PNG from the high-res still source with fitted pills", async () => {

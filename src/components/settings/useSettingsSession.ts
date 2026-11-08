@@ -657,6 +657,8 @@ export function useSettingsSession(): SettingsSessionResult {
       setThumbnailBlurEnabled,
       setThumbnailVoteSource,
       setDefaultThumbnailRotation: makeSimpleSetter(updateSession, "defaultThumbnailRotation"),
+      setDefaultThumbnailFillerBadge: makeSimpleSetter(updateSession, "defaultThumbnailFillerBadge"),
+      setDefaultThumbnailFillerStyle: makeSimpleSetter(updateSession, "defaultThumbnailFillerStyle"),
       setDefaultBlurEnabled: makeSimpleSetter(updateSession, "defaultBlurEnabled"),
       setDefaultBlurIntensity: makeSimpleSetter(updateSession, "defaultBlurIntensity"),
       setDefaultTintStrength: makeSimpleSetter(updateSession, "defaultTintStrength"),

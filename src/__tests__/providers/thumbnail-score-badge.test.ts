@@ -72,7 +72,7 @@ function mockStill(buffer: Buffer = darkStill) {
   })
 }
 
-function keyInput(badgeStyle?: "pill" | "naked" | "score") {
+function keyInput(badgeStyle?: "pill" | "naked" | "score" | "circle") {
   return {
     seriesId: 123,
     seasonNumber: 1,
@@ -301,5 +301,20 @@ describe("thumbnail score identity", () => {
       badgesEnabled: true,
     })
     expect(url).toContain("bstyle=score")
+  })
+
+  it("exposes the round variant as canonical circle with a legacy dot alias", () => {
+    expect(parseThumbnailBadgeStyle("circle")).toBe("circle")
+    expect(parseThumbnailBadgeStyle(" CIRCLE ")).toBe("circle")
+    // Backward-compatible alias: the retired id resolves to circle, never pill.
+    expect(parseThumbnailBadgeStyle(" DOT ")).toBe("circle")
+    // Invalid values still fail closed (route rejects them with 400).
+    expect(parseThumbnailBadgeStyle("nope")).toBeNull()
+
+    const circle = thumbnailCacheKey(keyInput("circle"))
+    expect(circle).toContain(":bscircle:")
+    expect(circle).not.toBe(thumbnailCacheKey(keyInput("score")))
+    // One identity only: a legacy `dot` request resolves to the same key.
+    expect(thumbnailCacheKey(keyInput(parseThumbnailBadgeStyle("dot") as "circle"))).toBe(circle)
   })
 })

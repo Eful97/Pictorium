@@ -21,6 +21,7 @@ import {
   THUMBNAIL_PREVIEW_DEMO_SERIES_ID,
   THUMBNAIL_PREVIEW_SAMPLE_STILL,
   THUMBNAIL_PREVIEW_WIDTH,
+  sanitizeThumbnailBadgeStyle,
 } from "@/components/settings/thumbnail-preview"
 
 vi.mock("next/navigation", () => ({
@@ -256,6 +257,52 @@ describe("settings format target: thumbnail", () => {
     expect(lastOpenedUrl()).toContain("image.tmdb.org/t/p/w780")
   })
 
+  it("filler banner toggle adds a preview-only sample strip and clears it OFF", async () => {
+    mountPanel()
+    await openBadgeTab()
+    fireEvent.click(screen.getByTestId("format-target-thumbnail"))
+    await settle()
+    await enableThumbnailBadges()
+
+    const row = screen.getByTestId("thumbnail-control-filler-badge")
+    const fillerSwitch = within(row).getByRole("switch")
+    // Default OFF: no sample banner on the compositor URL.
+    expect(fillerSwitch).toHaveAttribute("aria-checked", "false")
+    expect(paramsOf(lastThumbnailUrl()!).has("fill")).toBe(false)
+
+    // ON: the settings editor shows the sample (preview-only, language-neutral
+    // `manga` + the current UI locale for its label), with the explicit staged
+    // layout (WYSIWYG; corner is the default).
+    fireEvent.click(fillerSwitch)
+    await settle()
+    expect(fillerSwitch).toHaveAttribute("aria-checked", "true")
+    const params = paramsOf(lastThumbnailUrl()!)
+    expect(params.get("fill")).toBe("manga")
+    expect(params.get("flang")).toBe("it")
+    expect(params.get("fillStyle")).toBe("corner")
+
+    // Layout selector: strip is reflected in the session and on the URL.
+    const styleSelect = screen.getByTestId("thumbnail-filler-style-select")
+    expect(within(styleSelect).getAllByRole("option")).toHaveLength(2)
+    fireEvent.change(styleSelect, { target: { value: "strip" } })
+    await settle()
+    expect(styleSelect).toHaveValue("strip")
+    expect(paramsOf(lastThumbnailUrl()!).get("fillStyle")).toBe("strip")
+
+    // Back to corner: explicit, so a saved strip default can never win.
+    fireEvent.change(styleSelect, { target: { value: "corner" } })
+    await settle()
+    expect(styleSelect).toHaveValue("corner")
+    expect(paramsOf(lastThumbnailUrl()!).get("fillStyle")).toBe("corner")
+
+    // OFF again: no `fill`/`flang`/`fillStyle` at all (historical preview URL).
+    fireEvent.click(fillerSwitch)
+    await settle()
+    expect(paramsOf(lastThumbnailUrl()!).has("fill")).toBe(false)
+    expect(paramsOf(lastThumbnailUrl()!).has("flang")).toBe(false)
+    expect(paramsOf(lastThumbnailUrl()!).has("fillStyle")).toBe(false)
+  })
+
   it("position presets anchor each corner; manual X/Y becomes custom", async () => {
     mountPanel()
     await openBadgeTab()
@@ -288,7 +335,7 @@ describe("settings format target: thumbnail", () => {
     expect(screen.getByTestId("thumbnail-position-hint")).toHaveTextContent(/Trascina/)
   })
 
-  it("shows only the six thumbnail controls and restores poster panels", async () => {
+  it("shows only the seven thumbnail controls and restores poster panels", async () => {
     mountPanel()
     await openBadgeTab()
     fireEvent.click(screen.getByTestId("format-target-thumbnail"))
@@ -300,13 +347,15 @@ describe("settings format target: thumbnail", () => {
     for (const id of [
       "badge-style",
       "provider",
+      "filler-badge",
+      "filler-style",
       "blur",
       "episode-thumbnails",
       "position",
     ]) {
       expect(screen.getByTestId(`thumbnail-control-${id}`)).toBeVisible()
     }
-    expect(within(section).getAllByTestId(/^thumbnail-control-/)).toHaveLength(5)
+    expect(within(section).getAllByTestId(/^thumbnail-control-/)).toHaveLength(7)
     // Scale is locked to the standard 100: no scale control for thumbnails.
     expect(THUMBNAIL_BADGE_SCALE).toBe(100)
     expect(within(section).queryByText("ui.scale")).toBeNull()
@@ -331,9 +380,11 @@ describe("settings format target: thumbnail", () => {
     expect(paramsOf(lastThumbnailUrl()!).get("w")).toBe("320")
     expect(paramsOf(lastThumbnailUrl()!).has("scale")).toBe(false)
 
-    // Style selector carries bstyle (pill/bordo/vetro/branded/naked/score/dot).
+    // Style selector carries bstyle (pill/bordo/vetro/branded/naked/score/circle).
     const styleSelect = screen.getByTestId("thumbnail-badge-style-select")
     expect(within(styleSelect).getAllByRole("option")).toHaveLength(7)
+    expect(styleSelect.querySelector('option[value="dot"]')).toBeNull()
+    expect(styleSelect.querySelector('option[value="circle"]')).not.toBeNull()
     fireEvent.change(styleSelect, { target: { value: "bordo" } })
     await settle()
     expect(paramsOf(lastThumbnailUrl()!).get("bstyle")).toBe("bordo")
@@ -349,9 +400,14 @@ describe("settings format target: thumbnail", () => {
     fireEvent.change(styleSelect, { target: { value: "score" } })
     await settle()
     expect(paramsOf(lastThumbnailUrl()!).get("bstyle")).toBe("score")
-    fireEvent.change(styleSelect, { target: { value: "dot" } })
+    fireEvent.change(styleSelect, { target: { value: "circle" } })
     await settle()
-    expect(paramsOf(lastThumbnailUrl()!).get("bstyle")).toBe("dot")
+    expect(paramsOf(lastThumbnailUrl()!).get("bstyle")).toBe("circle")
+    // Legacy id alias: the retired `dot` value still resolves to `circle` in
+    // the client sanitizer (renderer parser does the same), so old stored
+    // spaces/URLs keep the round badge instead of falling back to pill.
+    expect(sanitizeThumbnailBadgeStyle("dot")).toBe("circle")
+    expect(sanitizeThumbnailBadgeStyle(" CIRCLE ")).toBe("circle")
 
     // Transform tab: poster geometry is hidden, thumbnail controls stay.
     fireEvent.click(screen.getByRole("tab", { name: "ui.settingsTabTransform" }))

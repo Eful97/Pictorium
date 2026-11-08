@@ -44,12 +44,22 @@ export function seasonNumberForGroup(
 /**
  * Costruisce i video Stremio da un Episode Group TMDB.
  * Condivisa tra meta-handler e preview per WYSIWYG sync.
+ *
+ * Oltre ai video restituisce, per id video, la coppia `season_number` /
+ * `episode_number` ORIGINALE dell'episodio TMDB: la S:E visibile è rimappata
+ * dal gruppo e non è la numerazione che conosce l'endpoint degli still, quindi
+ * il picker deve chiedere le immagini con la coppia originale pur salvando
+ * l'override sotto la chiave visibile (quella che `/meta` applica al video).
  */
-export function buildVideosFromGroups(
+export function buildVideosFromGroupsDetailed(
   groupDetails: TMDBEpisodeGroupDetails,
   primaryId: string
-): PreviewVideo[] {
+): {
+  videos: PreviewVideo[]
+  stillSources: Map<string, { season: number; episode: number }>
+} {
   const videos: PreviewVideo[] = []
+  const stillSources = new Map<string, { season: number; episode: number }>()
   const nonEmpty = groupDetails.groups.filter((g) => g.episodes && g.episodes.length > 0)
   const groupsForMeta = nonEmpty.length > 0 ? nonEmpty : groupDetails.groups
   const { sorted, hasZero, hasSpecials } = resolveSeasonNumbers(groupsForMeta)
@@ -61,8 +71,9 @@ export function buildVideosFromGroups(
     for (let epIdx = 0; epIdx < sortedEps.length; epIdx++) {
       const ep = sortedEps[epIdx]
       const episodeNumber = typeof ep.order === "number" ? ep.order + 1 : epIdx + 1
+      const id = `${primaryId}:${seasonNumber}:${episodeNumber}`
       videos.push({
-        id: `${primaryId}:${seasonNumber}:${episodeNumber}`,
+        id,
         name: ep.name || `Episodio ${episodeNumber}`,
         season: seasonNumber,
         episode: episodeNumber,
@@ -71,9 +82,21 @@ export function buildVideosFromGroups(
         released: ep.air_date ? `${ep.air_date}T00:00:00.000Z` : undefined,
         rating: ep.vote_average ? ep.vote_average.toFixed(1) : undefined,
       })
+      // Only when TMDB actually returned the original numbering (the schema
+      // keeps it optional): otherwise the row keeps resolving by visible S:E.
+      if (typeof ep.season_number === "number" && typeof ep.episode_number === "number") {
+        stillSources.set(id, { season: ep.season_number, episode: ep.episode_number })
+      }
     }
   }
-  return videos
+  return { videos, stillSources }
+}
+
+export function buildVideosFromGroups(
+  groupDetails: TMDBEpisodeGroupDetails,
+  primaryId: string
+): PreviewVideo[] {
+  return buildVideosFromGroupsDetailed(groupDetails, primaryId).videos
 }
 
 /**

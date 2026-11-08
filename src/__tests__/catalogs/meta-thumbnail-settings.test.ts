@@ -250,6 +250,28 @@ describe("meta Miniature settings (persisted WYSIWYG)", () => {
     expect(cacheKeys.get.at(-1)).toContain(":tbscore")
   })
 
+  it("normalizes a stored legacy dot style to the canonical circle", async () => {
+    defaultsCtl.value = {
+      episodeThumbnails: true,
+      thumbnailBadgeStyle: "dot",
+      thumbnailAnchor: "tr",
+      thumbnailOffsetX: 0,
+      thumbnailOffsetY: 0,
+      thumbnailBadgeScale: 100,
+      thumbnailBlur: false,
+      thumbnailVoteSource: "imdb",
+    }
+    mockSeries()
+
+    const { body } = await getMeta()
+    const meta = paramsOf(body.meta.videos![0].thumbnail!)
+
+    // Retired id alias: never a pill fallback, and the meta cache identity is
+    // the canonical circle one (a stale pill/dot body can never be served).
+    expect(meta.get("bstyle")).toBe("circle")
+    expect(cacheKeys.get.at(-1)).toContain(":tbcircle")
+  })
+
   it("fresh defaults = pill / tr / 0 / 0 / no blur / imdb", async () => {
     defaultsCtl.value = { episodeThumbnails: true }
     mockSeries()

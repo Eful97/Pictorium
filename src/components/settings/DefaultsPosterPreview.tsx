@@ -439,6 +439,12 @@ export function DefaultsPosterPreview({ compact, floating, suspended, previewSha
             showBadges: ed.defaultEpisodeThumbnails,
             blur: ed.thumbnailBlurEnabled,
             voteSource: ed.thumbnailVoteSource,
+            // Preview-only sample banner: the toggle shows the strip layout
+            // even though the sample title may not be classified. Delivered
+            // thumbnails keep `fill=` resolved by `/meta` only.
+            sampleFiller: ed.defaultThumbnailFillerBadge,
+            fillerStyle: ed.defaultThumbnailFillerStyle,
+            fillerLang: lang,
             // Same badge mode /meta emits (`both`): the thumbnail compositor is
             // independent from the poster `globalBadges` master, so deriving it
             // from that master made the preview drift (custom pill dropped).
@@ -533,6 +539,8 @@ export function DefaultsPosterPreview({ compact, floating, suspended, previewSha
     previewShape,
     isThumbnail,
     resolvedThumbnailStill,
+    ed.defaultThumbnailFillerBadge,
+    ed.defaultThumbnailFillerStyle,
     previewFamily,
     retryNonce,
     ed,

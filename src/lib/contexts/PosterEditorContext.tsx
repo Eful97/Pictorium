@@ -48,13 +48,16 @@ import type { ActivePresetBaseline, ActivePresetMeta } from "@/lib/active-preset
 export type EditTargetShape = "portrait" | "landscape" | "thumbnail"
 
 /** Thumbnail vote-badge style (mirrors the renderer `bstyle` contract). */
-export type ThumbnailBadgeStyle = "pill" | "bordo" | "vetro" | "branded" | "naked" | "score" | "dot"
+export type ThumbnailBadgeStyle = "pill" | "bordo" | "vetro" | "branded" | "naked" | "score" | "circle"
 
 /** Thumbnail badge-stack corner anchor (renderer `anchor` contract). */
 export type ThumbnailBadgeAnchor = "tl" | "tr" | "bl" | "br"
 
 /** Thumbnail ★ vote source (mirrors the renderer `source` contract; default IMDb). */
 export type ThumbnailVoteSource = "imdb" | "tmdb"
+
+/** Filler banner layout (mirrors the renderer `fillStyle` contract; default corner). */
+export type ThumbnailFillerStyle = "corner" | "strip"
 
 export interface LandscapeBlurState {
   gradientHeight: number
@@ -230,7 +233,7 @@ export interface PosterEditorCtx {
   editTargetShape: EditTargetShape
   setEditTargetShape: (v: EditTargetShape | ((prev: EditTargetShape) => EditTargetShape)) => void
   /**
-   * Thumbnail vote-badge style (pill/bordo/vetro/branded/naked). Persisted as a flat
+   * Thumbnail vote-badge style (pill/bordo/vetro/branded/naked/score/circle). Persisted as a flat
    * space default (`thumbnailBadgeStyle`) so Stremio `/meta` matches the
    * settings preview; never a poster render param.
    */
@@ -295,6 +298,12 @@ export interface PosterEditorCtx {
   /** Miniature daily still rotation (`rotate`; default OFF). */
   defaultThumbnailRotation: boolean
   setDefaultThumbnailRotation: (v: boolean | ((prev: boolean) => boolean)) => void
+  /** Anime filler classification banner on episode thumbnails (`fill=`; default OFF). */
+  defaultThumbnailFillerBadge: boolean
+  setDefaultThumbnailFillerBadge: (v: boolean | ((prev: boolean) => boolean)) => void
+  /** Layout of the filler banner (`fillStyle`; default `corner`). */
+  defaultThumbnailFillerStyle: ThumbnailFillerStyle
+  setDefaultThumbnailFillerStyle: (v: ThumbnailFillerStyle | ((prev: ThumbnailFillerStyle) => ThumbnailFillerStyle)) => void
   defaultBlurEnabled: boolean
   setDefaultBlurEnabled: (v: boolean | ((prev: boolean) => boolean)) => void
   defaultBlurIntensity: number
@@ -885,6 +894,8 @@ export function PosterEditorProvider({
     defaultThumbnailBlur,
     defaultThumbnailVoteSource,
     defaultThumbnailRotation,
+    defaultThumbnailFillerBadge,
+    defaultThumbnailFillerStyle,
     region, defaultRegion, defaultDateFormat,
     loadDefaultsToState, update,
   } = defaults
@@ -943,6 +954,16 @@ export function PosterEditorProvider({
       const next = typeof v === "function" ? v(defaultThumbnailRotation) : v
       update({ defaultThumbnailRotation: next })
     }, [defaultThumbnailRotation, update])
+  const setDefaultThumbnailFillerBadge = useCallback(
+    (v: boolean | ((prev: boolean) => boolean)) => {
+      const next = typeof v === "function" ? v(defaultThumbnailFillerBadge) : v
+      update({ defaultThumbnailFillerBadge: next })
+    }, [defaultThumbnailFillerBadge, update])
+  const setDefaultThumbnailFillerStyle = useCallback(
+    (v: ThumbnailFillerStyle | ((prev: ThumbnailFillerStyle) => ThumbnailFillerStyle)) => {
+      const next = typeof v === "function" ? v(defaultThumbnailFillerStyle) : v
+      update({ defaultThumbnailFillerStyle: next })
+    }, [defaultThumbnailFillerStyle, update])
   const setThumbnailRotationOverride = useCallback(
     (v: boolean | null | ((prev: boolean | null) => boolean | null)) => {
       setThumbnailRotationOverrideState((prev) => {
@@ -2223,6 +2244,10 @@ export function PosterEditorProvider({
       defaultThumbnailVoteSource,
       defaultThumbnailRotation,
       setDefaultThumbnailRotation,
+      defaultThumbnailFillerBadge,
+      setDefaultThumbnailFillerBadge,
+      defaultThumbnailFillerStyle,
+      setDefaultThumbnailFillerStyle,
       defaultBlurEnabled,
       setDefaultBlurEnabled,
       defaultBlurIntensity,
@@ -2567,6 +2592,8 @@ export function PosterEditorProvider({
       defaultThumbnailOffsetX, defaultThumbnailOffsetY,
       defaultThumbnailBadgeScale,
       defaultThumbnailBlur, defaultThumbnailVoteSource, defaultThumbnailRotation, setDefaultThumbnailRotation,
+      defaultThumbnailFillerBadge, setDefaultThumbnailFillerBadge,
+      defaultThumbnailFillerStyle, setDefaultThumbnailFillerStyle,
       defaultBlurEnabled, setDefaultBlurEnabled,
       defaultBlurIntensity, setDefaultBlurIntensity,
       defaultTintStrength, setDefaultTintStrength,

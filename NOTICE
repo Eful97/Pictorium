@@ -41,3 +41,46 @@ Daily tag rotation, trending/highly-rated badges and every other fork tag
 were deliberately NOT reused. All surrounding integration (calendar-day
 window, 18-locale keys, ephemeral cache lifetime, editor wiring) is
 original work, not fork-attributed.
+
+Anime filler classification snapshot (CC BY 4.0)
+------------------------------------------------
+The bundled file src/generated/anime-filler-map.json is derived from
+"anime-filler-list-data" by animecannonhunter-hash:
+  https://github.com/animecannonhunter-hash/anime-filler-list-data
+Pinned revision a7b28ff590b70652843125b77b9a80f334d2c3ca
+(snapshot date 2026-08-19), licensed under CC BY 4.0:
+  https://creativecommons.org/licenses/by/4.0/
+Source site: https://skipthefiller.com
+
+Changes made by this project: only per-episode manga canon/anime canon/
+filler/mixed classification codes were extracted and compressed into absolute
+episode ranges; aggregate counts were recomputed from episode rows;
+anime that could not be mapped to a single TMDB target are excluded
+and listed in the snapshot meta.skipped. Legacy v1 snapshots (single `canon`
+code) are still read with `canon` normalized to `manga`.
+
+This notice is attribution and provenance, NOT legal certification. It
+asserts no license on behalf of any upstream project and grants no
+rights beyond the upstream CC BY 4.0 terms. See docs/anime-filler-data.md
+for the pinned source, schema and repin procedure.
+
+Anime filler own-DB snapshot (CC BY-SA 4.0)
+-------------------------------------------
+The bundled file src/generated/anime-filler-own-map.json is derived from the
+"pictorium-anime-filler" own database:
+  https://github.com/Eful97/pictorium-anime-filler
+Pinned commit 53dd5c414a7d46ecc1bdfd8c0c51c678f8889c7a
+(snapshot date 2026-11-08), licensed under CC BY-SA 4.0:
+  https://creativecommons.org/licenses/by-sa/4.0/
+It is a SEPARATE artifact from the CC BY 4.0 snapshot above: the two files are
+never merged, and Pictorium uses this own DB only as a fallback when the
+CC BY 4.0 snapshot has no record for a series.
+
+Changes made by this project: the published Pictorium-format snapshot was
+vendored unmodified by scripts/update-anime-filler-own-map.mjs, which validates
+the schema before writing. The upstream export already range-compresses its
+per-episode canon/filler/mixed rows and excludes titles without a TV TMDB id or
+without exact 1..n coverage (listed in meta.skipped).
+
+This notice is attribution and provenance, NOT legal certification. See
+docs/anime-filler-data.md for the pinned source and repin procedure.

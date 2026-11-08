@@ -27,6 +27,65 @@ export const EPISODE_STILL_KEY_RE = /^\d{1,4}:\d{1,4}$/
 export const EPISODE_THUMBNAIL_PREVIEW_WIDTH = 320
 export const EPISODE_THUMBNAIL_PREVIEW_BADGES = "both"
 
+/**
+ * Anime filler classification codes accepted by the compositor `?fill=`
+ * parameter (same vocabulary as the server-side resolver / renderer). Kept as
+ * a local literal union so this client-safe leaf never imports the
+ * server-only snapshot module. The legacy `canon` code is accepted as an alias
+ * of `manga` (the historical v1 snapshot code) and normalized before the URL
+ * is built, so old callers keep working with the new cache key.
+ */
+export const EPISODE_FILLER_STATUSES = ["manga", "anime", "filler", "mixed"] as const
+export type EpisodeFillerStatus = (typeof EPISODE_FILLER_STATUSES)[number]
+
+/** Banner layout codes accepted by the compositor `fillStyle` parameter. */
+export const EPISODE_FILLER_STYLES = ["corner", "strip"] as const
+export type EpisodeFillerStyle = (typeof EPISODE_FILLER_STYLES)[number]
+export const DEFAULT_EPISODE_FILLER_STYLE: EpisodeFillerStyle = "corner"
+
+/**
+ * Accent hex per classification, same values as the server renderer's
+ * `FILLER_BANNER_ACCENTS` (`thumbnail-renderer.ts`). Kept in this client-safe
+ * leaf so the editor's colored dots match the rendered banner without pulling
+ * `sharp` (or any server-only module) into the browser bundle.
+ */
+export const EPISODE_FILLER_COLORS: Record<EpisodeFillerStatus, string> = {
+  manga: "#22C55E",
+  anime: "#A78BFA",
+  filler: "#F59E0B",
+  mixed: "#38BDF8",
+}
+
+/** Canonical classification code, or null (fail-closed: no banner). */
+export function sanitizeEpisodeFillerStatus(raw: unknown): EpisodeFillerStatus | null {
+  if (typeof raw !== "string") return null
+  const value = raw.trim().toLowerCase()
+  // Legacy v1 code: an alias of manga, never emitted as-is.
+  if (value === "canon") return "manga"
+  return (EPISODE_FILLER_STATUSES as readonly string[]).includes(value)
+    ? (value as EpisodeFillerStatus)
+    : null
+}
+
+/** Canonical banner layout, or null (absent/invalid -> caller default). */
+export function sanitizeEpisodeFillerStyle(raw: unknown): EpisodeFillerStyle | null {
+  if (typeof raw !== "string") return null
+  const value = raw.trim().toLowerCase()
+  return (EPISODE_FILLER_STYLES as readonly string[]).includes(value)
+    ? (value as EpisodeFillerStyle)
+    : null
+}
+
+/**
+ * Display-only locale tag for the banner label (`flang`): a BCP47-ish tag
+ * only, so a stray value can never grow the image URL unbounded. Absent =
+ * the route falls back to `Accept-Language` / `en`.
+ */
+export function sanitizeEpisodeFillerLang(raw: unknown): string | null {
+  const value = typeof raw === "string" ? raw.trim() : ""
+  return /^[A-Za-z]{2,3}(?:-[A-Za-z0-9]{2,8})*$/.test(value) ? value : null
+}
+
 /** Sanitized still path (never a full URL) or null when not acceptable. */
 export function sanitizeEpisodeStillPath(raw: unknown): string | null {
   if (typeof raw !== "string") return null
@@ -96,6 +155,24 @@ export interface EpisodeThumbnailUrlInput {
    */
   readonly rotation?: boolean
   /**
+   * Anime filler classification banner (`fill=manga|anime|filler|mixed`).
+   * Absent or invalid = no banner and the historical URL; `/meta` and the
+   * per-title editor pass a REAL, fail-closed classification, never a sample.
+   */
+  readonly filler?: EpisodeFillerStatus | null
+  /**
+   * Banner layout (`fillStyle=corner|strip`). Emitted only together with a real
+   * classification and only when it is NOT the historical default `corner`, so
+   * pre-style URLs stay byte-identical. `corner` is the chip rendered when the
+   * parameter is absent.
+   */
+  readonly fillerStyle?: EpisodeFillerStyle | null
+  /**
+   * Banner label locale (`flang`), emitted only together with `filler`.
+   * Display-only, same rule as the settings preview.
+   */
+  readonly fillerLang?: string | null
+  /**
    * Scoped user (multi-user namespace): propagated as `u=` so the compositor
    * route resolves the SAME user keys the `/meta`/catalog request used (TVDB
    * stills and the IMDb id lookup are server-side and need them). Absent =
@@ -136,6 +213,21 @@ export function buildEpisodeThumbnailUrl(input: EpisodeThumbnailUrlInput): strin
   if (input.blur) params.set("blur", "1")
   // Daily rotation: ON only, absence keeps the fixed-still URL unchanged.
   if (input.rotation) params.set("rotate", "1")
+  // Anime filler banner: a REAL classification only. Absent/invalid = no
+  // `fill` param at all, so the compositor draws no banner (same rule as
+  // `/meta`); `flang` is display-only and travels only with the banner.
+  const filler = sanitizeEpisodeFillerStatus(input.filler)
+  if (filler) {
+    params.set("fill", filler)
+    // Layout: callers that know the STAGED value pass it explicitly (including
+    // `corner`), so a saved `strip` default can never override an unsaved
+    // corner choice. `/meta` omits the default corner and emits `strip` only
+    // when the space chose it, keeping pre-style URLs byte-identical.
+    const fillerStyle = sanitizeEpisodeFillerStyle(input.fillerStyle)
+    if (fillerStyle) params.set("fillStyle", fillerStyle)
+    const fillerLang = sanitizeEpisodeFillerLang(input.fillerLang)
+    if (fillerLang) params.set("flang", fillerLang)
+  }
   // Namespace key propagation (multi-user): the image request cannot carry the
   // session headers, so the scoped id travels in the URL (same contract as the
   // poster URLs' `u`). Absent = global request, URL unchanged.

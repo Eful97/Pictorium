@@ -34,6 +34,8 @@ import {
   parseThumbnailBadgeOffset,
   parseThumbnailBadgeScale,
   parseThumbnailBlur,
+  parseThumbnailFillerStatus,
+  parseThumbnailFillerStyle,
   parseThumbnailRotation,
   parseThumbnailStillSource,
   parseThumbnailVoteSource,
@@ -46,9 +48,11 @@ import {
   thumbnailCacheKey,
   thumbnailRotationBucket,
 } from "@/lib/thumbnail-renderer"
-import type { ThumbnailBadgeAnchor, ThumbnailBadgeStyle, ThumbnailVoteSource } from "@/lib/thumbnail-renderer"
+import type { ThumbnailBadgeAnchor, ThumbnailBadgeStyle, ThumbnailFillerStatus, ThumbnailFillerStyle, ThumbnailVoteSource } from "@/lib/thumbnail-renderer"
 import { getServerDefaultsForUser } from "@/lib/server-defaults"
 import { getCatalogEpoch } from "@/lib/catalog-epoch"
+import { baseLangCode, createT } from "@/lib/i18n-server"
+import { canonicalPosterLang } from "@/lib/poster-params-hardening"
 
 type RouteParams = { id: string; season: string; episode: string }
 
@@ -67,6 +71,50 @@ function jsonError(message: string, status: number, acceptEncoding: string | nul
 function ratingLanguage(languages: string): string {
   const first = (languages.split(",")[0] || "").trim()
   return /^[a-z]{2}(?:-[A-Za-z]{2})?$/.test(first) ? first : "en-US"
+}
+
+/**
+ * i18n keys of the on-image filler banner labels. The renderer only knows the
+ * language-neutral status codes (`manga`/`anime`/`filler`/`mixed`), so the
+ * localized text is resolved here and passed as a plain label — the same split
+ * used by `ribbonLabel` on the poster path (label built once in the caller,
+ * bytes rendered by the single shared compositor).
+ */
+const THUMBNAIL_FILLER_LABEL_KEYS: Record<ThumbnailFillerStatus, string> = {
+  manga: "ui.thumbnailFillerStatusManga",
+  anime: "ui.thumbnailFillerStatusAnime",
+  filler: "ui.thumbnailFillerStatusFiller",
+  mixed: "ui.thumbnailFillerStatusMixed",
+}
+
+/**
+ * Locale of the filler banner label.
+ *
+ * There is no per-space "thumbnail language" setting (the banner describes the
+ * episode, not the metadata), so the choice is per request:
+ * `flang` (canonical UI tag) > the first usable `Accept-Language` tag > `en`.
+ * `flang` is DISPLAY-only: an unusable value is ignored (never a 400) and the
+ * request simply downgrades to the next level, because a garbage tag must not
+ * break an otherwise valid thumbnail. The resolved tag is part of the cache
+ * identity only when a banner is actually drawn (`thumbnailCacheKey`), so the
+ * same episode in `it` and `en` never shares an entry, and the key stays
+ * bounded (shipped locales + `en`).
+ */
+function resolveThumbnailFillerLanguage(flang: string | null, acceptLanguage: string | null): string {
+  const canonical = (raw: string | null | undefined): string | null => {
+    const trimmed = (raw ?? "").trim()
+    if (!trimmed) return null
+    return canonicalPosterLang(trimmed) ?? canonicalPosterLang(baseLangCode(trimmed))
+  }
+  const direct = canonical(flang)
+  if (direct) return direct
+  for (const part of (acceptLanguage ?? "").split(",")) {
+    const tag = (part.split(";")[0] ?? "").trim()
+    if (!tag) continue
+    const resolved = canonical(tag)
+    if (resolved) return resolved
+  }
+  return "en"
 }
 
 // ---------------------------------------------------------------------------
@@ -108,6 +156,11 @@ function storedThumbnailScale(raw: unknown): number {
 
 function storedThumbnailFlag(raw: unknown): boolean {
   return typeof raw === "boolean" ? raw : false
+}
+
+function storedThumbnailFillerStyle(raw: unknown): ThumbnailFillerStyle {
+  if (typeof raw !== "string") return "corner"
+  return parseThumbnailFillerStyle(raw) ?? "corner"
 }
 
 function imageResponse(
@@ -273,6 +326,20 @@ async function loadEpisodeStillCandidates(
  * and `100` are the same historical byte-identical render, and the value is
  * part of the cache key (and ETag).
  *
+ * `fill` (`manga`/`anime`/`filler`/`mixed`) draws the anime filler
+ * classification as a
+ * top-left corner chip (default) or, with `fillStyle=strip`, as a full-width
+ * banner on the top edge (the `/meta` resolver emits it only for a classified
+ * episode with a no-ambiguity standard ordering). Absent or blank = no banner
+ * and the historical bytes; an explicit unusable value is a 400. `fillStyle`
+ * is absent = space default (then `corner`); an explicit unusable value is a
+ * 400. The localized label is resolved per request (`flang` >
+ * `Accept-Language` > `en`) and status, layout and locale are part of the
+ * cache key, because the banner carries localized text; top-anchored badges
+ * (`tl`/`tr`) are shifted below the banner, bottom-anchored ones (`bl`/`br`)
+ * keep their historical placement. `flang` is display-only: an unusable tag is
+ * ignored, never a 400.
+ *
  * The response is a PNG cached for 30 minutes (same `tmdb`/`images` family) and
  * revalidated with a content-hash ETag; upstream failures are never cached.
  *
@@ -362,7 +429,7 @@ export async function GET(req: NextRequest, { params }: { params: Promise<RouteP
   const rawBadgeStyle = sp.get("bstyle")
   const queryBadgeStyle = parseThumbnailBadgeStyle(rawBadgeStyle)
   if (queryBadgeStyle === null) {
-    return jsonError("Invalid bstyle: must be pill, bordo, vetro, branded, naked or score", 400, acceptEncoding)
+    return jsonError("Invalid bstyle: must be pill, bordo, vetro, branded, naked, score or circle", 400, acceptEncoding)
   }
   // Corner anchor + manual offsets (8px margin is the anchor's default).
   const rawAnchor = sp.get("anchor")
@@ -403,6 +470,27 @@ export async function GET(req: NextRequest, { params }: { params: Promise<RouteP
   if (queryVoteSource === null) {
     return jsonError("Invalid source: must be tmdb or imdb", 400, acceptEncoding)
   }
+  // Anime filler banner: the code is emitted by `/meta` only for a classified
+  // episode. Absent (or blank, like a blank `still`) = no banner and the
+  // historical render; an EXPLICIT unusable value is a 400, matching every
+  // other enum parameter. The legacy `canon` code is accepted as an alias of
+  // `manga` (same green bytes, same `:flmanga` cache entry). `flang` is
+  // display-only and never rejected.
+  const rawFill = sp.get("fill")
+  const queryFill: ThumbnailFillerStatus | null = parseThumbnailFillerStatus(rawFill)
+  if (!queryFill && rawFill !== null && rawFill.trim() !== "") {
+    return jsonError("Invalid fill: must be manga, anime, filler or mixed", 400, acceptEncoding)
+  }
+  // Banner layout: absent = space default (then corner); an explicit unusable
+  // value is a 400 like the other enums. It is meaningful only with `fill`.
+  const rawFillStyle = sp.get("fillStyle")
+  const queryFillStyle = parseThumbnailFillerStyle(rawFillStyle)
+  if (queryFillStyle === null && rawFillStyle !== null && rawFillStyle.trim() !== "") {
+    return jsonError("Invalid fillStyle: must be corner or strip", 400, acceptEncoding)
+  }
+  const fillerLanguage = queryFill
+    ? resolveThumbnailFillerLanguage(sp.get("flang"), req.headers.get("accept-language"))
+    : null
   const rawLanguages = sp.get("languages") || "en,null"
   const languages = /^[A-Za-z0-9,-]{1,120}$/.test(rawLanguages) && rawLanguages.length <= MAX_LANGUAGES_LENGTH
     ? rawLanguages
@@ -452,6 +540,12 @@ export async function GET(req: NextRequest, { params }: { params: Promise<RouteP
   const voteSource = rawVoteSource === null
     ? storedThumbnailVoteSource(spaceDefaults.thumbnailVoteSource)
     : queryVoteSource
+  // Banner layout resolution mirrors `bstyle`: explicit query (absent/blank =
+  // fall through) > space default > corner. Only meaningful when a
+  // classification is actually drawn; otherwise it has no render/cache effect.
+  const fillerStyle: ThumbnailFillerStyle = rawFillStyle === null
+    ? storedThumbnailFillerStyle(spaceDefaults.thumbnailFillerStyle)
+    : queryFillStyle ?? storedThumbnailFillerStyle(spaceDefaults.thumbnailFillerStyle)
   const signal = typeof AbortSignal !== "undefined" && "timeout" in AbortSignal ? AbortSignal.timeout(8000) : undefined
   // Auto still (absent/blank `?still` only): the first usable TMDB episode
   // still, from the SAME sanitized candidate list daily rotation uses (already
@@ -494,7 +588,7 @@ export async function GET(req: NextRequest, { params }: { params: Promise<RouteP
     : null
   const effectiveStill = rotation?.still ?? still
   const thumbnailEpoch = await getCatalogEpoch(scopedUser)
-  const cacheKey = thumbnailCacheKey({ seriesId, seasonNumber, episodeNumber, still: effectiveStill, width, badges: badgeMode, badgeStyle, anchor: badgeAnchor, offsetX, offsetY, badgeScale, languages, blur, voteSource, provider: providerSelection.provider, stills: stillsSource, rotationBucket: rotation?.rotationBucket ?? undefined, epoch: thumbnailEpoch })
+  const cacheKey = thumbnailCacheKey({ seriesId, seasonNumber, episodeNumber, still: effectiveStill, width, badges: badgeMode, badgeStyle, anchor: badgeAnchor, offsetX, offsetY, badgeScale, languages, blur, voteSource, provider: providerSelection.provider, stills: stillsSource, rotationBucket: rotation?.rotationBucket ?? undefined, epoch: thumbnailEpoch, filler: queryFill ?? undefined, fillerStyle: queryFill ? fillerStyle : undefined, fillerLang: fillerLanguage ?? undefined })
   if (!wantsGeometry) {
     const cached = cacheGet<{ png: Buffer; etag: string; voteSource?: ThumbnailVoteSource }>(cacheKey)
     if (cached) {
@@ -628,6 +722,13 @@ export async function GET(req: NextRequest, { params }: { params: Promise<RouteP
       // Provenance of the ★ value: the fallback leg is genuinely TMDB.
       voteSource: effectiveVoteSource,
       blur,
+      // Filler banner: status + localized label resolved above, drawn by the
+      // single local banner builder (no second renderer).
+      filler: queryFill,
+      fillerStyle: queryFill ? fillerStyle : null,
+      fillerLabel: queryFill
+        ? createT(fillerLanguage ?? "en")(THUMBNAIL_FILLER_LABEL_KEYS[queryFill])
+        : null,
       signal,
     })
   } catch (e) {

@@ -342,8 +342,8 @@ export interface ServerDefaults {
    * the historical pill/top-right/no-blur/IMDb look. Bounds are enforced at
    * every read (unknown values fail closed to the defaults).
    */
-  /** Vote-badge style (`bstyle`): pill | bordo | vetro | branded | naked | score. Default `pill`. */
-  thumbnailBadgeStyle?: "pill" | "bordo" | "vetro" | "branded" | "naked" | "score"
+  /** Vote-badge style (`bstyle`): pill | bordo | vetro | branded | naked | score | circle. `circle` is the round variant of `score` (same bucket colour + score, no logo); legacy `dot` is normalized to `circle`. Default `pill`. */
+  thumbnailBadgeStyle?: "pill" | "bordo" | "vetro" | "branded" | "naked" | "score" | "circle"
   /** Badge-stack corner (`anchor`): tl | tr | bl | br. Default `tr`. */
   thumbnailAnchor?: "tl" | "tr" | "bl" | "br"
   /** Horizontal px offset from the anchor (`ox`, -2000..2000). Default 0. */
@@ -363,6 +363,21 @@ export interface ServerDefaults {
    * bucket. Flat/shared (no landscape profile, never a poster render param).
    */
   thumbnailRotation?: boolean
+  /**
+   * Anime filler classification banner (`fill=canon|filler|mixed`) on composed
+   * episode thumbnails. Meta-only flat flag: absent/false = no banner param and
+   * byte-identical compositor URLs; true = /meta appends the language-neutral
+   * code for titles/episodes known to the bundled snapshot and only on standard
+   * TMDB ordering. Labels are localized by the display layer, never persisted.
+   */
+  thumbnailFillerBadge?: boolean
+  /**
+   * Layout of the anime filler banner (`fillStyle`): `corner` (default compact
+   * chip, also the render when the parameter is absent) or `strip` (full-width
+   * top plate). Flat/display-only: never a poster render parameter.
+   * Unknown values fail closed to `corner` at every read.
+   */
+  thumbnailFillerStyle?: "corner" | "strip"
   /** Regione classifiche JustWatch/FlixPatrol + lingua titoli (codice JW, es. "IT"). */
   region?: string
   /** Formato data badge "in uscita" (default `locale` = segue la lingua). */
@@ -489,6 +504,8 @@ const CATALOG_ONLY_DEFAULTS = [
   "thumbnailBlur",
   "thumbnailVoteSource",
   "thumbnailRotation",
+  "thumbnailFillerBadge",
+  "thumbnailFillerStyle",
   "seasonalHalloweenKeywords",
   "seasonalChristmasKeywords",
   "badgePresets",
