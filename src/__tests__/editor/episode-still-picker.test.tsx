@@ -902,6 +902,16 @@ describe("EpisodePreview still studio", () => {
     const imageUrls = fetchMock.mock.calls.map(([url]) => String(url))
     expect(imageUrls.some((url) => url.includes(`/api/tmdb/${SERIES_ID}/season/4/episode/12/images`))).toBe(true)
     expect(imageUrls.some((url) => url.includes(`/api/tmdb/${SERIES_ID}/season/1/episode/1/images`))).toBe(false)
+
+    // The center preview must use the SAME original TMDB S:E in the compositor
+    // path: the route resolves the episode vote by it, and the visible group
+    // pair (1:1 here) would resolve the wrong episode or fail closed (502).
+    await waitFor(() => {
+      const preview = within(dialog).getByTestId("episode-still-preview") as HTMLImageElement
+      const src = preview.getAttribute("src") ?? ""
+      expect(src).toContain(`/api/thumbnail/tv/${SERIES_ID}/season/4/episode/12`)
+      expect(src).toContain("still=%2Forig-part.jpg")
+    })
   })
 
   it("renders the empty state only when the series truly has no seasons", async () => {

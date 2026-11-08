@@ -78,6 +78,9 @@ interface SeriesFixture {
   id: number
   imdbId: string
   episodes: Array<{ still?: string | null }>
+  /** Episode Group payloads for remapped-ordering tests. */
+  episodeGroupsResults?: unknown[]
+  episodeGroupDetails?: Record<string, unknown>
 }
 
 /** Minimal series fetch graph used by the meta handler (standard ordering). */
@@ -87,8 +90,12 @@ function mockSeries(fixture: SeriesFixture) {
     if (value.includes("/images")) {
       return Promise.resolve(Response.json({ id: fixture.id, logos: [] }))
     }
+    // Singular endpoint before the plural list: `/episode_group/<id>`.
+    if (value.includes("/episode_group/")) {
+      return Promise.resolve(Response.json(fixture.episodeGroupDetails ?? {}))
+    }
     if (value.includes("/episode_groups")) {
-      return Promise.resolve(Response.json({ results: [] }))
+      return Promise.resolve(Response.json({ results: fixture.episodeGroupsResults ?? [] }))
     }
     if (value.includes("/season/1")) {
       return Promise.resolve(Response.json({
@@ -287,6 +294,9 @@ describe("meta composited episode thumbnails (opt-in)", () => {
     expect(new URL(first.body.meta.videos![0].thumbnail!).pathname).toBe("/api/thumbnail/tv/94005/season/1/episode/1")
     const onKey = cacheKeys.set.at(-1)!
     expect(onKey).toContain(":et1")
+    // Compositor URL shape v2 (original TMDB S:E path on Episode Group rows):
+    // pre-fix bodies must never be reused.
+    expect(onKey).toContain(":tpath2")
 
     // 2. Same defaults, query absent = OFF. If the :et1 fragment were missing
     //    this would be a cache hit and wrongly return the composed body.
@@ -300,6 +310,50 @@ describe("meta composited episode thumbnails (opt-in)", () => {
     // 3. ON again still resolves to the composed representation.
     const third = await getMeta("tmdb:94005", "&thumbnails=1")
     expect(new URL(third.body.meta.videos![0].thumbnail!).pathname).toBe("/api/thumbnail/tv/94005/season/1/episode/1")
+  })
+
+  it("episode-group ordering builds the compositor URL with the ORIGINAL TMDB S:E", async () => {
+    // Visible group rows are remapped (S2:E17 below), but the compositor route
+    // resolves the episode vote by the URL path: a visible pair that does not
+    // exist on TMDB fails the ★ fallback closed (502 "TMDB episode details
+    // unavailable"). The path must therefore carry the ORIGINAL TMDB pair.
+    defaultsCtl.value = { episodeThumbnails: true }
+    mockedGetById.mockResolvedValue({
+      tmdbId: 94009,
+      mediaType: "tv",
+      episodeGroupId: "grp_remap",
+    } as unknown as Awaited<ReturnType<typeof getById>>)
+    mockSeries({
+      id: 94009,
+      imdbId: "tt9400009",
+      episodes: [],
+      episodeGroupDetails: {
+        id: "grp_remap",
+        name: "TVDB Order",
+        groups: [
+          {
+            id: "p2",
+            name: "Season 2",
+            order: 2,
+            episodes: [
+              { id: 21, season_number: 1, episode_number: 25, order: 16, name: "E17", still_path: "/g17.jpg" },
+            ],
+          },
+        ],
+      },
+    })
+
+    const { status, body } = await getMeta("tmdb:94009")
+
+    expect(status).toBe(200)
+    const videos = body.meta.videos!
+    expect(videos).toHaveLength(1)
+    // Visible S:E stays what Stremio shows as the episode row.
+    expect((videos[0] as unknown as { season: number }).season).toBe(2)
+    expect((videos[0] as unknown as { episode: number }).episode).toBe(17)
+    const thumb = new URL(videos[0].thumbnail!)
+    expect(thumb.pathname).toBe("/api/thumbnail/tv/94009/season/1/episode/25")
+    expect(thumb.searchParams.get("still")).toBe("/g17.jpg")
   })
 
   it("propagates the scoped user to the composited URL (multi-user image request)", async () => {
