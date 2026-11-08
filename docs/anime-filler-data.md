@@ -66,10 +66,12 @@ with distinct licences (CC BY 4.0 vs CC BY-SA 4.0) and are **never merged**. The
 runtime keeps two independent lookup indices:
 
 - the CC BY 4.0 snapshot is authoritative for every series it contains;
-- the own DB is consulted **only when the primary snapshot has no record for the
-  id** (absent, not ambiguous);
-- an ambiguous or out-of-window primary record returns `null` and does **not**
-  fall back, so one series is never classified from two sources per episode;
+- the own DB is consulted when the primary snapshot has no record for the id
+  (absent, not ambiguous) **or** when the requested episode is past the primary
+  record's classified window (`> n`) and the own record extends the same series;
+- an ambiguous primary record, or an episode inside the primary window (up to
+  `n`), returns `null`/the primary status and does **not** fall back, so each
+  episode is classified from exactly one source;
 - `ownFillerMapInfo()` reports the fallback provenance/coverage separately from
   `fillerMapInfo()`.
 
