@@ -94,7 +94,9 @@ The importer accepts the common stream-badge editor shape
 - skips entries whose id or label duplicates a built-in A/V mark (`DV`, `HDR`,
   `HDR10+`, `ATMOS`, `IMAX`) or another pack mark — the built-ins already cover
   those, and duplicate labels would confuse the selector;
-- reports skipped entries.
+- reports skipped entries;
+- removes assets referenced by the previous manifest that the new pack no
+  longer uses (unrelated files, including the repo fixtures, are untouched).
 
 The import **replaces the active pack**: `--out` and `--assets-dir` default to the
 shipped manifest/assets. Only one pack is active at a time in this version.

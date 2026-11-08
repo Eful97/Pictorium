@@ -19,6 +19,10 @@
  * `public/quality-badges/pack/`. The app never fetches remote assets at render
  * time and never needs an image-allowlist change.
  *
+ * Replacing a pack also removes assets referenced by the previous `--out`
+ * manifest and no longer by the new one. Unrelated files (including the
+ * documented repo fixtures) are never touched.
+ *
  * Licensing: only run this on sources you may redistribute. The generated
  * manifest records the source; add the attribution to NOTICE.
  */
@@ -81,14 +85,19 @@ async function loadSource(source) {
   return JSON.parse(fs.readFileSync(path.resolve(source), "utf8"))
 }
 
-function sanitizeId(raw, used) {
-  let id = String(raw ?? "")
+function sanitizeBaseId(raw) {
+  const id = String(raw ?? "")
     .toLowerCase()
     .trim()
     .replace(/[^a-z0-9_.-]+/g, "-")
     .replace(/^[-.]+|[-.]+$/g, "")
     .slice(0, 32)
-  if (!id || !/^[a-z0-9]/.test(id)) id = `mark-${used.size + 1}`
+  return id && /^[a-z0-9]/.test(id) ? id : ""
+}
+
+function sanitizeId(raw, used) {
+  const base = sanitizeBaseId(raw)
+  let id = base || `mark-${used.size + 1}`
   let unique = id
   let n = 2
   while (used.has(unique)) unique = `${id.slice(0, 28)}-${n++}`
@@ -107,6 +116,48 @@ function cleanLabel(raw, id) {
 function matchTable(table, id) {
   for (const [re, value] of table) if (re.test(id)) return value
   return null
+}
+
+/** Pack-relative asset name of an icon path, or null when not a safe pack asset. */
+function packAssetName(icon) {
+  if (typeof icon !== "string" || !icon.startsWith(ASSET_PREFIX)) return null
+  const name = icon.slice(ASSET_PREFIX.length)
+  if (!name || name.includes("/") || name.includes("\\") || name.includes("..")) return null
+  return name
+}
+
+/** Assets referenced by the manifest being replaced (missing/malformed = none). */
+function readPreviousAssetNames(manifestPath) {
+  let raw
+  try {
+    raw = fs.readFileSync(manifestPath, "utf8")
+  } catch {
+    return []
+  }
+  try {
+    const manifest = JSON.parse(raw)
+    const marks = Array.isArray(manifest?.marks) ? manifest.marks : []
+    return marks.map((mark) => packAssetName(mark?.icon)).filter(Boolean)
+  } catch {
+    return []
+  }
+}
+
+/**
+ * Remove assets referenced by the previous manifest and no longer by the new
+ * one. Only previous-manifest icons are touched: unrelated files (including the
+ * documented test fixtures left in `public/quality-badges/pack/`) are never
+ * deleted, so a pack replace cannot wipe repository fixtures.
+ */
+function removeStaleAssets(assetsDir, names) {
+  const removed = []
+  for (const name of names) {
+    const abs = path.join(assetsDir, name)
+    if (!fs.existsSync(abs)) continue
+    fs.rmSync(abs)
+    removed.push(name)
+  }
+  return removed
 }
 
 function extensionFor(url, contentType, bytes) {
@@ -160,6 +211,10 @@ if (filters.length === 0) throw new Error("Nessun `filters` nel sorgente: format
 
 fs.mkdirSync(args.assetsDir, { recursive: true })
 
+// Read the manifest being replaced BEFORE overwriting it: only its own assets
+// are eligible for cleanup (unrelated files and repo fixtures stay put).
+const previousAssetNames = readPreviousAssetNames(args.out)
+
 const usedIds = new Set()
 const usedLabels = new Set()
 const marks = []
@@ -170,12 +225,16 @@ for (const filter of filters) {
     skipped.push(`${filter.id ?? "?"}: disabilitato`)
     continue
   }
-  const id = sanitizeId(filter.id ?? filter.name, usedIds)
-  const label = cleanLabel(filter.name, id)
-  if (BUILTIN_IDS.has(id)) {
-    skipped.push(`${id}: id già coperto da un formato built-in`)
+  // Built-in ids are checked on the SANITIZED base id, before `sanitizeId`
+  // reserves/uniquifies it: otherwise a second entry with the same built-in id
+  // would be renamed (`dv` -> `dv-2`) and slip into the pack as a new mark.
+  const baseId = sanitizeBaseId(filter.id ?? filter.name)
+  if (baseId && BUILTIN_IDS.has(baseId)) {
+    skipped.push(`${baseId}: id già coperto da un formato built-in`)
     continue
   }
+  const id = sanitizeId(baseId, usedIds)
+  const label = cleanLabel(filter.name, id)
   const upperLabel = label.toUpperCase()
   if (BUILTIN_LABELS.has(upperLabel) || usedLabels.has(upperLabel)) {
     skipped.push(`${id}: label "${label}" duplicata (built-in o altro marchio del pack)`)
@@ -232,7 +291,17 @@ const manifest = {
 }
 fs.writeFileSync(args.out, `${JSON.stringify(manifest, null, 2)}\n`)
 
+const keptAssetNames = new Set(marks.map((mark) => packAssetName(mark.icon)).filter(Boolean))
+const removedAssets = removeStaleAssets(
+  args.assetsDir,
+  previousAssetNames.filter((name) => !keptAssetNames.has(name)),
+)
+
 console.log(`\n${marks.length} marchi scritti in ${path.relative(ROOT, args.out)}`)
+if (removedAssets.length > 0) {
+  console.log(`\n${removedAssets.length} asset del pack precedente non più referenziati rimossi:`)
+  for (const name of removedAssets) console.log(`  - ${name}`)
+}
 if (skipped.length > 0) {
   console.log(`\n${skipped.length} voci saltate:`)
   for (const line of skipped) console.log(`  - ${line}`)

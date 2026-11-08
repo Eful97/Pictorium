@@ -17,18 +17,26 @@
  * No `node:fs` here: this module is imported by React (selectors, previews).
  */
 import packData from "@/data/quality-badge-pack.json"
-import { FORMAT_ICON_PATHS, KNOWN_VIDEO_FORMATS, VIDEO_FORMAT_OPTIONS, isVideoFormat } from "./av-specs"
+import { FORMAT_ICON_PATHS, KNOWN_VIDEO_FORMATS, VIDEO_FORMAT_OPTIONS, isVideoFormat, type VideoFormat } from "./av-specs"
 
 export type PackMarkMode = "tintable" | "opaque"
 export type PackMarkAccent = "gold" | "cyan" | "dolby"
 export type PackMarkHome = "tier" | "age" | "dolby" | "hdr" | "imax"
 
 /**
+ * Id of a vendored pack mark. The manifest is runtime JSON (an operator can
+ * swap it), so the pack half stays `string`: `isQualityMarkId` is the runtime
+ * truth. The alias keeps the pack half explicit without breaking callers that
+ * already carry plain strings.
+ */
+export type PackMarkId = string
+
+/**
  * A selectable quality mark id: a built-in A/V format (`dv`, `hdr`, …) or a
  * vendored pack mark id (`remux`, …). Selection fields (defaults, mapping,
  * `formats=` query) use this instead of the built-in-only `VideoFormat`.
  */
-export type QualityMarkId = string
+export type QualityMarkId = VideoFormat | PackMarkId
 
 export interface PackMarkInkBox {
   readonly x: number
@@ -149,7 +157,7 @@ const PACK_BY_ICON = new Map<string, PackMark>(PACK_MARKS.map((mark) => [mark.ic
 export const QUALITY_MARK_IDS: readonly string[] = [...KNOWN_VIDEO_FORMATS, ...PACK_MARK_IDS]
 const QUALITY_MARK_ID_SET = new Set(QUALITY_MARK_IDS)
 
-export function isQualityMarkId(value: unknown): value is string {
+export function isQualityMarkId(value: unknown): value is QualityMarkId {
   return typeof value === "string" && QUALITY_MARK_ID_SET.has(value)
 }
 
