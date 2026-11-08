@@ -44,7 +44,13 @@ const OWN_META = (ownSnapshotData as unknown as {
   }
 }).meta
 const PRIMARY_TMDB = new Set(RECORDS.map((record) => record.t))
+const OWN_BY_TMDB = new Map(OWN_RECORDS.map((record) => [record.t, record]))
 const VALID_CODES: ReadonlySet<string> = new Set(ANIME_FILLER_STATUS_CODES)
+
+/** Combined window for a primary record, extended by the own DB tail. */
+function combinedEpisodes(record: SnapshotRecord): number {
+  return Math.max(record.n, OWN_BY_TMDB.get(record.t)?.n ?? 0)
+}
 
 describe("anime-filler resolver", () => {
   it("exposes the four canonical codes (legacy canon is an alias of manga)", () => {
@@ -72,7 +78,10 @@ describe("anime-filler resolver", () => {
     expect(resolveFillerStatus(28136, 18)).toBe("filler")
     expect(resolveFillerStatus(28136, 19)).toBe("manga")
     expect(resolveFillerStatus(28136, 95)).toBe("filler")
-    expect(resolveFillerStatus(28136, 96)).toBeNull()
+    // The primary window ends at 95; the own DB extends the same series to 100.
+    expect(resolveFillerStatus(28136, 96)).toBe("manga")
+    expect(resolveFillerStatus(28136, 100)).toBe("filler")
+    expect(resolveFillerStatus(28136, 101)).toBeNull()
   })
 
   it("resolves every snapshot range at its start, midpoint and end", () => {
@@ -90,21 +99,23 @@ describe("anime-filler resolver", () => {
     }
   })
 
-  it("returns null outside the classified window, partial records included", () => {
+  it("returns null outside the combined classified window, partial records included", () => {
     for (const record of RECORDS) {
+      const limit = combinedEpisodes(record)
       expect(resolveFillerStatus(record.t, 0), `tmdb ${record.t} ep 0`).toBeNull()
       expect(resolveFillerStatus(record.t, -1), `tmdb ${record.t} ep -1`).toBeNull()
-      expect(resolveFillerStatus(record.t, record.n + 1), `tmdb ${record.t} ep > n`).toBeNull()
-      expect(resolveFillerStatus(record.t, record.n + 1000), `tmdb ${record.t} ep >> n`).toBeNull()
+      expect(resolveFillerStatus(record.t, limit + 1), `tmdb ${record.t} ep > window`).toBeNull()
+      expect(resolveFillerStatus(record.t, limit + 1000), `tmdb ${record.t} ep >> window`).toBeNull()
     }
 
-    // Explicit partial ("Ongoing" in the source) anchors: the snapshot stops at
-    // n, so episodes beyond it are unknown and must never be guessed.
+    // Explicit partial ("Ongoing" in the source) anchors: without a longer own
+    // record the snapshot stops at n, so episodes beyond the combined window are
+    // unknown and must never be guessed.
     const partials = RECORDS.filter((record) => record.partial === true)
     expect(partials.length).toBeGreaterThan(0)
     for (const record of partials) {
       expect(resolveFillerStatus(record.t, record.n)).not.toBeNull()
-      expect(resolveFillerStatus(record.t, record.n + 1)).toBeNull()
+      expect(resolveFillerStatus(record.t, combinedEpisodes(record) + 1)).toBeNull()
     }
     expect(partials.some((record) => record.t === 37854)).toBe(true)
     expect(resolveFillerStatus(37854, 1173)).toBe("manga")
@@ -203,7 +214,7 @@ describe("anime-filler resolver", () => {
       if (typeof record.m !== "number") continue
       expect(resolveFillerStatusByMal(record.m, 1)).toBe(resolveFillerStatus(record.t, 1))
       expect(resolveFillerStatusByMal(record.m, record.n)).toBe(resolveFillerStatus(record.t, record.n))
-      expect(resolveFillerStatusByMal(record.m, record.n + 1)).toBeNull()
+      expect(resolveFillerStatusByMal(record.m, combinedEpisodes(record) + 1)).toBeNull()
     }
     expect(resolveFillerStatusByMal(999999999, 1)).toBeNull()
     expect(resolveFillerStatusByMal(NaN, 1)).toBeNull()
@@ -252,15 +263,18 @@ describe("anime-filler resolver", () => {
     expect(resolveFillerStatus(37854, 50)).toBe("manga")
   })
 
-  it("does not fall back for an episode outside the primary series window", () => {
+  it("extends an overlapping series past the primary window from the own DB (per-episode single source)", () => {
     const own = OWN_RECORDS.find((record) => record.t === 65930)
     expect(own?.n).toBe(170)
     const ownStatus = own!.ranges.find(([start, end]) => 139 >= start && 139 <= end)?.[2]
     expect(ownStatus).toBe("manga")
-    // The primary covers only 1..138 and owns the series, so 139 is unknown
-    // even though the own DB would classify it. Never mix sources per series.
+    // The primary covers only 1..138 and wins inside its window.
     expect(resolveFillerStatus(65930, 138)).toBe("manga")
-    expect(resolveFillerStatus(65930, 139)).toBeNull()
+    // 139..170 are past the primary window: the own DB classifies the tail.
+    expect(resolveFillerStatus(65930, 139)).toBe("manga")
+    expect(resolveFillerStatus(65930, 170)).toBe("manga")
+    // Past every window stays unknown (never guessed).
+    expect(resolveFillerStatus(65930, 171)).toBeNull()
   })
 
   it("exposes the own DB as a separate provenance record (never merged)", () => {

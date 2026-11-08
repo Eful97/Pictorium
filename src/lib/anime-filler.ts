@@ -18,8 +18,12 @@
  *   and normalized to `manga` (the explicit manga-canon code), so existing
  *   bytes keep resolving without a snapshot rewrite;
  * - fail-closed: unknown id, malformed input, ambiguous id or an episode
- *   outside the classified window (`< 1` or `> n`, `partial` records included)
- *   return `null` — never a guess.
+ *   outside every available window (`< 1`, or `> n` with no longer fallback)
+ *   return `null` — never a guess;
+ * - an episode past the primary record's window (`> n`) may be resolved from
+ *   the own DB when that record extends the same series; episodes inside the
+ *   primary window always come from the primary, so each episode has exactly
+ *   one source.
  *
  * The snapshot is data (~size of the JSON, not needed in a browser bundle):
  * import this module from server code only, never from client components.
@@ -261,11 +265,18 @@ function resolveIn(
   const episode = toPositiveInt(absoluteEpisode)
   if (key === null || episode === null) return null
   const entry = map.get(key)
-  // Present in the primary snapshot (record OR ambiguous) = the series belongs
-  // to the primary source. Never mix sources for one series, so an ambiguous
-  // or out-of-window primary record returns null instead of falling back.
   if (entry !== undefined) {
-    return entry ? statusForRecord(entry, episode) : null
+    // An ambiguous primary id (duplicate record) is never resolved by fallback.
+    if (!entry) return null
+    const status = statusForRecord(entry, episode)
+    if (status !== null) return status
+    // The primary owns the series but stops before this episode: the separate
+    // own DB may extend the tail. Episodes inside the primary window (including
+    // an internal gap) never fall back, so every episode still comes from
+    // exactly one source.
+    if (episode <= entry.episodes) return null
+    const fallback = fallbackMap.get(key)
+    return fallback ? statusForRecord(fallback, episode) : null
   }
   // Absent from the primary: the separate own DB is the only fallback.
   const fallback = fallbackMap.get(key)
@@ -278,12 +289,14 @@ function resolveIn(
  *
  * The CC BY 4.0 snapshot is authoritative for every series it contains. When it
  * has no record for the id, the separate CC BY-SA 4.0 own DB is consulted as a
- * fallback; the two sources are never mixed within one series.
+ * fallback. The own DB also extends an overlapping series past the primary's
+ * classified window (`> n`); episodes inside that window always use the primary,
+ * so no single episode is classified from two sources.
  *
  * @returns `"manga" | "anime" | "filler" | "mixed"`, or `null` when the series
  * is in neither source, the id/episode is malformed, the id is ambiguous, or
- * the episode falls outside the source's classified window (`1..n`). A legacy
- * v1 range stored as `canon` resolves to `manga`.
+ * the episode falls outside every classified window. A legacy v1 range stored
+ * as `canon` resolves to `manga`.
  */
 export function resolveFillerStatus(tmdbId: unknown, absoluteEpisode: unknown): AnimeFillerStatus | null {
   return resolveIn(INDEX.byTmdb, OWN_INDEX.byTmdb, tmdbId, absoluteEpisode)
