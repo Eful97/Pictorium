@@ -37,7 +37,7 @@ import { buildVideosFromAnizip, buildVideosFromGroupsDetailed, buildVideosFromTv
 import { groupDetailsEpisodeCount, groupDetailsRegularEpisodeCount, resolveDefaultEpisodeGroupId } from "@/lib/episode-group-default"
 import { createLogger } from "@/lib/logger"
 import { sanitizeEpisodeStillPath } from "@/lib/episode-stills"
-import { resolveFillerStatus } from "@/lib/anime-filler"
+import { fillerSnapshotEpoch, resolveFillerStatus } from "@/lib/anime-filler"
 import { fetchCinemetaRating } from "@/lib/cinemeta"
 import type {
   ThumbnailBadgeAnchor,
@@ -854,7 +854,11 @@ export async function pictoriumMeta(
   // portrait `poster` (mhv1 bodies served the single collapsed shape).
   // lk1: bodies without `links` (pre-manifest-health) must not be served for
   // another 12h after deploy.
-  const cacheKey = `stremio:meta:${stType}:${cleanId}:pv${POSTER_URL_VERSION}${scopedUser ? `:u${hashUserFragment(scopedUser)}` : ""}:ak${apiKey ? hashFragment(apiKey) : "none"}${configParam ? `:cfg${hashFragment(configParam)}` : ""}${mdblistKey ? `:mk${hashFragment(mdblistKey)}` : ""}${tvdbApiKey ? `:tk${hashFragment(tvdbApiKey)}` : ""}:es${episodeMetadataSource}:eg${hashFragment(egKey)}:r${region.code}:l${posterLang}${stType === "series" ? ":eo2" : ""}${metaThemeFragment}${episodeThumbnailCacheFragment}:mhv3:lk1${freshness}`
+  // The filler snapshot revision is part of the key: a remote refresh with new
+  // data must not reuse a body composed with the previous classifications.
+  const fillerEpoch = fillerSnapshotEpoch()
+  const fillerEpochFragment = fillerEpoch ? `:fi${fillerEpoch}` : ""
+  const cacheKey = `stremio:meta:${stType}:${cleanId}:pv${POSTER_URL_VERSION}${scopedUser ? `:u${hashUserFragment(scopedUser)}` : ""}:ak${apiKey ? hashFragment(apiKey) : "none"}${configParam ? `:cfg${hashFragment(configParam)}` : ""}${mdblistKey ? `:mk${hashFragment(mdblistKey)}` : ""}${tvdbApiKey ? `:tk${hashFragment(tvdbApiKey)}` : ""}:es${episodeMetadataSource}:eg${hashFragment(egKey)}:r${region.code}:l${posterLang}${stType === "series" ? ":eo2" : ""}${metaThemeFragment}${episodeThumbnailCacheFragment}:mhv3:lk1${freshness}${fillerEpochFragment}`
   const cached = await cacheGetShared<{ meta: StremioMetaDetail; __partial?: boolean }>(cacheKey, ["stremio", "meta"])
   // __partial is only an internal signal for the hit HTTP header: never in the JSON.
   if (cached) return metaResponse({ meta: cached.meta }, cached.__partial === true)

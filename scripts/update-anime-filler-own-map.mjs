@@ -24,7 +24,7 @@ const rootDir = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "..")
 
 const OWN_REPO = "Eful97/pictorium-anime-filler"
 const OWN_REPO_URL = `https://github.com/${OWN_REPO}`
-const OWN_REPO_COMMIT = "53dd5c414a7d46ecc1bdfd8c0c51c678f8889c7a"
+const OWN_REPO_COMMIT = "81a0d6e854d661b6863dbddcbfc443a9c79be02b"
 const UPSTREAM_FILE = "anime-filler-own-map.json"
 const DEFAULT_RAW_BASE = `https://raw.githubusercontent.com/${OWN_REPO}`
 const OUTPUT_REL = "src/generated/anime-filler-own-map.json"

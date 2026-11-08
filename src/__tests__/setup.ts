@@ -117,6 +117,10 @@ vi.mock("next/font/google", () => {
 // alcun effetto sull'autenticazione admin.
 process.env.PICTORIUM_HOSTED_BY = "elfhosted"
 
+// The own filler snapshot refreshes remotely by default in production. Unit
+// tests stay offline; the remote loader test overrides this with vi.stubEnv.
+process.env.PICTORIUM_FILLER_OWN_URL = "off"
+
 // Node >=25 defines a global `localStorage` accessor that returns undefined
 // without --localstorage-file (ExperimentalWarning). Since it is an
 // own-property of globalThis, the Vitest jsdom environment does not forward the
