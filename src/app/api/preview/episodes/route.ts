@@ -11,7 +11,7 @@ import {
   resolveRouteApiKey,
   evictTVSeasonCache,
 } from "@/lib/tmdb"
-import { enrichVideosWithTvdbDetailed } from "@/lib/tvdb"
+import { enrichVideosWithTvdbDetailed, tvdbLanguageForContentLanguage } from "@/lib/tvdb"
 import { buildVideosFromAnizip, buildVideosFromGroupsDetailed, buildVideosFromTvdbDetailed, concurrentMap, isSeasonEpisodesComplete, resolveSeasonNumbers, seasonNumberForGroup } from "@/lib/episode-ordering"
 import { groupDetailsEpisodeCount, groupDetailsRegularEpisodeCount, resolveDefaultEpisodeGroupId } from "@/lib/episode-group-default"
 import { combineAbortSignals } from "@/lib/abort-signal"
@@ -88,6 +88,9 @@ export async function GET(req: NextRequest) {
   // normalize: empty string -> null (standard)
   const episodeGroupId = rawGroupId && rawGroupId !== "" ? rawGroupId : null
   const language = req.nextUrl.searchParams.get("lang") || "it-IT"
+  // TVDB wants 3-letter codes: derive it from the same locale so episode
+  // titles follow the requested language instead of staying Italian.
+  const tvdbLanguage = tvdbLanguageForContentLanguage(language)
   const apiKey = (await resolveRouteApiKey(req)) || ""
   const tvdbKeyParam = req.nextUrl.searchParams.get("tvdb_key") || undefined
   // resolveRouteApiKey applies the multi-user guard (scoped `?u=` never falls
@@ -140,7 +143,7 @@ export async function GET(req: NextRequest) {
       const seasonType = episodeGroupId === "tvdb" ? "default" : (episodeGroupId!.slice(5) || "default")
       try {
         const orderingSignal = combineAbortSignals(requestSignal, 10000)
-        const tvdbOrdered = await buildVideosFromTvdbDetailed(imdbId, tmdbId, primaryId, tvdbApiKey || "", seasonType, apiKey, orderingSignal)
+        const tvdbOrdered = await buildVideosFromTvdbDetailed(imdbId, tmdbId, primaryId, tvdbApiKey || "", seasonType, apiKey, orderingSignal, tvdbLanguage)
         if (tvdbOrdered.videos.length > 0) videos.push(...(tvdbOrdered.videos as unknown as PreviewVideo[]))
         if (!tvdbOrdered.complete) isPartialSeasonData = true
       } catch {
@@ -235,7 +238,7 @@ export async function GET(req: NextRequest) {
     const isTvdbPreviewForEnrich = episodeGroupId === "tvdb" || (episodeGroupId?.startsWith("tvdb:") ?? false)
     if (videos.length > 0 && episodeMetadataSource === "tvdb" && tvdbApiKey && !isTvdbPreviewForEnrich && !videosFromGroup) {
       const enrichSignal = combineAbortSignals(requestSignal, 8000)
-      const enrichComplete = await enrichVideosWithTvdbDetailed(videos as unknown as import("@/lib/meta-handler").StremioVideo[], imdbId, tmdbId, tvdbApiKey, "ita", apiKey, enrichSignal)
+      const enrichComplete = await enrichVideosWithTvdbDetailed(videos as unknown as import("@/lib/meta-handler").StremioVideo[], imdbId, tmdbId, tvdbApiKey, tvdbLanguage, apiKey, enrichSignal)
       if (!enrichComplete) isPartialSeasonData = true
     }
 

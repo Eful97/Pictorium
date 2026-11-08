@@ -7,6 +7,7 @@ import {
   enrichVideosWithTvdb,
   formatTvdbImageUrl,
   clearTvdbCache,
+  tvdbLanguageForContentLanguage,
 } from "@/lib/tvdb"
 import { buildVideosFromTvdb } from "@/lib/episode-ordering"
 import { cacheClear } from "@/lib/cache"
@@ -371,6 +372,21 @@ describe("TVDB Integration", () => {
       expect(videos[0].name).toBe("Questione di chimica")
       expect(requested.some((u) => u.includes("/search/remoteid/tt0903747"))).toBe(true)
       expect(requested.some((u) => u.includes("/search/remoteid/555002"))).toBe(false)
+    })
+  })
+
+  describe("tvdbLanguageForContentLanguage", () => {
+    it("maps TMDB locales to TVDB 3-letter codes (region suffix ignored)", () => {
+      expect(tvdbLanguageForContentLanguage("it-IT")).toBe("ita")
+      expect(tvdbLanguageForContentLanguage("en-GB")).toBe("eng")
+      expect(tvdbLanguageForContentLanguage("es-MX")).toBe("spa")
+      expect(tvdbLanguageForContentLanguage("pt-BR")).toBe("por")
+      expect(tvdbLanguageForContentLanguage("de")).toBe("deu")
+    })
+
+    it("falls back to ita for missing/unknown languages", () => {
+      expect(tvdbLanguageForContentLanguage(null)).toBe("ita")
+      expect(tvdbLanguageForContentLanguage("xx-YY")).toBe("ita")
     })
   })
 

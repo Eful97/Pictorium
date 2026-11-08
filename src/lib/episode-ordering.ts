@@ -263,6 +263,7 @@ export async function buildVideosFromTvdbDetailed(
   seasonType: string = "default",
   tmdbApiKey?: string,
   signal?: AbortSignal,
+  language = "ita",
 ): Promise<{ videos: PreviewVideo[]; complete: boolean }> {
   if (!tvdbApiKey) return { videos: [], complete: true }
   let tvdbSeriesId: number | null = null
@@ -279,7 +280,7 @@ export async function buildVideosFromTvdbDetailed(
     } catch {}
   }
   if (!tvdbSeriesId) return { videos: [], complete: true }
-  const { episodes: tvdbEps, complete } = await getTvdbEpisodesResult(tvdbSeriesId, "ita", tvdbApiKey, seasonType, signal)
+  const { episodes: tvdbEps, complete } = await getTvdbEpisodesResult(tvdbSeriesId, language, tvdbApiKey, seasonType, signal)
   const sorted = [...tvdbEps].sort((a, b) => a.seasonNumber - b.seasonNumber || a.number - b.number)
   const videos: PreviewVideo[] = []
   for (const ep of sorted) {
