@@ -59,7 +59,11 @@ export interface QualityMarkOption {
   readonly mode: PackMarkMode
 }
 
-/** Cap of the extra quality marks painted in one group (tier/age excluded). */
+/**
+ * Cap of the quality marks painted in one group (TOTAL: built-in A/V marks +
+ * pack marks; tier and age excluded). Pack marks are not additional headroom:
+ * a full selection of 8 leaves no room for a ninth, built-in or pack.
+ */
 export const MAX_QUALITY_MARKS = 8
 
 const PACK_ICON_PREFIX = "quality-badges/pack/"
@@ -237,16 +241,20 @@ export function qualityMarkLabel(id: string): string {
   return packMark(id)?.label ?? id.toUpperCase()
 }
 
-const BUILTIN_OPTIONS: readonly QualityMarkOption[] = KNOWN_VIDEO_FORMATS.map((id) => {
-  const option = VIDEO_FORMAT_OPTIONS.find((entry) => entry.id === id)
-  return {
-    id,
-    label: option?.label ?? id.toUpperCase(),
-    fullName: option?.fullName ?? id.toUpperCase(),
-    icon: FORMAT_ICON_PATHS[id],
+// Selector order mirrors VIDEO_FORMAT_OPTIONS (dv, atmos, imax, hdr,
+// hdr10plus): this is UI order only. The renderer still paints marks in the
+// title's availableFormats order (see quality-marks-selection.ts), so
+// restoring this list never changes poster bytes. Pack marks are appended
+// after the built-ins in manifest (= selection) order.
+const BUILTIN_OPTIONS: readonly QualityMarkOption[] = VIDEO_FORMAT_OPTIONS
+  .filter((option) => KNOWN_VIDEO_FORMATS.includes(option.id))
+  .map((option) => ({
+    id: option.id,
+    label: option.label,
+    fullName: option.fullName,
+    icon: FORMAT_ICON_PATHS[option.id],
     mode: "tintable" as const,
-  }
-})
+  }))
 
 /** Selector options: built-in A/V formats + every pack mark. */
 export const QUALITY_MARK_OPTIONS: readonly QualityMarkOption[] = [

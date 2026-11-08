@@ -160,7 +160,9 @@ Semantica di resa:
   (`formats=` / mapping / default non vuoti) li contiene. `formats=none` o assenza
   di selezione = nessun pack mark (render legacy byte-identico).
 - gli stili testuali (`strip`, `nova`, `gradient`, `outline`) disegnano la **label**
-  del marchio, non l'asset; gli stili icona usano l'asset (tintable o opaque).
+  del marchio tintable, non l'asset; i marchi `opaque` saltano ogni stile e
+  vengono incollati as-is (short-circuit prima dei rami di stile); nella strip
+  merged (`strip` + row) ogni segmento, opaque incluso, è una label.
 - ordine: built-in disponibili, poi pack nell'ordine di selezione; dedupe e cap
   `MAX_QUALITY_MARKS`.
 - un marchio `opaque` non viene ri-stilizzato: il selettore stile continua a
@@ -169,7 +171,7 @@ Semantica di resa:
   built-in: niente due "HDR" nel selettore).
 
 Trasporto/cache: gli id pack viaggiano nello stesso parametro `formats=` (bound query
-`256`, canonicalizzato in `poster-params-hardening.ts` con lo stesso cap). Il manifest
+`MAX_QUALITY_MARKS * 33 = 264`, canonicalizzato in `poster-params-hardening.ts` con lo stesso cap). Il manifest
 e ogni asset della cartella `public/quality-badges/pack` sono in `RENDER_VERSION`
 (`RENDER_FILES` + `RENDER_DIRS`, glob deterministico). `npm run verify` + gate visuale
 restano obbligatori quando si tocca il rendering.

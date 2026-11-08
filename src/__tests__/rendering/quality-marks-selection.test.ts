@@ -25,7 +25,8 @@ vi.mock("@/data/quality-badge-pack.json", () => ({
 }))
 
 import { resolveEffectiveQualityMarks } from "@/lib/quality-marks-selection"
-import { MAX_QUALITY_MARKS, PACK_MARK_IDS } from "@/lib/quality-badge-pack"
+import { MAX_QUALITY_MARKS, PACK_MARK_IDS, QUALITY_MARK_OPTIONS } from "@/lib/quality-badge-pack"
+import { KNOWN_VIDEO_FORMATS, VIDEO_FORMAT_OPTIONS } from "@/lib/av-specs"
 
 const AVAILABLE = ["dv", "atmos", "hdr"] as const
 const PACK = PACK_MARK_IDS[0]
@@ -83,5 +84,11 @@ describe("resolveEffectiveQualityMarks", () => {
     expect(result.length).toBeLessThanOrEqual(MAX_QUALITY_MARKS)
     expect(result).not.toContain("not-a-mark")
     expect(new Set(result).size).toBe(result.length)
+  })
+
+  it("selector restores built-in UI order and appends pack marks after them", () => {
+    const ids = QUALITY_MARK_OPTIONS.map((option) => option.id)
+    expect(ids.slice(0, KNOWN_VIDEO_FORMATS.length)).toEqual(VIDEO_FORMAT_OPTIONS.map((option) => option.id))
+    expect(ids.slice(KNOWN_VIDEO_FORMATS.length)).toEqual([...PACK_MARK_IDS])
   })
 })

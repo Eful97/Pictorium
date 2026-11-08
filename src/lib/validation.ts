@@ -4,7 +4,7 @@ import { TEXT_LOGO_MAX_LENGTH } from "./text-logo"
 import { POSTER_LAYOUTS, POSTER_FRESH_SCOPES, RETIRED_BADGE_FAMILY_IDS, type RetiredBadgeFamilyBindings, type RetiredBadgeFamilyFollows } from "./types"
 import { QUALITY_GROUP_LAYOUTS } from "./badge-styles"
 import { MAX_EPISODE_STILL_OVERRIDES, sanitizeEpisodeThumbnailStills } from "./episode-stills"
-import { canonicalQualityMarkSelection } from "./quality-badge-pack"
+import { MAX_QUALITY_MARKS, canonicalQualityMarkSelection } from "./quality-badge-pack"
 
 /**
  * Quality mark selection shared by every write boundary (mapping, defaults,
@@ -419,7 +419,13 @@ export const posterQuerySchema = z.object({
   // nessun bound largo: un valore oltre i 160 char è già invalido.
   pbase: boundedQueryString(160),
   quality: boundedQueryString(16),
-  formats: boundedQueryString(256),
+  // A legitimate maximum selection must validate: MAX_QUALITY_MARKS ids of the
+  // longest allowed id (32 chars, see ID_RE in quality-badge-pack.ts) joined by
+  // commas = 8 * 32 + 7 = 263 chars. The bound is one spare character above
+  // that formula; the length cap only rejects flood-sized values (the
+  // canonicalization in poster-params-hardening.ts still caps the effective
+  // list to MAX_QUALITY_MARKS).
+  formats: boundedQueryString(MAX_QUALITY_MARKS * 33),
   qmin: boundedQueryString(8),
   lang: boundedQueryString(20),
   rsrc: boundedQueryString(200),
