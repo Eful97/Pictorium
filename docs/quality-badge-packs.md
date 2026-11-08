@@ -58,7 +58,7 @@ Fields:
 | Field | Required | Notes |
 |---|---|---|
 | `id` | yes | `^[a-z0-9][a-z0-9_.-]{0,31}$`, unique, never a built-in id |
-| `label` | yes | chip + text styles (`strip`/`nova`/`gradient`/`outline`), max 40 chars, unique |
+| `label` | yes | chip + text-label styles (`strip`/`nova`/`gradient`/`outline`) for `tintable` marks; max 40 chars, unique |
 | `icon` | yes | must start with `quality-badges/pack/`, no `..` |
 | `mode` | yes | `tintable` or `opaque` |
 | `inkBox` | tintable | measured ink bounds in viewBox units (`w/h > 0`) |
@@ -69,8 +69,9 @@ Fields:
 
 Runtime validation is fail-open (invalid entries are skipped with a warning). The
 shipped manifest is validated fail-closed by
-`src/__tests__/rendering/quality-badge-pack.test.ts`, including a re-measurement
-of every tintable `inkBox` and the opaque `aspect`.
+`src/__tests__/rendering/quality-badge-pack.test.ts`: every tintable `inkBox` is
+re-measured from its asset (tolerance 2 viewBox units), while an opaque entry only
+asserts `aspect > 0` (the artwork's natural aspect is not re-measured).
 
 ## Importing an external pack
 
@@ -122,13 +123,21 @@ are manual), and are painted only when explicitly selected.
 - `tintable` marks follow every quality style (pill, mono, color, premium,
   knockout, naked, gradient, nova, outline, strip).
 - `opaque` marks are placed as-is (no plate/frame/tint/mask); the style still
-  governs the tier and the tintable marks.
+  governs the tier and the tintable marks. The opaque short-circuit runs before
+  the style branches (`buildFormatMark`, poster-service.ts:1511-1513), so opaque
+  artwork is embedded as-is even under `nova`/`gradient`/`outline` and in a
+  stacked `strip`.
 - Text-only styles (`strip`, `nova`, `gradient`, `outline`) render the mark
-  `label`, not the asset.
+  `label` for `tintable` marks, not the asset (stacked strip per-mark path,
+  poster-service.ts:1519-1523). The merged `strip` + row lockup is a single
+  label plate: every segment, opaque included, is written as a label
+  (poster-service.ts:1597-1615).
 
 ## Limits
 
-- Max `MAX_QUALITY_MARKS = 8` extra marks per group.
+- Max `MAX_QUALITY_MARKS = 8` quality marks per group, counted as TOTAL built-in
+  A/V + pack marks (tier and age excluded): the cap is not 8 pack marks on top
+  of the built-ins.
 - Pack labels are not localized.
 - Raster tinting is not supported: use an SVG with `fill="currentColor"` when the
   mark must follow the poster style.

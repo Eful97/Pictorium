@@ -1,5 +1,6 @@
 import { describe, expect, it } from "vitest"
 import { posterQuerySchema, validatePosterQuery } from "@/lib/validation"
+import { MAX_QUALITY_MARKS } from "@/lib/quality-badge-pack"
 
 function params(entries: Record<string, string>): URLSearchParams {
   return new URLSearchParams(entries)
@@ -55,6 +56,22 @@ describe("posterQuerySchema", () => {
     expect(validatePosterQuery(params({ bl: "x".repeat(9) }))).toContain("bl")
     expect(validatePosterQuery(params({ bs: "x".repeat(17) }))).toContain("bs")
     expect(validatePosterQuery(params({ rs: "x".repeat(17) }))).toContain("rs")
+  })
+
+  it("accepts a full-length formats selection and rejects only beyond the bound", () => {
+    // Longest legal id is 32 chars (quality-badge-pack ID_RE); a maximum
+    // selection is MAX_QUALITY_MARKS ids joined by commas = 8 * 32 + 7 = 263.
+    // The query bound is MAX_QUALITY_MARKS * 33 = 264 (one spare character), so
+    // a legitimate selection never turns into a 400.
+    const longestId = (index: number) => String.fromCharCode(97 + (index % 26)).repeat(32)
+    const maxSelection = Array.from({ length: MAX_QUALITY_MARKS }, (_, index) => longestId(index)).join(",")
+    expect(maxSelection).toHaveLength(MAX_QUALITY_MARKS * 32 + (MAX_QUALITY_MARKS - 1))
+    expect(validatePosterQuery(params({ formats: maxSelection }))).toBeNull()
+    // Exactly at the bound is still accepted; only 1 char more fails.
+    const atBound = `${maxSelection},`
+    expect(atBound).toHaveLength(MAX_QUALITY_MARKS * 33)
+    expect(validatePosterQuery(params({ formats: atBound }))).toBeNull()
+    expect(validatePosterQuery(params({ formats: `${atBound}a` }))).toContain("formats")
   })
 
   it("rejects oversized image paths", () => {

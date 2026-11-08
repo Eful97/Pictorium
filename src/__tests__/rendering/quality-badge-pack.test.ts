@@ -8,6 +8,7 @@ import {
   MAX_QUALITY_MARKS,
   PACK_MARKS,
   PACK_MARK_IDS,
+  QUALITY_MARK_OPTIONS,
   isQualityMarkId,
   packMark,
   packMarkAspect,
@@ -145,5 +146,14 @@ describe("quality badge pack — registry", () => {
   it("cap deterministico dei marchi extra", () => {
     expect(MAX_QUALITY_MARKS).toBeGreaterThan(0)
     expect(MAX_QUALITY_MARKS).toBeLessThanOrEqual(12)
+  })
+
+  it("selector lists built-ins in VIDEO_FORMAT_OPTIONS order, pack marks after", () => {
+    const ids = QUALITY_MARK_OPTIONS.map((option) => option.id)
+    // Built-in options follow the UI order (dv, atmos, imax, hdr, hdr10plus),
+    // not the validation order of KNOWN_VIDEO_FORMATS.
+    expect(ids.slice(0, KNOWN_VIDEO_FORMATS.length)).toEqual(VIDEO_FORMAT_OPTIONS.map((option) => option.id))
+    // Pack marks are appended after the built-ins, in manifest order.
+    expect(ids.slice(KNOWN_VIDEO_FORMATS.length)).toEqual([...PACK_MARK_IDS])
   })
 })
