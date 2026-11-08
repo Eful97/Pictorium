@@ -115,6 +115,7 @@
   "ui.defaultVideoFormats": "Standaard A/V-formaten",
   "ui.videoFormatsHint": "Video- en audiobadges in- of uitschakelen (DV, Atmos, IMAX, HDR, HDR10+).",
   "ui.videoFormatsAutoHint": "Automatisch gedetecteerd uit de database",
+  "ui.videoFormatsPackHint": "Merken uit het badge-pak zijn handmatig: ze verschijnen alleen waar je ze selecteert.",
   "ui.formatsAll": "Alle",
   "ui.formatsNone": "Geen",
   "ui.activeCount": "actief",

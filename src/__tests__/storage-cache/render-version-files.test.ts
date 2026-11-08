@@ -17,6 +17,25 @@ function readRenderFiles(): string[] {
   return [...body.matchAll(/"([^"]+)"/g)].map((m) => m[1])
 }
 
+function readRenderDirs(): string[] {
+  const script = fs.readFileSync(path.join(ROOT, "scripts/write-render-version.mjs"), "utf-8")
+  const body = script.match(/const RENDER_DIRS = \[([\s\S]*?)\n\]/)?.[1] ?? ""
+  return [...body.matchAll(/"([^"]+)"/g)].map((m) => m[1])
+}
+
+/** File di una RENDER_DIR, repo-relative con "/" (stessa forma dello script). */
+function walkRenderDir(rel: string): string[] {
+  const abs = path.join(ROOT, rel)
+  if (!fs.existsSync(abs)) return []
+  const out: string[] = []
+  for (const entry of fs.readdirSync(abs, { withFileTypes: true })) {
+    const child = `${rel}/${entry.name}`
+    if (entry.isDirectory()) out.push(...walkRenderDir(child))
+    else out.push(child)
+  }
+  return out
+}
+
 /** Import locali "./x" / "@/lib/x" risolti a path repo (solo .ts). */
 function localImportsOf(relFile: string): string[] {
   const abs = path.join(ROOT, relFile)
@@ -37,8 +56,8 @@ function localImportsOf(relFile: string): string[] {
 }
 
 describe("RENDER_FILES consistency", () => {
-  it("ogni file elencato esiste su disco", () => {
-    const files = readRenderFiles()
+  it("ogni file elencato esiste su disco (RENDER_FILES + RENDER_DIRS)", () => {
+    const files = [...readRenderFiles(), ...readRenderDirs().flatMap(walkRenderDir)]
     expect(files.length).toBeGreaterThan(0)
     for (const f of files) {
       // Font binari: devono esistere; gli altri devono essere .ts esistenti.

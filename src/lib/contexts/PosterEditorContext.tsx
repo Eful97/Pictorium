@@ -12,7 +12,7 @@ import { DEFAULT_AGE_BADGE_STYLE, DEFAULT_AWARD_BADGE_MODE, getSeparateBadgeDefa
 import { DEFAULT_AGE_COUNTRY, normalizeCertificationCountry } from "@/lib/certification"
 import type { SashBucket } from "@/lib/badge-priority"
 import { normalizeSeasonalThemeChoice, type SeasonalThemeChoice } from "@/lib/seasonal-theme"
-import type { VideoFormat } from "@/lib/av-specs"
+import type { QualityMarkId } from "@/lib/quality-badge-pack"
 import type { VisualPresetValues } from "@/lib/visual-presets"
 import { independentLandscapeDefaults } from "@/lib/visual-presets"
 import { materializeExtraTuning, clearedExtraForPresetApply } from "@/lib/extra-materialize"
@@ -200,8 +200,8 @@ export interface PosterEditorCtx {
   qualityGroupLayout: QualityGroupLayout
   setQualityGroupLayout: (v: QualityGroupLayout | ((prev: QualityGroupLayout) => QualityGroupLayout)) => void
   /** Formati A/V del poster in editing. */
-  videoFormats: VideoFormat[] | null
-  setVideoFormats: (v: VideoFormat[] | null | ((prev: VideoFormat[] | null) => VideoFormat[] | null)) => void
+  videoFormats: QualityMarkId[] | null
+  setVideoFormats: (v: QualityMarkId[] | null | ((prev: QualityMarkId[] | null) => QualityMarkId[] | null)) => void
   customBadge: string | null
   setCustomBadge: (v: string | null | ((prev: string | null) => string | null)) => void
 
@@ -279,8 +279,8 @@ export interface PosterEditorCtx {
   defaultQualityGroupLayout: QualityGroupLayout
   setDefaultQualityGroupLayout: (v: QualityGroupLayout | ((prev: QualityGroupLayout) => QualityGroupLayout)) => void
   /** Formati A/V di default. */
-  defaultVideoFormats: VideoFormat[]
-  setDefaultVideoFormats: (v: VideoFormat[] | ((prev: VideoFormat[]) => VideoFormat[])) => void
+  defaultVideoFormats: QualityMarkId[]
+  setDefaultVideoFormats: (v: QualityMarkId[] | ((prev: QualityMarkId[]) => QualityMarkId[])) => void
   defaultEpisodeMetadataSource: "tmdb" | "tvdb"
   setDefaultEpisodeMetadataSource: (v: "tmdb" | "tvdb" | ((prev: "tmdb" | "tvdb") => "tmdb" | "tvdb")) => void
   /** Episode thumbnails composed by /api/thumbnail in /meta (default OFF). */
@@ -1367,7 +1367,7 @@ export function PosterEditorProvider({
       update({ qualityGroupLayout: next })
     }, [qualityGroupLayout, update])
   const setVideoFormats = useCallback(
-    (v: VideoFormat[] | null | ((prev: VideoFormat[] | null) => VideoFormat[] | null)) => {
+    (v: QualityMarkId[] | null | ((prev: QualityMarkId[] | null) => QualityMarkId[] | null)) => {
       const next = typeof v === "function" ? v(videoFormats) : v
       update({ videoFormats: next })
     }, [videoFormats, update])
@@ -1402,7 +1402,7 @@ export function PosterEditorProvider({
       update({ defaultQualityGroupLayout: next })
     }, [defaultQualityGroupLayout, update])
   const setDefaultVideoFormats = useCallback(
-    (v: VideoFormat[] | ((prev: VideoFormat[]) => VideoFormat[])) => {
+    (v: QualityMarkId[] | ((prev: QualityMarkId[]) => QualityMarkId[])) => {
       const next = typeof v === "function" ? v(defaultVideoFormats) : v
       update({ defaultVideoFormats: next })
     }, [defaultVideoFormats, update])

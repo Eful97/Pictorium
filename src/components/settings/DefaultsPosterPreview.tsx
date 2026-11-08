@@ -79,7 +79,7 @@ interface DefaultsPosterPreviewProps {
     defaultExtraBadgeStyle: import("@/lib/badge-styles").ExtraBadgeStyle | import("@/lib/badge-styles").ExtraBadgeFollowRank | null
     defaultBadgeFont: import("@/lib/badge-styles").BadgeFont
     defaultQualityBadgeStyle: import("@/lib/badge-styles").QualityBadgeStyle
-    defaultVideoFormats: readonly import("@/lib/av-specs").VideoFormat[]
+    defaultVideoFormats: readonly import("@/lib/quality-badge-pack").QualityMarkId[]
     defaultBlurEnabled: boolean
     defaultBlurIntensity: number
     defaultBlurFade: number

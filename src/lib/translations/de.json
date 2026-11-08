@@ -115,6 +115,7 @@
   "ui.defaultVideoFormats": "Standard-A/V-Formate",
   "ui.videoFormatsHint": "Video- und Audio-Badges aktivieren oder deaktivieren (DV, Atmos, IMAX, HDR, HDR10+).",
   "ui.videoFormatsAutoHint": "Automatisch aus der Datenbank erkannt",
+  "ui.videoFormatsPackHint": "Marken aus dem Badge-Pack sind manuell: Sie erscheinen nur dort, wo du sie auswählst.",
   "ui.formatsAll": "Alle",
   "ui.formatsNone": "Keine",
   "ui.activeCount": "aktiv",

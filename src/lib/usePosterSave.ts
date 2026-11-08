@@ -14,7 +14,7 @@ import { isManualAccent } from "./accent-color"
 import { sanitizeLogoText, TEXT_LOGO_DEFAULT_FONT } from "./text-logo"
 import { normalizeGenreName } from "./genre-normalize"
 import type { EnrichedAnimeItem } from "./validation"
-import type { VideoFormat } from "./av-specs"
+import type { QualityMarkId } from "./quality-badge-pack"
 import type { SeparateRatingsStyle, ExtraBadgeStyle, ExtraBadgeFollowRank, AgeBadgeStyle, AwardBadgeMode, BadgeFont, QualityGroupLayout } from "./badge-styles"
 import { isExtraBadgeStyleTransport, isExtraFollowRank, isAgeBadgeStyle, isAwardBadgeMode, DEFAULT_AGE_BADGE_STYLE, DEFAULT_AWARD_BADGE_MODE } from "./badge-styles"
 import { DEFAULT_AGE_COUNTRY } from "./certification"
@@ -91,7 +91,7 @@ interface PosterSaveDeps {
   /** Layout del gruppo qualità per-titolo ("stacked" = colonna storica). */
   qualityGroupLayout?: QualityGroupLayout
   /** Formati A/V abilitati per-titolo (congelati al save). */
-  videoFormats?: VideoFormat[] | null
+  videoFormats?: QualityMarkId[] | null
   defaultBadgeStyle: string
   defaultRankingBadgeStyle: string
   defaultExtraBadgeStyle: ExtraBadgeStyle | ExtraBadgeFollowRank | string | null
@@ -115,7 +115,7 @@ interface PosterSaveDeps {
   defaultQualityBadgeStyle?: string
   /** Layout gruppo qualità di default (provenance per il boundary di indipendenza). */
   defaultQualityGroupLayout?: QualityGroupLayout
-  defaultVideoFormats?: VideoFormat[] | null
+  defaultVideoFormats?: QualityMarkId[] | null
   defaultNetworkLogo?: boolean
   defaultNetworkLogoPosition?: NetworkLogoPosition
   defaultRibbonEnabled?: boolean

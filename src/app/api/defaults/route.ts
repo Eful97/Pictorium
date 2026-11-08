@@ -19,8 +19,13 @@ import { retiredBadgeFamilyBindingsSchema } from "@/lib/validation"
 import { parseGenericVariantId } from "@/lib/streaming-catalogs"
 import { isLandscapeResetKey, sanitizeLandscapeReset } from "@/lib/landscape-reset"
 import { getInstanceKeyStatus } from "@/lib/instance-keys"
+import { MAX_QUALITY_MARKS, isQualityMarkId } from "@/lib/quality-badge-pack"
 
 const log = createLogger("defaults")
+
+/** Built-in A/V format id or a vendored pack mark id. */
+const qualityMarkIdSchema = z.string().max(64).refine((value) => isQualityMarkId(value))
+const qualityMarkListSchema = z.array(qualityMarkIdSchema).max(MAX_QUALITY_MARKS)
 
 const addonExtraSchema = z.object({
   name: z.string().max(40),
@@ -94,8 +99,8 @@ const defaultsSchema = z.object({
   qualityBadgeStyle: z.enum(QUALITY_BADGE_STYLES).nullable().optional(),
   /** Modalità del top-badge premi (default "badge" = resa testuale storica). */
   awardBadgeStyle: z.enum(AWARD_BADGE_MODES).nullable().optional(),
-  videoFormats: z.array(z.enum(["dv", "hdr", "hdr10plus", "atmos", "imax"])).nullable().optional(),
-  defaultVideoFormats: z.array(z.enum(["dv", "hdr", "hdr10plus", "atmos", "imax"])).nullable().optional(),
+  videoFormats: qualityMarkListSchema.nullable().optional(),
+  defaultVideoFormats: qualityMarkListSchema.nullable().optional(),
   blurEnabled: z.boolean().optional(),
   blurIntensity: z.number().optional(),
   blurFade: z.number().optional(),
@@ -277,7 +282,7 @@ const defaultsSchema = z.object({
     extraBadgeStyle: z.union([z.enum(EXTRA_BADGE_STYLES), z.literal(EXTRA_BADGE_FOLLOW_RANK)]).nullable().optional(),
     badgeFont: z.enum(BADGE_FONTS).optional(),
     qualityBadgeStyle: z.enum(QUALITY_BADGE_STYLES).nullable().optional(),
-    videoFormats: z.array(z.enum(["dv", "hdr", "hdr10plus", "atmos", "imax"])).nullable().optional(),
+    videoFormats: qualityMarkListSchema.nullable().optional(),
     globalBadges: z.boolean().optional(),
     rankingBadges: z.boolean().optional(),
     badgeGenre: z.boolean().optional(),

@@ -115,6 +115,7 @@
   "ui.defaultVideoFormats": "פורמטי וידאו/שמע המוגדרים כברירת מחדל",
   "ui.videoFormatsHint": "הפעלה או השבתה של תגי וידאו ושמע (DV, Atmos, IMAX, HDR, HDR10+).",
   "ui.videoFormatsAutoHint": "מזוהה אוטומטית ממסד הנתונים",
+  "ui.videoFormatsPackHint": "סימני חבילת התגים הם ידניים: הם מופיעים רק במקום שבו תבחרו אותם.",
   "ui.formatsAll": "הכול",
   "ui.formatsNone": "ללא",
   "ui.activeCount": "פעילים",

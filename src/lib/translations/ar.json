@@ -115,6 +115,7 @@
   "ui.defaultVideoFormats": "صيغ الصوت والصورة الافتراضية",
   "ui.videoFormatsHint": "تفعيل أو تعطيل شارات الفيديو والصوت (DV وAtmos وIMAX وHDR وHDR10+).",
   "ui.videoFormatsAutoHint": "يتم اكتشافها تلقائيا من قاعدة البيانات",
+  "ui.videoFormatsPackHint": "علامات حزمة الشارات يدوية: تظهر فقط حيث تحددها.",
   "ui.formatsAll": "الكل",
   "ui.formatsNone": "لا شيء",
   "ui.activeCount": "نشط",

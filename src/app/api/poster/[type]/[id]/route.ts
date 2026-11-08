@@ -112,7 +112,9 @@ import { buildTextLogoBuffer } from "@/lib/svg-badge"
 import { resolveAutoWordmark, resolveTextLogo, type TextLogo, AUTO_WORDMARK_TRACK_FACTOR } from "@/lib/text-logo"
 import { resolveStreamQuality, type StreamQualityResult } from "@/lib/stream-quality"
 import { applyMinQuality, type StreamQuality } from "@/lib/quality-tiers"
-import { lookupAVSpecs, isVideoFormat, type VideoFormat } from "@/lib/av-specs"
+import { lookupAVSpecs } from "@/lib/av-specs"
+import { isQualityMarkId } from "@/lib/quality-badge-pack"
+import { resolveEffectiveQualityMarks } from "@/lib/quality-marks-selection"
 import { computeVote } from "@/lib/rating-weights"
 import { combineAbortSignals } from "@/lib/abort-signal"
 import { cachedImageBytes } from "@/lib/image-bytes-cache"
@@ -3147,25 +3149,24 @@ export async function GET(req: NextRequest, { params }: { params: Promise<RouteP
       minQuality,
     )
 
-    // Formati A/V (dv, atmos, imax, hdr, hdr10plus):
-    // Sempre rigorosamente automatici basati sulle specifiche reali del film (localSpec).
-    // Non vengono MAI mostrati loghi che il titolo non possiede nella realtà.
+    // Formati A/V built-in (dv, atmos, imax, hdr, hdr10plus): sempre
+    // automatici dalle specifiche reali del film (localSpec) — mai un logo che
+    // il titolo non possiede. I marchi del pack (`QualityMarkId` non built-in)
+    // non hanno dati per-titolo: entrano SOLO quando la selezione esplicita
+    // (query/mapping, o defaults non vuoti) li contiene, quindi l'assenza di
+    // selezione resta byte-identica allo storico.
     const availableFormats = localSpec?.formats ?? []
     const qFormatsRaw = req.nextUrl.searchParams.get("formats")
     const qFormats = qFormatsRaw !== null
-      ? (qFormatsRaw === "none" || qFormatsRaw === "" ? [] : (qFormatsRaw.split(",").map((s) => s.trim().toLowerCase()).filter(isVideoFormat) as VideoFormat[]))
+      ? (qFormatsRaw === "none" || qFormatsRaw === "" ? [] : qFormatsRaw.split(",").map((s) => s.trim().toLowerCase()).filter(isQualityMarkId))
       : null
     const allowedFormats = earlyEffSd.videoFormats ?? sd.videoFormats
     const requestedFormats = qFormats ?? earlyEffMapping?.videoFormats ?? null
-
-    const effectiveFormats = availableFormats.filter((f) => {
-      if (requestedFormats !== null) {
-        return requestedFormats.includes(f)
-      }
-      if (allowedFormats && allowedFormats.length > 0) {
-        return allowedFormats.includes(f)
-      }
-      return true
+    const selectedFormats = requestedFormats ?? (allowedFormats && allowedFormats.length > 0 ? allowedFormats : null)
+    const cappedFormats = resolveEffectiveQualityMarks({
+      availableFormats,
+      requestedFormats,
+      allowedFormats,
     })
     // Demo samples (Settings preview only): every ENABLED mark is demoed, so a
     // partial real spec (e.g. DV only) still shows the other enabled styles.
@@ -3174,14 +3175,11 @@ export async function GET(req: NextRequest, { params }: { params: Promise<RouteP
     // applies to the real specs too. The renderer keeps its own precedence
     // rules (HDR10+ replaces HDR, DV+Atmos merge into one lockup).
     const sampledFormats = demoSamples
-      ? sampleDemoVideoFormats(
-          availableFormats,
-          requestedFormats ?? (allowedFormats && allowedFormats.length > 0 ? allowedFormats : null),
-        )
+      ? sampleDemoVideoFormats(availableFormats, selectedFormats)
       : null
     const finalVideoFormats = sampledFormats && sampledFormats.length > 0
       ? sampledFormats
-      : (effectiveFormats.length > 0 ? effectiveFormats : null)
+      : (cappedFormats.length > 0 ? cappedFormats : null)
 
     const locale = canonicalLang || mapping?.language || posterRegion.lang2
     // Formato data badge "in uscita": query `df` > default utente > `locale`

@@ -14,7 +14,8 @@
  * previews. Pure module: no side effects (its only import is the pure AV
  * format list, reused instead of a second copy).
  */
-import { isVideoFormat, KNOWN_VIDEO_FORMATS, type VideoFormat } from "./av-specs"
+import { KNOWN_VIDEO_FORMATS } from "./av-specs"
+import { isQualityMarkId } from "./quality-badge-pack"
 
 /** Query flag enabling demo samples (Settings preview builder only). */
 export const DEMOSAMPLES_FLAG = "demosamples"
@@ -137,12 +138,15 @@ export function isDemoSamplesRequest(input: {
  * single renderer, which normalizes the list it is given.
  */
 export function sampleDemoVideoFormats(
-  realFormats: readonly VideoFormat[],
-  enabled: readonly VideoFormat[] | null | undefined,
-): VideoFormat[] {
-  const selection = (enabled == null ? KNOWN_VIDEO_FORMATS : enabled).filter(isVideoFormat)
+  realFormats: readonly string[],
+  enabled: readonly string[] | null | undefined,
+): string[] {
+  // No explicit selection = the historic built-in set. Pack marks demo only
+  // when the operator/user actually selected them (never invented by the
+  // sample, same rule as the real render path).
+  const selection = (enabled == null ? KNOWN_VIDEO_FORMATS : enabled).filter(isQualityMarkId)
   const allowed = new Set(selection)
-  const sampled: VideoFormat[] = []
+  const sampled: string[] = []
   for (const format of [...realFormats, ...selection]) {
     if (!allowed.has(format) || sampled.includes(format)) continue
     sampled.push(format)

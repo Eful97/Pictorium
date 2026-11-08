@@ -59,9 +59,9 @@ import type { BadgeFont } from "./badge-styles"
 import { isRibbonRankingStyle, isBottomSeparateRatingsStyle, isAgeBadgeStyle, isAwardBadgeMode, getSeparateRatingsStyleForShape, resolveNumberBadgeBaseOffsetX, normalizeExtraBadgeStyleForRender, resolveQualityGroupLayout, isMergedQualityStrip, DEFAULT_AGE_BADGE_STYLE, DEFAULT_AWARD_BADGE_MODE, type BadgeStyle, type RankingBadgeStyle, type ExtraBadgeStyle, type ExtraBadgeFollowRank, type SeparateRatingsStyle, type SeparateBottomVariant, type AgeBadgeStyle, type AwardBadgeMode, type QualityGroupLayout } from "./badge-styles"
 import { normalizeBadgeFont } from "./badge-svg-shared"
 import type { PosterImageFormat } from "@/lib/poster-runtime-cache"
-import { AV_KNOCKOUT_RADIUS_FACTOR, AV_KNOCKOUT_TAG_INSET_FACTOR, AV_MARK_CAP_HEIGHT_FACTOR, AV_PLATE_RADIUS_FACTOR, AV_PLATE_STROKE_WIDTH, AV_COMBO_SHORT_LABEL, COLOR_MARK_GLYPH, COLOR_MARK_PLATE_BG, COLOR_MARK_PLATE_STROKE, GRADIENT_TIER_INK, avMarkGroupInkBox, avMarkInkBox, avPlateGlyphBox, gradientMarkStops, qualityBadgeIconPath, qualityIconReferenceWidth, videoFormatShortLabel, type AvMarkInkBox, PREMIUM_COMBO_ACCENT, PREMIUM_PLATE_BG, PREMIUM_PLATE_STROKE, premiumAccentHex, premiumFormatAccent } from "./quality-badge-styles"
+import { AV_KNOCKOUT_RADIUS_FACTOR, AV_KNOCKOUT_TAG_INSET_FACTOR, AV_MARK_CAP_HEIGHT_FACTOR, AV_PLATE_RADIUS_FACTOR, AV_PLATE_STROKE_WIDTH, AV_COMBO_SHORT_LABEL, COLOR_MARK_GLYPH, COLOR_MARK_PLATE_BG, COLOR_MARK_PLATE_STROKE, GRADIENT_TIER_INK, avMarkGroupInkBox, avMarkInkBox, avPlateGlyphBox, gradientMarkStops, qualityBadgeIconPath, qualityIconReferenceWidth, qualityMarkAccent, type AvMarkInkBox, PREMIUM_COMBO_ACCENT, PREMIUM_PLATE_BG, PREMIUM_PLATE_STROKE, premiumAccentHex } from "./quality-badge-styles"
 import type { QualityBadgeStyle } from "./badge-styles"
-import { FORMAT_ICON_PATHS, type VideoFormat } from "./av-specs"
+import { MAX_QUALITY_MARKS, QUALITY_MARK_IDS, isQualityMarkId, qualityMarkAspect, qualityMarkIconPath, qualityMarkLabel, qualityMarkMode } from "./quality-badge-pack"
 import { isRankKey } from "./i18n"
 import { composeFreshOverlay, composeFreshOverlaySplit, isEffectiveFreshLayout, isFreshRank, prepareFreshReconstructedBackground, type ComposeFreshInput, type FreshOverlayGeometry } from "./fresh-layout"
 import { renderCardPoster, aggregateCardRating, cardMetadataBand, type CardOverlayGeometry } from "./card-layout"
@@ -231,8 +231,8 @@ export interface GenerationInput {
    * cambia rispetto allo storico).
    */
   qualityGroupLayout?: QualityGroupLayout | null
-  /** Formati A/V da affiancare alla qualità (dv, atmos, imax, hdr, hdr10plus). */
-  videoFormats?: readonly VideoFormat[] | null
+  /** Marchi qualità da affiancare al tier (formati A/V built-in + marchi del pack). */
+  videoFormats?: readonly string[] | null
   /** Ordine/priorità sash (sottoinsieme = resto spento). Default = ordine standard. */
   sashOrder?: readonly SashBucket[] | null
   /**
@@ -682,10 +682,11 @@ export { badgeCacheKey } from "./poster-cache-infra"
 // Quality badge da icone built-in (public/quality-badges, server-only).
 // ---------------------------------------------------------------------------
 
-// Sorgenti SVG memoizzati (file immutabili, cap 20): i render a varie pw e
-// polarità condividono i byte sorgente.
+// Sorgenti SVG memoizzati (file immutabili): i render a varie pw e polarità
+// condividono i byte sorgente. Il cap segue il registro (formati built-in +
+// marchi del pack), così un pack grande non manda la memo in thrash.
 const qualityIconMemo = new Map<string, Promise<string | null>>()
-const QUALITY_ICON_MEMO_MAX = 20
+const QUALITY_ICON_MEMO_MAX = Math.max(20, QUALITY_MARK_IDS.length * 2)
 
 function loadQualityIconSvg(iconPath: string): Promise<string | null> {
   const memo = qualityIconMemo.get(iconPath)
@@ -710,6 +711,43 @@ function loadQualityIconSvg(iconPath: string): Promise<string | null> {
 /** Solo test: svuota la memo dei sorgenti SVG qualità. */
 export function __resetQualityIconCacheForTests(): void {
   qualityIconMemo.clear()
+  qualityAssetMemo.clear()
+}
+
+// Asset binari del pack (modalità `opaque`): artwork già finito, embeddato
+// come data URI nell'SVG composto. Stesso guard anti-traversal del loader SVG;
+// il path arriva solo dal manifest, mai dall'input utente.
+const qualityAssetMemo = new Map<string, Promise<string | null>>()
+const QUALITY_ASSET_MEMO_MAX = 64
+
+function qualityAssetMime(iconPath: string): string | null {
+  const ext = path.posix.extname(iconPath).toLowerCase()
+  if (ext === ".svg") return "image/svg+xml"
+  if (ext === ".png") return "image/png"
+  if (ext === ".webp") return "image/webp"
+  if (ext === ".jpg" || ext === ".jpeg") return "image/jpeg"
+  return null
+}
+
+function loadQualityAssetDataUri(iconPath: string): Promise<string | null> {
+  const memo = qualityAssetMemo.get(iconPath)
+  if (memo) return memo
+  const p = (async (): Promise<string | null> => {
+    try {
+      if (iconPath.includes("..") || path.posix.normalize(iconPath) !== iconPath) return null
+      const mime = qualityAssetMime(iconPath)
+      if (!mime) return null
+      const full = path.join(process.cwd(), "public", iconPath)
+      const bytes = await fs.promises.readFile(full)
+      return `data:${mime};base64,${bytes.toString("base64")}`
+    } catch {
+      return null
+    }
+  })()
+  p.catch(() => { if (qualityAssetMemo.get(iconPath) === p) qualityAssetMemo.delete(iconPath) })
+  if (qualityAssetMemo.size >= QUALITY_ASSET_MEMO_MAX) qualityAssetMemo.delete(qualityAssetMemo.keys().next().value!)
+  qualityAssetMemo.set(iconPath, p)
+  return p
 }
 
 function qualityIconViewBox(svg: string): { w: number; h: number } | null {
@@ -760,6 +798,19 @@ interface BadgeSvgSpec {
   readonly svg: string
   readonly w: number
   readonly h: number
+}
+
+/**
+ * Resolved quality mark: built-in A/V format or pack mark. `tintable` marks go
+ * through the existing per-style builders; `opaque` marks are embedded as-is
+ * (`aspect` = natural width / height).
+ */
+interface QualityMarkSpec {
+  readonly id: string
+  readonly iconPath: string
+  readonly label: string
+  readonly mode: "tintable" | "opaque"
+  readonly aspect: number | null
 }
 
 async function buildQualityIconSvg(
@@ -1210,7 +1261,7 @@ export interface QualityHomeGhost {
 export async function renderQualityBadgeGroup(
   quality: string | null | undefined,
   qualityBadgeStyle: QualityBadgeStyle | null | undefined,
-  videoFormats: readonly VideoFormat[] | null | undefined,
+  videoFormats: readonly string[] | null | undefined,
   pw: number,
   topLight?: boolean,
   /** Font della pill testuale (default "inter" = resa storica; le icone mono/color restano invariate). */
@@ -1407,26 +1458,59 @@ export async function renderQualityBadgeGroup(
     columnW != null ? Math.max(1, Math.round(columnW)) : undefined,
   )
   /**
-   * Un marchio A/V, con la stessa larghezza visibile in ogni stile:
+   * Opaque pack mark: finished artwork embedded as-is (no tint, no frame, no
+   * mask). Width is pinned to the group column (`markRefWidth`); height follows
+   * the natural aspect and is contain-fitted to the tier box height, so a tall
+   * sticker can never grow the stack. The shared 3D shadow keeps it seated on
+   * the poster; no second material is introduced.
+   */
+  const buildOpaqueMarkSvg = async (
+    iconPath: string,
+    markWidth: number,
+    aspect: number | null,
+  ): Promise<BadgeSvgSpec | null> => {
+    if (!aspect || !Number.isFinite(aspect) || aspect <= 0) return null
+    const data = await loadQualityAssetDataUri(iconPath)
+    if (!data) return null
+    const opaqueFs = Math.round(Math.max(17 * pw / 380, 10))
+    const boxH = badgeBoxHeight(opaqueFs)
+    const targetW = Math.max(1, Math.round(markWidth))
+    const naturalH = Math.max(1, Math.round(targetW / aspect))
+    const w = naturalH <= boxH ? targetW : Math.max(1, Math.round(boxH * aspect))
+    const h = Math.max(1, Math.round(w / aspect))
+    const totalW = w + TOP_SHADOW_PAD * 2
+    const totalH = h + TOP_SHADOW_PAD * 2
+    const compositeSvg = `<svg xmlns="http://www.w3.org/2000/svg" width="${totalW}" height="${totalH}" viewBox="0 0 ${totalW} ${totalH}">` +
+      `<defs>${TOP_SHADOW_FILTER}</defs>` +
+      `<g filter="url(#tds)">` +
+      `<image x="${TOP_SHADOW_PAD}" y="${TOP_SHADOW_PAD}" width="${w}" height="${h}" href="${data}" preserveAspectRatio="xMidYMid meet"/>` +
+      `</g></svg>`
+    return { svg: compositeSvg, w: totalW, h: totalH }
+  }
+
+  /**
+   * Un marchio qualità, con la stessa larghezza visibile in ogni stile:
    * standard = glifo dentro la pill satinata del tier/età; mono = glifo dentro
    * la cornice mono dell'età (fill none); color/premium = glifo dentro una
    * placca larga quanto il badge 4K; knockout = tag bianco con glifo
    * ritagliato (trasparente); nova = stessa lastra dinamica del tier/età con
    * l'etichetta breve del formato (nessun artwork per formato); gradient =
    * glifo nudo con il gradiente orizzontale del formato (stessa etichetta
-   * breve, nessun artwork).
+   * breve, nessun artwork). I marchi `opaque` del pack saltano ogni materiale
+   * e vengono embeddati as-is.
    *
    * Ritorna lo SVG spec (nessuna rasterizzazione): il gruppo compone tutti i
    * marchi in un solo SVG, il percorso legacy li rasterizza singolarmente.
    */
   const buildFormatMark = async (
-    iconPath: string,
+    mark: QualityMarkSpec,
     topLightForMark: boolean | undefined,
     accentHex: string,
-    /** Etichetta breve della lastra Nova / del marchio nudo `gradient`
-     *  (usata solo dagli stili dinamici `nova` e `gradient`). */
-    novaLabel: string,
   ): Promise<BadgeSvgSpec | null> => {
+    const { iconPath, label: novaLabel, mode, aspect } = mark
+    // Opaque pack artwork is self-contained: never apply the style chrome
+    // (plate/frame/mask/tint) — it would double-frame a finished badge.
+    if (mode === "opaque") return buildOpaqueMarkSvg(iconPath, markRefWidth, aspect)
     // BARE icon sizing (family parity + optical cap) belongs ONLY to the
     // senza-pill `naked` style: it draws the A/V marks through the
     // `buildQualityIconSvg` bare-icon path with this exact box. Every other
@@ -1488,7 +1572,10 @@ export async function renderQualityBadgeGroup(
   // (With a quality, the tier ALWAYS renders: icon or text pill.)
   if (!hasQuality && ageText === "") return null
 
-  const rawValidFormats = (videoFormats ?? []).filter((f) => f in FORMAT_ICON_PATHS)
+  // Dedupe + cap deterministico: l'ordine di selezione vince, i marchi oltre
+  // il cap non entrano nel gruppo (né nel report per-item).
+  const rawValidFormats = [...new Set((videoFormats ?? []).filter((f): f is string => isQualityMarkId(f)))]
+    .slice(0, MAX_QUALITY_MARKS)
   // Priorità HDR10+ sul generico HDR (solo render, dopo la selezione
   // effettiva: DB/provenance/raw utente e chiavi cache invariati — il gruppo
   // non disegna HDR quando l'effettivo include anche HDR10+, in ogni ordine).
@@ -1516,7 +1603,7 @@ export async function renderQualityBadgeGroup(
     for (const fmt of validFormats) {
       if (stripCombo && (fmt === "dv" || fmt === "atmos")) continue
       const itemId = qualityFormatItemId(fmt)
-      if (itemId) segments.push({ id: itemId, label: videoFormatShortLabel(fmt) })
+      if (itemId) segments.push({ id: itemId, label: qualityMarkLabel(fmt) })
     }
     const painted = segments.filter((segment) => segment.label.trim() !== "")
     if (painted.length === 0) return null
@@ -1551,10 +1638,15 @@ export async function renderQualityBadgeGroup(
     // merged lockup). Knockout renders its own white tag (polarity moot).
     const comboAccent = premiumAccentHex(PREMIUM_COMBO_ACCENT)
     comboIcon = await buildFormatMark(
-      "quality-badges/video/dolby-vision-atmos.svg",
+      {
+        id: "combo",
+        iconPath: "quality-badges/video/dolby-vision-atmos.svg",
+        label: AV_COMBO_SHORT_LABEL,
+        mode: "tintable",
+        aspect: null,
+      },
       topLight,
       comboAccent,
-      AV_COMBO_SHORT_LABEL,
     )
     if (!comboIcon) useCombo = false
   }
@@ -1571,11 +1663,18 @@ export async function renderQualityBadgeGroup(
     if (useCombo && (fmt === "dv" || fmt === "atmos")) {
       continue
     }
+    const iconPath = qualityMarkIconPath(fmt)
+    if (!iconPath) continue
     const icon = await buildFormatMark(
-      FORMAT_ICON_PATHS[fmt],
+      {
+        id: fmt,
+        iconPath,
+        label: qualityMarkLabel(fmt),
+        mode: qualityMarkMode(fmt),
+        aspect: qualityMarkAspect(fmt),
+      },
       topLight,
-      premiumAccentHex(premiumFormatAccent(fmt)),
-      videoFormatShortLabel(fmt),
+      premiumAccentHex(qualityMarkAccent(fmt)),
     )
     const itemId = qualityFormatItemId(fmt)
     if (icon && itemId) formatItems.push({ id: itemId, badge: icon })

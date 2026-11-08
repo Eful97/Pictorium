@@ -115,6 +115,7 @@
   "ui.defaultVideoFormats": "Standard ljud/bild-format",
   "ui.videoFormatsHint": "Aktivera eller inaktivera video- och ljudbadges (DV, Atmos, IMAX, HDR, HDR10+).",
   "ui.videoFormatsAutoHint": "Upptäcks automatiskt från databasen",
+  "ui.videoFormatsPackHint": "Märken från badge-paketet är manuella: de visas bara där du väljer dem.",
   "ui.formatsAll": "Alla",
   "ui.formatsNone": "Inga",
   "ui.activeCount": "aktiva",

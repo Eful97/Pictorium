@@ -1,5 +1,10 @@
 import type { QualityBadgeStyle } from "./badge-styles"
-import { FORMAT_ICON_PATHS, KNOWN_VIDEO_FORMATS, VIDEO_FORMAT_OPTIONS, type VideoFormat } from "./av-specs"
+import { FORMAT_ICON_PATHS, KNOWN_VIDEO_FORMATS, VIDEO_FORMAT_OPTIONS, isVideoFormat, type VideoFormat } from "./av-specs"
+import {
+  packMarkAccent,
+  packMarkGradientStops,
+  packMarkInkBox,
+} from "./quality-badge-pack"
 
 // ---------------------------------------------------------------------------
 // Registro icone del badge qualità streaming (stili built-in da SVG locali).
@@ -243,7 +248,17 @@ export function avMarkInkBox(iconPath: string): AvMarkInkBox | null {
   for (const format of KNOWN_VIDEO_FORMATS) {
     if (FORMAT_ICON_PATHS[format] === iconPath) return AV_MARK_INK_BOX[format]
   }
-  return null
+  return packMarkInkBox(iconPath)
+}
+
+/**
+ * Accento premium di un marchio qualità: i formati built-in hanno la tabella
+ * storica, i marchi del pack dichiarano il proprio (default `gold`, la tinta
+ * della famiglia premium) — mai un colore inventato per formato.
+ */
+export function qualityMarkAccent(id: string): PremiumAccent {
+  if (isVideoFormat(id)) return premiumFormatAccent(id)
+  return packMarkAccent(id) ?? "gold"
 }
 
 // ---------------------------------------------------------------------------
@@ -414,7 +429,7 @@ export function gradientMarkStops(iconPath: string): readonly string[] | null {
   for (const format of KNOWN_VIDEO_FORMATS) {
     if (FORMAT_ICON_PATHS[format] === iconPath) return GRADIENT_MARK_STOPS[format]
   }
-  return null
+  return packMarkGradientStops(iconPath)
 }
 
 /** Raggio del tag bianco knockout A/V (come il tag knockout del tier). */

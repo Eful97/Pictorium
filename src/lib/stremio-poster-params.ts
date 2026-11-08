@@ -5,7 +5,7 @@ import { canonicalizeBadgeItemTransforms } from "@/lib/badge-item-transforms"
 import { sanitizeDisabledContentTags } from "@/lib/content-tags"
 import { sanitizeDisabledNetworks } from "@/lib/network-keys"
 import type { AgeBadgeStyle } from "@/lib/badge-styles"
-import type { VideoFormat } from "@/lib/av-specs"
+import type { QualityMarkId } from "@/lib/quality-badge-pack"
 import { parseMinQuality, type StreamQuality } from "@/lib/quality-tiers"
 import { normalizeSeasonalTheme } from "./seasonal-theme"
 import { parseSashOrder, isDefaultSashOrder, type SashBucket } from "@/lib/badge-priority"
@@ -87,7 +87,7 @@ export interface StremioPosterParamsInput {
   /** Quality style: emitted as `qbs` only when non-standard (stable cache). */
   readonly qualityBadgeStyle?: QualityBadgeStyle | null
   /** Formati A/V abilitati: emessi come `formats` solo se specificati. */
-  readonly videoFormats?: readonly VideoFormat[] | null
+  readonly videoFormats?: readonly QualityMarkId[] | null
   readonly gradientHeight?: number
   readonly blurIntensity?: number
   readonly blurFade?: number

@@ -1,11 +1,11 @@
 "use client"
 
-import { VIDEO_FORMAT_OPTIONS, FORMAT_ICON_PATHS, type VideoFormat } from "@/lib/av-specs"
+import { QUALITY_MARK_OPTIONS, type QualityMarkId } from "@/lib/quality-badge-pack"
 import { RotateCcw } from "lucide-react"
 
 export interface VideoFormatSelectorProps {
-  selectedFormats: readonly VideoFormat[]
-  onChange: (formats: VideoFormat[]) => void
+  selectedFormats: readonly QualityMarkId[]
+  onChange: (formats: QualityMarkId[]) => void
   onReset?: () => void
   isCustomized?: boolean
   t: (k: string) => string
@@ -18,7 +18,7 @@ export function VideoFormatSelector({
   isCustomized,
   t,
 }: VideoFormatSelectorProps) {
-  const toggleFormat = (id: VideoFormat) => {
+  const toggleFormat = (id: QualityMarkId) => {
     const isSelected = selectedFormats.includes(id)
     if (isSelected) {
       onChange(selectedFormats.filter((f) => f !== id))
@@ -28,7 +28,7 @@ export function VideoFormatSelector({
   }
 
   const selectAll = () => {
-    onChange(VIDEO_FORMAT_OPTIONS.map((opt) => opt.id))
+    onChange(QUALITY_MARK_OPTIONS.map((opt) => opt.id))
   }
 
   const selectNone = () => {
@@ -39,7 +39,7 @@ export function VideoFormatSelector({
     <div className="space-y-1.5 w-full">
       <div className="flex items-center justify-between px-0.5 text-[10px]">
         <span className="text-muted leading-tight">
-          {selectedFormats.length}/{VIDEO_FORMAT_OPTIONS.length} {t("ui.activeCount") || "attivi"}
+          {selectedFormats.length}/{QUALITY_MARK_OPTIONS.length} {t("ui.activeCount") || "attivi"}
         </span>
         <div className="flex items-center gap-1.5 shrink-0 ml-2">
           {onReset && isCustomized && (
@@ -74,10 +74,15 @@ export function VideoFormatSelector({
         </div>
       </div>
 
-      <div className="grid grid-cols-5 gap-1 w-full">
-        {VIDEO_FORMAT_OPTIONS.map((opt) => {
+      <div className="grid grid-cols-5 gap-1 w-full max-h-52 overflow-y-auto">
+        {QUALITY_MARK_OPTIONS.map((opt) => {
           const isSelected = selectedFormats.includes(opt.id)
-          const iconPath = `/${FORMAT_ICON_PATHS[opt.id]}`
+          const iconPath = `/${opt.icon}`
+          // Opaque pack artwork keeps its own colors; only tintable glyphs are
+          // normalized to the monochrome selector ink.
+          const iconClass = opt.mode === "opaque"
+            ? `h-3 max-w-[28px] object-contain transition-opacity duration-150 ${isSelected ? "opacity-100" : "opacity-50"}`
+            : `h-3 max-w-[28px] object-contain transition-opacity duration-150 ${isSelected ? "brightness-0 invert opacity-100" : "brightness-0 invert opacity-40"}`
 
           return (
             <button
@@ -92,13 +97,11 @@ export function VideoFormatSelector({
               }`}
             >
               <div className="h-4 flex items-center justify-center">
-                {/* eslint-disable-next-line @next/next/no-img-element -- SVG locale dinamico */}
+                {/* eslint-disable-next-line @next/next/no-img-element -- SVG/PNG locale dinamico */}
                 <img
                   src={iconPath}
                   alt={opt.label}
-                  className={`h-3 max-w-[28px] object-contain transition-opacity duration-150 ${
-                    isSelected ? "brightness-0 invert opacity-100" : "brightness-0 invert opacity-40"
-                  }`}
+                  className={iconClass}
                 />
               </div>
               <span className="text-[9px] font-mono leading-none tracking-tight truncate max-w-full">

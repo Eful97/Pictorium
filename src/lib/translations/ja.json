@@ -115,6 +115,7 @@
   "ui.defaultVideoFormats": "デフォルトのA/Vフォーマット",
   "ui.videoFormatsHint": "ビデオおよびオーディオバッジ（DV、Atmos、IMAX、HDR、HDR10+）を有効または無効にします。",
   "ui.videoFormatsAutoHint": "データベースから自動検出",
+  "ui.videoFormatsPackHint": "バッジパックのマークは手動です。選択した場所にのみ表示されます。",
   "ui.formatsAll": "すべて",
   "ui.formatsNone": "なし",
   "ui.activeCount": "有効",

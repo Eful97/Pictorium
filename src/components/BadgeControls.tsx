@@ -7,7 +7,7 @@ import { useT } from "@/lib/contexts/TranslationContext"
 import { usePosterEditor } from "@/lib/contexts/PosterEditorContext"
 import { Toggle } from "@/components/Toggle"
 import { isCardSkin, type CardSkin } from "@/lib/card-layout-skins"
-import { BadgeStyleSelector, BadgeFontSelector, AwardBadgeModeSelector } from "@/components/ui"
+import { BadgeStyleSelector, BadgeFontSelector, AwardBadgeModeSelector, VideoFormatSelector } from "@/components/ui"
 import { QualityGroupLayoutSelector } from "@/components/PosterLayoutSelector"
 import {
   RankingAppearanceSelector,
@@ -25,7 +25,8 @@ import {
 } from "@/components/RankingAppearanceSelector"
 import type { ExtraBadgeStyle, RankingBadgeStyle } from "@/lib/badge-styles"
 import type { SeasonalThemeChoice } from "@/lib/seasonal-theme"
-import { lookupAVSpecs, KNOWN_VIDEO_FORMATS } from "@/lib/av-specs"
+import { lookupAVSpecs } from "@/lib/av-specs"
+import { PACK_MARK_IDS, QUALITY_MARK_IDS, isPackMark, qualityMarkLabel } from "@/lib/quality-badge-pack"
 import { getAwardBadgeLabel, getNominationBadgeLabel } from "@/lib/badge-labels"
 import { getBasedOnBookLabel, getFewEpisodesLabel, getNewSeasonLabel, getNextEpisodeLabel, getSeriesEndedLabel, getTrueStoryLabel, isKDramaBadgeEligible } from "@/lib/poster-badge"
 import { withIdAwards, withIdNoms } from "@/lib/award-ids"
@@ -95,9 +96,15 @@ export function BadgeControls() {
   }, [previewUrl])
 
   const localSpec = lookupAVSpecs(metaInfo?.imdb_id || selected?.imdb_id)
-  const activeVideoFormats = localSpec?.formats
-    ? localSpec.formats.filter((f) => (ed.defaultVideoFormats ?? KNOWN_VIDEO_FORMATS).includes(f))
-    : []
+  // Selection chain: per-title selection wins; null = inherit the space
+  // defaults. Pack marks have no per-title data, so they are painted only
+  // when explicitly selected (never invented).
+  const selectedQualityMarks = ed.videoFormats ?? ed.defaultVideoFormats ?? QUALITY_MARK_IDS
+  const hasPackMarks = PACK_MARK_IDS.length > 0
+  const activeVideoFormats = [
+    ...(localSpec?.formats ?? []).filter((f) => selectedQualityMarks.includes(f)),
+    ...selectedQualityMarks.filter((id) => isPackMark(id)),
+  ]
 
   if (!selected) return null
 
@@ -751,13 +758,27 @@ export function BadgeControls() {
                           key={fmt}
                           className="text-[10px] font-bold font-mono px-2 py-0.5 rounded bg-surface2/80 text-accent-orange border border-accent-orange/30 shadow-sm"
                         >
-                          {fmt === "dv+atmos" ? "DV · ATMOS" : fmt === "hdr10plus" ? "HDR10+" : fmt.toUpperCase()}
+                          {fmt === "dv+atmos" ? "DV · ATMOS" : qualityMarkLabel(fmt)}
                         </span>
                       ))}
                     </div>
                   </div>
                 )
               })()}
+
+              {hasPackMarks && (
+                <div className="pt-1.5 border-t border-surface2/50 space-y-1.5">
+                  <label className="text-[11px] text-zinc-300 font-medium block">{t("ui.videoFormats")}</label>
+                  <span className="text-[10px] text-muted block">{t("ui.videoFormatsPackHint")}</span>
+                  <VideoFormatSelector
+                    selectedFormats={selectedQualityMarks}
+                    onChange={(formats) => ed.setVideoFormats(formats)}
+                    onReset={() => ed.setVideoFormats(null)}
+                    isCustomized={ed.videoFormats !== null}
+                    t={t}
+                  />
+                </div>
+              )}
             </div>
           )}
 

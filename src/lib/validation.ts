@@ -4,6 +4,11 @@ import { TEXT_LOGO_MAX_LENGTH } from "./text-logo"
 import { POSTER_LAYOUTS, POSTER_FRESH_SCOPES, RETIRED_BADGE_FAMILY_IDS, type RetiredBadgeFamilyBindings, type RetiredBadgeFamilyFollows } from "./types"
 import { QUALITY_GROUP_LAYOUTS } from "./badge-styles"
 import { MAX_EPISODE_STILL_OVERRIDES, sanitizeEpisodeThumbnailStills } from "./episode-stills"
+import { MAX_QUALITY_MARKS, isQualityMarkId } from "./quality-badge-pack"
+
+/** Built-in A/V format id or a vendored pack mark id. */
+const qualityMarkIdSchema = z.string().max(64).refine((value) => isQualityMarkId(value))
+const qualityMarkListSchema = z.array(qualityMarkIdSchema).max(MAX_QUALITY_MARKS)
 
 /**
  * Retired Badge Lab write-boundary schemas (custom badge library removed).
@@ -222,7 +227,7 @@ export const mappingSchema = z.object({
   extraBadgeStyle: z.union([z.enum(EXTRA_BADGE_STYLES), z.literal(EXTRA_BADGE_FOLLOW_RANK)]).nullable().optional(),
   badgeFont: z.enum(BADGE_FONTS).nullable().optional(),
   qualityBadgeStyle: z.enum(QUALITY_BADGE_STYLES).nullable().optional(),
-  videoFormats: z.array(z.enum(["dv", "hdr", "hdr10plus", "atmos", "imax"])).nullable().optional(),
+  videoFormats: qualityMarkListSchema.nullable().optional(),
   cleanPosters: z.array(z.string()).nullable().optional(),
   cleanPosterIndex: z.number().int().min(0).nullable().optional(),
   cleanPosterUpdatedAt: z.string().nullable().optional(),
@@ -321,7 +326,7 @@ export const mappingSchema = z.object({
     extraBadgeStyle: z.union([z.enum(EXTRA_BADGE_STYLES), z.literal(EXTRA_BADGE_FOLLOW_RANK)]).nullable().optional(),
     badgeFont: z.enum(BADGE_FONTS).nullable().optional(),
     qualityBadgeStyle: z.enum(QUALITY_BADGE_STYLES).nullable().optional(),
-    videoFormats: z.array(z.enum(["dv", "hdr", "hdr10plus", "atmos", "imax"])).nullable().optional(),
+    videoFormats: qualityMarkListSchema.nullable().optional(),
     networkLogo: z.boolean().nullable().optional(),
     networkLogoPosition: z.enum(["auto", "top"]).nullable().optional(),
     ribbonEnabled: z.boolean().nullable().optional(),
@@ -406,7 +411,7 @@ export const posterQuerySchema = z.object({
   // nessun bound largo: un valore oltre i 160 char è già invalido.
   pbase: boundedQueryString(160),
   quality: boundedQueryString(16),
-  formats: boundedQueryString(64),
+  formats: boundedQueryString(256),
   qmin: boundedQueryString(8),
   lang: boundedQueryString(20),
   rsrc: boundedQueryString(200),
