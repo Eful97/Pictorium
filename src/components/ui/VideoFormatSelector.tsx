@@ -1,6 +1,6 @@
 "use client"
 
-import { QUALITY_MARK_OPTIONS, type QualityMarkId } from "@/lib/quality-badge-pack"
+import { MAX_QUALITY_MARKS, QUALITY_MARK_OPTIONS, type QualityMarkId } from "@/lib/quality-badge-pack"
 import { RotateCcw } from "lucide-react"
 
 export interface VideoFormatSelectorProps {
@@ -27,8 +27,13 @@ export function VideoFormatSelector({
     }
   }
 
+  // The write boundary caps a selection at MAX_QUALITY_MARKS (first N, order
+  // preserved), so "select all" must never propose more than that — a pack can
+  // push the option list past the cap. When it does, the control advertises the
+  // cap next to its label (shipped empty pack = unchanged UI).
+  const capped = QUALITY_MARK_OPTIONS.length > MAX_QUALITY_MARKS
   const selectAll = () => {
-    onChange(QUALITY_MARK_OPTIONS.map((opt) => opt.id))
+    onChange(QUALITY_MARK_OPTIONS.slice(0, MAX_QUALITY_MARKS).map((opt) => opt.id))
   }
 
   const selectNone = () => {
@@ -59,9 +64,10 @@ export function VideoFormatSelector({
           <button
             type="button"
             onClick={selectAll}
+            title={capped ? `${t("ui.formatsAll") || "Tutti"} · ${MAX_QUALITY_MARKS}/${QUALITY_MARK_OPTIONS.length}` : undefined}
             className="text-accent-orange hover:underline font-semibold transition-colors"
           >
-            {t("ui.formatsAll") || "Tutti"}
+            {t("ui.formatsAll") || "Tutti"}{capped ? ` · ${MAX_QUALITY_MARKS}` : ""}
           </button>
           <span className="text-zinc-600">·</span>
           <button
