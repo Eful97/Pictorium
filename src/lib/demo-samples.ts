@@ -11,8 +11,9 @@
  * preview auth/downgrade check, and only with `preview=1` plus the explicit
  * `demosamples=1` flag (emitted solely by `buildDefaultsPreviewUrl`). No new
  * upstream fetch, no key usage, no mapping writes, no cache writes for
- * previews. Pure module: no side effects (its only import is the pure AV
- * format list, reused instead of a second copy).
+ * previews. Pure module: no side effects (its only imports are the pure AV
+ * format list and the client-safe quality-mark registry, reused instead of
+ * second copies).
  */
 import { KNOWN_VIDEO_FORMATS } from "./av-specs"
 import { isQualityMarkId } from "./quality-badge-pack"

@@ -60,7 +60,7 @@ describe("RENDER_FILES consistency", () => {
     const files = [...readRenderFiles(), ...readRenderDirs().flatMap(walkRenderDir)]
     expect(files.length).toBeGreaterThan(0)
     for (const f of files) {
-      // Font binari: devono esistere; gli altri devono essere .ts esistenti.
+      // Ogni entry (sorgenti .ts, font, SVG, JSON) deve esistere su disco.
       expect(fs.existsSync(path.join(ROOT, f)), `missing RENDER_FILE: ${f}`).toBe(true)
     }
   })
