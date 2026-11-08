@@ -30,6 +30,19 @@ export interface ChangelogRelease {
  *  (which bumps on every commit and would leave the dot permanently on). */
 export const CHANGELOG: ChangelogRelease[] = [
   {
+    version: "1.27.1",
+    date: "2026-11-08",
+    title: "Release 1.27.1",
+    items: [
+      { type: "feature", text: "Turn on a Filler banner that marks anime episodes as manga canon, anime canon, filler or mixed, with more series covered and data refreshed automatically" },
+      { type: "feature", text: "Add extra quality marks such as AV1, Remux and 10-bit to posters from an imported badge pack, and keep your settings saveable when the pack changes" },
+      { type: "feature", text: "Add a round Circle vote badge for episode thumbnails, and show the blue Absolute Cinema colour from 9.7" },
+      { type: "fix", text: "Keep episode thumbnails loading in reordered Episode Groups, and show episode titles in your selected language" },
+      { type: "fix", text: "Warn before leaving the editor with unsaved changes, and keep drag handles and Card layout badges where you placed them" },
+      { type: "perf", text: "Render posters faster on multi-core machines and keep catalogs responsive when TMDB is unavailable" },
+    ],
+  },
+  {
     version: "1.27.0",
     date: "2026-11-05",
     title: "Release 1.27.0",
