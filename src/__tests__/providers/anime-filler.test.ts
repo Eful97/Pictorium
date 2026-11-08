@@ -77,15 +77,29 @@ describe("anime-filler resolver", () => {
     expect(resolveFillerStatus(28136, 13)).toBe("filler")
     expect(resolveFillerStatus(28136, 18)).toBe("filler")
     expect(resolveFillerStatus(28136, 19)).toBe("manga")
-    expect(resolveFillerStatus(28136, 95)).toBe("filler")
-    // The primary window ends at 95; the own DB extends the same series to 100.
+    expect(resolveFillerStatus(28136, 95)).toBe("manga")
+    // The own DB covers 1..100 (the primary stops at 95) and wins throughout.
     expect(resolveFillerStatus(28136, 96)).toBe("manga")
     expect(resolveFillerStatus(28136, 100)).toBe("filler")
     expect(resolveFillerStatus(28136, 101)).toBeNull()
   })
 
-  it("resolves every snapshot range at its start, midpoint and end", () => {
+  it("resolves every own snapshot range at its start, midpoint and end", () => {
+    for (const record of OWN_RECORDS) {
+      for (const [start, end, status] of record.ranges) {
+        const mid = Math.floor((start + end) / 2)
+        for (const episode of [start, mid, end]) {
+          const resolved = resolveFillerStatus(record.t, episode)
+          expect(resolved, `tmdb ${record.t} episode ${episode}`).toBe(status === "canon" ? "manga" : status)
+          expect(VALID_CODES.has(resolved as string)).toBe(true)
+        }
+      }
+    }
+  })
+
+  it("resolves primary-only ranges through the fallback", () => {
     for (const record of RECORDS) {
+      if (OWN_BY_TMDB.has(record.t)) continue
       for (const [start, end, status] of record.ranges) {
         const mid = Math.floor((start + end) / 2)
         for (const episode of [start, mid, end]) {
@@ -238,7 +252,7 @@ describe("anime-filler resolver", () => {
     }
   })
 
-  it("falls back to the separate own DB only for series absent from the primary snapshot", () => {
+  it("resolves own-only series from the own DB", () => {
     // High-value titles that the 42-record CC BY 4.0 snapshot does not cover
     // resolve from the CC BY-SA 4.0 own DB.
     expect(PRIMARY_TMDB.has(85937)).toBe(false)
@@ -254,25 +268,26 @@ describe("anime-filler resolver", () => {
     expect(resolveFillerStatus(netNew!.t, start)).toBe(status === "canon" ? "manga" : status)
   })
 
-  it("keeps the primary snapshot authoritative for an overlapping series (no per-episode merge)", () => {
+  it("keeps the own DB authoritative for an overlapping series (no per-episode merge)", () => {
     const own = OWN_RECORDS.find((record) => record.t === 37854)
     expect(own).toBeDefined()
     const ownStatus = own!.ranges.find(([start, end]) => 50 >= start && 50 <= end)?.[2]
     expect(ownStatus).toBe("anime")
-    // The CC BY 4.0 snapshot classifies the same episode as manga; it wins.
-    expect(resolveFillerStatus(37854, 50)).toBe("manga")
+    // The own DB wins even though the CC BY 4.0 snapshot calls it manga.
+    expect(resolveFillerStatus(37854, 50)).toBe("anime")
   })
 
-  it("extends an overlapping series past the primary window from the own DB (per-episode single source)", () => {
+  it("keeps the own window and never falls back inside it (per-episode single source)", () => {
     const own = OWN_RECORDS.find((record) => record.t === 65930)
     expect(own?.n).toBe(170)
-    const ownStatus = own!.ranges.find(([start, end]) => 139 >= start && 139 <= end)?.[2]
-    expect(ownStatus).toBe("manga")
-    // The primary covers only 1..138 and wins inside its window.
-    expect(resolveFillerStatus(65930, 138)).toBe("manga")
-    // 139..170 are past the primary window: the own DB classifies the tail.
-    expect(resolveFillerStatus(65930, 139)).toBe("manga")
-    expect(resolveFillerStatus(65930, 170)).toBe("manga")
+    const statusAt = (episode: number) => {
+      const status = own!.ranges.find(([start, end]) => episode >= start && episode <= end)?.[2]
+      return status === "canon" ? "manga" : status
+    }
+    // The own DB covers 1..170; the primary's shorter 1..138 window is ignored.
+    expect(resolveFillerStatus(65930, 138)).toBe(statusAt(138))
+    expect(resolveFillerStatus(65930, 139)).toBe(statusAt(139))
+    expect(resolveFillerStatus(65930, 170)).toBe(statusAt(170))
     // Past every window stays unknown (never guessed).
     expect(resolveFillerStatus(65930, 171)).toBeNull()
   })
