@@ -13,6 +13,7 @@ import {
 } from "lucide-react"
 import { usePSelector } from "@/lib/context"
 import { useT } from "@/lib/contexts/TranslationContext"
+import { contentLanguageForUiLang } from "@/lib/regions"
 import { usePosterEditor } from "@/lib/contexts/PosterEditorContext"
 import { userFetch } from "@/lib/http"
 import { useEpisodeStills, fetchEpisodeStills, type TMDBEpisodeStill } from "@/lib/useEpisodeStills"
@@ -1846,7 +1847,7 @@ export function EpisodePreview({
   /** Fired when the one-shot auto-open has been honoured. */
   onAutoOpenThumbnailStudio?: () => void
 } = {}) {
-  const { t } = useT()
+  const { t, lang } = useT()
   const selected = usePSelector((v) => v.selected)
   const tmdbKey = usePSelector((v) => v.tmdbKey)
   const tvdbApiKey = usePSelector((v) => v.tvdbApiKey)
@@ -1867,6 +1868,10 @@ export function EpisodePreview({
     if (autoOpenThumbnailStudio) autoOpenRequestedRef.current = true
   }, [autoOpenThumbnailStudio])
 
+  // Episode titles follow the active UI language exactly like `/meta`
+  // (content language from UI language + default region): changing the
+  // language must refetch the localized episode/season names.
+  const previewLanguage = contentLanguageForUiLang(lang, ed.defaultRegion)
   const episodeGroupId = ed.episodeGroupId
   const tvdbOrdering = episodeGroupId === "tvdb" || (episodeGroupId?.startsWith("tvdb:") ?? false)
   const isTvdbSource = tvdbOrdering || ed.episodeMetadataSource === "tvdb" || ed.defaultEpisodeMetadataSource === "tvdb"
@@ -1896,7 +1901,7 @@ export function EpisodePreview({
 
     const params = new URLSearchParams({
       tmdbId: String(selected.id),
-      lang: "it-IT",
+      lang: previewLanguage,
     })
     if (episodeGroupId && episodeGroupId !== "standard") {
       params.set("episodeGroupId", episodeGroupId)
@@ -1938,7 +1943,7 @@ export function EpisodePreview({
       active = false
     }
   // eslint-disable-next-line react-hooks/exhaustive-deps -- selected is object identity, we want id+type
-  }, [selected?.id, selected?.media_type, episodeGroupId, tmdbKey, tvdbApiKey, isTvdbSource])
+  }, [selected?.id, selected?.media_type, episodeGroupId, tmdbKey, tvdbApiKey, isTvdbSource, previewLanguage])
 
   // First episode of the visible ordering seeds the studio; the studio's own
   // left pane navigates between seasons and episodes.

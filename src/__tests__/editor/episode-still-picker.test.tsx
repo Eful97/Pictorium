@@ -527,6 +527,20 @@ describe("EpisodePreview still studio", () => {
     return screen.findByTestId("episode-browser-dialog")
   }
 
+  it("requests episode titles in the active UI language", async () => {
+    // Episode/season names come from TMDB: a hardcoded locale would freeze
+    // them in one language. The preview must follow the UI language (+ region).
+    const fetchMock = mockFetch()
+    renderWithCtx(<EpisodePreview />, { selected: selectedSeries(), tmdbKey: "test-key", lang: "en" })
+
+    await waitFor(() => {
+      const call = fetchMock.mock.calls.find((c) => String(c[0]).includes("/api/preview/episodes"))
+      expect(call).toBeTruthy()
+      const url = new URL(String(call![0]), "http://localhost")
+      expect(url.searchParams.get("lang")).toBe("en")
+    })
+  })
+
   function StillOverrideProbe() {
     const ed = usePosterEditor()
     return <span data-testid="still-overrides">{JSON.stringify(ed.episodeThumbnailStills ?? {})}</span>

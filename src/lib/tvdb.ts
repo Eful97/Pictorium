@@ -798,6 +798,38 @@ export function normalizeTvdbLanguage(raw: unknown): string | null {
   return t
 }
 
+/**
+ * Locale contenuto TMDB (`it`, `it-IT`, `en-GB`, `es-MX`, …) → codice lingua
+ * TVDB (ISO 639-2/T: `ita`, `eng`, …). L'endpoint episodi vuole il codice a 3
+ * lettere nel path (`/episodes/{seasonType}/{lang}`): senza mapping i titoli
+ * TVDB resterebbero sempre in italiano qualunque lingua scelga l'utente.
+ * Lingua sconosciuta → `ita` (comportamento storico dei chiamanti).
+ */
+const TVDB_LANGUAGE_BY_BASE: Record<string, string> = {
+  ar: "ara",
+  cs: "ces",
+  de: "deu",
+  en: "eng",
+  es: "spa",
+  fr: "fra",
+  he: "heb",
+  it: "ita",
+  ja: "jpn",
+  ko: "kor",
+  nl: "nld",
+  pl: "pol",
+  pt: "por",
+  ro: "ron",
+  sv: "swe",
+  tr: "tur",
+  vi: "vie",
+}
+
+export function tvdbLanguageForContentLanguage(lang: string | null | undefined): string {
+  const base = typeof lang === "string" ? lang.trim().toLowerCase().split(/[-_]/)[0] : ""
+  return TVDB_LANGUAGE_BY_BASE[base] || "ita"
+}
+
 const TVDB_SAFE_IMAGE_EXT_RE = /\.(jpe?g|png|webp)$/i
 const TVDB_KEY_QUERY_RE = /api[_-]?key|apikey|[^a-z]key$|^key[^a-z]|token|auth|secret|password|signature/i
 

@@ -32,7 +32,7 @@ import { buildStremioPosterUrl, stremioPosterShape } from "@/lib/stremio-poster-
 import { mappingHasBothShapeBases } from "@/lib/catalog-shape"
 import { normalizeSeasonalTheme, resolveEffectiveSeasonalTheme } from "@/lib/seasonal-theme"
 import { getOriginFromRequest } from "@/lib/poster-public-url"
-import { enrichVideosWithTvdbDetailed } from "@/lib/tvdb"
+import { enrichVideosWithTvdbDetailed, tvdbLanguageForContentLanguage } from "@/lib/tvdb"
 import { buildVideosFromAnizip, buildVideosFromGroupsDetailed, buildVideosFromTvdbDetailed, concurrentMap, isSeasonEpisodesComplete } from "@/lib/episode-ordering"
 import { groupDetailsEpisodeCount, groupDetailsRegularEpisodeCount, resolveDefaultEpisodeGroupId } from "@/lib/episode-group-default"
 import { createLogger } from "@/lib/logger"
@@ -928,7 +928,16 @@ export async function pictoriumMeta(
         const seasonType = sentinel === "tvdb" ? "default" : (sentinel!.slice(5) || "default")
         try {
           const orderingSignal = combineAbortSignals(requestSignal, 10000)
-          const tvdbOrdered = await buildVideosFromTvdbDetailed(imdbId, tmdbId, primaryId, tvdbApiKey || "", seasonType, apiKey, orderingSignal)
+          const tvdbOrdered = await buildVideosFromTvdbDetailed(
+            imdbId,
+            tmdbId,
+            primaryId,
+            tvdbApiKey || "",
+            seasonType,
+            apiKey,
+            orderingSignal,
+            tvdbLanguageForContentLanguage(tmdbLang),
+          )
           if (tvdbOrdered.videos.length > 0) videos.push(...(tvdbOrdered.videos as StremioVideo[]))
           // Interrupted TVDB ordering: partials stay servable but with a
           // short TTL, never frozen long-term.
@@ -1060,7 +1069,7 @@ export async function pictoriumMeta(
         const enrichSignal = combineAbortSignals(requestSignal, 8000)
         // Interrupted enrichment: TMDB videos stay intact but the meta goes to
         // a short TTL so TVDB covers/synopses are retried.
-        const enrichComplete = await enrichVideosWithTvdbDetailed(videos, imdbId, tmdbId, tvdbApiKey, "ita", apiKey, enrichSignal)
+        const enrichComplete = await enrichVideosWithTvdbDetailed(videos, imdbId, tmdbId, tvdbApiKey, tvdbLanguageForContentLanguage(tmdbLang), apiKey, enrichSignal)
         if (!enrichComplete) isPartialSeasonData = true
       }
 
