@@ -95,6 +95,60 @@ const SUB_GENRES: SubGenreRule[] = [
     keywords: ["space opera", "space western", "intergalactic"],
     labels: { it: "Space Opera", en: "Space Opera", fr: "Space Opera", de: "Space Opera", es: "Space Opera", he: "אופרת חלל", pl: "Space opera", ar: "أوبرا فضائية", tr: "Uzay Operası", nl: "Spaceopera", sv: "Rymdopera", vi: "Space Opera", ja: "スペースオペラ", ko: "스페이스 오페라", pt: "Space Opera", cs: "Vesmírná opera", ro: "Operă spațială" },
   },
+  // Appended after the original rules on purpose: measured on 342 real TMDB
+  // titles, appending adds badges to titles that had none and displaces zero
+  // existing badges. Inserting earlier would steal noir/paranormal/martialarts
+  // badges from titles that already show them.
+  {
+    key: "superhero",
+    // NOTE: "based on comic" removed — it flagged non-superhero comic
+    // adaptations (Fighting Spirit, Mob Psycho 100). The single word
+    // "superhero" also covers "masked superhero", "teen superhero" and
+    // "superhero team" through word-boundary matching.
+    keywords: ["superhero"],
+    labels: { it: "Supereroi", en: "Superhero", fr: "Super-héros", de: "Superhelden", es: "Superhéroes", he: "גיבורי-על", pl: "Superbohaterowie", ar: "أبطال خارقون", tr: "Süper Kahramanlar", nl: "Superhelden", sv: "Superhjältar", vi: "Siêu anh hùng", ja: "スーパーヒーロー", ko: "슈퍼히어로", pt: "Super-heróis", cs: "Superhrdinové", ro: "Supereroi" },
+  },
+  {
+    key: "mafia",
+    keywords: ["mafia", "yakuza", "gangster", "organized crime"],
+    labels: { it: "Mafia", en: "Mafia", fr: "Mafia", de: "Mafia", es: "Mafia", he: "מאפיה", pl: "Mafia", ar: "مافيا", tr: "Mafya", nl: "Maffia", sv: "Maffia", vi: "Mafia", ja: "マフィア", ko: "마피아", pt: "Máfia", cs: "Mafie", ro: "Mafie" },
+  },
+  {
+    key: "spy",
+    keywords: ["spy", "secret agent", "espionage"],
+    labels: { it: "Spionaggio", en: "Spy", fr: "Espionnage", de: "Spionage", es: "Espionaje", he: "ריגול", pl: "Szpiedzy", ar: "تجسس", tr: "Casusluk", nl: "Spionage", sv: "Spioner", vi: "Điệp viên", ja: "スパイ", ko: "스파이", pt: "Espionagem", cs: "Špionáž", ro: "Spionaj" },
+  },
+  {
+    key: "prison",
+    // NOTE: "prisoner" removed — it flagged "concentration camp prisoner"
+    // (Life Is Beautiful) and "prisoner of war" (The Pianist).
+    keywords: ["prison", "penitentiary"],
+    labels: { it: "Prigione", en: "Prison", fr: "Prison", de: "Gefängnis", es: "Cárcel", he: "כלא", pl: "Więzienie", ar: "سجون", tr: "Hapishane", nl: "Gevangenis", sv: "Fängelse", vi: "Nhà tù", ja: "刑務所", ko: "감옥", pt: "Prisão", cs: "Vězení", ro: "Închisoare" },
+  },
+  {
+    key: "courtroom",
+    // NOTE: "trial" removed — it adds no title this rule doesn't already
+    // catch and would flag "trial by combat" outside a courtroom setting.
+    keywords: ["courtroom", "courtroom drama"],
+    labels: { it: "Tribunale", en: "Courtroom", fr: "Procès", de: "Gerichtssaal", es: "Tribunal", he: "בית משפט", pl: "Sala sądowa", ar: "قاعة المحكمة", tr: "Mahkeme Salonu", nl: "Rechtszaal", sv: "Rättegång", vi: "Phòng xử án", ja: "法廷", ko: "법정", pt: "Tribunal", cs: "Soudní síň", ro: "Sala de tribunal" },
+  },
+  {
+    key: "slasher",
+    // "slasher" also covers "slasher horror" and "proto-slasher" (hyphen is a
+    // word boundary), so the single term is the whole rule.
+    keywords: ["slasher"],
+    labels: { it: "Slasher", en: "Slasher", fr: "Slasher", de: "Slasher", es: "Slasher", he: "סלאשר", pl: "Slasher", ar: "سلايشر", tr: "Slasher", nl: "Slasher", sv: "Slasher", vi: "Slasher", ja: "スラッシャー", ko: "슬래셔", pt: "Slasher", cs: "Slasher", ro: "Slasher" },
+  },
+  {
+    key: "werewolf",
+    keywords: ["werewolf"],
+    labels: { it: "Licantropi", en: "Werewolf", fr: "Loup-garou", de: "Werwolf", es: "Hombres lobo", he: "אדם זאב", pl: "Wilkołaki", ar: "مستذئبون", tr: "Kurt Adam", nl: "Weerwolf", sv: "Varulv", vi: "Người sói", ja: "狼男", ko: "늑대인간", pt: "Lobisomem", cs: "Vlkodlaci", ro: "Vârcolaci" },
+  },
+  {
+    key: "bodyhorror",
+    keywords: ["body horror"],
+    labels: { it: "Body Horror", en: "Body Horror", fr: "Body Horror", de: "Body Horror", es: "Body Horror", he: "אימה גופנית", pl: "Body horror", ar: "رعب جسدي", tr: "Beden Korku", nl: "Body horror", sv: "Body horror", vi: "Kinh dị cơ thể", ja: "ボディホラー", ko: "바디 호러", pt: "Body Horror", cs: "Body horror", ro: "Body horror" },
+  },
 ]
 
 function matchKeywordPattern(keyword: string, kwPattern: string): boolean {
@@ -151,7 +205,7 @@ export function getAllSubGenreMatches(
   const out: { key: string; label: string }[] = []
   for (const sub of SUB_GENRES) {
     if (sub.keywords.some((kwPattern) => normalized.some((nk) => matchKeywordPattern(nk, kwPattern)))) {
-      // Tutte le 17 lingue UI canoniche hanno i 14 label; locale non
+      // Tutte le 17 lingue UI canoniche hanno i 22 label; locale non
       // supportati ripiegano sull'italiano.
       out.push({ key: sub.key, label: sub.labels[lang] || sub.labels.it })
     }

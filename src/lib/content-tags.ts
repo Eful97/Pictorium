@@ -34,6 +34,14 @@ export const SUBGENRE_TAG_KEYS: readonly string[] = [
   "spaghettiwestern",
   "martialarts",
   "spaceopera",
+  "superhero",
+  "mafia",
+  "spy",
+  "prison",
+  "courtroom",
+  "slasher",
+  "werewolf",
+  "bodyhorror",
 ]
 
 export const SUBGENRE_TAG_PREFIX = "subgenre:"
