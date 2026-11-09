@@ -144,20 +144,20 @@ export const LogoOptions = React.memo(function LogoOptions({ logos, selectedLogo
       {selected && (
         <div className="flex gap-1 mb-2 overflow-x-auto scrollbar-none">
           <button type="button"
-            aria-label={t("ui.tmdb")}
+            aria-label={logos.length > 0 ? `${t("ui.tmdb")} ${logos.length}` : t("ui.tmdb")}
             onClick={() => setSource("tmdb")}
             className={`tab-chip h-7 px-2.5 rounded-lg text-[11px] font-semibold border transition-all shrink-0 ${source === "tmdb" ? "tab-chip-active bg-accent-orange/15 text-accent-orange border-accent-orange/35" : "bg-white/5 text-muted border-white/10 hover:text-zinc-200 hover:bg-white/10"}`}
           >
             {t("ui.tmdb")}
-            <span className="ml-1 text-[10px] opacity-60">{logos.length}</span>
+            {logos.length > 0 && <span className="text-[10px] opacity-60">{" "}{logos.length}</span>}
           </button>
           <button type="button"
-            aria-label={t("ui.tvdbTitle")}
+            aria-label={tvdb.items.length > 0 ? `${t("ui.tvdbTitle")} ${tvdb.items.length}` : t("ui.tvdbTitle")}
             onClick={() => setSource("tvdb")}
             className={`tab-chip h-7 px-2.5 rounded-lg text-[11px] font-semibold border transition-all shrink-0 ${source === "tvdb" ? "tab-chip-active bg-accent-orange/15 text-accent-orange border-accent-orange/35" : "bg-white/5 text-muted border-white/10 hover:text-zinc-200 hover:bg-white/10"}`}
           >
             {t("ui.tvdbTitle")}
-            <span className="ml-1 text-[10px] opacity-60">{tvdb.items.length}</span>
+            {tvdb.items.length > 0 && <span className="text-[10px] opacity-60">{" "}{tvdb.items.length}</span>}
           </button>
         </div>
       )}
@@ -285,7 +285,7 @@ export const LogoOptions = React.memo(function LogoOptions({ logos, selectedLogo
         </div>
       )}
       {!selectedLogo && (
-        <button type="button" aria-label={logoDisabled ? t("ui.removeLogo") : t("ui.enableLogos")} disabled={disabled} onClick={() => setLogoDisabled(!logoDisabled)} className={`mt-3 w-full h-9 rounded-lg border text-[11px] font-semibold transition-all ${disabled ? "bg-surface2/30 text-zinc-600 cursor-not-allowed border-surface2" : logoDisabled ? "border-amber-500/30 bg-amber-500/10 text-amber-400" : "border-surface2 bg-white/[0.03] text-muted hover:text-zinc-200 hover:border-zinc-600"}`}>
+        <button type="button" disabled={disabled} onClick={() => setLogoDisabled(!logoDisabled)} className={`mt-3 w-full h-9 rounded-lg border text-[11px] font-semibold transition-all ${disabled ? "bg-surface2/30 text-zinc-600 cursor-not-allowed border-surface2" : logoDisabled ? "border-amber-500/30 bg-amber-500/10 text-amber-400" : "border-surface2 bg-white/[0.03] text-muted hover:text-zinc-200 hover:border-zinc-600"}`}>
           <span className="flex items-center justify-center gap-1.5">{logoDisabled ? t("ui.logosDisabled") : t("ui.disableLogos")}</span>
         </button>
       )}

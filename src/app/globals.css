@@ -8,6 +8,7 @@
   --color-border: var(--border);
   --color-muted: var(--muted);
   --color-accent-orange: var(--accent-orange);
+  --color-accent-orange-strong: var(--accent-orange-strong);
   --color-accent: #ffffff;
   --color-panel: var(--panel);
   --color-panel-strong: var(--panel-strong);
@@ -28,6 +29,9 @@
   --border: #3f3f46;
   --muted: #a1a1aa;
   --accent-orange: #e85d2a;
+  /* Solid accent background paired with white text: the light-theme brand
+     shade, chosen so white copy reaches 4.5:1 on the dark theme too. */
+  --accent-orange-strong: #C94F24;
   --panel: rgba(18, 18, 22, 0.74);
   --panel-strong: rgba(21, 21, 26, 0.92);
   --border-subtle: rgba(255, 255, 255, 0.08);

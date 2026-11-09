@@ -21,6 +21,14 @@ describe("identity — each rule matches its core keyword", () => {
     { key: "spaghettiwestern",  keyword: "spaghetti western",    expected: "Spaghetti Western" },
     { key: "martialarts",       keyword: "martial arts",         expected: "Arti Marziali" },
     { key: "spaceopera",        keyword: "space opera",          expected: "Space Opera" },
+    { key: "superhero",         keyword: "superhero",            expected: "Supereroi" },
+    { key: "mafia",             keyword: "mafia",                expected: "Mafia" },
+    { key: "spy",               keyword: "spy",                  expected: "Spionaggio" },
+    { key: "prison",            keyword: "prison",               expected: "Prigione" },
+    { key: "courtroom",         keyword: "courtroom",            expected: "Tribunale" },
+    { key: "slasher",           keyword: "slasher",              expected: "Slasher" },
+    { key: "werewolf",          keyword: "werewolf",             expected: "Licantropi" },
+    { key: "bodyhorror",        keyword: "body horror",          expected: "Body Horror" },
   ]
   for (const c of cases) {
     it(`detects ${c.key} from "${c.keyword}"`, () => {
@@ -141,6 +149,29 @@ describe("false positive vectors (overly broad keyword patterns)", () => {
   // POST-APOCALYPTIC: "survival horror" may not always be post-apocalyptic
   it("should NOT flag survival horror game adaptation as post-apocalyptic if not set in wasteland", () => {
     expect(getSubGenreLabel(["survival horror", "monster", "isolated location", "trapped"], "it")).toBeNull()
+  })
+
+  // ── measured on 342 real TMDB titles (see the NOTE: lines in subgenres.ts) ──
+  it("should NOT flag a non-superhero comic adaptation as superhero", () => {
+    // "based on comic" was dropped from the rule after flagging boxing anime
+    // and Mob Psycho 100 on real data.
+    expect(getSubGenreLabel(["based on comic", "boxing", "anime"], "it")).toBeNull()
+  })
+
+  it("should NOT flag concentration camp or prisoner-of-war terms as prison", () => {
+    // "prisoner" was dropped from the rule after flagging Life Is Beautiful
+    // and The Pianist on real data.
+    expect(getSubGenreLabel(["concentration camp prisoner", "holocaust"], "it")).toBeNull()
+    expect(getSubGenreLabel(["prisoner of war", "world war ii"], "it")).toBeNull()
+  })
+
+  it("should NOT flag trial outside a courtroom as courtroom drama", () => {
+    // "trial" was dropped: it adds no title and would catch "trial by combat".
+    expect(getSubGenreLabel(["trial by combat", "medieval", "knight"], "it")).toBeNull()
+  })
+
+  it("should NOT flag generic crime as mafia", () => {
+    expect(getSubGenreLabel(["crime", "police", "heist"], "it")).not.toBe("Mafia")
   })
 })
 

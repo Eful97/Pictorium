@@ -868,7 +868,7 @@ function fillerLanguageTag(raw: string | null | undefined): string {
  * The episode rating is deliberately NOT part of the key: TMDB episode votes
  * change rarely, and the key already pins the full identity (series/season/
  * episode) plus the exact still, width, badge mode and language set. A changed
- * rating is picked up at the next 30-minute thumbnail TTL (TMDB upstream cache
+ * rating is picked up at the next 12-hour thumbnail TTL (TMDB upstream cache
  * is 5 minutes), so no separate invalidation marker is needed.
  */
 export function thumbnailCacheKey(input: ThumbnailCacheKeyInput): string {

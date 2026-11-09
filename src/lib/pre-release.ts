@@ -72,7 +72,8 @@ export interface PreReleaseInput {
   /**
    * Disponibilità streaming/digitale da JustWatch (precedenza su TMDB):
    * true = ha offerte → disponibile; false = nessuna offerta → non disponibile;
-   * null = dato ignoto (errore fetch) → fallback alla sola data digitale.
+   * null = dato ignoto (errore fetch) → non disqualifica: si usa la sola
+   * finestra theatrical, mai un flip del poster a ogni errore JW.
    */
   jwAvailable?: boolean | null
   now?: number
@@ -94,10 +95,11 @@ export function isDigitalPreRelease(input: PreReleaseInput): boolean {
     return t > now
   }
 
-  // Senza data digitale: pre-release solo se JustWatch conferma l'assenza di
-  // offerte E il film è in finestra theatrical (uscito da <120gg o futuro).
+  // Senza data digitale: pre-release solo se JustWatch NON conferma offerte
+  // (false o dato ignoto: un errore JW non deve far lampeggiare il poster)
+  // E il film è in finestra theatrical (uscito da <120gg o futuro).
   // Un film vecchio senza offerte è quasi sempre un buco dati → normale.
-  if (input.jwAvailable === false && input.theatricalDate) {
+  if ((input.jwAvailable === false || input.jwAvailable == null) && input.theatricalDate) {
     const t = Date.parse(input.theatricalDate)
     if (!Number.isFinite(t)) return false
     if (t > now) return true

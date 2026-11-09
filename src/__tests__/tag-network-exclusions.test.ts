@@ -45,7 +45,7 @@ function baseParams(over: Partial<BadgeParams> = {}): BadgeParams {
 
 describe("content-tags registry", () => {
   it("exposes individual subgenre canonical IDs plus the family", () => {
-    expect(SUBGENRE_TAG_KEYS).toHaveLength(14)
+    expect(SUBGENRE_TAG_KEYS).toHaveLength(22)
     for (const k of SUBGENRE_TAG_KEYS) {
       expect(CONTENT_TAG_IDS).toContain(`subgenre:${k}`)
     }

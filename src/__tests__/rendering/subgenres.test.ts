@@ -10,7 +10,7 @@ describe("subgenres detection", () => {
     // "Found Footage" e "Film Noir" restano in latino anche in ebraico: sono
     // nomi propri di genere, traslitterarli li renderebbe meno riconoscibili.
     const LATIN_BY_DESIGN = new Set(["found footage", "film noir"])
-    for (const kw of ["time travel", "cyberpunk", "whodunit", "heist", "zombie", "vampire", "paranormal", "kaiju", "post-apocalyptic", "found footage", "film noir", "spaghetti western", "martial arts", "space opera"]) {
+    for (const kw of ["time travel", "cyberpunk", "whodunit", "heist", "zombie", "vampire", "paranormal", "kaiju", "post-apocalyptic", "found footage", "film noir", "spaghetti western", "martial arts", "space opera", "superhero", "mafia", "spy", "prison", "courtroom", "slasher", "werewolf", "body horror"]) {
       const he = getSubGenreLabel([kw], "he")
       expect(he, kw).toBeTruthy()
       if (!LATIN_BY_DESIGN.has(kw)) {
@@ -25,10 +25,11 @@ describe("subgenres detection", () => {
   it("labels every rule for Polish", () => {
     // Stessa garanzia di `he`: senza una voce `pl` su ogni regola il badge
     // sottogenere di un utente polacco ripiegherebbe sull'italiano.
-    // "Found Footage", "Film noir", "Cyberpunk" e "Spaghetti Western" restano
-    // invariati: sono nomi di genere usati anche in polacco.
-    const LATIN_BY_DESIGN = new Set(["found footage", "film noir", "cyberpunk", "spaghetti western"])
-    for (const kw of ["time travel", "cyberpunk", "whodunit", "heist", "zombie", "vampire", "paranormal", "kaiju", "post-apocalyptic", "found footage", "film noir", "spaghetti western", "martial arts", "space opera"]) {
+    // "Found Footage", "Film noir", "Cyberpunk", "Spaghetti Western", "Body
+    // horror", "Mafia" e "Slasher" restano invariati: sono nomi di genere usati
+    // anche in polacco (e coincidono con la label italiana).
+    const LATIN_BY_DESIGN = new Set(["found footage", "film noir", "cyberpunk", "spaghetti western", "body horror", "mafia", "slasher"])
+    for (const kw of ["time travel", "cyberpunk", "whodunit", "heist", "zombie", "vampire", "paranormal", "kaiju", "post-apocalyptic", "found footage", "film noir", "spaghetti western", "martial arts", "space opera", "superhero", "mafia", "spy", "prison", "courtroom", "slasher", "werewolf", "body horror"]) {
       const pl = getSubGenreLabel([kw], "pl")
       expect(pl, kw).toBeTruthy()
       if (LATIN_BY_DESIGN.has(kw)) continue

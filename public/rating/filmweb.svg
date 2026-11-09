@@ -1,16 +1,3 @@
-<?xml version="1.0" encoding="UTF-8"?>
-<svg id="Livello_1" xmlns="http://www.w3.org/2000/svg" version="1.1" xmlns:xlink="http://www.w3.org/1999/xlink" viewBox="0 0 62.81 63">
-  <defs>
-    <style>
-      .st0 {
+<svg xmlns="http://www.w3.org/2000/svg" id="Livello_1" version="1.1" viewBox="0 0 62.81 63"><defs><linearGradient id="Sfumatura_senza_nome" x1="53.65" x2="9.16" y1="10.26" y2="54.74" data-name="Sfumatura senza nome" gradientTransform="translate(0 64) scale(1 -1)" gradientUnits="userSpaceOnUse"><stop offset="0" stop-color="#db9b28"/><stop offset=".43" stop-color="#f9ba1a"/><stop offset="1" stop-color="#fed401"/></linearGradient><style>.st0 {
         fill: url(#Sfumatura_senza_nome);
-      }
-    </style>
-    <linearGradient id="Sfumatura_senza_nome" data-name="Sfumatura senza nome" x1="53.65" y1="10.26" x2="9.16" y2="54.74" gradientTransform="translate(0 64) scale(1 -1)" gradientUnits="userSpaceOnUse">
-      <stop offset="0" stop-color="#db9b28"/>
-      <stop offset=".43" stop-color="#f9ba1a"/>
-      <stop offset="1" stop-color="#fed401"/>
-    </linearGradient>
-  </defs>
-  <path class="st0" d="M31.41,0C14.06,0,0,14.1,0,31.5s14.06,31.5,31.41,31.5,31.4-14.1,31.4-31.5S48.75,0,31.41,0ZM22.84,9.16c3.47,0,6.28,2.82,6.28,6.3s-2.81,6.3-6.28,6.3-6.28-2.82-6.28-6.3c0-3.48,2.81-6.3,6.28-6.3ZM7.18,31.29c0-3.48,2.81-6.3,6.28-6.3s6.28,2.82,6.28,6.3-2.81,6.3-6.28,6.3-6.28-2.82-6.28-6.3ZM23,53.61c-3.47,0-6.28-2.82-6.28-6.3s2.81-6.3,6.28-6.3,6.28,2.82,6.28,6.3-2.81,6.3-6.28,6.3ZM37.79,35.15h-10.6v-6.6h10.6v6.6ZM41.26,51.2l-2.72-5.45c5.2-2.62,8.78-8.01,8.78-14.26s-3.58-11.63-8.78-14.26l2.72-5.45c7.19,3.62,12.13,11.08,12.13,19.7s-4.94,16.08-12.13,19.7Z"/>
-</svg>
+      }</style></defs><path d="M31.41,0C14.06,0,0,14.1,0,31.5s14.06,31.5,31.41,31.5,31.4-14.1,31.4-31.5S48.75,0,31.41,0ZM22.84,9.16c3.47,0,6.28,2.82,6.28,6.3s-2.81,6.3-6.28,6.3-6.28-2.82-6.28-6.3c0-3.48,2.81-6.3,6.28-6.3ZM7.18,31.29c0-3.48,2.81-6.3,6.28-6.3s6.28,2.82,6.28,6.3-2.81,6.3-6.28,6.3-6.28-2.82-6.28-6.3ZM23,53.61c-3.47,0-6.28-2.82-6.28-6.3s2.81-6.3,6.28-6.3,6.28,2.82,6.28,6.3-2.81,6.3-6.28,6.3ZM37.79,35.15h-10.6v-6.6h10.6v6.6ZM41.26,51.2l-2.72-5.45c5.2-2.62,8.78-8.01,8.78-14.26s-3.58-11.63-8.78-14.26l2.72-5.45c7.19,3.62,12.13,11.08,12.13,19.7s-4.94,16.08-12.13,19.7Z" class="st0"/></svg>

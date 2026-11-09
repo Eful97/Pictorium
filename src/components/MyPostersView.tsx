@@ -353,7 +353,7 @@ export function MyPostersView() {
               onClick={() => setTypeFilter("all")}
               className={`px-2.5 py-1.5 rounded-lg text-xs font-medium transition-all duration-150 flex items-center gap-1.5 shrink-0 ${
                 typeFilter === "all"
-                  ? "bg-accent-orange/15 text-accent-orange border border-accent-orange/30 font-semibold shadow-sm"
+                  ? "bg-accent-orange/8 text-accent-orange border border-accent-orange/30 font-semibold shadow-sm"
                   : "text-muted hover:text-zinc-200 hover:bg-white/5 border border-transparent"
               }`}
             >
@@ -365,7 +365,7 @@ export function MyPostersView() {
               onClick={() => setTypeFilter("movie")}
               className={`px-2.5 py-1.5 rounded-lg text-xs font-medium transition-all duration-150 flex items-center gap-1.5 shrink-0 ${
                 typeFilter === "movie"
-                  ? "bg-accent-orange/15 text-accent-orange border border-accent-orange/30 font-semibold shadow-sm"
+                  ? "bg-accent-orange/8 text-accent-orange border border-accent-orange/30 font-semibold shadow-sm"
                   : "text-muted hover:text-zinc-200 hover:bg-white/5 border border-transparent"
               }`}
             >
@@ -377,7 +377,7 @@ export function MyPostersView() {
               onClick={() => setTypeFilter("tv")}
               className={`px-2.5 py-1.5 rounded-lg text-xs font-medium transition-all duration-150 flex items-center gap-1.5 shrink-0 ${
                 typeFilter === "tv"
-                  ? "bg-accent-orange/15 text-accent-orange border border-accent-orange/30 font-semibold shadow-sm"
+                  ? "bg-accent-orange/8 text-accent-orange border border-accent-orange/30 font-semibold shadow-sm"
                   : "text-muted hover:text-zinc-200 hover:bg-white/5 border border-transparent"
               }`}
             >
@@ -389,7 +389,7 @@ export function MyPostersView() {
               onClick={() => setTypeFilter("anime")}
               className={`px-2.5 py-1.5 rounded-lg text-xs font-medium transition-all duration-150 flex items-center gap-1.5 shrink-0 ${
                 typeFilter === "anime"
-                  ? "bg-accent-orange/15 text-accent-orange border border-accent-orange/30 font-semibold shadow-sm"
+                  ? "bg-accent-orange/8 text-accent-orange border border-accent-orange/30 font-semibold shadow-sm"
                   : "text-muted hover:text-zinc-200 hover:bg-white/5 border border-transparent"
               }`}
             >
@@ -407,7 +407,7 @@ export function MyPostersView() {
               aria-pressed={formatFilter === "poster"}
               className={`px-2.5 py-1.5 rounded-lg text-xs font-medium transition-all duration-150 flex items-center gap-1.5 shrink-0 ${
                 formatFilter === "poster"
-                  ? "bg-accent-orange/15 text-accent-orange border border-accent-orange/30 font-semibold shadow-sm"
+                  ? "bg-accent-orange/8 text-accent-orange border border-accent-orange/30 font-semibold shadow-sm"
                   : "text-muted hover:text-zinc-200 hover:bg-white/5 border border-transparent"
               }`}
             >
@@ -420,7 +420,7 @@ export function MyPostersView() {
               aria-pressed={formatFilter === "landscape"}
               className={`px-2.5 py-1.5 rounded-lg text-xs font-medium transition-all duration-150 flex items-center gap-1.5 shrink-0 ${
                 formatFilter === "landscape"
-                  ? "bg-accent-orange/15 text-accent-orange border border-accent-orange/30 font-semibold shadow-sm"
+                  ? "bg-accent-orange/8 text-accent-orange border border-accent-orange/30 font-semibold shadow-sm"
                   : "text-muted hover:text-zinc-200 hover:bg-white/5 border border-transparent"
               }`}
             >
@@ -448,7 +448,7 @@ export function MyPostersView() {
                   type="button"
                   onClick={() => { setSortBy("updated"); closeSortDropdown() }}
                   className={`w-full flex items-center gap-2 px-3 py-2 rounded-lg text-xs text-left transition-all duration-150 ${
-                    sortBy === "updated" ? "bg-accent-orange/15 text-accent-orange font-semibold" : "text-zinc-300 hover:bg-surface2"
+                    sortBy === "updated" ? "bg-accent-orange/8 text-accent-orange font-semibold" : "text-zinc-300 hover:bg-surface2"
                   }`}
                 >
                   <Calendar className="w-3.5 h-3.5" />
@@ -458,7 +458,7 @@ export function MyPostersView() {
                   type="button"
                   onClick={() => { setSortBy("alpha"); closeSortDropdown() }}
                   className={`w-full flex items-center gap-2 px-3 py-2 rounded-lg text-xs text-left transition-all duration-150 ${
-                    sortBy === "alpha" ? "bg-accent-orange/15 text-accent-orange font-semibold" : "text-zinc-300 hover:bg-surface2"
+                    sortBy === "alpha" ? "bg-accent-orange/8 text-accent-orange font-semibold" : "text-zinc-300 hover:bg-surface2"
                   }`}
                 >
                   <ArrowUpAZ className="w-3.5 h-3.5" />

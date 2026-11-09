@@ -860,7 +860,7 @@ describe("GET /api/thumbnail/tv/[id]/season/[season]/episode/[episode]", () => {
 
     expect(res.status).toBe(200)
     expect(res.headers.get("content-type")).toBe("image/png")
-    expect(res.headers.get("cache-control")).toContain("max-age=1800")
+    expect(res.headers.get("cache-control")).toContain("max-age=43200")
 
     const buffer = Buffer.from(await res.arrayBuffer())
     const meta = await sharp(buffer).metadata()

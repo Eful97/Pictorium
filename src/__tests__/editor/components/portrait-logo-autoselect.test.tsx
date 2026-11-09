@@ -100,7 +100,7 @@ describe("portrait logo autoselect", () => {
     const expected = selectBestLogo(logos, "it", "it")
     expect(expected?.file_path).toBe("/logo-it.png")
     expect(selectLogo).toHaveBeenCalledTimes(1)
-    expect(selectLogo).toHaveBeenCalledWith(expect.objectContaining({ file_path: expected?.file_path }))
+    expect(selectLogo).toHaveBeenCalledWith(expect.objectContaining({ file_path: expected?.file_path }), { auto: true })
   })
 
   it("poster in lingua (titolo cotto): nessuna auto-selezione", () => {
@@ -135,7 +135,7 @@ describe("portrait logo autoselect", () => {
     })
     const expected = selectBestLogo(logos, "it", "it")
     expect(selectLogo).toHaveBeenCalledTimes(1)
-    expect(selectLogo).toHaveBeenCalledWith(expect.objectContaining({ file_path: expected?.file_path }))
+    expect(selectLogo).toHaveBeenCalledWith(expect.objectContaining({ file_path: expected?.file_path }), { auto: true })
   })
 
   it("rimozione manuale (logoDisabled) mai scavalcata", () => {

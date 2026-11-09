@@ -30,6 +30,19 @@ export interface ChangelogRelease {
  *  (which bumps on every commit and would leave the dot permanently on). */
 export const CHANGELOG: ChangelogRelease[] = [
   {
+    version: "1.27.2",
+    date: "2026-11-09",
+    title: "Release 1.27.2",
+    items: [
+      { type: "feature", text: "See when the anime database was last updated in Service Status" },
+      { type: "feature", text: "Tag titles with superhero, mafia, spy, prison, courtroom, slasher, werewolf and body horror subgenres" },
+      { type: "fix", text: "Keep the Coming Soon badge visible when streaming availability cannot be checked, instead of dropping it on temporary errors" },
+      { type: "fix", text: "Make interface labels easier to read with stronger text contrast" },
+      { type: "fix", text: "Keep the automatic logo correct when switching a poster back from landscape to vertical" },
+      { type: "perf", text: "Load episode thumbnails faster with a 12-hour cache" },
+    ],
+  },
+  {
     version: "1.27.1",
     date: "2026-11-08",
     title: "Release 1.27.1",

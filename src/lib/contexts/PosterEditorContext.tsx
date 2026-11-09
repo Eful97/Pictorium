@@ -609,6 +609,15 @@ export interface PosterEditorCtx {
   logoDisabled: boolean
   setLogoDisabled: (v: boolean | ((prev: boolean) => boolean)) => void
   /**
+   * Provenienza del logo selezionato: true = installato da un ramo automatico
+   * (ingresso in Orizzontale, base clean, base portrait da backdrop), false =
+   * scelta manuale o override salvato. Serve al cambio formato: tornando in
+   * Verticale su una base con il titolo già cotto solo il logo automatico va
+   * ritirato (doppio titolo), la scelta manuale resta sovrana.
+   */
+  logoAutoSelected: boolean
+  setLogoAutoSelected: (v: boolean) => void
+  /**
    * Logo testuale (titoli senza logo TMDB): testo digitato dall'utente,
    * reso dal server con uno dei font del bundle (`logoFont`, enum badge).
    * Vince sul logo immagine selezionato (una sola sorgente logo) e si
@@ -764,6 +773,9 @@ export function PosterEditorProvider({
   const [logoOffsetX, setLogoOffsetX] = useState(0)
   const [logoOffsetY, setLogoOffsetY] = useState(0)
   const [logoDisabled, setLogoDisabled] = useState(false)
+  // Provenienza del logo (vedi `logoAutoSelected` nel contratto del context):
+  // false di default = nessun logo installato da un ramo automatico.
+  const [logoAutoSelected, setLogoAutoSelected] = useState(false)
   // Text-as-logo: testo digitato + font del bundle (enum badge). Vuoto =
   // nessun logo, cioè la resa storica dei titoli senza logo TMDB.
   const [logoText, setLogoText] = useState("")
@@ -2476,6 +2488,8 @@ export function PosterEditorProvider({
       setLogoOffsetY,
       logoDisabled,
       setLogoDisabled,
+      logoAutoSelected,
+      setLogoAutoSelected,
       logoText,
       setLogoText,
       logoFont,
@@ -2724,6 +2738,7 @@ export function PosterEditorProvider({
       logoOffsetX, setLogoOffsetX,
       logoOffsetY, setLogoOffsetY,
       logoDisabled, setLogoDisabled,
+      logoAutoSelected, setLogoAutoSelected,
       logoText, setLogoText, logoFont, setLogoFont,
 
       // Backdrop

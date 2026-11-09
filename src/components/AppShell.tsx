@@ -56,6 +56,7 @@ export function AppShell() {
   const view = usePSelector((v) => v.view)
   const router = usePSelector((v) => v.router)
   const mappings = usePSelector((v) => v.mappings)
+  const thumbnailCount = mappings.filter((m) => m.mediaType === "tv" && hasThumbnailCustomization(m)).length
   const selected = usePSelector((v) => v.selected)
   const exportData = usePSelector((v) => v.exportData)
   const importData = usePSelector((v) => v.importData)
@@ -293,7 +294,7 @@ export function AppShell() {
           {/* I Miei Poster Badge */}
           <button
             type="button"
-            aria-label={t("ui.myPostersBtn")}
+            aria-label={`${t("ui.myPostersBtn") || "I Miei Poster"} ${mappings.length}`}
             title={t("ui.myPostersBtn")}
             onClick={() => { if (toolbarLocked) return; if (view === "myposters") { router.push("edit") } else { router.push("myposters") } }}
             disabled={toolbarLocked}
@@ -306,13 +307,14 @@ export function AppShell() {
           >
             <Images className="w-3.5 h-3.5 text-accent-orange" />
             <span className="hidden lg:inline">{t("ui.myPostersBtn") || "I Miei Poster"}</span>
+            {" "}
             <span className="text-[9px] font-mono px-1 py-0.5 rounded-md bg-white/[0.08] text-zinc-300 border border-white/10">{mappings.length}</span>
           </button>
 
           {/* Miniature episodi (top-level zone) */}
           <button
             type="button"
-            aria-label={t("ui.thumbnailsNav")}
+            aria-label={`${t("ui.thumbnailsNav")} ${thumbnailCount}`}
             title={t("ui.thumbnailsNav")}
             onClick={() => { if (toolbarLocked) return; if (view === "thumbnails") { router.push("edit") } else { router.push("thumbnails") } }}
             disabled={toolbarLocked}
@@ -325,8 +327,9 @@ export function AppShell() {
             data-testid="thumbnails-nav-desktop"
           >
             <Clapperboard className="w-3.5 h-3.5 text-accent-orange" />
+            {" "}
             <span className="text-[9px] font-mono px-1 py-0.5 rounded-md bg-white/[0.08] text-zinc-300 border border-white/10">
-              {mappings.filter((m) => m.mediaType === "tv" && hasThumbnailCustomization(m)).length}
+              {thumbnailCount}
             </span>
           </button>
 

@@ -579,7 +579,7 @@ export function SettingsPanel({ setSettingsOpen, exportData, importData, mobile,
         aria-label={t("ui.settingsGroupSecondary")}
         className="hidden sm:flex items-center gap-1 px-3 sm:px-6 py-1.5 bg-white/[0.01] border-b border-white/5"
       >
-        <span className="text-[10px] uppercase tracking-wide text-zinc-500 font-semibold mr-1">
+        <span className="text-[10px] uppercase tracking-wide text-zinc-400 font-semibold mr-1">
           {t("ui.settingsGroupSecondary")}
         </span>
         {SECONDARY_TABS.filter((tab) => tab.id !== "spazio" || showSpaceTab).map((tab) => {
@@ -595,7 +595,7 @@ export function SettingsPanel({ setSettingsOpen, exportData, importData, mobile,
               className={`flex items-center gap-1.5 py-1.5 px-2.5 rounded-lg text-[11px] font-semibold transition-all cursor-pointer whitespace-nowrap ${
                 isActive
                   ? "bg-white/10 text-zinc-100"
-                  : "text-zinc-500 hover:text-zinc-300 hover:bg-white/5"
+                  : "text-zinc-400 hover:text-zinc-300 hover:bg-white/5"
               }`}
             >
               <Icon className="w-3 h-3" />

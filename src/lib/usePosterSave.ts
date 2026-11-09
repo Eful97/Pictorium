@@ -30,6 +30,13 @@ interface PosterSaveDeps {
   previewPoster: TMDBImage | null
   selectedLogo: TMDBImage | null
   setSelectedLogo: (logo: TMDBImage | null) => void
+  /**
+   * Provenienza della selezione logo (`logoAutoSelected` dell'editor): i rami
+   * automatici (ingresso in landscape, base clean, refresh lingua) marcano
+   * true, la scelta manuale false. Opzionale per i chiamanti legacy/test che
+   * non la conoscono (nessuna marcatura = scelta esplicita).
+   */
+  setLogoAutoSelected?: (v: boolean) => void
   setPreviewPoster: (poster: TMDBImage | null) => void
   setPreviewId: (id: string | null) => void
   posters: TMDBImage[]
@@ -297,7 +304,7 @@ function saveSuccessToastPosition(): "bottom-right" | undefined {
 
 export function usePosterSave(deps: PosterSaveDeps) {
   const {
-    selected, previewPoster, selectedLogo, setSelectedLogo, setPreviewPoster, setPreviewId,
+    selected, previewPoster, selectedLogo, setSelectedLogo, setLogoAutoSelected, setPreviewPoster, setPreviewId,
     posters, metaInfo, imdbTop250, trendRank, mdblistAnimeList, mappingsMap, loadMappings,
     logoScale, logoOffsetX, logoOffsetY,
     selectedBackdrop, setSelectedBackdrop, backdropScale, backdropOffsetX, backdropOffsetY,
@@ -341,6 +348,7 @@ export function usePosterSave(deps: PosterSaveDeps) {
     // Landscape invariato (auto-effect dedicato).
     if (!isLand && image.file_path !== previewPoster?.file_path && image.iso_639_1 !== null) {
       setSelectedLogo(null)
+      setLogoAutoSelected?.(false)
     }
     const adj = adjustGradientForPosterChange(
       isLand ? { gradientHeight: landscapeBlur.gradientHeight, blurFade: landscapeBlur.blurFade } : { gradientHeight, blurFade },
@@ -358,9 +366,13 @@ export function usePosterSave(deps: PosterSaveDeps) {
     setPreviewId(`${selected.media_type}:${selected.id}`)
   }, [selected, previewPoster, gradientHeight, blurFade, posterShape, landscapeBlur, setLandscapeBlur, setSelectedLogo]) // eslint-disable-line react-hooks/exhaustive-deps -- setter refs are stable
 
-  const selectLogo = useCallback(async (logo: TMDBImage) => {
+  const selectLogo = useCallback(async (logo: TMDBImage, opts?: { auto?: boolean }) => {
     setSelectedLogo(logo)
     setLogoDisabled(false)
+    // Provenienza: i rami automatici passano `auto` per essere distinguibili
+    // da una scelta manuale (il cambio formato ritira solo gli auto quando la
+    // base verticale ha già il titolo cotto).
+    setLogoAutoSelected?.(opts?.auto === true)
     // Scala/offset logo: default globali per formato (espliciti, anche 75) >
     // auto EFFETTIVO (correzione c1: Fresh effettivo = 100, fallback Standard
     // = aspect — mai 100 baked sui no-rank). Default → esplicito; puro auto →
@@ -412,6 +424,7 @@ export function usePosterSave(deps: PosterSaveDeps) {
     if (!existing) {
       // Nessun mapping salvato: rimozione solo locale (niente PUT).
       setSelectedLogo(null)
+      setLogoAutoSelected?.(false)
       setLogoDisabled(true)
       // Anche il wordmark è un logo: rimuoverlo lo svuota (nessuna traccia
       // nascosta che rispunti riattivando i loghi).
@@ -447,6 +460,7 @@ export function usePosterSave(deps: PosterSaveDeps) {
         }),
       })
       setSelectedLogo(null)
+      setLogoAutoSelected?.(false)
       setLogoText?.("")
       setLogoFont?.(TEXT_LOGO_DEFAULT_FONT)
       import("sonner").then(({ toast }) => toast(t("ui.logoRemoved")))

@@ -18,6 +18,7 @@ import {
 import {
   POSTER_FACT_FLOOR_MS,
   capPosterTtlMs,
+  isPreReleaseDetectionUndecided,
   isRankFactConsumed,
   msUntilLocalDateBoundary,
   msUntilUtcDateBoundary,
@@ -253,6 +254,50 @@ describe("capped entries are never served stale/SWR past the fact deadline", () 
     const past = readCachedPoster("poster:policy")
     expect(past.stale).toBe(true)
     expect(canServePosterStaleHit(past)).toBe(true)
+  })
+})
+
+describe("undecided pre-release detection must not freeze the poster", () => {
+  it("pre enabled + unknown JW (null / race lost) is ephemeral", () => {
+    expect(
+      isPreReleaseDetectionUndecided({
+        preReleaseEnabled: true,
+        mediaType: "movie",
+        jwAvailable: null,
+      }),
+    ).toBe(true)
+  })
+
+  it("pre disabled never adds an ephemeral marker from this path", () => {
+    expect(
+      isPreReleaseDetectionUndecided({
+        preReleaseEnabled: false,
+        mediaType: "movie",
+        jwAvailable: null,
+      }),
+    ).toBe(false)
+  })
+
+  it("known JW answers keep the existing behavior (no ephemeral)", () => {
+    for (const jwAvailable of [true, false]) {
+      expect(
+        isPreReleaseDetectionUndecided({
+          preReleaseEnabled: true,
+          mediaType: "movie",
+          jwAvailable,
+        }),
+      ).toBe(false)
+    }
+  })
+
+  it("series never take the pre-release path", () => {
+    expect(
+      isPreReleaseDetectionUndecided({
+        preReleaseEnabled: true,
+        mediaType: "tv",
+        jwAvailable: null,
+      }),
+    ).toBe(false)
   })
 })
 
