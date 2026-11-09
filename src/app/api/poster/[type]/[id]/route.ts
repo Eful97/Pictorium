@@ -75,7 +75,7 @@ import {
   type PosterCachePayload,
   type PosterErrorStatus,
 } from "@/lib/poster-runtime-cache"
-import { capPosterTtlMs, isRankFactConsumed, resolvePosterFactCapMs } from "@/lib/poster-freshness"
+import { capPosterTtlMs, isPreReleaseDetectionUndecided, isRankFactConsumed, resolvePosterFactCapMs } from "@/lib/poster-freshness"
 import { sanitizeEffectiveAccentMeta, type EffectiveAccentMeta } from "@/lib/effective-accent"
 import { hashUserFragment, msUntilPosterScheduledRefresh, userTagFragment } from "@/lib/cache"
 import { FormatOverloadError, runFormatConversion } from "@/lib/poster-format-gate"
@@ -3122,7 +3122,18 @@ export async function GET(req: NextRequest, { params }: { params: Promise<RouteP
       preRelease: !!(preRelease && preReleaseDetected),
       t,
     })
-    const ephemeralTtl = qualityEphemeral || wikidataEphemeral || customFallbackEphemeral || ageEphemeral || !!nextEpisodeEphemeral
+    // Stabilization: an ENABLED pre-release whose JustWatch availability is
+    // still unknown (fetch error / 2500ms race lost, preJw stays null) is an
+    // undecided volatile fact. Never freeze a possibly-wrong poster for the
+    // flat 6h/24h policy: reuse the existing ephemeral TTL so the next render
+    // can resolve the real state. Known answers (preJw true/false) keep the
+    // existing fact-cap path untouched, and disabled pre-release adds nothing.
+    const preReleaseUndecidedEphemeral = isPreReleaseDetectionUndecided({
+      preReleaseEnabled: preRelease,
+      mediaType,
+      jwAvailable: preJw,
+    })
+    const ephemeralTtl = qualityEphemeral || wikidataEphemeral || customFallbackEphemeral || ageEphemeral || !!nextEpisodeEphemeral || preReleaseUndecidedEphemeral
     // Task D: riassegnato sotto dal freshness cap (solo restrizione, mai estensione).
     let effectiveTtlSec: number | undefined = ephemeralTtl ? QUALITY_EPHEMERAL_TTL_SEC : dynamicTtlSec
     const effectiveImmutable = immutablePoster && !ephemeralTtl

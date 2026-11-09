@@ -11,6 +11,7 @@ export interface RecentChange {
 }
 
 export const RECENT_CHANGES: RecentChange[] = [
+  { type: "feature", text: "Show anime database last update in Service Status", sha: "5cad836", date: "2026-11-09" },
   { type: "perf", text: "Keep episode thumbnails cached for 12 hours", sha: "46846c1", date: "2026-11-09" },
   { type: "fix", text: "make UI labels and contrast meet WCAG AA", sha: "612ce79", date: "2026-11-09" },
   { type: "feature", text: "Add superhero, mafia, spy, prison, courtroom, slasher, werewolf and body horror subgenres", sha: "b2dd4b9", date: "2026-11-09" },

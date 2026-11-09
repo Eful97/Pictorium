@@ -141,6 +141,54 @@ describe("isDigitalPreRelease", () => {
     ).toBe(true)
   })
 
+  it("JW unknown (null) + recent theatrical is pre-release (no flapping on JW errors)", () => {
+    expect(
+      isDigitalPreRelease({
+        mediaType: "movie",
+        theatricalDate: "2026-07-01",
+        digitalDate: null,
+        jwAvailable: null,
+        now: NOW,
+      }),
+    ).toBe(true)
+  })
+
+  it("JW unknown (null) + old theatrical is a data gap, not pre-release", () => {
+    expect(
+      isDigitalPreRelease({
+        mediaType: "movie",
+        theatricalDate: "2020-01-01",
+        digitalDate: null,
+        jwAvailable: null,
+        now: NOW,
+      }),
+    ).toBe(false)
+  })
+
+  it("JW unknown (null) + future theatrical is pre-release", () => {
+    expect(
+      isDigitalPreRelease({
+        mediaType: "movie",
+        theatricalDate: "2026-12-25",
+        digitalDate: null,
+        jwAvailable: null,
+        now: NOW,
+      }),
+    ).toBe(true)
+  })
+
+  it("JW true + future theatrical without digital date is not pre-release", () => {
+    expect(
+      isDigitalPreRelease({
+        mediaType: "movie",
+        theatricalDate: "2026-12-25",
+        digitalDate: null,
+        jwAvailable: true,
+        now: NOW,
+      }),
+    ).toBe(false)
+  })
+
   it("unknown everything is fail-open (normal poster)", () => {
     expect(
       isDigitalPreRelease({ mediaType: "movie", jwAvailable: null, now: NOW }),

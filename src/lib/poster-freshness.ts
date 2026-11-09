@@ -179,3 +179,31 @@ export function isRankFactConsumed(consumption: PosterRankConsumption): boolean 
     consumption.rank !== null
   )
 }
+
+export interface PreReleaseDetectionState {
+  /** Pre-release flag actually enabled for this render (query > token > defaults). */
+  readonly preReleaseEnabled: boolean
+  /** Media type: only movies can be pre-digital (series return false upstream). */
+  readonly mediaType: string
+  /**
+   * JustWatch availability for the title: true/false = known answer,
+   * null = fetch error or the 2500ms detection race was lost (preJw stays null).
+   */
+  readonly jwAvailable: boolean | null
+}
+
+/**
+ * True when an ENABLED pre-release detection has no JustWatch answer yet
+ * (fetch error or the 2500ms race lost, `preJw === null`). That is an
+ * UNDECIDED volatile fact: the caller must mark the render ephemeral instead
+ * of freezing a possibly-wrong poster for the flat 6h dynamic / 24h mapped
+ * policy. Disabled pre-release and known answers (true/false) never trigger
+ * this path — the known-answer freshness cap stays untouched.
+ */
+export function isPreReleaseDetectionUndecided(state: PreReleaseDetectionState): boolean {
+  return (
+    state.preReleaseEnabled &&
+    state.mediaType === "movie" &&
+    state.jwAvailable === null
+  )
+}

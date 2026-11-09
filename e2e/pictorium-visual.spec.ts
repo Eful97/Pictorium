@@ -405,11 +405,12 @@ test.describe("poster API — functional", () => {
     }
   })
 
-  test("ranking number pre-release with unknown availability — fail-open renders numeral", async ({ request }) => {
-    // Matrix (id 603) is absent from the mock JW responses → jwAvailable null
-    // → documented fail-open: pre=1 renders the normal poster with the numeral
-    // (no veil/ribbon). Coming Soon stacking is covered by unit tests with real
-    // ribbonLayout values (numberSharesComingSoonCorner), unreachable in e2e.
+  test("ranking number pre-release with unknown availability — Coming Soon overlay renders", async ({ request }) => {
+    // Matrix (id 603) is absent from the mock JW responses → jwAvailable null.
+    // Unknown availability no longer disqualifies: with rd inside the 120-day
+    // theatrical window pre=1 renders the Coming Soon overlay (veil/ribbon),
+    // so the bytes differ from the plain poster. Coming Soon stacking geometry
+    // stays covered by unit tests (numberSharesComingSoonCorner).
     // rd is relative to today (never rendered): stable detection.
     const rd = new Date(Date.now() - 30 * 24 * 3600 * 1000).toISOString().slice(0, 10)
     const base = { genreName: "Action", voteAverage: "7.8", badges: "1", ranking: "1", rank: "3", label: "Top 3", rs: "number", title: "Matrix", rd }
@@ -419,7 +420,7 @@ test.describe("poster API — functional", () => {
     expect(preBuffer.length).toBeGreaterThan(1000)
     const plainRes = await request.get(posterUrl(base, "movie", 603))
     expect(plainRes.ok()).toBeTruthy()
-    expect(Buffer.compare(preBuffer, await plainRes.body())).toBe(0)
+    expect(Buffer.compare(preBuffer, await plainRes.body())).not.toBe(0)
     // side=right specchia comunque il numerale (stesso switch del nastro).
     const rightRes = await request.get(posterUrl({ ...base, pre: "1", side: "right" }, "movie", 603))
     expect(rightRes.ok()).toBeTruthy()
