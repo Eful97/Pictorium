@@ -58,9 +58,9 @@ type RouteParams = { id: string; season: string; episode: string }
 
 const log = createLogger("thumbnail")
 
-const CACHE_TTL_MS = 30 * 60 * 1000
+const CACHE_TTL_MS = 12 * 60 * 60 * 1000
 const CACHE_TAGS = ["tmdb", "images", "thumbnail"]
-const CACHE_CONTROL = "public, max-age=1800, s-maxage=1800, stale-while-revalidate=3600"
+const CACHE_CONTROL = "public, max-age=43200, s-maxage=43200, stale-while-revalidate=3600"
 const MAX_LANGUAGES_LENGTH = 120
 
 function jsonError(message: string, status: number, acceptEncoding: string | null): Response {
@@ -236,7 +236,7 @@ async function resolveTvdbEpisodeStill(
   }
 }
 
-const ROTATION_CANDIDATES_CACHE_TTL_MS = 30 * 60 * 1000
+const ROTATION_CANDIDATES_CACHE_TTL_MS = 12 * 60 * 60 * 1000
 
 /**
  * Episode still candidates, shared by daily rotation (`?rotate=1`) and the
@@ -244,7 +244,7 @@ const ROTATION_CANDIDATES_CACHE_TTL_MS = 30 * 60 * 1000
  *
  * The list is the TMDB episode `/images` payload (already cached by the TMDB
  * module for 5 minutes); the sanitized path list is cached at the route level
- * for the same 30-minute family as the composed thumbnail so a shared render
+ * for the same 12-hour family as the composed thumbnail so a shared render
  * never pays a second upstream lookup. Failures propagate to the callers:
  * `resolveRotatedThumbnailStill` fails open to the fixed `?still` (never a
  * 500), and the auto-still leg treats them as "no still" (400, as before).
@@ -340,8 +340,10 @@ async function loadEpisodeStillCandidates(
  * keep their historical placement. `flang` is display-only: an unusable tag is
  * ignored, never a 400.
  *
- * The response is a PNG cached for 30 minutes (same `tmdb`/`images` family) and
+ * The response is a PNG cached for 12 hours (same `tmdb`/`images` family) and
  * revalidated with a content-hash ETag; upstream failures are never cached.
+ * Badge style/provider/vote-source/stills changes produce a different
+ * `thumbnailCacheKey`, so a longer TTL never serves a stale representation.
  *
  * The ★ pill carries the EPISODE rating, never the series average. `?source`
  * selects where that per-episode value comes from:
