@@ -1,5 +1,5 @@
 import { beforeEach, describe, expect, it, vi } from "vitest"
-import { fireEvent, screen } from "@testing-library/react"
+import { fireEvent, screen, within } from "@testing-library/react"
 import { createElement } from "react"
 import { SettingsPanel } from "@/components/SettingsPanel"
 import { renderWithCtx } from "@/__tests__/test-utils"
@@ -80,22 +80,34 @@ beforeEach(() => {
 })
 
 describe("Trakt Space integration", () => {
-  it("renders the Trakt section in Space after the API keys", async () => {
+  // SettingsPanel mounts every tab/section (hidden ones included) and the
+  // Space panel gates Connect behind an async Trakt status fetch, so a
+  // document-wide role/name query here is heavy. Scoping the lookup to the
+  // Space panel keeps each poll cheap and the explicit budgets keep the
+  // integration render reliable under the parallel full-suite workers; the
+  // assertions are unchanged.
+  it("renders the Trakt section in Space after the API keys", { timeout: 15000 }, async () => {
     renderWithCtx(
       createElement(SettingsPanel, { setSettingsOpen: () => {}, exportData: () => {}, importData: () => {} }),
     )
-    await screen.findByTestId("presets-panel")
-    fireEvent.click(screen.getByTestId("settings-secondary-spazio"))
-    const connect = await screen.findByRole("button", { name: "ui.traktConnect" })
+    // The Space tab is gated by the async multi-user/space-path resolution:
+    // wait for the tab itself, then activate it.
+    fireEvent.click(await screen.findByTestId("settings-secondary-spazio"))
+    const spacePanel = screen.getByRole("tabpanel", { name: "ui.settingsTabSpace" })
+    const connect = await within(spacePanel).findByRole(
+      "button",
+      { name: "ui.traktConnect" },
+      { timeout: 5000 },
+    )
     expect(connect).toBeInTheDocument()
     // Approved location: Space tabpanel, after the personal API keys card.
-    const keysTitle = screen.getByText("ui.userKeysTitle")
-    const traktTitle = screen.getByText("ui.traktTitle")
+    const keysTitle = within(spacePanel).getByText("ui.userKeysTitle")
+    const traktTitle = within(spacePanel).getByText("ui.traktTitle")
     expect(keysTitle.compareDocumentPosition(traktTitle) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy()
     expect(traktTitle.closest('[role="tabpanel"]')).toBe(connect.closest('[role="tabpanel"]'))
   })
 
-  it("dirty visual draft intercepts the external OAuth navigation (no silent loss)", async () => {
+  it("dirty visual draft intercepts the external OAuth navigation (no silent loss)", { timeout: 15000 }, async () => {
     renderWithCtx(
       createElement(SettingsPanel, { setSettingsOpen: () => {}, exportData: () => {}, importData: () => {} }),
     )
@@ -103,8 +115,13 @@ describe("Trakt Space integration", () => {
     // Stage an unsaved visual change, then move to Space (free navigation).
     fireEvent.click(screen.getByTestId("poster-style-apple"))
     fireEvent.click(screen.getByTestId("settings-secondary-spazio"))
+    const spacePanel = screen.getByRole("tabpanel", { name: "ui.settingsTabSpace" })
     const hrefBefore = window.location.href
-    fireEvent.click(await screen.findByRole("button", { name: "ui.traktConnect" }))
+    fireEvent.click(await within(spacePanel).findByRole(
+      "button",
+      { name: "ui.traktConnect" },
+      { timeout: 5000 },
+    ))
     // Guard dialog instead of navigation: keep editing drops the pending
     // OAuth run and the draft survives.
     expect(await screen.findByTestId("settings-dirty-dialog")).toBeInTheDocument()
