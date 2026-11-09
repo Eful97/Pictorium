@@ -243,6 +243,11 @@ describe("settings mobile floating preview (authorized overlay contract)", () =>
 })
 
 describe("settings mobile floating drag vs tap (transport mocks, real blob path)", () => {
+  // The zoom trigger appears only after the debounced preview URL resolves the
+  // blob: one SettingsPanel mount is heavy, and the default 1s findBy budget
+  // is not enough when the full suite saturates the parallel workers. Explicit
+  // budget only — assertions are unchanged (same pattern as the Trakt Space
+  // stabilization).
   beforeEach(() => {
     FakeXHR.urls = []
     let blobN = 0
@@ -261,7 +266,7 @@ describe("settings mobile floating drag vs tap (transport mocks, real blob path)
   it("tap on the thumbnail opens the large zoom; Escape closes without PUT", async () => {
     renderPanel()
     await screen.findByTestId("presets-panel")
-    const zoomOpen = await screen.findByTestId("defaults-preview-zoom-open")
+    const zoomOpen = await screen.findByTestId("defaults-preview-zoom-open", undefined, { timeout: 5000 })
     expect(FakeXHR.urls.length).toBeGreaterThan(0)
     expect(FakeXHR.urls[0]).toContain("/api/poster/")
     // Tap (press without movement) opens the shared zoom modal.
@@ -280,7 +285,7 @@ describe("settings mobile floating drag vs tap (transport mocks, real blob path)
   it("drag snaps to the nearest corner and never activates the zoom", async () => {
     renderPanel()
     await screen.findByTestId("presets-panel")
-    const zoomOpen = await screen.findByTestId("defaults-preview-zoom-open")
+    const zoomOpen = await screen.findByTestId("defaults-preview-zoom-open", undefined, { timeout: 5000 })
     const float = screen.getByTestId("settings-preview")
     expect(float).toHaveAttribute("data-corner", "tr")
     // Small movement under the threshold is still a tap (zoom opens).
