@@ -30,6 +30,14 @@ export interface ChangelogRelease {
  *  (which bumps on every commit and would leave the dot permanently on). */
 export const CHANGELOG: ChangelogRelease[] = [
   {
+    version: "1.27.3",
+    date: "2026-11-09",
+    title: "Release 1.27.3",
+    items: [
+      { type: "fix", text: "Keep the Coming Soon badge visible when streaming availability cannot be checked, instead of dropping it on temporary errors" },
+    ],
+  },
+  {
     version: "1.27.2",
     date: "2026-11-09",
     title: "Release 1.27.2",
