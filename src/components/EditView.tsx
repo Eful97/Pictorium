@@ -722,16 +722,29 @@ export default function EditView() {
   // non viene reintrodotta dopo (logoDisabled). Passando a un poster in lingua
   // `selectPoster` azzera già il logo in stato: qui non c'è nulla da togliere.
   useEffect(() => {
-    if (selectedLogo) return
-    if (ed.logoDisabled) return
-    if (logos.length === 0) return
     const cleanBase = cleanPoster && !ed.defaultDisableCleanPosters
     const backdropBaseAuto = portraitBaseBackdropPath !== null
+    if (selectedLogo) {
+      // Ritorno in Verticale su una base col titolo già cotto (poster in
+      // lingua): il logo auto-installato per l'Orizzontale (dove la base è il
+      // backdrop senza testo) non va ereditato, altrimenti è un doppio titolo
+      // — lo stesso invariante del ramo auto sotto e del renderer. Solo gli
+      // auto: una scelta manuale o un override salvato (provenienza false)
+      // restano sovrani. Su una base verticale textless (poster clean, base
+      // auto da backdrop) il logo auto resta: è legittimo anche in verticale.
+      if (ed.posterShape !== "landscape" && ed.logoAutoSelected && !cleanBase && !backdropBaseAuto) {
+        setSelectedLogo(null)
+        ed.setLogoAutoSelected(false)
+      }
+      return
+    }
+    if (ed.logoDisabled) return
+    if (logos.length === 0) return
     if (ed.posterShape !== "landscape" && !cleanBase && !backdropBaseAuto) return
     const autoLogo = selectBestLogo(logos, lang, titleOrigLang ?? undefined)
     if (!autoLogo) return
-    void selectLogo(autoLogo)
-  }, [ed.posterShape, ed.logoDisabled, ed.defaultDisableCleanPosters, cleanPoster, portraitBaseBackdropPath, selectedLogo, logos, lang, titleOrigLang, selectLogo])
+    void selectLogo(autoLogo, { auto: true })
+  }, [ed.posterShape, ed.logoDisabled, ed.defaultDisableCleanPosters, ed.logoAutoSelected, ed.setLogoAutoSelected, cleanPoster, portraitBaseBackdropPath, selectedLogo, logos, lang, titleOrigLang, selectLogo, setSelectedLogo]) // eslint-disable-line react-hooks/exhaustive-deps -- dipendenze granulari intenzionali: `ed` intero rifarebbe scattare l'effetto a ogni tick editor
 
   // Dual-format: stash degli slider non salvati per formato. Senza, passare
   // da A a B e ritorno perderebbe in silenzio le modifiche non salvate di A

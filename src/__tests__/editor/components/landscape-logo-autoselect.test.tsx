@@ -11,8 +11,9 @@
  * - rimozione manuale (logoDisabled) mai scavalcata;
  * - senza loghi resta nessuno;
  * - logo già presente (override salvato) mai toccato;
- * - ritorno in portrait: comportamento esistente (logo mai azzerato,
- *   backdrop rimosso).
+ * - ritorno in portrait: il logo AUTO installato per l'orizzontale viene
+ *   ritirato (base in lingua, doppio titolo), il backdrop sì; una scelta
+ *   manuale o un override salvato restano (vedi provenance `logoAutoSelected`).
  */
 import { beforeEach, describe, expect, it, vi } from "vitest"
 import { act, screen } from "@testing-library/react"
@@ -78,7 +79,7 @@ describe("landscape logo autoselect", () => {
     const expected = selectBestLogo(logos, "it", "it")
     expect(expected?.file_path).toBe("/logo-it.png")
     expect(selectLogo).toHaveBeenCalledTimes(1)
-    expect(selectLogo).toHaveBeenCalledWith(expect.objectContaining({ file_path: expected?.file_path }))
+    expect(selectLogo).toHaveBeenCalledWith(expect.objectContaining({ file_path: expected?.file_path }), { auto: true })
   })
 
   it("rimozione manuale (logoDisabled) mai scavalcata", async () => {
@@ -103,13 +104,39 @@ describe("landscape logo autoselect", () => {
     expect(selectLogo).not.toHaveBeenCalled()
   })
 
-  it("ritorno in portrait: comportamento esistente (logo tenuto, backdrop rimosso)", async () => {
+  it("ritorno in portrait: il logo auto dell'orizzontale viene ritirato, backdrop rimosso", async () => {
+    const setSelectedLogo = vi.fn()
+    const removeBackdrop = vi.fn()
+    const { editor } = renderEditor({ selectedLogo: logoEn, setSelectedLogo, removeBackdrop })
+    act(() => { editor().setLogoAutoSelected(true) })
+    await switchShape("landscape")
+    await switchShape("poster")
+    expect(setSelectedLogo).toHaveBeenCalledWith(null)
+    expect(removeBackdrop).toHaveBeenCalled()
+  })
+
+  it("ritorno in portrait: una scelta manuale non viene ritirata", async () => {
     const setSelectedLogo = vi.fn()
     const removeBackdrop = vi.fn()
     renderEditor({ selectedLogo: logoEn, setSelectedLogo, removeBackdrop })
     await switchShape("landscape")
     await switchShape("poster")
-    expect(setSelectedLogo).not.toHaveBeenCalled()
+    expect(setSelectedLogo).not.toHaveBeenCalledWith(null)
     expect(removeBackdrop).toHaveBeenCalled()
+  })
+
+  it("ritorno in portrait su base textless (clean): il logo auto resta", async () => {
+    const cleanPoster: TMDBImage = { file_path: "/p-clean.jpg", iso_639_1: null, vote_average: 0, width: 1000, height: 1500 }
+    const setSelectedLogo = vi.fn()
+    const { editor } = renderEditor({
+      posters: [cleanPoster, nonCleanPoster],
+      previewPoster: cleanPoster,
+      selectedLogo: logoEn,
+      setSelectedLogo,
+    })
+    act(() => { editor().setLogoAutoSelected(true) })
+    await switchShape("landscape")
+    await switchShape("poster")
+    expect(setSelectedLogo).not.toHaveBeenCalledWith(null)
   })
 })

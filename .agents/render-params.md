@@ -571,6 +571,17 @@ dither Bayer deterministico (ETag stabile). L'ombra lineare superiore è
 > invariato). Stash verbatim (false/0/[]/`follow-rank` preservati, mai
 > filtrati); la provenance logo-scale del ripristino allo switch resta locale
 > in EditView (il save consuma i draft verbatim come il path esplicito).
+> Logo al cambio formato: il logo non è per-formato (un solo `logoPath` nel
+> mapping), ma la sua provenienza sì. `logoAutoSelected` (PosterEditorContext)
+> marca i soli rami automatici (ingresso in Orizzontale, base clean, base
+> portrait da backdrop, refresh lingua); `selectLogo` la imposta da
+> `{ auto: true }` e `removeLogo`/reset la azzerano. Tornando in Verticale su
+> una base col titolo cotto (poster in lingua, niente base auto da backdrop) il
+> logo auto viene ritirato — era legittimo solo perché in 16:9 la base è il
+> backdrop textless — mentre una scelta manuale o un override salvato restano
+> sovrani. Su una base verticale textless (poster clean o base auto da
+> backdrop) il logo auto resta: è lo stesso invariante del ramo automatico e
+> del renderer (mai doppio titolo).
 > Resta condiviso per disegno server solo `ratingSources` (fonti voto, senza
 > chiave profilo). Azzeramento portrait (accento automatico esplicito):
 > l'apertura ripristina il manuale salvato nel live e lo stash portrait

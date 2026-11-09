@@ -150,7 +150,12 @@ export interface PictoriumCtx {
   posterScrollInfo: { top: number; height: number }
   setPosterScrollInfo: React.Dispatch<React.SetStateAction<{ top: number; height: number }>>
   selectPoster: (img: TMDBImage) => Promise<void>
-  selectLogo: (logo: TMDBImage) => Promise<void>
+  /**
+   * Seleziona un logo. `auto` marca la provenienza dei rami automatici
+   * (ingresso in Orizzontale, base clean/backdrop): il ritorno in Verticale su
+   * una base con titolo cotto li ritira, mentre una scelta manuale resta.
+   */
+  selectLogo: (logo: TMDBImage, opts?: { auto?: boolean }) => Promise<void>
   removeLogo: () => Promise<void>
   logoBounds: { minX: number; maxX: number; minY: number; maxY: number }
   selectBackdrop: (img: TMDBImage) => void
@@ -867,6 +872,7 @@ export function usePictorium(): PictoriumCtx {
     logoOffsetX, setLogoOffsetX,
     logoOffsetY, setLogoOffsetY,
     logoDisabled, setLogoDisabled,
+    setLogoAutoSelected,
     logoText, setLogoText,
     logoFont, setLogoFont,
     // Backdrop
@@ -2589,6 +2595,8 @@ export function usePictorium(): PictoriumCtx {
       if (existing.logoPath) {
         foundLogo = (data.logos || []).find((l: TMDBImage) => l.file_path === existing.logoPath)
         navigation.setSelectedLogo(foundLogo ? { file_path: foundLogo.file_path, iso_639_1: existing.language, vote_average: 0, width: foundLogo.width, height: foundLogo.height } : { file_path: existing.logoPath, iso_639_1: existing.language, vote_average: 0, width: 0, height: 0 })
+        // Override salvato = scelta esplicita: il cambio formato non lo ritira.
+        setLogoAutoSelected(false)
       // Riapertura mapping senza logo esplicito: nessun auto su portrait
       // non-clean (solo clean o landscape); logoDisabled sempre onorato.
       // A saved TVDB custom base with recorded text (non-null language)
@@ -2598,6 +2606,7 @@ export function usePictorium(): PictoriumCtx {
         const autoLogo = autoLogoSelection(data.logos || [], lang, details.original_language, `${itemType}/${itemId}`)
         if (autoLogo) {
           navigation.setSelectedLogo({ file_path: autoLogo.file_path, iso_639_1: autoLogo.iso_639_1, vote_average: 0, width: autoLogo.width, height: autoLogo.height })
+          setLogoAutoSelected(true)
           // Scala logo: default globale per formato (esplicito) > auto
           // EFFETTIVO (correzione c1: Fresh effettivo = 100, fallback
           // Standard = aspect — rank ancora ignoto qui, quindi ranked =
@@ -2649,6 +2658,7 @@ export function usePictorium(): PictoriumCtx {
       )
     } else {
       setLogoDisabled(false)
+      setLogoAutoSelected(false)
       setLogoText("")
       setLogoFont(TEXT_LOGO_DEFAULT_FONT)
       // Fresh-title network init was already installed pre-fetch (flats, plus
@@ -2677,6 +2687,7 @@ export function usePictorium(): PictoriumCtx {
           chosenPoster = clean
           navigation.setPreviewPoster({ file_path: clean.file_path, iso_639_1: null, vote_average: 0, width: 0, height: 0 })
           navigation.setSelectedLogo({ file_path: autoLogo.file_path, iso_639_1: autoLogo.iso_639_1, vote_average: 0, width: autoLogo.width, height: autoLogo.height })
+          setLogoAutoSelected(true)
           // Scala logo: default globale per formato (esplicito) > auto
           // EFFETTIVO (correzione c1 — mai 100 baked; vedi ramo mapping).
           const cleanDefault = logoScaleDefaultFor(openShape)
@@ -2745,6 +2756,7 @@ export function usePictorium(): PictoriumCtx {
         const autoLogo = autoLogoSelection(data.logos || [], lang, details.original_language, `${itemType}/${itemId}`)
         if (autoLogo) {
           navigation.setSelectedLogo({ file_path: autoLogo.file_path, iso_639_1: autoLogo.iso_639_1, vote_average: 0, width: autoLogo.width, height: autoLogo.height })
+          setLogoAutoSelected(true)
           // Scala logo: default globale per formato (esplicito) > auto
           // EFFETTIVO (correzione c1 — mai 100 baked; vedi ramo mapping).
           const landDefault = logoScaleDefaultFor(openShape)
@@ -2903,6 +2915,7 @@ export function usePictorium(): PictoriumCtx {
         if (!match) {
           const autoLogo = selectBestLogo(data.logos || [], lang, details.original_language)
           navigation.setSelectedLogo(autoLogo || liveLogo)
+          if (autoLogo) setLogoAutoSelected(true)
         }
       }
     }).catch((e) => {
@@ -2941,6 +2954,7 @@ export function usePictorium(): PictoriumCtx {
     }
     navigation.setSelected(item)
     navigation.setSelectedLogo(null)
+    setLogoAutoSelected(false)
     setSelectedBackdrop(null)
     navigation.setPreviewPoster(null)
     // Provenienza della base auto: la sessione di editing riparte dal mapping
@@ -3317,6 +3331,7 @@ export function usePictorium(): PictoriumCtx {
       setAutoRotateBackdrop(defaultAutoRotateBackdrop)
       setExcludedBackdrops([])
       setLogoDisabled(false)
+      setLogoAutoSelected(false)
       setLogoText("")
       setLogoFont(TEXT_LOGO_DEFAULT_FONT)
       setLogoOffsetX(logoOffsetDefault(openShape, "x") ?? 0)
@@ -3465,7 +3480,7 @@ export function usePictorium(): PictoriumCtx {
 
   const { selectPoster, selectLogo, removeLogo, selectBackdrop, removeBackdrop, saveConfig: savePosterConfig, saveCoverOnly: saveCoverOnlyPost, saveThumbnailSettings } = usePosterSave({
     selected: navigation.selected, previewPoster: navigation.previewPoster, selectedLogo: navigation.selectedLogo,
-    setSelectedLogo: navigation.setSelectedLogo, setPreviewPoster: navigation.setPreviewPoster, setPreviewId: navigation.setPreviewId,
+    setSelectedLogo: navigation.setSelectedLogo, setLogoAutoSelected, setPreviewPoster: navigation.setPreviewPoster, setPreviewId: navigation.setPreviewId,
     posters: navigation.posters, metaInfo, trendRank, mdblistAnimeList: trending.mdblistAnimeList,
     mappingsMap, loadMappings, logoScale, logoOffsetX, logoOffsetY,
     selectedBackdrop, setSelectedBackdrop: setSelectedBackdrop, backdropScale, backdropOffsetX, backdropOffsetY,
