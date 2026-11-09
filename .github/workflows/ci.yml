@@ -107,6 +107,9 @@ jobs:
     if: always() && (github.event_name != 'pull_request' || github.event.pull_request.draft == false)
     runs-on: ubuntu-latest
     # Shard the Vitest suite across 3 parallel runners to cut wall time (~1/3).
+    # KEEP IN SYNC with .github/workflows/release.yml `verify`: the tag runs the
+    # SAME shards/commands (a green PR must predict a green tag — v1.27.2 went
+    # red on the tag only because the release ran the full suite unsharded).
     # Coverage stays OFF in shards (use `npm run test:coverage` in a dedicated
     # job if needed); merging per-shard coverage is out of scope here.
     strategy:
@@ -198,6 +201,7 @@ jobs:
       # revisionati. Comando esatto su Linux:
       #   npx playwright test e2e/card-layout.spec.ts e2e/colored-light-text.spec.ts --update-snapshots
       # poi estendere la riga sotto con i due spec.
+      # KEEP IN SYNC with .github/workflows/release.yml `visual` (same command).
       - run: npx playwright test e2e/pictorium-visual.spec.ts e2e/pictorium-parity.spec.ts
         if: needs.changes.outputs.code == 'true'
       # Su failure carica i render actual: servono per creare la variante
