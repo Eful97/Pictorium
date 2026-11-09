@@ -282,7 +282,11 @@ function seedStorage(payload: Record<string, unknown>) {
 }
 
 describe("SettingsPanel imported personal landscape apply (no persist before Save)", () => {
-  it("imported null-profile landscape converges from divergent seeds without staging writes", async () => {
+  // Two sequential full SettingsPanel mounts + save round-trips: ~1.3s alone,
+  // but the same work regularly exceeds the 5s default budget when the full
+  // suite saturates the worker pool. Explicit budget only — assertions are
+  // unchanged (same pattern as the Trakt Space stabilization).
+  it("imported null-profile landscape converges from divergent seeds without staging writes", { timeout: 15000 }, async () => {
     vi.useRealTimers()
     // Simulate a preset-file import through the real strict pipeline.
     const raw = importedRawValues()
