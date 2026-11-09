@@ -9,6 +9,7 @@ import { checkTmdbEndpoint, resolveUserApiKeys } from "@/lib/tmdb"
 import { getJWRankings } from "@/lib/justwatch"
 import { getTop10 } from "@/lib/flixpatrol"
 import { extractUserParam, getScopedUserId, checkUserAuth, userDir } from "@/lib/user-auth"
+import { ownFillerMapInfo, ownFillerRuntimeInfo } from "@/lib/anime-filler"
 
 // Fix L15: i campi streaming devono testare DAVVERO JustWatch e FlixPatrol
 // (prima testavano due endpoint TMDB, fuorviante). I probe girano solo con
@@ -165,6 +166,37 @@ export async function GET(request: Request) {
     lastMappingUpdatedAt,
   }
 
+  // Anime filler own DB provenance (additive diagnostics): last successful
+  // remote load, source and snapshot metadata. The helpers are fail-open and
+  // only schedule the existing background refresh, so this never adds a
+  // network wait; a disabled/unreachable remote stays source "bundled" with
+  // refreshedAt null.
+  const filler = (() => {
+    try {
+      const runtime = ownFillerRuntimeInfo()
+      const info = ownFillerMapInfo()
+      return {
+        enabled: runtime.enabled,
+        source: runtime.source,
+        refreshedAt: runtime.refreshedAt,
+        refreshHours: runtime.refreshHours,
+        revision: info.revision,
+        snapshotDate: info.snapshotDate,
+        recordCount: info.recordCount,
+      }
+    } catch {
+      return {
+        enabled: false,
+        source: "bundled" as const,
+        refreshedAt: null,
+        refreshHours: 24,
+        revision: null,
+        snapshotDate: null,
+        recordCount: 0,
+      }
+    }
+  })()
+
   const health = {
     status: tmdbTrending.ok && tmdbSearch.ok ? "healthy" : "degraded",
     timestamp: new Date().toISOString(),
@@ -174,6 +206,7 @@ export async function GET(request: Request) {
     // risponde e se le dipendenze esterne sono raggiungibili.
     streaming: { justwatch, flixpatrol },
     storage,
+    filler,
   }
 
   const storageOk = storageMode === "kv" || storage.dataDirWritable || storage.mappingCount === 0

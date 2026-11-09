@@ -38,6 +38,15 @@ interface HealthData {
     mappingsCount: number
     dataFileExists: boolean | null
   }
+  filler?: {
+    enabled: boolean
+    source: "remote" | "bundled"
+    refreshedAt: string | null
+    refreshHours: number
+    revision: string | null
+    snapshotDate: string | null
+    recordCount: number
+  }
 }
 
 interface CacheTagEntry {
@@ -124,6 +133,46 @@ function StatusRow({ label, ok, extra }: { label: string; ok: boolean | null; ex
         <span className="truncate">{label}</span>
       </span>
       {extra && <span className="text-xs text-zinc-400 font-mono tabular-nums text-right">{extra}</span>}
+    </div>
+  )
+}
+
+/**
+ * Anime filler own DB provenance: last successful remote load + snapshot
+ * metadata. Fail-open by design — a payload from an older server (no `filler`
+ * field) still renders the card with an honest unavailable row, and the other
+ * status cards are never affected.
+ */
+function AnimeFillerCard({ filler }: { filler?: HealthData["filler"] }) {
+  const refreshedAt = filler?.refreshedAt ?? null
+  const validRefreshedAt = refreshedAt && !Number.isNaN(new Date(refreshedAt).getTime())
+    ? refreshedAt
+    : null
+  return (
+    <div className="surface-card border-white/10 rounded-2xl p-5 shadow-xl" data-testid="status-filler-card">
+      <h2 className="text-base font-semibold mb-3">{t("ui.statusFillerTitle")}</h2>
+      <div className="space-y-1">
+        <StatusRow
+          label={t("ui.statusFillerUpdated")}
+          ok={validRefreshedAt ? true : null}
+          extra={validRefreshedAt
+            ? <time dateTime={validRefreshedAt}>{new Date(validRefreshedAt).toLocaleString(getLang())}</time>
+            : t("ui.statusFillerUnavailable")}
+        />
+        {filler && (
+          <>
+            <StatusRow
+              label={t("ui.statusFillerSource")}
+              ok={null}
+              extra={filler.source === "remote" ? t("ui.statusFillerSourceRemote") : t("ui.statusFillerSourceBundled")}
+            />
+            {filler.snapshotDate && (
+              <StatusRow label={t("ui.statusFillerSnapshotDate")} ok={null} extra={filler.snapshotDate} />
+            )}
+            <StatusRow label={t("ui.statusFillerRecords")} ok={null} extra={filler.recordCount} />
+          </>
+        )}
+      </div>
     </div>
   )
 }
@@ -346,6 +395,8 @@ export default function StatusPage() {
         )}
         {loading && <p className="text-zinc-400 mt-4">{t("ui.statusLoading")}</p>}
         {error && <p className="text-red-400 mt-4">{t("ui.statusError", { msg: error })}</p>}
+        {/* Filler card stays visible on a failed health fetch (honest unavailable row). */}
+        {!loading && !data && <div className="mt-6"><AnimeFillerCard /></div>}
         {data && (
           <div className="mt-6 space-y-6">
             <div className="surface-card border-white/10 rounded-2xl p-5 shadow-xl">
@@ -375,6 +426,8 @@ export default function StatusPage() {
                 <StatusRow label={t("ui.statusFlixpatrol")} ok={data.tmdb.apiKey ? data.streaming.flixpatrol.ok : null} extra={data.tmdb.apiKey ? <>{data.streaming.flixpatrol.status} — {data.streaming.flixpatrol.time}ms</> : t("ui.statusTmdbKeyMissing")} />
               </div>
             </div>
+
+            <AnimeFillerCard filler={data.filler} />
 
             <div className="surface-card border-white/10 rounded-2xl p-5 shadow-xl">
               <h2 className="text-base font-semibold mb-3">{t("ui.statusStorage")}</h2>

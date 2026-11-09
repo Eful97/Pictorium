@@ -11,6 +11,8 @@ export interface RecentChange {
 }
 
 export const RECENT_CHANGES: RecentChange[] = [
+  { type: "perf", text: "Keep episode thumbnails cached for 12 hours", sha: "46846c1", date: "2026-11-09" },
+  { type: "fix", text: "make UI labels and contrast meet WCAG AA", sha: "612ce79", date: "2026-11-09" },
   { type: "feature", text: "Add superhero, mafia, spy, prison, courtroom, slasher, werewolf and body horror subgenres", sha: "b2dd4b9", date: "2026-11-09" },
   { type: "fix", text: "Stop carrying the horizontal auto logo into the vertical poster", sha: "73b1a28", date: "2026-11-09" },
 ]
