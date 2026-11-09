@@ -250,6 +250,18 @@ test("status — page renders", async ({ page }) => {
         mappingCount: 41, mappingsCount: 41,
         lastMappingUpdatedAt: "2026-08-02T12:00:00.000Z",
       },
+      // Anime filler provenance: fixed so the status card content never
+      // depends on the local filler DB (fail-open row otherwise). `revision`
+      // null: the UI does not render the sha256, keeping the shot stable.
+      filler: {
+        enabled: true,
+        source: "remote",
+        refreshedAt: "2026-11-09T14:33:18.000Z",
+        refreshHours: 24,
+        revision: null,
+        snapshotDate: "2026-11-08",
+        recordCount: 248,
+      },
     },
   }))
   await page.route("**/api/cache/status", (route) => route.fulfill({
