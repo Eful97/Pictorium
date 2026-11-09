@@ -20,8 +20,25 @@ on:
         required: true
 
 jobs:
+  # MUST stay gate-equivalent to ci.yml `fast` + `verify` (same commands, same
+  # shards, same workers/timeouts): a green PR has to predict a green tag.
+  # v1.27.2 regressed exactly here — this job ran the WHOLE Vitest suite on one
+  # runner (`npm run test`) while the PR ran it sharded across 3 runners, so the
+  # extra worker saturation pushed two timing-sensitive editor tests past their
+  # budgets (personal-preset-independence-raw-import.test.tsx: 5s timeout;
+  # settings-mobile-preview.test.tsx: zoom trigger not found). PR green, tag
+  # red. The shards below are the PR's shards, unchanged.
+  #
+  # `publish` keeps `needs: [verify, commits, visual]` and GitHub waits for
+  # EVERY matrix leg, so all three shards still gate publishing: no separate
+  # aggregate alias job is needed here (the aggregate in ci.yml exists only to
+  # republish the literal `verify` context that branch protection requires).
   verify:
     runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        shard: ['1/3', '2/3', '3/3']
     steps:
       - uses: actions/checkout@v7
         with:
@@ -34,10 +51,16 @@ jobs:
           node-version: 22
           cache: npm
       - run: npm ci
+      # Static gates on shard 1/3 only, mirroring ci.yml `fast` (one run, not
+      # one per shard). They live here because `publish` must keep depending on
+      # `verify` alone.
       - run: npx tsc --noEmit
+        if: matrix.shard == '1/3'
       - run: npx eslint .
-      - run: npm run test
+        if: matrix.shard == '1/3'
+      - run: npx vitest run --shard=${{ matrix.shard }}
       - run: npm run build
+        if: matrix.shard == '1/3'
 
   commits:
     runs-on: ubuntu-latest
@@ -65,7 +88,10 @@ jobs:
           cache: npm
       - run: npm ci
       - run: npx playwright install --with-deps chromium
-      - run: npx playwright test e2e/pictorium-visual.spec.ts
+      # Same command as ci.yml `visual`: visual regression PLUS the
+      # preview-vs-Stremio parity suite (the tag must not run a weaker gate
+      # than the PR that produced it; parity has no per-OS snapshots).
+      - run: npx playwright test e2e/pictorium-visual.spec.ts e2e/pictorium-parity.spec.ts
       # On failure upload the actual renders: they are needed to create the CI
       # platform snapshot variant (snapshots are per-OS) after review.
       - uses: actions/upload-artifact@v4
