@@ -1017,7 +1017,7 @@ export function CataloghiView() {
                   setIsAddCustomOpen((prev) => !prev)
                   setIsAddAddonOpen(false)
                 }}
-                className="flex items-center gap-2 px-4 py-2 rounded-xl bg-accent-orange text-white text-xs font-semibold hover:bg-accent-orange/90 active:scale-95 transition-all shadow-md"
+                className="flex items-center gap-2 px-4 py-2 rounded-xl bg-accent-orange-strong text-white text-xs font-semibold hover:bg-accent-orange-strong/90 active:scale-95 transition-all shadow-md"
               >
                 <ListPlus className="w-4 h-4" />
                 <span>{t("ui.addCatalog")}</span>

@@ -480,7 +480,7 @@ export function InstallModal({
               {/* 4. Pulsante principale a larghezza piena */}
               <a
                 href={stremioDeepLink}
-                className={`w-full py-2.5 px-4 rounded-xl bg-accent-orange hover:bg-accent-orange/90 text-white font-semibold text-sm flex items-center justify-center gap-2 transition-all shadow-md shadow-accent-orange/20 active:scale-[0.98] ${FOCUS_RING}`}
+                className={`w-full py-2.5 px-4 rounded-xl bg-accent-orange-strong hover:bg-accent-orange-strong/90 text-white font-semibold text-sm flex items-center justify-center gap-2 transition-all shadow-md shadow-accent-orange/20 active:scale-[0.98] ${FOCUS_RING}`}
               >
                 <Download className="w-4 h-4" />
                 <span>{t("ui.installInApp")}</span>

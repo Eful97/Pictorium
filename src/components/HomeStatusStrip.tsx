@@ -118,7 +118,7 @@ export function HomeStatusStrip() {
           type="button"
           onClick={() => setChangelogOpen(true)}
           data-testid="changelog-open"
-          aria-label={t("ui.changelogTitle")}
+          aria-label={`${t("ui.changelogTitle")} v${APP_VERSION}`}
           title={t("ui.changelogTitle")}
           className="status-version"
         >
