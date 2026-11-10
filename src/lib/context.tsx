@@ -872,6 +872,7 @@ export function usePictorium(): PictoriumCtx {
     logoOffsetX, setLogoOffsetX,
     logoOffsetY, setLogoOffsetY,
     logoDisabled, setLogoDisabled,
+    logoAutoSelected,
     setLogoAutoSelected,
     logoText, setLogoText,
     logoFont, setLogoFont,
@@ -3504,7 +3505,7 @@ export function usePictorium(): PictoriumCtx {
     rotationBackdrops, autoRotateBackdrop, defaultAutoRotateBackdrop, excludedBackdrops, backdrops,
     setLogoScale, setLogoOffsetX, setLogoOffsetY, networkLogo, networkLogoPosition, networkLogoFollowTitle, ribbonEnabled, lang, episodeGroupId, episodeThumbnailStills, thumbnailRotationOverride, posterShape, posterLayout, posterFreshScope,
     defaultSashOrder, logoScaleExplicit,
-    portraitBaseBackdropPath, portraitBaseLogoPath,
+    portraitBaseBackdropPath, portraitBaseLogoPath, logoAutoSelected,
   })
 
   // Provenance della base auto: un tile scelto in griglia (l'unico percorso

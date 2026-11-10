@@ -276,6 +276,44 @@ describe("buildCoverOnlyPayload allowlist", () => {
     expect(body!.logoPath).toBeNull()
   })
 
+  it("keeps the saved logo when the live auto logo was withdrawn on the shape switch", () => {
+    const prev = mapping({ posterPath: "/p.jpg", logoPath: "/logo-land.png" })
+    const body = buildCoverOnlyPayload({
+      selected: { id: 7, media_type: "movie", title: "T", poster_path: "/p.jpg" },
+      previewPoster: { file_path: "/p-lang.jpg", iso_639_1: "en", vote_average: 0, width: 500, height: 750 },
+      selectedBackdrop: null,
+      selectedLogo: null,
+      logoDisabled: false,
+      logoAutoSelected: true,
+      prevMapping: prev,
+      metaInfo: {},
+      lang: "it",
+      episodeGroupId: null,
+      posterShape: "poster",
+    })
+    expect(body!.logoPath).toBe("/logo-land.png")
+    expect(body, "logoDisabled").not.toHaveProperty("logoDisabled")
+  })
+
+  it("an explicit no-logo choice still clears the saved logo (never resurrected)", () => {
+    const prev = mapping({ posterPath: "/p.jpg", logoPath: "/logo-land.png" })
+    const body = buildCoverOnlyPayload({
+      selected: { id: 7, media_type: "movie", title: "T", poster_path: "/p.jpg" },
+      previewPoster: { file_path: "/p-lang.jpg", iso_639_1: "en", vote_average: 0, width: 500, height: 750 },
+      selectedBackdrop: null,
+      selectedLogo: null,
+      logoDisabled: true,
+      logoAutoSelected: true,
+      prevMapping: prev,
+      metaInfo: {},
+      lang: "it",
+      episodeGroupId: null,
+      posterShape: "poster",
+    })
+    expect(body!.logoPath).toBeNull()
+    expect(body!.logoDisabled).toBe(true)
+  })
+
   it("non congela snapshot badge/rating/rank, accent, preset, stili, tuning o defaultBadgeStyles", () => {
     const prev = frozenMapping()
     const body = buildCoverOnlyPayload({

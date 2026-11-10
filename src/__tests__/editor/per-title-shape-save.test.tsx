@@ -843,3 +843,128 @@ describe("portrait base congelata (portraitBackdropPath)", () => {
     expect(body.logoPath).toBeNull()
   })
 })
+
+/**
+ * Single shared logo + dual-shape save (Bug C/D correction).
+ *
+ * The logo is NOT per-format (documented design): the live auto logo is
+ * withdrawn when returning to portrait on a baked-title base, but that
+ * withdrawal is preview-only. Full save must keep the saved logoPath instead
+ * of erasing it, while explicit removals still clear. The landscape save must
+ * preserve the whole portrait cover family (posterPath + customPosterUrl)
+ * unless the portrait tile was explicitly changed in this session.
+ */
+describe("shape-switch save: shared logo preservation + symmetric portrait cover", () => {
+  const tile = (file_path: string, iso: string | null = null) => ({
+    file_path, iso_639_1: iso, vote_average: 0, width: 500, height: 750,
+  })
+  const PORTRAIT_OLD = "https://i.imgur.com/portrait-old.jpg"
+  const PORTRAIT_NEW = "https://i.imgur.com/portrait-new.jpg"
+
+  it("portrait save keeps the saved logo when the live auto logo was withdrawn", async () => {
+    const prev = mapping({ logoPath: "/logo-land.png", posterPath: "/p.jpg" })
+    const { result } = renderHook(() => usePosterSave(baseDeps({
+      posterShape: "poster",
+      // Auto logo withdrawn on the shape switch: no live logo, provenance
+      // still auto (true), and NO explicit no-logo choice.
+      selectedLogo: null,
+      logoDisabled: false,
+      logoAutoSelected: true,
+      previewPoster: tile("/p-lang.jpg", "en"),
+      mappingsMap: new Map([["movie:1", prev]]),
+    })))
+    await act(async () => { await result.current.saveConfig({ silent: true }) })
+    const body = mappingPosts()[0].body
+    expect(body.logoPath).toBe("/logo-land.png")
+    expect(body).not.toHaveProperty("logoDisabled")
+  })
+
+  it("explicit logo removal still clears (logoDisabled never resurrects)", async () => {
+    const prev = mapping({ logoPath: "/logo-land.png", posterPath: "/p.jpg" })
+    const { result } = renderHook(() => usePosterSave(baseDeps({
+      posterShape: "poster",
+      selectedLogo: null,
+      logoDisabled: true,
+      logoAutoSelected: false,
+      previewPoster: tile("/p-lang.jpg", "en"),
+      mappingsMap: new Map([["movie:1", prev]]),
+    })))
+    await act(async () => { await result.current.saveConfig({ silent: true }) })
+    const body = mappingPosts()[0].body
+    expect(body.logoPath).toBeNull()
+    expect(body.logoDisabled).toBe(true)
+  })
+
+  it("a non-auto live clear (explicit artwork change) does not resurrect the saved logo", async () => {
+    const prev = mapping({ logoPath: "/logo-land.png", posterPath: "/p.jpg" })
+    const { result } = renderHook(() => usePosterSave(baseDeps({
+      posterShape: "poster",
+      selectedLogo: null,
+      logoDisabled: false,
+      logoAutoSelected: false,
+      previewPoster: tile("/p-lang.jpg", "en"),
+      mappingsMap: new Map([["movie:1", prev]]),
+    })))
+    await act(async () => { await result.current.saveConfig({ silent: true }) })
+    expect(mappingPosts()[0].body.logoPath).toBeNull()
+  })
+
+  it("a live manual logo still wins over the saved one", async () => {
+    const prev = mapping({ logoPath: "/logo-land.png", posterPath: "/p.jpg" })
+    const { result } = renderHook(() => usePosterSave(baseDeps({
+      posterShape: "poster",
+      selectedLogo: tile("/logo-manual.png", "en"),
+      logoDisabled: false,
+      logoAutoSelected: false,
+      previewPoster: tile("/p-lang.jpg", "en"),
+      mappingsMap: new Map([["movie:1", prev]]),
+    })))
+    await act(async () => { await result.current.saveConfig({ silent: true }) })
+    expect(mappingPosts()[0].body.logoPath).toBe("/logo-manual.png")
+  })
+
+  it("landscape save preserves the WHOLE saved portrait family when untouched", async () => {
+    const prev = mapping({ posterPath: "/p.jpg", customPosterUrl: PORTRAIT_OLD, backdropPath: "/bd.jpg" })
+    const { result } = renderHook(() => usePosterSave(baseDeps({
+      posterShape: "landscape",
+      // Same portrait tile the saved mapping opens on: no explicit change.
+      previewPoster: tile(PORTRAIT_OLD),
+      selectedBackdrop: tile("/bd-new.jpg"),
+      mappingsMap: new Map([["movie:1", prev]]),
+    })))
+    await act(async () => { await result.current.saveConfig({ silent: true }) })
+    const body = mappingPosts()[0].body
+    expect(body.posterPath).toBe("/p.jpg")
+    expect(body.customPosterUrl).toBe(PORTRAIT_OLD)
+    expect(body.backdropPath).toBe("/bd-new.jpg")
+  })
+
+  it("landscape save commits an explicitly picked unsaved custom portrait tile (both fields)", async () => {
+    const prev = mapping({ posterPath: "/p.jpg", customPosterUrl: PORTRAIT_OLD, backdropPath: "/bd.jpg" })
+    const { result } = renderHook(() => usePosterSave(baseDeps({
+      posterShape: "landscape",
+      // Explicit pick of a NEW custom tile in this session: live differs.
+      previewPoster: tile(PORTRAIT_NEW),
+      selectedBackdrop: tile("/bd-new.jpg"),
+      mappingsMap: new Map([["movie:1", prev]]),
+    })))
+    await act(async () => { await result.current.saveConfig({ silent: true }) })
+    const body = mappingPosts()[0].body
+    expect(body.posterPath).toBe("/p.jpg")
+    expect(body.customPosterUrl).toBe(PORTRAIT_NEW)
+  })
+
+  it("landscape save commits an explicitly picked TMDB portrait tile and clears the custom", async () => {
+    const prev = mapping({ posterPath: "/p.jpg", customPosterUrl: PORTRAIT_OLD, backdropPath: "/bd.jpg" })
+    const { result } = renderHook(() => usePosterSave(baseDeps({
+      posterShape: "landscape",
+      previewPoster: tile("/p-new.jpg", "en"),
+      selectedBackdrop: tile("/bd-new.jpg"),
+      mappingsMap: new Map([["movie:1", prev]]),
+    })))
+    await act(async () => { await result.current.saveConfig({ silent: true }) })
+    const body = mappingPosts()[0].body
+    expect(body.posterPath).toBe("/p-new.jpg")
+    expect(body.customPosterUrl).toBeNull()
+  })
+})
