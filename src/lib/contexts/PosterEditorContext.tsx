@@ -613,7 +613,9 @@ export interface PosterEditorCtx {
    * (ingresso in Orizzontale, base clean, base portrait da backdrop), false =
    * scelta manuale o override salvato. Serve al cambio formato: tornando in
    * Verticale su una base con il titolo già cotto solo il logo automatico va
-   * ritirato (doppio titolo), la scelta manuale resta sovrana.
+   * ritirato (doppio titolo), la scelta manuale resta sovrana. Quando il logo
+   * viene ritirato resta true (nessun logo live ma provenienza auto): il
+   * ritiro è solo di preview e il save conserva il `logoPath` salvato.
    */
   logoAutoSelected: boolean
   setLogoAutoSelected: (v: boolean) => void

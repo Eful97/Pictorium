@@ -63,6 +63,14 @@ export interface CoverOnlySaveInput {
   selectedBackdrop: TMDBImage | null
   /** Logo tile selected in the editor (null = none/auto). */
   selectedLogo: TMDBImage | null
+  /**
+   * Live logo provenance: true = the last logo was installed automatically and
+   * later withdrawn from the preview (shape switch back to a baked-title
+   * portrait base). That withdrawal is not an explicit "no logo" choice, so a
+   * null live tile keeps the saved logoPath (same rule as the full save).
+   * Absent = legacy callers, no preservation.
+   */
+  logoAutoSelected?: boolean
   /** Text-as-logo dell'editor (titoli senza logo TMDB): testo + font bundle. */
   logoText?: string
   logoFont?: string | null
@@ -88,7 +96,7 @@ export interface CoverOnlySaveInput {
 }
 
 export function buildCoverOnlyPayload(input: CoverOnlySaveInput): Record<string, unknown> | null {
-  const { selected, previewPoster, selectedBackdrop, selectedLogo, logoDisabled, prevMapping, metaInfo, lang, episodeGroupId, posterShape, logoText, logoFont } = input
+  const { selected, previewPoster, selectedBackdrop, selectedLogo, logoDisabled, logoAutoSelected, prevMapping, metaInfo, lang, episodeGroupId, posterShape, logoText, logoFont } = input
   const isLandscape = posterShape === "landscape"
 
   // Portrait cover file. In portrait it is the chosen tile (required).
@@ -111,6 +119,14 @@ export function buildCoverOnlyPayload(input: CoverOnlySaveInput): Record<string,
   if (!portraitFile) return null
   // Text-as-logo (logo identity): normalizzato come nel save completo.
   const savedLogoText = logoDisabled ? null : sanitizeLogoText(logoText)
+  // Single shared logo (documented design): a live AUTO logo withdrawn on the
+  // shape switch is a preview decision, never an explicit "no logo". Keep the
+  // saved logoPath in that case; explicit removals (logoDisabled), wordmarks
+  // and selected tiles always win (same precedence as the full save).
+  const preservedAutoLogoPath = !logoDisabled && !savedLogoText && !selectedLogo?.file_path &&
+    logoAutoSelected === true && prevMapping?.logoDisabled !== true && prevMapping?.logoPath
+    ? prevMapping.logoPath
+    : null
 
   const tmdbRef = selected.poster_path ?? prevMapping?.posterPath ?? null
   const split = splitCustomPosterSave(portraitFile, tmdbRef)
@@ -135,7 +151,7 @@ export function buildCoverOnlyPayload(input: CoverOnlySaveInput): Record<string,
     // (text+font) and the image logo stays empty (one logo source); clearing
     // the field hands the logo back to the selected tile. Transforms stay
     // omitted (global defaults / server auto-fit).
-    logoPath: logoDisabled || savedLogoText ? null : (selectedLogo?.file_path ?? null),
+    logoPath: logoDisabled || savedLogoText ? null : (selectedLogo?.file_path ?? preservedAutoLogoPath ?? null),
     imdbId: metaInfo.imdb_id || null,
     wikidataId: metaInfo.wikidata_id || null,
     // Title metadata identity (NOT styling): the mapped render branch reads

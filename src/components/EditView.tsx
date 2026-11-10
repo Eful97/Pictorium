@@ -732,9 +732,11 @@ export default function EditView() {
       // auto: una scelta manuale o un override salvato (provenienza false)
       // restano sovrani. Su una base verticale textless (poster clean, base
       // auto da backdrop) il logo auto resta: è legittimo anche in verticale.
+      // Il ritiro è SOLO live: la provenienza auto resta marcata (true) così il
+      // save non scambia questo ritiro per un "no logo" esplicito e conserva il
+      // `logoPath` salvato (il salvataggio non vive qui).
       if (ed.posterShape !== "landscape" && ed.logoAutoSelected && !cleanBase && !backdropBaseAuto) {
         setSelectedLogo(null)
-        ed.setLogoAutoSelected(false)
       }
       return
     }
@@ -744,7 +746,7 @@ export default function EditView() {
     const autoLogo = selectBestLogo(logos, lang, titleOrigLang ?? undefined)
     if (!autoLogo) return
     void selectLogo(autoLogo, { auto: true })
-  }, [ed.posterShape, ed.logoDisabled, ed.defaultDisableCleanPosters, ed.logoAutoSelected, ed.setLogoAutoSelected, cleanPoster, portraitBaseBackdropPath, selectedLogo, logos, lang, titleOrigLang, selectLogo, setSelectedLogo]) // eslint-disable-line react-hooks/exhaustive-deps -- dipendenze granulari intenzionali: `ed` intero rifarebbe scattare l'effetto a ogni tick editor
+  }, [ed.posterShape, ed.logoDisabled, ed.defaultDisableCleanPosters, ed.logoAutoSelected, cleanPoster, portraitBaseBackdropPath, selectedLogo, logos, lang, titleOrigLang, selectLogo, setSelectedLogo])
 
   // Dual-format: stash degli slider non salvati per formato. Senza, passare
   // da A a B e ritorno perderebbe in silenzio le modifiche non salvate di A

@@ -37,6 +37,15 @@ interface PosterSaveDeps {
    * non la conoscono (nessuna marcatura = scelta esplicita).
    */
   setLogoAutoSelected?: (v: boolean) => void
+  /**
+   * Provenienza del logo LIVE (`logoAutoSelected`, sola lettura). Resta true
+   * anche quando il logo automatico viene ritirato tornando in Verticale su
+   * una base col titolo cotto: il ritiro è una scelta di PREVIEW, non un "no
+   * logo" esplicito. Il save usa questo segnale per conservare il `logoPath`
+   * salvato invece di azzerarlo (perdita silenziosa al cambio formato).
+   * Opzionale: assente = nessuna conservazione (comportamento legacy/test).
+   */
+  logoAutoSelected?: boolean
   setPreviewPoster: (poster: TMDBImage | null) => void
   setPreviewId: (id: string | null) => void
   posters: TMDBImage[]
@@ -304,7 +313,7 @@ function saveSuccessToastPosition(): "bottom-right" | undefined {
 
 export function usePosterSave(deps: PosterSaveDeps) {
   const {
-    selected, previewPoster, selectedLogo, setSelectedLogo, setLogoAutoSelected, setPreviewPoster, setPreviewId,
+    selected, previewPoster, selectedLogo, setSelectedLogo, setLogoAutoSelected, logoAutoSelected, setPreviewPoster, setPreviewId,
     posters, metaInfo, imdbTop250, trendRank, mdblistAnimeList, mappingsMap, loadMappings,
     logoScale, logoOffsetX, logoOffsetY,
     selectedBackdrop, setSelectedBackdrop, backdropScale, backdropOffsetX, backdropOffsetY,
@@ -596,6 +605,20 @@ export function usePosterSave(deps: PosterSaveDeps) {
     // svuotando il campo torna il logo selezionato. `logoDisabled` azzera
     // entrambi (scelta esplicita di nessun logo).
     const savedLogoText = logoDisabled ? null : sanitizeLogoText(logoText)
+    // Single shared logo (documented in .agents/render-params.md: the logo is
+    // NOT per-format). Returning to portrait on a base with baked-in text
+    // withdraws the AUTO-installed logo from the live preview only; that is not
+    // an explicit "no logo" choice, so the save must keep the previously saved
+    // `logoPath` instead of erasing it (silent logo loss on shape switch).
+    // Precedence: an explicit removal (logoDisabled from removeLogo/reset), a
+    // wordmark source, or a live logo always win; only a withdrawn AUTO logo
+    // keeps the saved path, and only when that path actually rendered
+    // (previous logoDisabled never resurrected). A manual pick clears the
+    // auto provenance, so it never resurrects the old logo.
+    const preservedAutoLogoPath = !effectiveLogoPath && !logoDisabled && !savedLogoText &&
+      logoAutoSelected === true && prevMapping?.logoDisabled !== true && prevMapping?.logoPath
+      ? prevMapping.logoPath
+      : null
     // Base portrait auto congelata: la base è il crop del backdrop, che senza
     // logo sarebbe un'immagine senza titolo (stesso invariante del ramo
     // automatico, che senza logo torna al poster in lingua). Se l'editor non
@@ -604,7 +627,7 @@ export function usePosterSave(deps: PosterSaveDeps) {
     // viene mai scavalcato: il provider passa null in quel caso.
     const savedLogoPath = savedLogoText
       ? null
-      : (effectiveLogoPath ?? (logoDisabled ? null : (portraitBaseLogoPath ?? null)))
+      : (effectiveLogoPath ?? (logoDisabled ? null : (portraitBaseLogoPath ?? preservedAutoLogoPath ?? null)))
     // Rotation opt-in metadata (portrait flat). The rotation pool reuses
     // `cleanPosters`, so a language poster the user added to the rotation is
     // only identifiable through the TMDB image list (`iso_639_1`): record the
@@ -1183,7 +1206,7 @@ export function usePosterSave(deps: PosterSaveDeps) {
       if (overrides.silent) throw error
       return false
     }
-  }, [selected, previewPoster, selectedLogo, metaInfo, logoScale, logoOffsetX, logoOffsetY, trendRank, globalBadges, rankingBadges, badgeGenre, badgeYear, badgeRating, badgeQuality, ageBadge, ageCountry, ageBadgeStyle, awardBadgeStyle, customRatings, ratingSources, separateRatings, separateRatingsStyle, seasonalTheme, mdblistAnimeList, loadMappings, customBadge, badgeStyle, rankingBadgeStyle, extraBadgeStyle, badgeFont, qualityBadgeStyle, videoFormats, blurEnabled, blurIntensity, blurFade, blurDarkness, landscapeBlur, landscapeBlurDirty, tintStrength, topShade, topShadeHeight, gradientHeight, topBadgeScale, topBadgeOffsetX, topBadgeOffsetY, extraBadgeScale, extraBadgeOffsetX, extraBadgeOffsetY, genreBadgeScale, qualityBadgeScale, separateBadgeScale, separateBadgeOffsetX, separateBadgeOffsetY, badgeItemTransforms, networkLogoScale, genreBadgeOffsetX, genreBadgeOffsetY, qualityBadgeOffsetX, qualityBadgeOffsetY, networkLogoOffsetX, networkLogoOffsetY, rotationPosters, autoRotateClean, autoRotateCleanOverride, defaultAutoRotateClean, excludedPosters, rotationBackdrops, autoRotateBackdrop, defaultAutoRotateBackdrop, excludedBackdrops, backdrops, defaultBadgeStyle, defaultRankingBadgeStyle, defaultExtraBadgeStyle, defaultGlobalBadges, defaultRankingBadges, defaultBadgeGenre, defaultBadgeYear, defaultBadgeRating, defaultBadgeQuality, defaultAgeBadge, defaultAgeCountry, defaultAgeBadgeStyle, defaultAwardBadgeStyle, defaultCustomRatings, defaultSeparateRatings, defaultBadgeFont, defaultQualityBadgeStyle, defaultVideoFormats, defaultNetworkLogo, defaultNetworkLogoPosition, defaultRibbonEnabled, posters, mappingsMap, accentColor, autoAccentColor, backdropOffsetX, backdropOffsetY, backdropScale, selectedBackdrop, networkLogo, networkLogoPosition, networkLogoFollowTitle, ribbonEnabled, episodeGroupId, episodeThumbnailStills, thumbnailRotationOverride, posterShape, posterLayout, posterFreshScope, portraitBaseBackdropPath, portraitBaseLogoPath, logoText, logoFont]) // eslint-disable-line react-hooks/exhaustive-deps -- intentionally complete to save all poster state
+  }, [selected, previewPoster, selectedLogo, metaInfo, logoScale, logoOffsetX, logoOffsetY, trendRank, globalBadges, rankingBadges, badgeGenre, badgeYear, badgeRating, badgeQuality, ageBadge, ageCountry, ageBadgeStyle, awardBadgeStyle, customRatings, ratingSources, separateRatings, separateRatingsStyle, seasonalTheme, mdblistAnimeList, loadMappings, customBadge, badgeStyle, rankingBadgeStyle, extraBadgeStyle, badgeFont, qualityBadgeStyle, videoFormats, blurEnabled, blurIntensity, blurFade, blurDarkness, landscapeBlur, landscapeBlurDirty, tintStrength, topShade, topShadeHeight, gradientHeight, topBadgeScale, topBadgeOffsetX, topBadgeOffsetY, extraBadgeScale, extraBadgeOffsetX, extraBadgeOffsetY, genreBadgeScale, qualityBadgeScale, separateBadgeScale, separateBadgeOffsetX, separateBadgeOffsetY, badgeItemTransforms, networkLogoScale, genreBadgeOffsetX, genreBadgeOffsetY, qualityBadgeOffsetX, qualityBadgeOffsetY, networkLogoOffsetX, networkLogoOffsetY, rotationPosters, autoRotateClean, autoRotateCleanOverride, defaultAutoRotateClean, excludedPosters, rotationBackdrops, autoRotateBackdrop, defaultAutoRotateBackdrop, excludedBackdrops, backdrops, defaultBadgeStyle, defaultRankingBadgeStyle, defaultExtraBadgeStyle, defaultGlobalBadges, defaultRankingBadges, defaultBadgeGenre, defaultBadgeYear, defaultBadgeRating, defaultBadgeQuality, defaultAgeBadge, defaultAgeCountry, defaultAgeBadgeStyle, defaultAwardBadgeStyle, defaultCustomRatings, defaultSeparateRatings, defaultBadgeFont, defaultQualityBadgeStyle, defaultVideoFormats, defaultNetworkLogo, defaultNetworkLogoPosition, defaultRibbonEnabled, posters, mappingsMap, accentColor, autoAccentColor, backdropOffsetX, backdropOffsetY, backdropScale, selectedBackdrop, networkLogo, networkLogoPosition, networkLogoFollowTitle, ribbonEnabled, episodeGroupId, episodeThumbnailStills, thumbnailRotationOverride, posterShape, posterLayout, posterFreshScope, portraitBaseBackdropPath, portraitBaseLogoPath, logoAutoSelected, logoText, logoFont]) // eslint-disable-line react-hooks/exhaustive-deps -- intentionally complete to save all poster state
 
   /**
    * Cover-only save ("Salva solo poster" / "Save poster only"): persists
@@ -1205,6 +1228,7 @@ export function usePosterSave(deps: PosterSaveDeps) {
       selectedBackdrop,
       selectedLogo,
       logoDisabled,
+      logoAutoSelected,
       logoText,
       logoFont,
       prevMapping: mappingsMap.get(key) ?? null,
@@ -1237,7 +1261,7 @@ export function usePosterSave(deps: PosterSaveDeps) {
       }
       return false
     }
-  }, [selected, previewPoster, selectedLogo, logoDisabled, logoText, logoFont, selectedBackdrop, mappingsMap, metaInfo, lang, episodeGroupId, posterShape, loadMappings]) // eslint-disable-line react-hooks/exhaustive-deps -- setter refs are stable
+  }, [selected, previewPoster, selectedLogo, logoDisabled, logoAutoSelected, logoText, logoFont, selectedBackdrop, mappingsMap, metaInfo, lang, episodeGroupId, posterShape, loadMappings]) // eslint-disable-line react-hooks/exhaustive-deps -- setter refs are stable
 
   /**
    * Thumbnail-only save ("Save thumbnails" in the episode studio / rotation
