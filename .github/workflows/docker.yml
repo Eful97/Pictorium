@@ -16,8 +16,12 @@ on:
     # Path filters are not evaluated for tag pushes, so releases are never
     # skipped by this rule.
     paths-ignore: ['**.md', 'docs/**', 'LICENSE']
-  # PRs never build the image: it is built and published on master pushes,
-  # version tag pushes and releases only.
+  # PRs validate the image build only (push/latest gates below never match):
+  # amd64-only and no registry login, so it stays cheap and cannot publish.
+  pull_request:
+    branches: [master]
+    paths: ['Dockerfile', '.dockerignore', 'package.json', 'package-lock.json', 'next.config.*', 'scripts/**', '.github/workflows/docker.yml']
+  # Publish happens on master pushes, version tag pushes and releases only.
   workflow_run:
     workflows: [CI]
     types: [completed]
@@ -94,7 +98,9 @@ jobs:
         uses: docker/build-push-action@v7
         with:
           context: .
-          platforms: linux/amd64,linux/arm64
+          # PR validation builds only the native arch; amd64+arm64 (QEMU) stay
+          # on master/tag/release pushes.
+          platforms: linux/amd64${{ github.event_name != 'pull_request' && ',linux/arm64' || '' }}
           push: ${{ github.event_name == 'release' || (github.event_name == 'push' && startsWith(github.ref, 'refs/tags/v')) || (github.event_name == 'workflow_run' && github.event.workflow_run.conclusion == 'success' && github.event.workflow_run.event == 'push') }}
           tags: ${{ steps.meta.outputs.tags }}
           labels: ${{ steps.meta.outputs.labels }}
