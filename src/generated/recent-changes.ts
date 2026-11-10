@@ -11,6 +11,4 @@ export interface RecentChange {
 }
 
 export const RECENT_CHANGES: RecentChange[] = [
-  { type: "fix", text: "Keep the shared logo when switching poster shapes", sha: "2d80f0e", date: "2026-11-10" },
-  { type: "fix", text: "Keep vertical cover when both poster shapes are saved", sha: "9da09c7", date: "2026-11-10" },
 ]
