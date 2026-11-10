@@ -35,7 +35,15 @@ jobs:
           cache: npm
       - run: npm ci
       - run: npx tsc --noEmit
-      - run: npx eslint .
+      # ESLint result cache: `--cache` only reuses findings for unchanged files,
+      # it never turns a failing lint green. The key is the lint config plus the
+      # dependency lockfile, so a rule or dependency change forces a cold run.
+      - name: Restore ESLint cache
+        uses: actions/cache@v4
+        with:
+          path: .eslintcache
+          key: eslint-${{ runner.os }}-${{ hashFiles('eslint.config.mjs', 'package-lock.json') }}
+      - run: npx eslint . --cache
       # Fase 5 guardrails: dead code / unused deps (knip) and architectural
       # dependency boundaries (dependency-cruiser: @resvg/resvg-js only from
       # src/lib/svg-badge.ts, no server-only runtimes in components, no
@@ -95,21 +103,23 @@ jobs:
           # Never emit an empty output; a git/metadata error above fails the step.
           echo "code=$code" >> "$GITHUB_OUTPUT"
 
-  # Suite pesante: parte solo quando i controlli veloci sono verdi e la PR non
-  # e' una draft (git push su master/main gira sempre). Un change set docs-only
-  # salta il lavoro pesante ma il job resta SUCCESS (check richiesto verde).
-  # `always()` e' obbligatorio: senza, un `fast` fallito SALTA verify, e su
-  # GitHub uno status check richiesto "skipped" conta come accettabile ->
-  # merge consentito. Con `always()` + guardia un `fast` rosso produce un verify
-  # FAILED; le draft PR continuano a saltare la suite pesante.
+  # Suite pesante: parte in PARALLELO con `fast` (non lo aspetta) e solo quando
+  # la PR non e' una draft (git push su master/main gira sempre). Un change set
+  # docs-only salta il lavoro pesante ma il job resta SUCCESS (check richiesto
+  # verde). `always()` e' obbligatorio: senza, un `changes` fallito SALTEREBBE
+  # verify e su GitHub uno status check richiesto "skipped" conta come
+  # accettabile -> merge consentito. Il guard su `fast` vive nell'aggregato
+  # (verify-aggregate), che resta l'unico publisher del context `verify`.
   verify:
-    needs: [fast, changes]
+    needs: [changes]
     if: always() && (github.event_name != 'pull_request' || github.event.pull_request.draft == false)
     runs-on: ubuntu-latest
     # Shard the Vitest suite across 3 parallel runners to cut wall time (~1/3).
     # KEEP IN SYNC with .github/workflows/release.yml `verify`: the tag runs the
-    # SAME shards/commands (a green PR must predict a green tag — v1.27.2 went
-    # red on the tag only because the release ran the full suite unsharded).
+    # SAME shards and the same `npm run build` (there it stays on shard 1/3;
+    # here build is its own `build` job added to the aggregate — same command,
+    # same Node, same `npm ci`). A green PR must predict a green tag — v1.27.2
+    # went red on the tag only because the release ran the full suite unsharded.
     # Coverage stays OFF in shards (use `npm run test:coverage` in a dedicated
     # job if needed); merging per-shard coverage is out of scope here.
     strategy:
@@ -118,8 +128,9 @@ jobs:
         shard: ['1/3', '2/3', '3/3']
     steps:
       # A failed OR skipped changes job must fail this gate, never skip it.
-      - name: Fast checks and change detection must be green
-        if: needs.fast.result != 'success' || needs.changes.result != 'success'
+      # (The `fast` guard lives in verify-aggregate: verify no longer waits on it.)
+      - name: Change detection must be green
+        if: needs.changes.result != 'success'
         run: exit 1
       - uses: actions/checkout@v7
         if: needs.changes.outputs.code == 'true'
@@ -132,25 +143,52 @@ jobs:
         if: needs.changes.outputs.code == 'true'
       - run: npx vitest run --shard=${{ matrix.shard }}
         if: needs.changes.outputs.code == 'true'
+
+  # Build in its own job instead of the serial tail of shard 1/3: it starts in
+  # parallel with the shard matrix (needs only `changes`), and the aggregate
+  # below still gates on it, so a red build still turns the required `verify`
+  # context red. Same `npm ci` + `npm run build` as the tag pipeline.
+  build:
+    needs: [changes]
+    if: always() && (github.event_name != 'pull_request' || github.event.pull_request.draft == false)
+    runs-on: ubuntu-latest
+    steps:
+      # A failed OR skipped changes job must fail this gate, never skip it.
+      - name: Change detection must be green
+        if: needs.changes.result != 'success'
+        run: exit 1
+      - uses: actions/checkout@v7
+        if: needs.changes.outputs.code == 'true'
+      - uses: actions/setup-node@v7
+        if: needs.changes.outputs.code == 'true'
+        with:
+          node-version: 22
+          cache: npm
+      - run: npm ci
+        if: needs.changes.outputs.code == 'true'
       - run: npm run build
-        if: needs.changes.outputs.code == 'true' && matrix.shard == '1/3'
+        if: needs.changes.outputs.code == 'true'
 
   # Aggregate gate published as the literal check `verify`. Branch protection
   # on master requires the contexts `commits`/`verify`/`visual`, but a sharded
   # matrix only reports `verify (1/3|2/3|3/3)`: the required `verify` check
   # never appeared, so a PR with every shard green stayed BLOCKED on a PENDING
-  # required check. This job republishes that exact context and fails unless the
-  # whole shard matrix succeeded (a skipped shard is not a pass). Additive only:
-  # job ids, shard behaviour and runner work are unchanged.
+  # required check. This job republishes that exact context and fails unless
+  # the fast checks, the build AND the whole shard matrix succeeded (a skipped
+  # shard is not a pass). `fast` is guarded HERE instead of inside verify so the
+  # heavy shards start in parallel with it; a red fast step still turns the
+  # required `verify` context red. Drafts skip this job via `if` (same as the
+  # heavy jobs), so a skipped heavy job on a draft never fails the aggregate.
   verify-aggregate:
     name: verify
-    needs: [verify]
+    needs: [fast, verify, build]
     if: always() && (github.event_name != 'pull_request' || github.event.pull_request.draft == false)
     runs-on: ubuntu-latest
     steps:
-      # A failed OR skipped shard matrix must fail this gate, never skip it.
-      - name: All verify shards must be green
-        if: needs.verify.result != 'success'
+      # A failed fast check, build or shard matrix must fail this gate, never
+      # skip it.
+      - name: Fast checks, build and all verify shards must be green
+        if: needs.fast.result != 'success' || needs.verify.result != 'success' || needs.build.result != 'success'
         run: exit 1
 
   commits:
