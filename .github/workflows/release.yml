@@ -19,9 +19,23 @@ on:
         description: "Tag to (re)publish, e.g. v1.24.0 (backfill included)"
         required: true
 
+# Never cancel an in-flight publish: grouping is per tag/ref so two different
+# releases still run independently, and a duplicate trigger for the SAME tag
+# (re-push, or a backfill dispatch racing the tag push) queues instead of
+# killing the run that is publishing the release. cancel-in-progress MUST stay
+# false — a cancelled publish never reaches `gh release create/edit`.
+concurrency:
+  # `inputs.tag` (dispatch) and `ref_name` (tag push) both resolve to the bare
+  # tag name, so a re-push and a backfill dispatch of the SAME tag share one
+  # group and queue; different tags keep independent groups.
+  group: release-${{ github.event.inputs.tag || github.ref_name }}
+  cancel-in-progress: false
+
 jobs:
-  # MUST stay gate-equivalent to ci.yml `fast` + `verify` (same commands, same
-  # shards, same workers/timeouts): a green PR has to predict a green tag.
+  # MUST stay gate-equivalent to ci.yml `fast` + `verify` + `build` (same
+  # commands, same shards, same workers/timeouts; ci.yml splits `npm run build`
+  # into its own job and adds only `eslint --cache`, a result-cache flag that
+  # never changes findings): a green PR has to predict a green tag.
   # v1.27.2 regressed exactly here — this job ran the WHOLE Vitest suite on one
   # runner (`npm run test`) while the PR ran it sharded across 3 runners, so the
   # extra worker saturation pushed two timing-sensitive editor tests past their
