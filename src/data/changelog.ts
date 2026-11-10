@@ -30,6 +30,15 @@ export interface ChangelogRelease {
  *  (which bumps on every commit and would leave the dot permanently on). */
 export const CHANGELOG: ChangelogRelease[] = [
   {
+    version: "1.27.4",
+    date: "2026-11-10",
+    title: "Release 1.27.4",
+    items: [
+      { type: "fix", text: "Vertical posters stay vertical in Stremio when a title has both poster shapes saved" },
+      { type: "fix", text: "Keep your chosen logo when switching between vertical and landscape posters" },
+    ],
+  },
+  {
     version: "1.27.3",
     date: "2026-11-09",
     title: "Release 1.27.3",
