@@ -179,6 +179,15 @@ export interface StremioPosterParamsInput {
    *  (il portrait è il default e resta omesso per non invalidare la cache). */
   readonly posterShape?: PosterShape
   /**
+   * Forza l'emissione esplicita di `shape=poster` (solo con
+   * `posterShape: "poster"`) quando il chiamante ha SCELTO il portrait per
+   * contratto (dual-format `poster` field o override `catalogShapes: poster`):
+   * senza il parametro il renderer risolverebbe la forma dal mapping/default
+   * (ultima forma salvata) e servirebbe byte landscape. Assente = portrait
+   * naturale, nessun parametro (URL legacy byte-identici).
+   */
+  readonly forcePosterShape?: boolean
+  /**
    * Seasonal frame theme: emitted as `theme=<canonical>` only when set
    * (`halloween`/`christmas` — ephemeral originating-catalog context; each
    * shape renders its OWN asset, so themed portrait and landscape URLs each
@@ -484,6 +493,12 @@ export function buildStremioPosterSearchParams(input: StremioPosterParamsInput):
   if (input.posterShape === "landscape") {
     params.set("shape", "landscape")
     if (input.logoAlign === "center") params.set("align", "center")
+  } else if (input.posterShape === "poster" && input.forcePosterShape) {
+    // Portrait FORZATO per contratto (dual-format / override catalogo): deve
+    // viaggiare esplicito, altrimenti il renderer cadrebbe sul mapping
+    // landscape (ultima forma salvata) servendo byte landscape nel campo
+    // `poster`. Il portrait naturale resta senza parametro (legacy/cache).
+    params.set("shape", "poster")
   }
   // Seasonal frame (per-shape, catalog-context): explicit opt-in, absent
   // stays absent (legacy URLs byte-identical, no mass cache invalidation).

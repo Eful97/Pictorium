@@ -565,6 +565,29 @@ export function usePosterSave(deps: PosterSaveDeps) {
       }
       if (!networkLogoPath && candidates.length) { networkLogoName = candidates[0].name }
     }
+    // Dual-format My Posters: gli slider mostrano il profilo del formato in
+    // editing, quindi il save scrive il profilo attivo e PRESERVA l'altro dal
+    // mapping esistente (mai azzerato dal save dell'altro formato). Per i
+    // mapping nuovi il profilo verticale eredita gli slider (portrait subito
+    // funzionante). Lo sfondo è editabile solo in landscape: in portrait si
+    // preserva quello salvato, altrimenti ogni save verticale cancellerebbe
+    // il 16:9 (oggi removeBackdrop + save portrait = backdrop perso).
+    const prevMapping = mappingsMap.get(`${selected.media_type}:${selected.id}`) ?? null
+    const isLandscapeMode = posterShape === "landscape"
+    // Portrait cover family (shared identity of the OTHER shape on a landscape
+    // save). The editor opens a saved mapping on its saved portrait tile
+    // (custom URL when present, TMDB posterPath otherwise, see
+    // applyLoadedSelection), so a DIFFERENT live tile means an explicit pick in
+    // this session. Same boundary as the backdrop preservation below: unchanged
+    // → the saved portrait family is kept verbatim; explicit pick → the live
+    // tile is committed (both fields split together, never a mixed pair).
+    const prevPortraitFile = prevMapping?.customPosterUrl && isCustomPosterUrl(prevMapping.customPosterUrl)
+      ? prevMapping.customPosterUrl
+      : (prevMapping?.posterPath ?? null)
+    const portraitChangedInSession = !prevMapping || posterToSave.file_path !== prevPortraitFile
+    const portraitSplit = isLandscapeMode && prevMapping && !portraitChangedInSession
+      ? { posterPath: prevMapping.posterPath, customPosterUrl: prevMapping.customPosterUrl ?? null }
+      : saveSplit
     // Logo manuale anche su portrait non-clean: il default resta nessun auto
     // (auto solo da clean/landscape a monte), ma la scelta manuale persiste.
     const effectiveLogoPath = !logoDisabled ? (selectedLogo?.file_path || null) : null
@@ -582,15 +605,6 @@ export function usePosterSave(deps: PosterSaveDeps) {
     const savedLogoPath = savedLogoText
       ? null
       : (effectiveLogoPath ?? (logoDisabled ? null : (portraitBaseLogoPath ?? null)))
-    // Dual-format My Posters: gli slider mostrano il profilo del formato in
-    // editing, quindi il save scrive il profilo attivo e PRESERVA l'altro dal
-    // mapping esistente (mai azzerato dal save dell'altro formato). Per i
-    // mapping nuovi il profilo verticale eredita gli slider (portrait subito
-    // funzionante). Lo sfondo è editabile solo in landscape: in portrait si
-    // preserva quello salvato, altrimenti ogni save verticale cancellerebbe
-    // il 16:9 (oggi removeBackdrop + save portrait = backdrop perso).
-    const prevMapping = mappingsMap.get(`${selected.media_type}:${selected.id}`) ?? null
-    const isLandscapeMode = posterShape === "landscape"
     // Rotation opt-in metadata (portrait flat). The rotation pool reuses
     // `cleanPosters`, so a language poster the user added to the rotation is
     // only identifiable through the TMDB image list (`iso_639_1`): record the
@@ -925,13 +939,14 @@ export function usePosterSave(deps: PosterSaveDeps) {
           tmdbId: selected.id,
           mediaType: selected.media_type,
           title: titleOf(selected),
-          posterPath: saveSplit.posterPath,
-          // Portrait cover identity: on landscape saves the saved flat stays
-          // saved (never clobbered by the other shape's live value — same
-          // keepFlatKey rule as tuning/styles and the cover-only strict
-          // split). Only without a mapping (first save) is the live value
-          // frozen, like cover-only from the portrait file.
-          customPosterUrl: isLandscapeMode && prevMapping ? (prevMapping.customPosterUrl ?? null) : saveSplit.customPosterUrl,
+          posterPath: portraitSplit.posterPath,
+          // Portrait cover identity: on landscape saves the SAVED portrait
+          // family (posterPath + customPosterUrl, split together) is preserved
+          // unless the live portrait tile differs from the saved one — an
+          // explicit pick in this session is committed whole. Without a
+          // mapping (first save) the live value is frozen, like cover-only
+          // from the portrait file. Same boundary as backdrop preservation.
+          customPosterUrl: portraitSplit.customPosterUrl,
           logoPath: savedLogoPath,
           // Wordmark salvato (testo + font del bundle): i titoli senza logo
           // TMDB mantengono il proprio titolo composto anche su Stremio.

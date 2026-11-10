@@ -710,12 +710,13 @@ describe("landscape custom base save boundary (customBackdropUrl)", () => {
     expect(posts[0].body.customPosterUrl).toBe(PORTRAIT_URL)
   })
 
-  it("landscape save never rewrites the saved portrait custom from a divergent live tile", async () => {
+  it("landscape save commits an explicitly picked portrait TMDB tile (both fields, no mixed pair)", async () => {
     const prev = mapping({ posterPath: "/p.jpg", backdropPath: "/bd.jpg", customPosterUrl: PORTRAIT_URL })
     const { result } = renderHook(() => usePosterSave(baseDeps({
       posterShape: "landscape",
-      // Unsaved portrait edit (TMDB tile clicked, custom still live in preview
-      // only until a portrait save): the landscape save must not freeze it.
+      // Explicit portrait pick in this session (live differs from the saved
+      // custom): the landscape save commits the WHOLE live portrait family
+      // (TMDB path + cleared custom), never a mixed prev/live pair.
       previewPoster: tile("/p-new.jpg"),
       selectedBackdrop: tile(LAND_URL),
       mappingsMap: new Map([["movie:1", prev]]),
@@ -724,7 +725,8 @@ describe("landscape custom base save boundary (customBackdropUrl)", () => {
     const posts = mappingPosts()
     expect(posts).toHaveLength(1)
     expect(posts[0].body.customBackdropUrl).toBe(LAND_URL)
-    expect(posts[0].body.customPosterUrl).toBe(PORTRAIT_URL)
+    expect(posts[0].body.posterPath).toBe("/p-new.jpg")
+    expect(posts[0].body.customPosterUrl).toBeNull()
   })
 
   it("new-mapping landscape save freezes a live portrait custom tile (no saved state to preserve)", async () => {

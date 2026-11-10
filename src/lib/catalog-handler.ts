@@ -494,6 +494,12 @@ async function buildPosterRowUrls(
   const posterShape: PosterShape = dualBase
     ? "poster"
     : (ctx.explicitShape ?? stremioPosterShape(mapping, ctx.defaults))
+  // Portrait SCELTO per contratto (dual-format `poster` field o override
+  // esplicito del catalogo): deve viaggiare come `shape=poster` esplicito,
+  // altrimenti il renderer risolve la forma dal mapping salvato (ultima forma,
+  // es. landscape) e serve byte landscape nel campo `poster`. Il portrait
+  // naturale resta senza parametro (URL legacy byte-identici, cache intatta).
+  const forcePosterShape = posterShape === "poster" && (dualBase || ctx.explicitShape === "poster")
   // Cornice stagionale (contesto effimero del catalogo di origine): viaggia
   // nel `poster` su entrambi i canvas (ognuno rende il proprio asset
   // 500×750 / 768×432, mai stirato) — il banner pulito resta byte-identico
@@ -509,6 +515,7 @@ async function buildPosterRowUrls(
   const poster = buildStremioPosterUrl({
     ...base,
     forceShape: posterShape,
+    forcePosterShape,
     seasonalTheme: effectiveTheme ?? undefined,
   }).toString()
   // Banner pulito: canvas landscape senza logo baked-in (per i client che
