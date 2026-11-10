@@ -38,6 +38,16 @@ export interface BuildStremioPosterUrlInput {
    */
   readonly forceShape?: PosterShape
   /**
+   * Forza l'emissione esplicita di `shape=poster` quando `forceShape` è
+   * "poster". Serve ai consumer che SCELGONO il portrait per contratto
+   * (dual-format `poster` field, override esplicito `catalogShapes: poster`)
+   * contro un mapping/default landscape: senza il parametro il renderer
+   * risolverebbe la forma dal mapping (ultima forma salvata) e servirebbe
+   * byte landscape nel campo `poster`. Il portrait naturale (nessuna forzatura)
+   * resta senza parametro: URL legacy byte-identici, nessun cache bust.
+   */
+  readonly forcePosterShape?: boolean
+  /**
    * Nasconde il logo film dal composite. Usato solo col banner pulito
    * (insieme a forceShape, vedi sopra): senza, il baked-in duplicherebbe
    * l'overlay logo che quei client applicano da catalogo.
@@ -248,8 +258,10 @@ export function buildStremioPosterUrl(input: BuildStremioPosterUrlInput): URL {
     // default globale (come networkLogo).
     ribbonEnabled: eff?.ribbonEnabled ?? sd.ribbonEnabled,
     // Il default orizzontale prevale sui mapping portrait solo per Stremio.
-    // Emesso solo quando landscape (vedi params); forceShape resta esplicito.
+    // Emesso solo quando landscape — più `shape=poster` quando il chiamante
+    // forza ESPLICITAMENTE il portrait (vedi forcePosterShape sopra, params).
     posterShape: effShape,
+    forcePosterShape: input.forceShape === "poster" && input.forcePosterShape === true,
     // Seasonal frame: each canvas renders its OWN asset (portrait 500×750,
     // landscape 768×432 — never a stretch). Only the clean banner
     // (shape=landscape + hideLogo) stays byte-identical to legacy: it never

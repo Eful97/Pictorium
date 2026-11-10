@@ -110,6 +110,8 @@ describe("GET /meta/[type]/[id]", () => {
     })
     expect(body.meta.poster).toContain("/api/poster/movie/550")
     expect(body.meta.poster).toContain(`rv=${POSTER_URL_VERSION}`)
+    // Legacy portrait (no mapping, no forced shape): no `shape` param bytes.
+    expect(new URL(body.meta.poster).searchParams.has("shape")).toBe(false)
     expect(body.meta.background).toContain("/backdrop.jpg")
     expect(body.meta.logo).toContain("/fight-club-logo.png")
     expect(body.meta.trailers).toEqual([{ source: "trailer123", type: "Trailer" }])
@@ -154,7 +156,9 @@ describe("GET /meta/[type]/[id]", () => {
     const res = await GET(req, { params: Promise.resolve({ type: "movie", id: "tmdb:550.json" }) })
     const { meta } = await res.json()
     expect(meta.posterShape).toBe("poster")
-    expect(new URL(meta.poster).searchParams.get("shape")).toBe(null)
+    // Forced portrait contract (dual-format): explicit `shape=poster`, so the
+    // renderer never falls back to the last saved landscape mapping.
+    expect(new URL(meta.poster).searchParams.get("shape")).toBe("poster")
     expect(new URL(meta.landscapePoster).searchParams.get("shape")).toBe("landscape")
     expect(meta.landscapePoster).not.toBe(meta.poster)
     expect(meta.logo).toBeUndefined()

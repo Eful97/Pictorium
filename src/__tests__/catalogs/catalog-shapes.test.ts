@@ -198,10 +198,37 @@ describe("per-catalog format truth matrix (route)", () => {
       }))
     const item = await getCatalogItem("pictorium-jw-series")
     expect(item.posterShape).toBe("poster")
-    expect(new URL(item.poster).searchParams.get("shape")).not.toBe("landscape")
+    // Explicit per-catalog portrait override must travel EXPLICITLY: without
+    // `shape=poster` the renderer falls back to the saved/default landscape
+    // and would serve landscape bytes in the `poster` field.
+    expect(new URL(item.poster).searchParams.get("shape")).toBe("poster")
     expect(item.landscapePoster).toBeUndefined()
     expect(item.logo).toContain("/hotd-logo.png")
     // Banner always stays landscape + hideLogo for other clients.
+    expect(item.banner).toContain("shape=landscape")
+    expect(item.banner).toContain("hideLogo=1")
+  })
+
+  it("explicit poster override on a landscape mapping emits shape=poster (forced portrait survives to the renderer)", async () => {
+    // Bug A': the per-catalog poster override used to be lost in transport —
+    // the URL had no shape param, so the renderer fell back to the saved
+    // landscape mapping and served landscape bytes in the `poster` field.
+    vi.mocked(getServerDefaults).mockReturnValue({
+      posterShape: "landscape",
+      catalogShapes: { "pictorium-jw-series": "poster" },
+    })
+    mockedGetById.mockResolvedValue({ ...portraitMapping(), posterShape: "landscape" } as never)
+    vi.spyOn(globalThis, "fetch")
+      .mockResolvedValueOnce(justWatchResponse(94997, "tt11198330"))
+      .mockResolvedValueOnce(tmdbShowResponse(94997))
+      .mockResolvedValueOnce(Response.json({ id: 94997, logos: [] }))
+    const item = await getCatalogItem("pictorium-jw-series")
+    expect(item.posterShape).toBe("poster")
+    // Explicit portrait travels: no fallback to the saved landscape mapping.
+    expect(new URL(item.poster).searchParams.get("shape")).toBe("poster")
+    // Single base (no saved landscape family): no additive landscapePoster.
+    expect(item.landscapePoster).toBeUndefined()
+    // Clean banner stays landscape + hideLogo.
     expect(item.banner).toContain("shape=landscape")
     expect(item.banner).toContain("hideLogo=1")
   })
@@ -282,7 +309,9 @@ describe("per-catalog format truth matrix (route)", () => {
     const item = await getCatalogItem("pictorium-jw-series")
     expect(item.posterShape).toBe("poster")
     const posterUrl = new URL(item.poster)
-    expect(posterUrl.searchParams.get("shape")).toBe(null)
+    // Forced portrait contract: explicit `shape=poster` so the renderer never
+    // falls back to the last saved shape (landscape) for the `poster` field.
+    expect(posterUrl.searchParams.get("shape")).toBe("poster")
     expect(posterUrl.searchParams.has("hideLogo")).toBe(false)
     expect(new URL(item.landscapePoster).searchParams.get("shape")).toBe("landscape")
     expect(new URL(item.landscapePoster).searchParams.has("hideLogo")).toBe(false)
@@ -302,7 +331,7 @@ describe("per-catalog format truth matrix (route)", () => {
       .mockResolvedValueOnce(tmdbShowResponse(94997))
     const item = await getCatalogItem("pictorium-jw-series")
     expect(item.posterShape).toBe("poster")
-    expect(new URL(item.poster).searchParams.get("shape")).toBe(null)
+    expect(new URL(item.poster).searchParams.get("shape")).toBe("poster")
     expect(new URL(item.landscapePoster).searchParams.get("shape")).toBe("landscape")
     expect(item.logo).toBeUndefined()
   })
@@ -486,6 +515,9 @@ describe("universal catalog fields (poster / background / logo)", () => {
       .mockResolvedValueOnce(Response.json({ id: 94997, logos: [] }))
     const item = await getCatalogItem("pictorium-jw-series")
     expect(item.poster).toContain("/api/poster/series/94997")
+    // Single portrait mapping (no forced shape): legacy URL keeps NO shape
+    // param — same bytes/cache key as before the dual/override fix.
+    expect(new URL(item.poster).searchParams.has("shape")).toBe(false)
     expect(item.background).toContain("/t/p/original/house-of-the-dragon-backdrop.jpg")
     // Raw TMDB hero art: never a Pictorium render, never the logo render.
     expect(item.background).not.toContain("/api/poster")
@@ -499,7 +531,7 @@ describe("universal catalog fields (poster / background / logo)", () => {
       .mockResolvedValueOnce(justWatchResponse(94997, "tt11198330"))
       .mockResolvedValueOnce(showWithBackdrop(94997))
     const item = await getCatalogItem("pictorium-jw-series")
-    expect(new URL(item.poster).searchParams.get("shape")).toBe(null)
+    expect(new URL(item.poster).searchParams.get("shape")).toBe("poster")
     expect(new URL(item.poster).searchParams.has("hideLogo")).toBe(false)
     expect(new URL(item.landscapePoster).searchParams.get("shape")).toBe("landscape")
     expect(item.background).toContain("/t/p/original/house-of-the-dragon-backdrop.jpg")
@@ -540,6 +572,9 @@ describe("universal catalog fields (poster / background / logo)", () => {
     const item = await getCatalogItem("pictorium-jw-series")
     // Universal fields present for every client.
     expect(item.poster).toContain("/api/poster/series/94997")
+    // Legacy single-format portrait: NO shape param (byte-identical URL,
+    // same cache key as before — the forced-portrait param is dual/override only).
+    expect(new URL(item.poster).searchParams.has("shape")).toBe(false)
     expect(item.background).toContain("/t/p/original/")
     expect(item.logo).toContain("/hotd-logo.png")
     // Nuvio-only fields: banner is always the clean landscape canvas,

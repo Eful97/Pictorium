@@ -603,7 +603,11 @@ async function pictoriumPosterUrl(
     mapping?.seasonalTheme ?? null,
     normalizeSeasonalTheme(seasonalTheme),
   )
-  const posterUrl = (shape: "poster" | "landscape"): string => buildStremioPosterUrl({
+  // Portrait SCELTO per contratto (dual-format `poster` field): esplicito
+  // `shape=poster`, altrimenti il renderer risolverebbe la forma dal mapping
+  // salvato (ultima forma, es. landscape) servendo byte landscape nel campo
+  // `poster`. Il portrait naturale resta senza parametro (URL legacy/cache).
+  const posterUrl = (shape: "poster" | "landscape", forcePosterShape = false): string => buildStremioPosterUrl({
     origin: getOriginFromRequest(req),
     type,
     id,
@@ -614,9 +618,10 @@ async function pictoriumPosterUrl(
     config: configParam || undefined,
     user: userParam || undefined,
     forceShape: shape,
+    forcePosterShape,
     seasonalTheme: effectiveTheme ?? undefined,
   }).toString()
-  const poster = posterUrl(posterShape)
+  const poster = posterUrl(posterShape, dualBase)
   const landscapePoster = dualBase
     ? posterUrl("landscape")
     : posterShape === "landscape" ? poster : undefined

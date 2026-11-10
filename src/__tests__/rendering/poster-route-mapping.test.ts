@@ -2602,4 +2602,35 @@ describe("saved landscape backdrop on the portrait canvas (no centered band)", (
     expect(b).toBeGreaterThan(120)
     expect(b).toBeGreaterThan(r + 40)
   })
+
+  it("explicit shape=poster overrides a saved landscape mapping (forced portrait contract)", async () => {
+    // Dual-format / per-catalog poster override transport: the URL carries
+    // `shape=poster` so the renderer resolves the portrait deterministically,
+    // even though the saved mapping's last shape is landscape.
+    const red = await imageBuffer("#c81e1e", 500, 750)
+    const blue = await imageBuffer("#1e3ac8", 1920, 1080)
+    const requestedUrls: string[] = []
+    mockedGetById.mockResolvedValue(mapping(62003, "landscape"))
+    vi.spyOn(globalThis, "fetch").mockImplementation(async (input) => {
+      const url = String(input)
+      requestedUrls.push(url)
+      const body = url.includes("/landscape-band.jpg") ? blue : red
+      return new Response(new Uint8Array(body), {
+        status: 200,
+        headers: { "content-type": "image/png", "content-length": String(body.length) },
+      })
+    })
+
+    const res = await GET(adminReq("http://localhost:3000/api/poster/movie/62003?rv=81&mv=1790000000003&shape=poster"), {
+      params: Promise.resolve({ type: "movie", id: "62003" }),
+    })
+
+    expect(res.status).toBe(200)
+    // Explicit portrait resolves the portrait base: the landscape band is
+    // never fetched, and the center pixel stays the red portrait base.
+    expect(requestedUrls.some((url) => url.includes("/landscape-band.jpg"))).toBe(false)
+    const [r, , b] = await centerPixel(Buffer.from(await res.arrayBuffer()))
+    expect(r).toBeGreaterThan(120)
+    expect(r).toBeGreaterThan(b + 40)
+  })
 })
