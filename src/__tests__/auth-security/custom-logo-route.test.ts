@@ -246,6 +246,75 @@ describe("GET /api/poster custom logo path", () => {
     expect(changed).toBeLessThan(total)
   })
 
+  it("keeps the portrait no-logo independent from the landscape profile logo", async () => {
+    // Saved per-shape logo identity: portrait flat logoDisabled/null, landscape
+    // profile with a custom logo. The portrait render must NOT fetch/compose
+    // the landscape logo (the old shared identity leaked it onto the portrait
+    // Test URL); the landscape render must use it.
+    const logoPng = await imageBuffer("#ff0000", 400, 200)
+    mockUndiciFetch.mockResolvedValue(imageResponse(logoPng, "image/png"))
+    const poster = await imageBuffer("#101010", 500, 750)
+    vi.spyOn(globalThis, "fetch").mockImplementation(async () => new Response(new Uint8Array(poster), {
+      status: 200,
+      headers: { "content-type": "image/png" },
+    }))
+    const saved = {
+      tmdbId: 42,
+      mediaType: "movie",
+      title: "Saved",
+      posterPath: "/poster.jpg",
+      logoPath: null,
+      logoDisabled: true,
+      backdropPath: "/backdrop.jpg",
+      originalPosterPath: null,
+      language: "it",
+      showBadges: false,
+      rankingBadges: false,
+      posterShape: "landscape",
+      landscape: { logoDisabled: false, logoPath: CUSTOM_MAPPED_LOGO, logoText: null, logoFont: null },
+      updatedAt: "2026-07-16T10:16:00.000Z",
+    }
+    mockedGetById.mockResolvedValue(saved as never)
+    const portrait = await renderPosterBytes("http://localhost:3000/api/poster/movie/42?shape=poster")
+    expect(mockUndiciFetch.mock.calls.map((c) => String(c[0]))).not.toContain(CUSTOM_MAPPED_LOGO)
+    // Same portrait without the landscape profile: byte-identical (the
+    // profile never influences the portrait canvas).
+    mockedGetById.mockResolvedValue({ ...saved, landscape: {}, updatedAt: "2026-07-16T10:16:01.000Z" } as never)
+    const portraitControl = await renderPosterBytes("http://localhost:3000/api/poster/movie/42?shape=poster")
+    expect((await countChangedPixels(portrait, portraitControl)).changed).toBe(0)
+    // Landscape shape resolves its own profile logo.
+    mockedGetById.mockResolvedValue(saved as never)
+    await renderPosterBytes("http://localhost:3000/api/poster/movie/42?shape=landscape")
+    expect(mockUndiciFetch.mock.calls.map((c) => String(c[0]))).toContain(CUSTOM_MAPPED_LOGO)
+  })
+
+  it("legacy mapping without profile logo keys inherits the flat logo on both shapes", async () => {
+    const logoPng = await imageBuffer("#ff0000", 400, 200)
+    mockUndiciFetch.mockResolvedValue(imageResponse(logoPng, "image/png"))
+    const poster = await imageBuffer("#101010", 500, 750)
+    vi.spyOn(globalThis, "fetch").mockImplementation(async () => new Response(new Uint8Array(poster), {
+      status: 200,
+      headers: { "content-type": "image/png" },
+    }))
+    mockedGetById.mockResolvedValue({
+      tmdbId: 42,
+      mediaType: "movie",
+      title: "Saved",
+      posterPath: "/poster.jpg",
+      logoPath: CUSTOM_MAPPED_LOGO,
+      backdropPath: "/backdrop.jpg",
+      originalPosterPath: null,
+      language: "it",
+      showBadges: false,
+      rankingBadges: false,
+      // Pre-fix profile: no logo keys => the flat identity is inherited.
+      landscape: { badgeStyle: "pill" },
+      updatedAt: "2026-07-16T10:16:02.000Z",
+    } as never)
+    await renderPosterBytes("http://localhost:3000/api/poster/movie/42?shape=landscape")
+    expect(mockUndiciFetch.mock.calls.map((c) => String(c[0]))).toContain(CUSTOM_MAPPED_LOGO)
+  })
+
   it("saved mapped custom logo succeeds through the shared validated fetch", async () => {
     const logoPng = await imageBuffer("#ff0000", 400, 200)
     mockUndiciFetch.mockResolvedValueOnce(imageResponse(logoPng, "image/png"))

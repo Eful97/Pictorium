@@ -571,8 +571,12 @@ dither Bayer deterministico (ETag stabile). L'ombra lineare superiore è
 > invariato). Stash verbatim (false/0/[]/`follow-rank` preservati, mai
 > filtrati); la provenance logo-scale del ripristino allo switch resta locale
 > in EditView (il save consuma i draft verbatim come il path esplicito).
-> Logo al cambio formato: il logo non è per-formato (un solo `logoPath` nel
-> mapping), ma la sua provenienza sì. `logoAutoSelected` (PosterEditorContext)
+> Logo al cambio formato: l'identità logo SALVATA è per-formato (flat =
+> verticale, profilo `landscape`; `effectiveMappingForShape` fonde con la
+> presenza esplicita, null incluso) e il live dell'editor è unico: al cambio
+> formato viene stashato per-forma e ripristinato dal draft/salvato, mai
+> ereditato dall'altro canvas. La provenienza resta per-titolo.
+> `logoAutoSelected` (PosterEditorContext)
 > marca i soli rami automatici (ingresso in Orizzontale, base clean, base
 > portrait da backdrop, refresh lingua); `selectLogo` la imposta da
 > `{ auto: true }` e `removeLogo`/reset la azzerano. Tornando in Verticale su

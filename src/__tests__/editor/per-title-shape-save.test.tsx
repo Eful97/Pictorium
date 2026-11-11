@@ -968,3 +968,120 @@ describe("shape-switch save: shared logo preservation + symmetric portrait cover
     expect(body.customPosterUrl).toBeNull()
   })
 })
+
+/**
+ * Per-shape logo identity at the save boundary.
+ *
+ * Bug: the logo used to be one flat identity, so a landscape save wrote its
+ * logo into `logoPath`/`logoDisabled` and a portrait clean saved without logo
+ * then rendered that landscape logo on the Stremio Test URL (/meta -> poster).
+ * The flat is now the PORTRAIT identity and the landscape profile owns the
+ * landscape one; neither save may move the other shape's look.
+ */
+describe("per-shape logo identity at the save boundary", () => {
+  const logoTile = (file_path: string) => ({
+    file_path, iso_639_1: "it", vote_average: 0, width: 800, height: 300,
+  })
+
+  it("landscape save keeps the portrait no-logo flat verbatim and profiles the live logo", async () => {
+    const prev = mapping({
+      posterPath: "/p.jpg", backdropPath: "/bd.jpg",
+      logoPath: null, logoDisabled: true, logoText: null, logoFont: null,
+    })
+    const { result } = renderHook(() => usePosterSave(baseDeps({
+      posterShape: "landscape",
+      selectedLogo: logoTile("/logo-land.png"),
+      logoDisabled: false,
+      logoText: "",
+      mappingsMap: new Map([["movie:1", prev]]),
+    })))
+    await act(async () => { await result.current.saveConfig({ silent: true }) })
+    const body = mappingPosts()[0].body
+    // Portrait flat preserved verbatim: still no logo.
+    expect(body.logoPath).toBeNull()
+    expect(body.logoDisabled).toBe(true)
+    // Landscape profile owns the live logo.
+    const land = body.landscape as Record<string, unknown>
+    expect(land.logoPath).toBe("/logo-land.png")
+    expect(land.logoDisabled).toBe(false)
+    expect(land.logoText).toBeNull()
+  })
+
+  it("portrait save with no logo keeps the landscape profile logo (never resurrects)", async () => {
+    const prev = mapping({
+      posterPath: "/p.jpg", backdropPath: "/bd.jpg",
+      logoPath: null, logoDisabled: true,
+      landscape: { logoDisabled: false, logoPath: "/logo-land.png", logoText: null, logoFont: null },
+    })
+    const { result } = renderHook(() => usePosterSave(baseDeps({
+      posterShape: "poster",
+      selectedLogo: null,
+      logoDisabled: true,
+      mappingsMap: new Map([["movie:1", prev]]),
+    })))
+    await act(async () => { await result.current.saveConfig({ silent: true }) })
+    const body = mappingPosts()[0].body
+    expect(body.logoPath).toBeNull()
+    expect(body.logoDisabled).toBe(true)
+    const land = body.landscape as Record<string, unknown>
+    expect(land.logoPath).toBe("/logo-land.png")
+    expect(land.logoDisabled).toBe(false)
+  })
+
+  it("landscape save persists the staged portrait logo identity verbatim", async () => {
+    const { result } = renderHook(() => usePosterSave(baseDeps({
+      posterShape: "landscape",
+      selectedLogo: logoTile("/logo-land.png"),
+      logoDisabled: false,
+      logoText: "",
+      mappingsMap: new Map([["movie:1", mapping({ posterPath: "/p.jpg", backdropPath: "/bd.jpg" })]]),
+    })))
+    await act(async () => {
+      await result.current.saveConfig({
+        silent: true,
+        otherShapeStash: {
+          logoPath: "/logo-port.png", logoDisabled: false, logoText: "", logoFont: "inter",
+        },
+      })
+    })
+    const body = mappingPosts()[0].body
+    expect(body.logoPath).toBe("/logo-port.png")
+    const land = body.landscape as Record<string, unknown>
+    expect(land.logoPath).toBe("/logo-land.png")
+  })
+
+  it("portrait save freezes the pre-edit inherited logo for a pre-fix landscape profile", async () => {
+    // Pre-fix profile: other keys only, no logo identity. Landscape rendered
+    // the flat logo before the portrait edit; the portrait must not move it.
+    const prev = mapping({
+      posterPath: "/p.jpg", backdropPath: "/bd.jpg",
+      logoPath: "/logo-port.png", logoDisabled: false, logoText: null, logoFont: null,
+      landscape: { badgeStyle: "pill" },
+    })
+    const { result } = renderHook(() => usePosterSave(baseDeps({
+      posterShape: "poster",
+      selectedLogo: null,
+      logoDisabled: true,
+      mappingsMap: new Map([["movie:1", prev]]),
+    })))
+    await act(async () => { await result.current.saveConfig({ silent: true }) })
+    const body = mappingPosts()[0].body
+    expect(body.logoPath).toBeNull()
+    const land = body.landscape as Record<string, unknown>
+    expect(land.logoPath).toBe("/logo-port.png")
+    expect(land.logoDisabled).toBe(false)
+  })
+
+  it("new-mapping landscape-first save keeps the historical single-shape payload", async () => {
+    const { result } = renderHook(() => usePosterSave(baseDeps({
+      posterShape: "landscape",
+      selectedLogo: logoTile("/logo-land.png"),
+      logoDisabled: false,
+    })))
+    await act(async () => { await result.current.saveConfig({ silent: true }) })
+    const body = mappingPosts()[0].body
+    expect(body.logoPath).toBe("/logo-land.png")
+    const land = body.landscape as Record<string, unknown>
+    expect(land.logoPath).toBe("/logo-land.png")
+  })
+})

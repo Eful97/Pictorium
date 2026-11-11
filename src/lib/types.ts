@@ -489,6 +489,21 @@ export interface Mapping {
  * fallback al flat, backward compatible).
  */
 export interface LandscapeSettings {
+  /**
+   * Per-shape logo identity. The flat `logoPath`/`logoDisabled`/`logoText`/
+   * `logoFont` are the PORTRAIT identity and the fallback for every key that
+   * is absent here; the landscape shape reads its own values so a portrait
+   * clean with no logo and a landscape with a logo can coexist on the same
+   * title (a shared identity leaked the landscape logo onto the portrait
+   * Test URL). Presence semantics for the nullable fields: a PRESENT key
+   * (including null / "" for logoText) wins for landscape, absent inherits
+   * the flat. `logoDisabled` follows the shared `??` toggle rule (false/true
+   * shadow the flat; null/absent inherit).
+   */
+  logoDisabled?: boolean | null
+  logoPath?: string | null
+  logoText?: string | null
+  logoFont?: BadgeFont | null
   logoScale?: number | null
   logoOffsetX?: number | null
   logoOffsetY?: number | null
@@ -642,6 +657,11 @@ export interface LandscapeSettings {
  * Per-item corrections follow the same ownership rule: an explicit profile
  * `badgeItemTransforms: null` shadows the portrait corrections; only an
  * absent key inherits them. Subsequent config/default fallbacks still apply.
+ * Logo identity is per-shape too: a PRESENT profile key (including null, and
+ * "" for `logoText`) wins over the flat portrait identity, absent inherits it
+ * (`logoDisabled` uses the shared `??` toggle rule). This keeps a portrait
+ * clean without logo independent from a landscape logo saved on the same
+ * title (Test URL / renderer read the shape-effective mapping).
  * Il binding preset è atomico a coppia: se UNA tra `badgePresetId`/
  * `badgePresetRev` è presente nel profilo, ENTRAMBE le effettive vengono dal
  * profilo (lato mancante = null, mai il flat) così id/rev non si mescolano
@@ -661,6 +681,12 @@ export function effectiveMappingForShape(mapping: Mapping | null, shape: PosterS
     badgePresetId: landOwnsPresetPair ? (l.badgePresetId ?? null) : mapping.badgePresetId,
     badgePresetRev: landOwnsPresetPair ? (l.badgePresetRev ?? null) : mapping.badgePresetRev,
     badgePresets: mergeRetiredBadgePresetsField(mapping.badgePresets, l.badgePresets),
+    // Logo identity per shape (see above): present nullable keys (null too)
+    // win for landscape, absent inherits the flat portrait identity.
+    logoDisabled: l.logoDisabled ?? mapping.logoDisabled,
+    logoPath: l.logoPath !== undefined ? l.logoPath : mapping.logoPath,
+    logoText: l.logoText !== undefined ? l.logoText : mapping.logoText,
+    logoFont: l.logoFont !== undefined ? l.logoFont : mapping.logoFont,
     logoScale: l.logoScale ?? mapping.logoScale,
     logoOffsetX: l.logoOffsetX ?? mapping.logoOffsetX,
     logoOffsetY: l.logoOffsetY ?? mapping.logoOffsetY,

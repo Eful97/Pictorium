@@ -54,6 +54,9 @@ export const MoodBoardTile = React.memo(function MoodBoardTile({
   // landscape con fallback al poster) e il tuning effettivo di quel formato.
   const isLandscape = m.posterShape === "landscape"
   const eff = effectiveMappingForShape(m, isLandscape ? "landscape" : "poster")
+  // Logo identity per shape (portrait flat / landscape profile): a title can
+  // save a portrait clean without logo and a landscape with one.
+  const effLogoPath = eff?.logoDisabled === true ? null : (eff?.logoPath ?? null)
   // Per-format independent base (portrait from customPosterUrl, landscape
   // from customBackdropUrl — like the renderer). The TMDB fallback of the
   // shape applies once the custom is exhausted.
@@ -82,7 +85,7 @@ export const MoodBoardTile = React.memo(function MoodBoardTile({
         onClick={() => { if (selectMode) handlers.select(key); else handlers.open(m) }}
         role="button"
         tabIndex={0}
-        aria-label={`${m.title} — ${m.logoPath ? t("ui.posterWithLogo") : t("ui.cleanPoster")} — ${typeLabel}`}
+        aria-label={`${m.title} — ${effLogoPath ? t("ui.posterWithLogo") : t("ui.cleanPoster")} — ${typeLabel}`}
         aria-pressed={selectMode && isSelected}
         onKeyDown={(e) => {
           if (e.key === "Escape" && confirming) {
@@ -149,7 +152,7 @@ export const MoodBoardTile = React.memo(function MoodBoardTile({
         )}
 
         {/* Logo overlay: posizionato sul poster clean con scala e offset */}
-        {m.logoPath && (
+        {effLogoPath && (
           <div
             className="absolute inset-x-0 bottom-[7.33%] flex items-center justify-center pointer-events-none"
             style={{
@@ -159,7 +162,7 @@ export const MoodBoardTile = React.memo(function MoodBoardTile({
             <div style={{ width: `${eff?.logoScale ?? 75}%` }}>
               {/* eslint-disable-next-line @next/next/no-img-element -- TMDB dynamic URL */}
               <img
-                src={posterUrl(m.logoPath, "w300")}
+                src={posterUrl(effLogoPath, "w300")}
                 alt=""
                 loading="lazy"
                 decoding="async"

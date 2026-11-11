@@ -685,6 +685,78 @@ describe("legacy Stremio URLs stay byte-identical (full-query fixture)", () => {
   })
 })
 
+describe("effectiveMappingForShape per-shape logo identity", () => {
+  it("legacy mapping without profile logo keys inherits the flat (byte-identical)", () => {
+    const m = baseMapping({ logoPath: "/logo.png", logoDisabled: false, logoText: null })
+    expect(effectiveMappingForShape(m, "landscape")).toBe(m)
+    const disabled = baseMapping({ logoPath: null, logoDisabled: true })
+    expect(effectiveMappingForShape(disabled, "landscape")).toBe(disabled)
+  })
+
+  it("the landscape profile owns the logo independently from the portrait flat", () => {
+    const m = baseMapping({
+      logoPath: null,
+      logoDisabled: true,
+      landscape: {
+        logoDisabled: false,
+        logoPath: "/logo-land.png",
+        logoText: null,
+        logoFont: null,
+      },
+    })
+    const portrait = effectiveMappingForShape(m, "poster")
+    const landscape = effectiveMappingForShape(m, "landscape")
+    // Portrait keeps its clean no-logo state.
+    expect(portrait?.logoPath).toBeNull()
+    expect(portrait?.logoDisabled).toBe(true)
+    // Landscape owns its saved logo; the flat flag is shadowed by false.
+    expect(landscape?.logoPath).toBe("/logo-land.png")
+    expect(landscape?.logoDisabled).toBe(false)
+    expect(landscape?.logoText).toBeNull()
+    expect(landscape?.logoFont).toBeNull()
+  })
+
+  it("a present profile null/empty shadows the flat identity; absent inherits it", () => {
+    const m = baseMapping({
+      logoPath: "/logo-port.png",
+      logoText: "Portrait title",
+      logoFont: "oswald",
+      landscape: { logoPath: null, logoText: "", logoFont: null },
+    })
+    const landscape = effectiveMappingForShape(m, "landscape")
+    expect(landscape?.logoPath).toBeNull()
+    expect(landscape?.logoText).toBe("")
+    expect(landscape?.logoFont).toBeNull()
+    // A profile carrying only other keys inherits every logo key.
+    const inheriting = baseMapping({
+      logoPath: "/logo-port.png",
+      logoText: "Portrait title",
+      logoFont: "oswald",
+      landscape: { badgeStyle: "pill" },
+    })
+    const inherited = effectiveMappingForShape(inheriting, "landscape")
+    expect(inherited?.logoPath).toBe("/logo-port.png")
+    expect(inherited?.logoText).toBe("Portrait title")
+    expect(inherited?.logoFont).toBe("oswald")
+  })
+
+  it("accepts the per-shape logo keys at the write boundary (mappingSchema)", () => {
+    const parsed = mappingSchema.safeParse(baseMapping({
+      landscape: {
+        logoDisabled: false,
+        logoPath: "/logo-land.png",
+        logoText: "Landscape title",
+        logoFont: "barlow-condensed",
+      },
+    }))
+    expect(parsed.success).toBe(true)
+    if (parsed.success) {
+      expect(parsed.data.landscape?.logoPath).toBe("/logo-land.png")
+      expect(parsed.data.landscape?.logoFont).toBe("barlow-condensed")
+    }
+  })
+})
+
 describe("snapshotMissingMappingLandscape (portrait-save backfill)", () => {
   it("covers every new per-title shape key", () => {
     for (const k of [

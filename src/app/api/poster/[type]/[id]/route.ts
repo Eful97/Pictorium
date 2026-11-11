@@ -1655,16 +1655,24 @@ export async function GET(req: NextRequest, { params }: { params: Promise<RouteP
     mappingPortraitBackdropPath = !isLandscape && !(mapping.customPosterUrl && isCustomPosterUrl(mapping.customPosterUrl))
       ? (queryPortraitBase ?? mapping.portraitBackdropPath ?? null)
       : null
+    // Logo identity per shape (portrait flat / landscape profile): a title
+    // saved portrait clean without logo and landscape with a logo must render
+    // each shape with its own identity. Reading the flat mapping here leaked
+    // the landscape logo onto the portrait Test URL (/meta poster) and the
+    // catalog portrait rendering. Same `effectiveMappingForShape` chain as the
+    // rest of the per-shape fields; legacy mappings without profile logo keys
+    // inherit the flat exactly as before.
+    const shapeEffLogo = effectiveMappingForShape(mapping, isLandscape ? "landscape" : "poster") ?? mapping
     // Logo manuale anche su portrait non-clean: il default resta nessun auto
     // a monte, ma il logoPath esplicito (mapping o ?logo=) è ammesso in ogni
     // formato. logoDisabled sempre onorato; query esplicita vince.
-    const effectiveMappingLogo = !mapping.logoDisabled ? mapping.logoPath : null
+    const effectiveMappingLogo = !shapeEffLogo.logoDisabled ? shapeEffLogo.logoPath : null
     logoPath = queryLogo || effectiveMappingLogo
     // Wordmark salvato (stessa catena: query > mapping, logoDisabled onorato).
     // Vince sul logoPath del mapping (una sola sorgente logo): un titolo
     // salvato con testo non ha più un logo immagine da comporre.
-    if (!textLogo && !mapping.logoDisabled) {
-      textLogo = resolveTextLogo(mapping.logoText ?? null, mapping.logoFont ?? null)
+    if (!textLogo && !shapeEffLogo.logoDisabled) {
+      textLogo = resolveTextLogo(shapeEffLogo.logoText ?? null, shapeEffLogo.logoFont ?? null)
     }
     // Wordmark automatico (mapping): nessun logo salvato o selezionato, titolo
     // noto e base senza titolo cotto — poster clean (`language === null`,
@@ -1680,7 +1688,7 @@ export async function GET(req: NextRequest, { params }: { params: Promise<RouteP
         title: mapping.title,
         hasImageLogo: false,
         hasTypedText: false,
-        logoDisabled: mapping.logoDisabled === true,
+        logoDisabled: shapeEffLogo.logoDisabled === true,
         baseIsTextless: isLandscape
           ? !mappingCustomBackdrop
           : !mappingCustomPoster && (mappingPortraitBackdropPath !== null || mapping.language === null),

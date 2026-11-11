@@ -11,7 +11,7 @@ import { adjustGradientForPosterChange } from "./gradient-presets"
 import { logoEffectiveAutoScale, resolveLogoDisplayedRank } from "./logo-selection"
 import { t } from "./i18n"
 import { isManualAccent } from "./accent-color"
-import { sanitizeLogoText, TEXT_LOGO_DEFAULT_FONT } from "./text-logo"
+import { sanitizeLogoText, normalizeLogoFont, TEXT_LOGO_DEFAULT_FONT } from "./text-logo"
 import { normalizeGenreName } from "./genre-normalize"
 import type { EnrichedAnimeItem } from "./validation"
 import type { QualityMarkId } from "./quality-badge-pack"
@@ -278,13 +278,14 @@ export interface SaveConfigOverrides {
   /**
    * Staged style values of the shape NOT in editing (EditView shape stash,
    * newer than the saved mapping): portrait values for a landscape save,
-   * landscape values for a portrait save. Only MAPPING_SHAPE_LAND_KEYS are
-   * consumed (tuning, logo and gradient keep their existing rules);
-   * absent = no staged edits (boundary from the saved mapping). Enables
-   * both-shape edits before a single save without leaking either look into
-   * the other.
+   * landscape values for a portrait save. MAPPING_SHAPE_LAND_KEYS are
+   * consumed by the tuning/style boundary; the per-shape logo identity keys
+   * (logoDisabled/logoPath/logoText/logoFont) travel verbatim so a staged
+   * logo of the other shape is never dropped nor leaked. Absent = no staged
+   * edits (boundary from the saved mapping). Enables both-shape edits before
+   * a single save without leaking either look into the other.
    */
-  otherShapeStash?: Partial<Record<MappingShapeLandKey, unknown>> | null
+  otherShapeStash?: Partial<Record<MappingShapeLandKey | "logoDisabled" | "logoPath" | "logoText" | "logoFont", unknown>> | null
 }
 
 /**
@@ -455,17 +456,30 @@ export function usePosterSave(deps: PosterSaveDeps) {
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
           tmdbId: selected.id, mediaType: selected.media_type, title: titleOf(selected),
-          posterPath: logoSplit.posterPath, logoPath: null,
+          // Portrait flat logo identity: cleared only when the removal happens
+          // in the portrait shape. In landscape the flat belongs to the other
+          // shape and must stay verbatim (PUT merge: absent = preserved).
+          posterPath: logoSplit.posterPath,
+          ...(posterShape === "landscape" ? {} : { logoPath: null }),
           originalPosterPath: selected.poster_path, language: previewPoster?.iso_639_1 || null,
           logoScale, logoOffsetX, logoOffsetY,
           genreName: normalizeGenreName(metaInfo.genres[0]?.name, lang) || null,
           voteAverage: metaInfo.voteAverage || null,
           trendRank: trendRank ?? null,
-          logoDisabled: true,
-          // Il wordmark salvato è logo: "rimuovi logo" lo azzera davvero
-          // (PUT merge: presente-null = clear esplicito).
-          logoText: null,
-          logoFont: null,
+          ...(posterShape === "landscape" ? {} : {
+            logoDisabled: true,
+            // Il wordmark salvato è logo: "rimuovi logo" lo azzera davvero
+            // (PUT merge: presente-null = clear esplicito).
+            logoText: null,
+            logoFont: null,
+          }),
+          // Logo identity per-shape: removing in the landscape shape clears
+          // the landscape profile too. PUT is a shallow merge, so the whole
+          // existing profile travels back verbatim with only the logo keys
+          // cleared.
+          ...(posterShape === "landscape"
+            ? { landscape: { ...(existing.landscape ?? {}), logoDisabled: true, logoPath: null, logoText: null, logoFont: null } }
+            : {}),
         }),
       })
       setSelectedLogo(null)
@@ -481,7 +495,7 @@ export function usePosterSave(deps: PosterSaveDeps) {
       if (logoPrecedente) setSelectedLogo(logoPrecedente)
       import("sonner").then(({ toast }) => toast(t("ui.saveError")))
     }
-  }, [selected, selectedLogo, previewPoster, logoScale, logoOffsetX, logoOffsetY, metaInfo, trendRank, mappingsMap, loadMappings]) // eslint-disable-line react-hooks/exhaustive-deps -- setter refs are stable
+  }, [selected, selectedLogo, previewPoster, logoScale, logoOffsetX, logoOffsetY, metaInfo, trendRank, mappingsMap, loadMappings, posterShape]) // eslint-disable-line react-hooks/exhaustive-deps -- setter refs are stable
 
   const selectBackdrop = useCallback((img: TMDBImage) => {
     setSelectedBackdrop(img)
@@ -628,6 +642,15 @@ export function usePosterSave(deps: PosterSaveDeps) {
     const savedLogoPath = savedLogoText
       ? null
       : (effectiveLogoPath ?? (logoDisabled ? null : (portraitBaseLogoPath ?? preservedAutoLogoPath ?? null)))
+    // Logo identity is per SHAPE in the saved mapping: the flat fields own the
+    // portrait shape, the landscape profile owns the landscape shape (see
+    // Mapping / effectiveMappingForShape). `liveLogoFont`/`profileLogoPath`
+    // are the LIVE landscape identity written to the profile; the flat below
+    // preserves the portrait identity verbatim (staged portrait stanza when
+    // the other shape was visited, else the saved mapping) so a landscape save
+    // can never leak its logo onto a portrait clean (Test URL / renderer).
+    const liveLogoFont = savedLogoText ? logoFont : null
+    const profileLogoPath = savedLogoText ? null : (effectiveLogoPath ?? null)
     // Rotation opt-in metadata (portrait flat). The rotation pool reuses
     // `cleanPosters`, so a language poster the user added to the rotation is
     // only identifiable through the TMDB image list (`iso_639_1`): record the
@@ -876,6 +899,82 @@ export function usePosterSave(deps: PosterSaveDeps) {
     const prevLandRec = (prevMapping?.landscape ?? null) as unknown as Record<string, unknown> | null
     const carryStoredLand = (key: string): unknown =>
       prevLandRec && Object.prototype.hasOwnProperty.call(prevLandRec, key) ? prevLandRec[key] : undefined
+    // Logo identity is per SHAPE in the saved mapping (see Mapping /
+    // effectiveMappingForShape): the flat fields are the PORTRAIT identity,
+    // the landscape profile owns the landscape identity. A landscape save
+    // preserves the portrait stanza VERBATIM — staged portrait draft when the
+    // other shape was visited in this session, else the saved mapping, else
+    // the live values for a brand-new mapping (historical behavior) — instead
+    // of clobbering it with the landscape live logo (the leak that made a
+    // portrait clean show the landscape logo on the Test URL).
+    const LOGO_IDENTITY_KEYS = ["logoDisabled", "logoPath", "logoText", "logoFont"] as const
+    const hasLogoKeys = (rec: Record<string, unknown> | null | undefined): boolean =>
+      !!rec && LOGO_IDENTITY_KEYS.some((k) => Object.prototype.hasOwnProperty.call(rec, k))
+    const ownKey = (rec: Record<string, unknown> | null, key: string): boolean =>
+      !!rec && Object.prototype.hasOwnProperty.call(rec, key)
+    const portraitLogoSavedVerbatim: Record<string, unknown> = prevRec && prevMapping
+      ? {
+          logoPath: ownKey(prevRec, "logoPath") ? (prevMapping.logoPath ?? null) : null,
+          ...(ownKey(prevRec, "logoText") ? { logoText: prevMapping.logoText } : {}),
+          ...(ownKey(prevRec, "logoFont") ? { logoFont: prevMapping.logoFont } : {}),
+          ...(prevMapping.logoDisabled === true ? { logoDisabled: true } : {}),
+        }
+      : {}
+    const portraitLogoStashed = portraitStash && hasLogoKeys(portraitStash as Record<string, unknown>)
+      ? {
+          logoPath: (portraitStash as Record<string, unknown>).logoPath ?? null,
+          logoText: (portraitStash as Record<string, unknown>).logoText ?? null,
+          logoFont: (portraitStash as Record<string, unknown>).logoFont ?? null,
+          logoDisabled: (portraitStash as Record<string, unknown>).logoDisabled === true ? true : undefined,
+        }
+      : null
+    const flatLogoFields: Record<string, unknown> = isLandscapeMode
+      ? (portraitLogoStashed ?? (prevMapping ? portraitLogoSavedVerbatim : {
+          logoPath: savedLogoPath,
+          logoText: savedLogoText,
+          logoFont: liveLogoFont,
+          logoDisabled: logoDisabled || undefined,
+        }))
+      : {
+          logoPath: savedLogoPath,
+          logoText: savedLogoText,
+          logoFont: liveLogoFont,
+          logoDisabled: logoDisabled || undefined,
+        }
+    // Landscape logo stanza from staged landscape edits (portrait save after
+    // visiting the other shape): the draft is newer than the saved profile.
+    const landscapeLogoStashed: Record<string, unknown> | null =
+      landscapeStash && hasLogoKeys(landscapeStash as Record<string, unknown>)
+        ? {
+            logoDisabled: (landscapeStash as Record<string, unknown>).logoDisabled === true,
+            logoPath: (landscapeStash as Record<string, unknown>).logoPath ?? null,
+            logoText: (landscapeStash as Record<string, unknown>).logoText ?? null,
+            logoFont: (landscapeStash as Record<string, unknown>).logoFont ?? null,
+          }
+        : null
+    // Portrait save on a PRE-FIX landscape profile (no logo keys yet): the
+    // landscape shape rendered the inherited flat. Freeze that pre-edit
+    // identity when the portrait edit moves it, so a portrait save never moves
+    // the landscape look — the same sibling boundary as the style backfill
+    // above, and never a profile created just for the logo.
+    const logoProfileBackfill: Record<string, unknown> =
+      (!isLandscapeMode && prevMapping?.landscape && !hasLogoKeys(prevMapping.landscape as Record<string, unknown>))
+        ? (() => {
+            const prevLogoDisabled = prevMapping.logoDisabled === true
+            const prevLogoPath = prevLogoDisabled ? null : (prevMapping.logoPath ?? null)
+            const prevLogoText = prevLogoDisabled ? null : sanitizeLogoText(prevMapping.logoText ?? null)
+            const prevLogoFont = prevLogoText ? (prevMapping.logoFont ?? TEXT_LOGO_DEFAULT_FONT) : null
+            const nextLogoDisabled = logoDisabled === true
+            const nextLogoPath = savedLogoText ? null : (savedLogoPath ?? null)
+            const moved = prevLogoDisabled !== nextLogoDisabled
+              || prevLogoPath !== nextLogoPath
+              || prevLogoText !== savedLogoText
+              || (prevLogoText !== null && normalizeLogoFont(prevLogoFont) !== normalizeLogoFont(liveLogoFont))
+            return moved
+              ? { logoDisabled: prevLogoDisabled, logoPath: prevLogoPath, logoText: prevLogoText, logoFont: prevLogoFont }
+              : {}
+          })()
+        : {}
     const landscapeProfile = isLandscapeMode
       ? {
           // Correzione c1: auto (provenance) → null (resta auto al
@@ -894,6 +993,13 @@ export function usePosterSave(deps: PosterSaveDeps) {
           posterFreshScope,
           networkLogoScale, networkLogoOffsetX, networkLogoOffsetY,
           networkLogoFollowTitle,
+          // Logo identity per-shape: the profile owns the LIVE landscape logo
+          // verbatim (null = explicit "no logo/text" for this shape), so the
+          // portrait flat above stays independent.
+          logoDisabled,
+          logoPath: profileLogoPath,
+          logoText: savedLogoText,
+          logoFont: liveLogoFont,
           ...styleLive,
           // Visuali un tempo condivisi, per-formato in landscape: il profilo
           // possiede il live della forma in editing (mai il flat portrait).
@@ -910,9 +1016,19 @@ export function usePosterSave(deps: PosterSaveDeps) {
           ...(carryStoredLand("badgePresetFollows") !== undefined ? { badgePresetFollows: carryStoredLand("badgePresetFollows") } : {}),
           ...landscapeBlurPatch,
         }
-      : (useLandscapeBlur || prevMapping?.landscape || Object.keys(styleBackfill).length > 0 || Object.keys(landscapeStashStyles).length > 0
+      : (useLandscapeBlur || prevMapping?.landscape || Object.keys(styleBackfill).length > 0 || Object.keys(landscapeStashStyles).length > 0 || landscapeLogoStashed != null || Object.keys(logoProfileBackfill).length > 0
           ? (() => {
-            const merged = { ...(prevMapping?.landscape ?? null), ...styleBackfill, ...landscapeStashStyles, ...(useLandscapeBlur ? landscapeBlurPatch : {}) }
+            const merged = {
+              ...(prevMapping?.landscape ?? null),
+              ...styleBackfill,
+              ...landscapeStashStyles,
+              ...(useLandscapeBlur ? landscapeBlurPatch : {}),
+              // Logo identity: freeze the pre-edit landscape look when the
+              // portrait save moves it (pre-fix profile), staged landscape
+              // edits win (newer than the saved profile).
+              ...logoProfileBackfill,
+              ...(landscapeLogoStashed ?? {}),
+            }
             return merged
           })()
           : null)
@@ -970,11 +1086,12 @@ export function usePosterSave(deps: PosterSaveDeps) {
           // mapping (first save) the live value is frozen, like cover-only
           // from the portrait file. Same boundary as backdrop preservation.
           customPosterUrl: portraitSplit.customPosterUrl,
-          logoPath: savedLogoPath,
+          // Logo identity per-shape (see flatLogoFields above): the flat is
+          // the PORTRAIT shape; a landscape save preserves it verbatim instead
+          // of writing the landscape live logo here.
+          ...flatLogoFields,
           // Wordmark salvato (testo + font del bundle): i titoli senza logo
           // TMDB mantengono il proprio titolo composto anche su Stremio.
-          logoText: savedLogoText,
-          logoFont: savedLogoText ? logoFont : null,
           originalPosterPath: selected.poster_path,
           language: posterToSave.iso_639_1,
           logoScale: keepFlatKey("logoScale", logoScaleExplicit === false ? null : logoScale),
@@ -1137,7 +1254,6 @@ export function usePosterSave(deps: PosterSaveDeps) {
           cleanBackdropUpdatedAt: isLandscapeMode ? new Date().toISOString() : (prevMapping?.cleanBackdropUpdatedAt ?? undefined),
           autoRotateBackdrop: effectiveRotationBackdrops.length > 1 ? autoRotateBackdrop : undefined,
           excludedBackdrops: nextExcludedBackdrops.length > 0 ? nextExcludedBackdrops : undefined,
-          logoDisabled: logoDisabled || undefined,
           networkLogo: keepFlatKey("networkLogo", networkLogo !== undefined ? networkLogo : undefined),
           // Follow congelato per-titolo (flat in portrait, preservato in
           // landscape come gli altri tuning per-shape): in landscape il flat

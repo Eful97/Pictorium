@@ -2573,6 +2573,11 @@ export function usePictorium(): PictoriumCtx {
     // l'auto senza dimensioni.
     let scaledByAutoLogo = false
     if (existing) {
+      // Logo identity is per-shape in the saved mapping (portrait flat /
+      // landscape profile): hydrate the OPEN shape's effective identity, never
+      // the flat of another shape (a portrait clean without logo must not
+      // reopen with the landscape logo and vice versa).
+      const openShapeEff = effectiveMappingForShape(existing, openShape)
       // Base custom salvata: la preview parte dal tile custom (highlight e
       // preview coerenti), non dal riferimento TMDB di fallback.
       const customFile = existing.customPosterUrl && isCustomPosterUrl(existing.customPosterUrl)
@@ -2590,12 +2595,13 @@ export function usePictorium(): PictoriumCtx {
       navigation.setPreviewPoster(foundPoster ? { file_path: foundPoster.file_path, iso_639_1: foundPoster.iso_639_1, vote_average: 0, width: foundPoster.width, height: foundPoster.height } : { file_path: previewFilePath, iso_639_1: previewLang, vote_average: 0, width: 0, height: 0 })
       // Text-as-logo salvato: riapre nel campo editor (stesso wordmark della
       // preview/Stremio). Vuoto/assente = nessun logo, come i mapping vecchi.
-      setLogoText(existing.logoText ?? "")
-      setLogoFont(existing.logoFont ?? TEXT_LOGO_DEFAULT_FONT)
+      // Per-forma: il profilo landscape possiede il proprio wordmark.
+      setLogoText(openShapeEff?.logoText ?? "")
+      setLogoFont(openShapeEff?.logoFont ?? TEXT_LOGO_DEFAULT_FONT)
       let foundLogo: TMDBImage | undefined
-      if (existing.logoPath) {
-        foundLogo = (data.logos || []).find((l: TMDBImage) => l.file_path === existing.logoPath)
-        navigation.setSelectedLogo(foundLogo ? { file_path: foundLogo.file_path, iso_639_1: existing.language, vote_average: 0, width: foundLogo.width, height: foundLogo.height } : { file_path: existing.logoPath, iso_639_1: existing.language, vote_average: 0, width: 0, height: 0 })
+      if (openShapeEff?.logoPath) {
+        foundLogo = (data.logos || []).find((l: TMDBImage) => l.file_path === openShapeEff.logoPath)
+        navigation.setSelectedLogo(foundLogo ? { file_path: foundLogo.file_path, iso_639_1: existing.language, vote_average: 0, width: foundLogo.width, height: foundLogo.height } : { file_path: openShapeEff.logoPath, iso_639_1: existing.language, vote_average: 0, width: 0, height: 0 })
         // Override salvato = scelta esplicita: il cambio formato non lo ritira.
         setLogoAutoSelected(false)
       // Riapertura mapping senza logo esplicito: nessun auto su portrait
@@ -2603,7 +2609,7 @@ export function usePictorium(): PictoriumCtx {
       // A saved TVDB custom base with recorded text (non-null language)
       // counts as non-clean: never auto-logo over baked-in text (legacy-
       // ambiguous null and generic custom URLs stay clean-eligible as before).
-      } else if (!existing.logoDisabled && (customFile ? (isTvdbArtworkUrl(customFile) ? previewLang === null : true) : ((foundPoster ? foundPoster.iso_639_1 === null : previewLang === null) || openShape === "landscape"))) {
+      } else if (!openShapeEff?.logoDisabled && (customFile ? (isTvdbArtworkUrl(customFile) ? previewLang === null : true) : ((foundPoster ? foundPoster.iso_639_1 === null : previewLang === null) || openShape === "landscape"))) {
         const autoLogo = autoLogoSelection(data.logos || [], lang, details.original_language, `${itemType}/${itemId}`)
         if (autoLogo) {
           navigation.setSelectedLogo({ file_path: autoLogo.file_path, iso_639_1: autoLogo.iso_639_1, vote_average: 0, width: autoLogo.width, height: autoLogo.height })
@@ -3175,7 +3181,7 @@ export function usePictorium(): PictoriumCtx {
       setRotationBackdrops(existing.cleanBackdrops || [])
       setAutoRotateBackdrop(existing.autoRotateBackdrop ?? defaultAutoRotateBackdrop)
       setExcludedBackdrops(existing.excludedBackdrops || [])
-      setLogoDisabled(existing.logoDisabled ?? false)
+      setLogoDisabled(eff?.logoDisabled ?? false)
       // Offset logo: profilo salvato (mapping.landscape in landscape) > default
       // globali (Orizzontale nel formato) > 0. La calibrazione +10/-10 vive nel
       // renderer, invisibile agli slider.
