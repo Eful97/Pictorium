@@ -54,12 +54,12 @@ jobs:
       matrix:
         shard: ['1/3', '2/3', '3/3']
     steps:
-      - uses: actions/checkout@v7
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
         with:
           # Validate the tagged code (dispatch: the requested tag), not master.
           ref: ${{ github.event.inputs.tag || github.ref }}
           fetch-depth: 0
-      - uses: actions/setup-node@v7
+      - uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1 # v7
         with:
           # Node 22: jsdom 30 (devDep) requires ^22.22.2 || ^24.15.0 || >=26.
           node-version: 22
@@ -79,12 +79,12 @@ jobs:
   commits:
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v7
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
         with:
           # Subject check needs history (default depth 1 has no ranges).
           ref: ${{ github.event.inputs.tag || github.ref }}
           fetch-depth: 0
-      - uses: actions/setup-node@v7
+      - uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1 # v7
         with:
           node-version: 22
       - run: node scripts/check-commit-subjects.mjs
@@ -92,11 +92,11 @@ jobs:
   visual:
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v7
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
         with:
           ref: ${{ github.event.inputs.tag || github.ref }}
           fetch-depth: 0
-      - uses: actions/setup-node@v7
+      - uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1 # v7
         with:
           node-version: 22
           cache: npm
@@ -108,7 +108,7 @@ jobs:
       - run: npx playwright test e2e/pictorium-visual.spec.ts e2e/pictorium-parity.spec.ts
       # On failure upload the actual renders: they are needed to create the CI
       # platform snapshot variant (snapshots are per-OS) after review.
-      - uses: actions/upload-artifact@v4
+      - uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4
         if: failure()
         with:
           name: visual-test-results
@@ -120,8 +120,10 @@ jobs:
     runs-on: ubuntu-latest
     permissions:
       contents: write
+      # `gh workflow run docker.yml` below (semver image publish).
+      actions: write
     steps:
-      - uses: actions/checkout@v7
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
         with:
           # Notes need the range since the previous tag (default depth 1
           # has no history, like the commits job in ci.yml).
@@ -167,6 +169,14 @@ jobs:
           else
             gh release create "$TAG" --title "Release ${TAG#v}" --notes-file /tmp/notes.md
           fi
+      # Semver image (X.Y.Z): the release above is created with GITHUB_TOKEN,
+      # so docker.yml's `release: published` never fires. workflow_dispatch is
+      # the one event GITHUB_TOKEN may start; docker.yml publishes on a
+      # dispatch whose ref is a version tag. Runs only after all gates passed.
+      - name: Publish versioned Docker image
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: gh workflow run docker.yml --ref "${{ steps.notes.outputs.tag }}"
       - name: Announce to Discord
         if: success()
         env:

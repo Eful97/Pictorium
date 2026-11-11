@@ -10,6 +10,11 @@ name: Update visual snapshots
 # Nota: un push fatto con GITHUB_TOKEN NON triggera altri workflow (limite di
 # GitHub per evitare loop). Dopo l'update il branch va quindi ri-controllato a
 # mano — possibile proprio grazie al workflow_dispatch aggiunto a ci.yml.
+#
+# Permessi: la generazione (npm ci + Playwright sulle dipendenze del branch)
+# gira con SOLO `contents: read`; il token scrivibile esiste soltanto nel job
+# `commit-snapshots`, che non esegue codice del branch (checkout + artifact +
+# git commit/push). La generazione passa i file modificati come artifact.
 
 on:
   workflow_dispatch:
@@ -23,19 +28,25 @@ on:
         required: false
         type: string
 
+# Default read-only per l'intero workflow; nessun job eredita scritture.
 permissions:
-  contents: write
+  contents: read
 
 jobs:
   update-snapshots:
     runs-on: ubuntu-latest
+    outputs:
+      changed: ${{ steps.detect.outputs.changed }}
     steps:
-      - uses: actions/checkout@v7
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
         with:
           ref: ${{ inputs.branch }}
-          # Serve la history per committare/pushare sul branch indicato.
+          # Serve la history solo al job di commit; qui nessun push.
           fetch-depth: 0
-      - uses: actions/setup-node@v7
+          # Questo job non scrive sul repository: nessuna credenziale
+          # persistita in .git/config.
+          persist-credentials: false
+      - uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1 # v7
         with:
           node-version: 22
           cache: npm
@@ -53,20 +64,30 @@ jobs:
             npx playwright test e2e/pictorium-visual.spec.ts --update-snapshots
           fi
 
-      - name: Commit and push updated snapshots
-        env:
-          TARGET_BRANCH: ${{ inputs.branch }}
+      # Stessa semantica dello storico `git status --porcelain -- e2e/` del
+      # passo di commit: nessuna modifica = nessun artifact e nessun job di
+      # push (workflow comunque verde).
+      - name: Detect snapshot changes
+        id: detect
         run: |
           if [ -z "$(git status --porcelain -- e2e/)" ]; then
             echo "no snapshot changes"
-            exit 0
+            echo "changed=false" >> "$GITHUB_OUTPUT"
+          else
+            git status --porcelain -- e2e/
+            echo "changed=true" >> "$GITHUB_OUTPUT"
           fi
-          git config user.name "github-actions[bot]"
-          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
-          git add e2e/
-          git commit -m "test(visual): Update Linux snapshot baselines"
-          # Mai force-push: un push normale fallisce se il branch e' avanzato.
-          git push origin "HEAD:${TARGET_BRANCH}"
+
+      # Solo i file sotto e2e/ possono cambiare; l'artifact trasporta la loro
+      # versione generata al job che ha il permesso di scrittura.
+      - name: Upload updated snapshots
+        if: steps.detect.outputs.changed == 'true'
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4
+        with:
+          name: updated-snapshots
+          path: e2e/
+          retention-days: 1
+          if-no-files-found: error
 
       - name: Job summary
         if: always()
@@ -87,3 +108,36 @@ jobs:
             echo ""
             echo "Poi revisiona il diff degli snapshot nella PR prima del merge."
           } >> "$GITHUB_STEP_SUMMARY"
+
+  # UNICO job con `contents: write`. Non esegue nulla del branch: applica gli
+  # snapshot generati (artifact) sul checkout e pusha, senza force.
+  commit-snapshots:
+    needs: update-snapshots
+    if: needs.update-snapshots.outputs.changed == 'true'
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
+        with:
+          ref: ${{ inputs.branch }}
+          # Serve la history per committare/pushare sul branch indicato.
+          fetch-depth: 0
+      - uses: actions/download-artifact@d3f86a106a0bac45b974a628896c90dbdf5c8093 # v4
+        with:
+          name: updated-snapshots
+          path: e2e/
+      - name: Commit and push updated snapshots
+        env:
+          TARGET_BRANCH: ${{ inputs.branch }}
+        run: |
+          if [ -z "$(git status --porcelain -- e2e/)" ]; then
+            echo "no snapshot changes"
+            exit 0
+          fi
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add e2e/
+          git commit -m "test(visual): Update Linux snapshot baselines"
+          # Mai force-push: un push normale fallisce se il branch e' avanzato.
+          git push origin "HEAD:${TARGET_BRANCH}"
