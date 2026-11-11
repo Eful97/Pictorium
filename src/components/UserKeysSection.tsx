@@ -21,7 +21,7 @@ const KINDS: readonly UserKeyKind[] = ["tmdb", "mdblist", "tvdb", "simkl", "fana
 
 // Contratto token col resto dell'app (ri-esportato per compatibilità):
 // secret di sessione, MAI in URL/query/log.
-export { getStoredUserToken, setStoredUserToken } from "@/lib/user-token"
+
 
 function safeGetItem(key: string): string {
   try {

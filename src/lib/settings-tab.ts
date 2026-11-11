@@ -10,12 +10,7 @@ export type SettingsTabId = (typeof VALID_TABS)[number]
  *  kept accepted above for old links only: its content now lives in the
  *  Information (on/off masters) and Badge (ranking style) primary tabs. */
 export const PRIMARY_SETTINGS_TABS = ["preset", "information", "badge", "tags", "trasforma"] as const
-export type PrimarySettingsTabId = (typeof PRIMARY_SETTINGS_TABS)[number]
 
-/** Secondary tabs (Prefs/Data/Space): reachable via the secondary desktop
- *  nav and the mobile select optgroup, never as equal primary tabs. */
-export const SECONDARY_SETTINGS_TABS = ["prefs", "data", "spazio"] as const
-export type SecondarySettingsTabId = (typeof SECONDARY_SETTINGS_TABS)[number]
 
 let pending: SettingsTabId | null = null
 

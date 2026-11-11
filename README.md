@@ -441,6 +441,8 @@ Deliberate architectural choices, not bugs:
 * **Chromium-only visual E2E suite**: deterministic snapshots on a single browser; Firefox/WebKit intentionally out of scope.
 * **HSTS at the reverse proxy**: the container does not force `Strict-Transport-Security` with preload (it would break LAN/Docker over HTTP). TLS+HSTS belong to Caddy / Cloudflare / Nginx — see the Caddy deploy above.
 * **Limited warmup**: only 8 core catalogs are pre-warmed at boot (`WARMUP_CATALOG_IDS`). Warming everything would trigger TMDB 429s and push boot past liveness probes.
+* **Hebrew RTL layout**: `he` is selectable as a UI language, but the layout does not apply right-to-left direction (`dir="ltr"` is fixed in `src/app/layout.tsx`): Hebrew strings are translated, while the page layout stays left-to-right. Label composition accounts for RTL strings (e.g. the season number sits *inside* the translated string, so each language decides where it goes), but the page is not mirrored.
+* **App version in container artifacts**: `APP_VERSION` is automatic and counts commits from the `package.json` version, so it requires git history. The repo `Dockerfile` excludes `.git` from the build context: without the `APP_VERSION` build-arg the image reports the base `package.json` version. CI builds from tags pass the build-arg and report the release version.
 
 ---
 

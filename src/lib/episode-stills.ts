@@ -41,7 +41,7 @@ export type EpisodeFillerStatus = (typeof EPISODE_FILLER_STATUSES)[number]
 /** Banner layout codes accepted by the compositor `fillStyle` parameter. */
 export const EPISODE_FILLER_STYLES = ["corner", "strip"] as const
 export type EpisodeFillerStyle = (typeof EPISODE_FILLER_STYLES)[number]
-export const DEFAULT_EPISODE_FILLER_STYLE: EpisodeFillerStyle = "corner"
+
 
 /**
  * Accent hex per classification, same values as the server renderer's

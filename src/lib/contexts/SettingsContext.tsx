@@ -1,6 +1,6 @@
 "use client"
 
-import { createContext, useContext, useMemo, type ReactNode } from "react"
+import { createContext, useMemo, type ReactNode } from "react"
 import type { PictoriumCtx } from "@/lib/context"
 import type { BackupExportOptions, BackupImportOptions } from "@/lib/useMappingsStore"
 
@@ -36,11 +36,7 @@ export interface SettingsCtx {
 
 const Ctx = createContext<SettingsCtx | null>(null)
 
-export function useSettingsCtx() {
-  const v = useContext(Ctx)
-  if (!v) throw new Error("useSettingsCtx must be inside PictoriumProvider")
-  return v
-}
+
 
 export function SettingsProvider({
   value,

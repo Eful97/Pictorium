@@ -422,9 +422,3 @@ export async function setInstanceKeys(input: Partial<Record<UserKeyKind, unknown
   return run
 }
 
-/** Test-only: drop the process cache (module reset not required). */
-export function __resetInstanceKeysCacheForTests(): void {
-  cachedState = null
-  generatedKeyCache = null
-  writeChain = Promise.resolve()
-}

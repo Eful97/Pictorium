@@ -13,7 +13,7 @@ import { type RibbonSide, readStoredDefaultBadgeItemTransforms } from "./useDefa
 type LogoAlign = "left" | "center"
 import { posterUrl, titleOf, yearOf, STREAMING_PLATFORMS, mergeImageLists, isCustomPosterUrl, type ImageLists } from "./utils"
 import { isTvdbArtworkUrl } from "./tvdb-gallery-types"
-export { mergeImageLists, type ImageLists } from "./utils"
+export { mergeImageLists } from "./utils";
 import { matchTMDBStudios } from "./badge-labels"
 import { setLang as setI18nLang, createT, isDictionaryLoaded } from "./i18n"
 import { loadLanguage } from "./i18n-loader"

@@ -12,8 +12,8 @@ import { sanitizeCustomCatalogSort, type CustomCatalogSortOrder } from "./types"
 // catalog-provider-detect.ts (foglia client-safe); route e test continuano
 // a importarlo da qui senza modifiche.
 export { detectCatalogProvider } from "./catalog-provider-detect"
-export { isTraktUserContentUrl, isTraktWatchlistUrl } from "./catalog-provider-detect"
-export type { CatalogProviderType, ProviderDetectionResult } from "./catalog-provider-detect"
+export { isTraktWatchlistUrl } from "./catalog-provider-detect";
+
 
 const log = createLogger("custom-catalogs")
 

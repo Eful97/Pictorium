@@ -21,11 +21,9 @@ import {
   genericStreamingCatalogId,
   parseAnyStreamingCatalogId,
   sanitizeGenericStreamingSelections,
-  sanitizeStreamingSelections,
   streamingCatalogId,
   type GenericStreamingSection,
   type SanitizedGenericStreamingSelection,
-  type SanitizedStreamingSelection,
   type StreamingSection,
   type StreamingSelection,
   type StreamingService,
@@ -119,14 +117,6 @@ export function streamingMetaToTile(
   }
 }
 
-/** Both derived per-section catalog ids for one legacy entry (enabled or not). */
-export function derivedIdsForSelection(sel: {
-  readonly service: StreamingService
-  readonly country: string
-  readonly sections: readonly StreamingSection[];
-}): string[] {
-  return sel.sections.map((s) => streamingCatalogId(sel.service, sel.country, s))
-}
 
 /** All derived catalog ids for one generic (sanitized) entry. */
 export function derivedIdsForGenericSelection(sel: SanitizedGenericStreamingSelection): string[] {
@@ -140,10 +130,6 @@ export function derivedIdsForGenericSelection(sel: SanitizedGenericStreamingSele
   )
 }
 
-/** Stable dedup key for one legacy service + country pair. */
-export function streamingPairKey(service: string, country: string): string {
-  return `${service}::${country.toUpperCase()}`
-}
 
 /**
  * Chart-slug identity of a stored country value (RegionDef code/slug or raw
@@ -177,70 +163,10 @@ export function genericSelectionKey(sel: {
   return `${sel.service.trim().toLowerCase()}::${slug}::${source}::${variant}`
 }
 
-/** Find a legacy entry by service + country (case-insensitive country). */
-export function findStreamingSelection(
-  selections: readonly SanitizedStreamingSelection[],
-  service: string,
-  country: string,
-): SanitizedStreamingSelection | undefined {
-  const cc = country.toUpperCase()
-  return selections.find((s) => s.service === service && s.country === cc)
-}
 
-/** Find a generic entry by full identity (service + slug + source + variant). */
-export function findGenericSelection(
-  selections: readonly SanitizedGenericStreamingSelection[],
-  desc: {
-    readonly service: string
-    readonly chartSlug?: string
-    readonly country?: string
-    readonly source?: string | null
-    readonly variant?: string | null
-  },
-): SanitizedGenericStreamingSelection | undefined {
-  const want = genericSelectionKey(desc)
-  return selections.find((s) => genericSelectionKey(s) === want)
-}
 
 export type AddSelectionStatus = "added" | "merged" | "duplicate" | "full" | "invalid"
 
-/**
- * Pure add/merge for one legacy (service, country, sections) choice. Never
- * mutates the input; bounds to MAX_STREAMING_SELECTIONS; merges section sets
- * on the same pair. Callers sanitize before persisting.
- */
-export function addSelectionToList(
-  selections: readonly SanitizedStreamingSelection[],
-  service: string,
-  country: string,
-  sections: readonly StreamingSection[],
-): { selections: SanitizedStreamingSelection[]; status: AddSelectionStatus } {
-  const cleanSections = sections.filter((s) => s === "movies" || s === "series")
-  if (cleanSections.length === 0) return { selections: [...selections], status: "invalid" }
-  const cc = country.trim().toUpperCase()
-  const existing = findStreamingSelection(selections, service, cc)
-  if (existing) {
-    const merged = Array.from(new Set([...existing.sections, ...cleanSections]))
-    if (merged.length === existing.sections.length) return { selections: [...selections], status: "duplicate" }
-    return {
-      selections: selections.map((s) =>
-        s === existing ? { ...s, sections: merged, enabled: true } : s,
-      ),
-      status: "merged",
-    }
-  }
-  if (selections.length >= MAX_STREAMING_SELECTIONS) return { selections: [...selections], status: "full" }
-  // Reuse the backend sanitizer as the single validation gate (unknown
-  // service/country can never enter through the UI either).
-  const sanitized = sanitizeStreamingSelections([
-    ...selections.map((s) => ({ service: s.service, country: s.country, sections: [...s.sections], enabled: s.enabled })),
-    { service, country: cc, sections: [...cleanSections] },
-  ])
-  if (!sanitized || sanitized.length !== selections.length + 1) {
-    return { selections: [...selections], status: "invalid" }
-  }
-  return { selections: sanitized, status: "added" }
-}
 
 /** One batch entry for the multiselect dialog (country accepts code or slug). */
 export interface GenericAddEntry {
@@ -389,30 +315,6 @@ export function orderGenericStreamingEntries(
     .map((e) => e.sel)
 }
 
-/**
- * Legacy order helper (kept for existing consumers): orders sanitized
- * legacy entries against the shared catalogOrder.
- */
-export function orderStreamingEntries(
-  selections: readonly SanitizedStreamingSelection[],
-  catalogOrder: readonly string[],
-): SanitizedStreamingSelection[] {
-  const pos = new Map<string, number>()
-  catalogOrder.forEach((id, idx) => {
-    if (!pos.has(id)) pos.set(id, idx)
-  })
-  return [...selections]
-    .map((sel, arrayIdx) => {
-      let best = Number.POSITIVE_INFINITY
-      for (const id of derivedIdsForSelection(sel)) {
-        const p = pos.get(id)
-        if (p !== undefined && p < best) best = p
-      }
-      return { sel, best, arrayIdx }
-    })
-    .sort((a, b) => (a.best === b.best ? a.arrayIdx - b.arrayIdx : a.best - b.best))
-    .map((e) => e.sel)
-}
 
 /**
  * Availability choice shape (mirrors the server response, no server import).
@@ -503,38 +405,8 @@ export function isChoiceOffered(choice: StreamingChoice | undefined): boolean {
   return !!choice && choice.potential !== "unavailable"
 }
 
-/** Unique countries (first-seen order) with at least one offered section. */
-export function selectableCountriesForService(choices: readonly StreamingChoice[], service: string): StreamingChoice[] {
-  const seen = new Set<string>()
-  const out: StreamingChoice[] = []
-  for (const c of choices) {
-    if (c.service !== service || c.potential === "unavailable" || seen.has(c.country)) continue
-    seen.add(c.country)
-    out.push(c)
-  }
-  return out
-}
 
-/** Per-section choices for one legacy service + country pair. */
-export function choicesForPair(
-  choices: readonly StreamingChoice[],
-  service: string,
-  country: string,
-): { movies?: StreamingChoice; series?: StreamingChoice } {
-  const cc = country.toUpperCase()
-  const out: { movies?: StreamingChoice; series?: StreamingChoice } = {}
-  for (const c of choices) {
-    if (c.service !== service || c.country !== cc) continue
-    if (c.section === "movies") out.movies = c
-    else if (c.section === "series") out.series = c
-  }
-  return out
-}
 
-/** A section is offered only when its potential is real (FP chart or JW fallback). */
-export function isSectionSelectable(choice: StreamingChoice | undefined): boolean {
-  return !!choice && choice.potential !== "unavailable"
-}
 
 /** Fetch identity of a choice: chart slug (generic) or normalized code. */
 export function choiceSlug(choice: Pick<StreamingChoice, "chartSlug" | "countryFlixSlug" | "country">): string {

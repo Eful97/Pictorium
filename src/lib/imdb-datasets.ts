@@ -158,20 +158,4 @@ export async function getImdbDataset(id: string, userId?: string | null): Promis
   }
 }
 
-export async function deleteImdbDataset(id: string, userId?: string | null): Promise<boolean> {
-  try {
-    assertValidDatasetId(id)
-    if (userId) assertValidUserId(userId)
-  } catch {
-    return false
-  }
-  if (isKvMode()) {
-    const n = await withKvTimeout(getKv().del(kvKey(id, userId))).catch(() => 0)
-    return n > 0
-  }
-  const removed = await fsp.unlink(datasetFile(id, userId)).then(() => true).catch(() => false)
-  return removed
-}
 
-/** Evict per test: i dataset file non hanno mirror in-process. */
-export function __resetImdbDatasetState(): void {}

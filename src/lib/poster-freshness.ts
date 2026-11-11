@@ -36,8 +36,6 @@
 /** Floor for an already-reached deadline: positive, never infinite, never past the fact. */
 export const POSTER_FACT_FLOOR_MS = 1000
 
-/** Maximum policy TTL for mapped posters when no scheduled cut applies. */
-export const MAPPED_POSTER_MAX_TTL_MS = 24 * 60 * 60 * 1000
 
 function isUsableDeadline(value: unknown): value is number {
   return typeof value === "number" && Number.isFinite(value)

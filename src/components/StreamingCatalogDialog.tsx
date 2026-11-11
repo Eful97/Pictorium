@@ -23,7 +23,7 @@ import { type SanitizedGenericStreamingSelection } from "@/lib/streaming-catalog
 import { CatalogSourceBadge } from "@/components/CatalogSourceBadge"
 import { displayCountryForSlug, sortCountryDisplays } from "@/lib/streaming-country-display"
 
-export type AddSelectionStatus = "added" | "merged" | "duplicate" | "full" | "invalid"
+
 
 interface StreamingCatalogDialogProps {
   isOpen: boolean

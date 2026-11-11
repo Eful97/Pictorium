@@ -92,12 +92,7 @@ export function buildVideosFromGroupsDetailed(
   return { videos, stillSources }
 }
 
-export function buildVideosFromGroups(
-  groupDetails: TMDBEpisodeGroupDetails,
-  primaryId: string
-): PreviewVideo[] {
-  return buildVideosFromGroupsDetailed(groupDetails, primaryId).videos
-}
+
 
 /**
  * Esegue una mappatura concorrente limitata (default 5) per evitare burst TMDB
