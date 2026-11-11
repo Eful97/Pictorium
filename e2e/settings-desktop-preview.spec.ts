@@ -1,4 +1,5 @@
 import { test, expect, type Locator, type Page } from "@playwright/test"
+import { gotoPresetTab } from "./settings-tab"
 import { putDefaultsWithRetry } from "./defaults-retry"
 
 // Desktop global-settings preview UX: the title search sits directly below
@@ -109,6 +110,7 @@ async function openSettings(page: Page): Promise<Locator> {
     .click({ timeout: 15_000 })
   const dialog = page.getByRole("dialog", { name: /Configura tutti i poster/i }).filter({ visible: true })
   await expect(dialog).toBeVisible({ timeout: 15_000 })
+  await gotoPresetTab(dialog)
   return dialog
 }
 

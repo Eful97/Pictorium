@@ -1,4 +1,5 @@
 import { test, expect, type Page } from "@playwright/test"
+import { gotoPresetTab } from "./settings-tab"
 import { putDefaultsWithRetry } from "./defaults-retry"
 
 // Settings defaults preview: title search (Avatar -> TV), click-to-zoom and
@@ -206,6 +207,7 @@ async function openSettings(page: Page) {
   await page.getByRole("button", { name: /Impostazioni/i }).click()
   const dialog = page.getByRole("dialog").first()
   await expect(dialog).toBeVisible()
+  await gotoPresetTab(dialog)
   return dialog
 }
 

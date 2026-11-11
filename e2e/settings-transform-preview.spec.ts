@@ -1,4 +1,5 @@
 import { test, expect, type Page } from "@playwright/test"
+import { gotoPresetTab } from "./settings-tab"
 import { putDefaultsWithRetry } from "./defaults-retry"
 
 // Settings > Trasforma preview-only (Verticale/Orizzontale).
@@ -162,16 +163,28 @@ test.describe("Trasforma Verticale/Orizzontale preview-only", () => {
     const seen: Seen = { urls: [], kinds: [], imageUrls: [], geometryUrls: [] }
     collectPreviewRequests(page, seen)
 
-    // Apro Impostazioni (tab Badge): la preview parte subito dai default.
+    // Apro Impostazioni (poi tab Preset): la preview parte subito dai default.
     // Mark delle image pre-apertura: la regressione sotto prova le image
     // gallery emesse dall'apertura stessa.
     const galleryMark = seen.imageUrls.length
     await page.getByRole("button", { name: /Impostazioni/i }).click()
     const dialog = page.getByRole("dialog")
     await expect(dialog).toBeVisible()
+    await gotoPresetTab(dialog)
     let p = await waitPreview(seen)
     expect(p.get("shape")).toBe("poster")
     expect(p.get("gradHeight")).toBe("30")
+    // Preset gallery thumbnails (plain <img>) live only on the Preset tab:
+    // prove them rendered here, before the switch to Trasforma unmounts them.
+    const gallery = dialog.locator('img[src*="/api/poster/"]')
+    await expect.poll(() => gallery.count(), { timeout: 30_000 }).toBeGreaterThan(0)
+    await expect
+      .poll(
+        async () =>
+          gallery.evaluateAll((imgs: HTMLImageElement[]) => imgs.filter((im) => im.naturalWidth > 0).length),
+        { timeout: 30_000 },
+      )
+      .toBeGreaterThan(0)
 
     // Passo a Trasforma (sotto-tab Verticale): stesso URL → nessun refetch
     // immagine. Il freeze geometria (debug=1&netgeo=1, JSON) parte invece
@@ -205,16 +218,7 @@ test.describe("Trasforma Verticale/Orizzontale preview-only", () => {
     // gallery possono legittimamente chiedere la stessa URL). Ogni riga
     // preview è XHR (solo stream dialog); le image sullo stesso path sono
     // osservate a parte dopo l'apertura; la gallery resta montata e
-    // renderizzata normalmente.
-    const gallery = dialog.locator('img[src*="/api/poster/"]')
-    await expect.poll(() => gallery.count(), { timeout: 30_000 }).toBeGreaterThan(0)
-    await expect
-      .poll(
-        async () =>
-          gallery.evaluateAll((imgs: HTMLImageElement[]) => imgs.filter((im) => im.naturalWidth > 0).length),
-        { timeout: 30_000 },
-      )
-      .toBeGreaterThan(0)
+    // renderizzata normalmente (asserita sopra, sul tab Preset che la ospita).
     expect(seen.urls.length).toBeGreaterThan(0)
     expect(seen.kinds.length).toBe(seen.urls.length)
     expect(seen.kinds.every((k) => k === "xhr")).toBe(true)
@@ -300,6 +304,7 @@ test.describe("Trasforma Verticale/Orizzontale preview-only", () => {
     // Su mobile la nav tab è un select visibile.
     const category = page.locator("select:visible").first()
     await expect(category).toBeVisible()
+    await category.selectOption("preset")
     let p = await waitPreview(seen)
     expect(p.get("shape")).toBe("poster")
 

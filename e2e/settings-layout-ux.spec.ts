@@ -1,4 +1,5 @@
 import { test, expect, type Locator, type Page } from "@playwright/test"
+import { gotoPresetTab } from "./settings-tab"
 import { putDefaultsWithRetry } from "./defaults-retry"
 
 // Settings layout UX acceptance (T1-T4, runtime only — no snapshots here):
@@ -138,6 +139,7 @@ async function openSettings(page: Page, dialogName: RegExp): Promise<Locator> {
     .click({ timeout: 15_000 })
   const dialog = page.getByRole("dialog", { name: dialogName }).filter({ visible: true })
   await expect(dialog).toBeVisible({ timeout: 15_000 })
+  await gotoPresetTab(dialog)
   return dialog
 }
 
@@ -172,7 +174,22 @@ async function openMobilePanel(page: Page): Promise<Locator> {
     .filter({ visible: true })
     .click({ timeout: 15_000 })
   await expect(panel).toBeVisible({ timeout: 15_000 })
+  await gotoPresetTab(panel)
   return panel
+}
+
+// Slot heights from [primary, primary, secondary, secondary] tab visits.
+// Primary tabs share the format selector + its multi-line
+// `ui.formatTargetHint` (deliberate since 94540337), so the secondary text
+// title is legitimately shorter: compare like with like, and a secondary
+// slot must never grow past the primary one.
+function expectCoherentSlotHeights(shapes: Array<{ height: number }>) {
+  const [p1, p2, ...secondary] = shapes
+  expect(Math.abs(p2.height - p1.height)).toBeLessThanOrEqual(16)
+  for (const s of secondary) {
+    expect(Math.abs(s.height - secondary[0].height)).toBeLessThanOrEqual(16)
+    expect(s.height).toBeLessThanOrEqual(p1.height + 16)
+  }
 }
 
 async function slotBox(dialog: Locator) {
@@ -217,9 +234,7 @@ test.describe("desktop layout + header slot", () => {
       expect(Math.abs(s.top - shapes[0].top)).toBeLessThanOrEqual(4)
     }
     // …and comparable height (shared min-height floor, no collapse jump).
-    for (const s of shapes) {
-      expect(Math.abs(s.height - shapes[0].height)).toBeLessThanOrEqual(16)
-    }
+    expectCoherentSlotHeights(shapes)
     await page.screenshot({ path: "artifacts/settings-layout-1280-badge.png" })
   })
 
@@ -265,7 +280,7 @@ test.describe("desktop layout + header slot", () => {
       await setTab(dialog, "Preferenze", false)
       await expectNoOverflow(page, dialog)
       const prefsBox = await slotBox(dialog)
-      expect(Math.abs(prefsBox.height - badgeBox.height)).toBeLessThanOrEqual(16)
+      expect(prefsBox.height).toBeLessThanOrEqual(badgeBox.height + 16)
       await dialog.getByRole("button", { name: "Chiudi", exact: true }).click()
       await expect(dialog).toBeHidden()
     }
@@ -287,8 +302,8 @@ test.describe("desktop layout + header slot", () => {
     }
     for (const s of shapes) {
       expect(Math.abs(s.top - shapes[0].top)).toBeLessThanOrEqual(4)
-      expect(Math.abs(s.height - shapes[0].height)).toBeLessThanOrEqual(16)
     }
+    expectCoherentSlotHeights(shapes)
     await expect(dialog.getByRole("button", { name: "Save changes", exact: true })).toBeVisible()
     // Back to Information: the loop ends on Data & Cache, but the overlay
     // macro-group lives on the Information tab (the former Rankings tab was
@@ -354,7 +369,7 @@ test.describe("mobile collapse + groups + footer", () => {
     await panel.locator("#mobile-settings-category").selectOption("prefs")
     await page.waitForTimeout(400)
     const prefsBox = await slotBox(panel)
-    expect(Math.abs(prefsBox.height - badgeBox.height)).toBeLessThanOrEqual(24)
+    expect(prefsBox.height).toBeLessThanOrEqual(badgeBox.height + 24)
     await panel.locator("#mobile-settings-category").selectOption("badge")
     await waitPreview(panel)
     // Let the remounted preview + any debounce settle before counting.

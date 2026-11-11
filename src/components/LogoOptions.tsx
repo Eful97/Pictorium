@@ -221,7 +221,6 @@ export const LogoOptions = React.memo(function LogoOptions({ logos, selectedLogo
       <div className="flex gap-1 mb-3 overflow-x-auto scrollbar-none">
         {logoTabs.map((tab) => (
           <button type="button"
-            aria-label={tab.label}
             key={tab.key}
             onClick={() => setActiveLogoGroup(tab.key)}
             className={`tab-chip h-7 px-2.5 rounded-lg text-[11px] font-semibold border transition-all shrink-0 ${activeLogoGroup === tab.key ? "tab-chip-active bg-accent-orange/15 text-accent-orange border-accent-orange/35" : "bg-white/5 text-muted border-white/10 hover:text-zinc-200 hover:bg-white/10"}`}

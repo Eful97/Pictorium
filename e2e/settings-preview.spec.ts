@@ -1,4 +1,5 @@
 import { test, expect } from "@playwright/test"
+import { gotoPresetTab } from "./settings-tab"
 
 // Global preview error contract: a TRUE 503 on the dialog preview stream.
 // The dialog preview (DefaultsPosterPreview) fetches the poster via XHR
@@ -49,6 +50,7 @@ for (const width of [900, 1280, 390]) {
       }
       await expect(dialog).toBeVisible({ timeout: 1000 })
     }).toPass()
+    await gotoPresetTab(dialog)
     // The fault landed on the real preview: the dialog error overlay (with
     // Riprova) is the hold gate — the 503 is not lifted before this.
     await initialRequest

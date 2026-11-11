@@ -555,7 +555,9 @@ test.describe("U4 U2 contextual preview (defaults)", () => {
     // Sash buckets live on Informazioni (macro-groups are always open in
     // settings: no disclosure toggle).
     await dialog.getByRole("tab", { name: "Informazioni", exact: true }).click()
-    const infoTitle = badgePanel.getByText("Informazioni sul titolo", { exact: true })
+    // Tab panels unmount on switch: the Info card lives on the Informazioni panel.
+    const infoPanel = dialog.getByRole("tabpanel", { name: "Informazioni", exact: true })
+    const infoTitle = infoPanel.getByText("Informazioni sul titolo", { exact: true })
     await infoTitle.hover()
     await page.waitForTimeout(900)
     expect(
@@ -565,7 +567,7 @@ test.describe("U4 U2 contextual preview (defaults)", () => {
     // Focus the Info card: the preview forces a pertinent EXTRA sample with
     // the card's own xbs and the without-ranking sash (rank dropped, every
     // other enabled bucket kept).
-    const extraSwitch = badgePanel.getByRole("switch", { name: "Extra" })
+    const extraSwitch = infoPanel.getByRole("switch", { name: "Extra" })
     await expect(extraSwitch).toBeVisible()
     p = await nextPreview(
       seen,
