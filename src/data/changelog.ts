@@ -30,6 +30,15 @@ export interface ChangelogRelease {
  *  (which bumps on every commit and would leave the dot permanently on). */
 export const CHANGELOG: ChangelogRelease[] = [
   {
+    version: "1.27.5",
+    date: "2026-11-11",
+    title: "Release 1.27.5",
+    items: [
+      { type: "feature", text: "Show a static ambient background photo behind the whole app, one for the dark theme and one for the light theme" },
+      { type: "fix", text: "Keep a clean portrait poster without a logo independent from the landscape logo saved on the same title" },
+    ],
+  },
+  {
     version: "1.27.4",
     date: "2026-11-10",
     title: "Release 1.27.4",
