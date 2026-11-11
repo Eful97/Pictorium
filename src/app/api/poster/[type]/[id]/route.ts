@@ -21,7 +21,7 @@ import { streamingRankingCoordinates, streamingRankingItemsFromPin } from "@/lib
 import { addonRankingRemainingMs, addonRankingSourceKey, fetchAddonRanking } from "@/lib/addon-ranking"
 import { getOriginFromRequest } from "@/lib/poster-public-url"
 import { BEST_FIT_GLOBAL, resolveLogoFitEnabled } from "@/lib/best-fit-config"
-import { selectAutoFitCandidates, selectBestLogoFitPosterPath } from "@/lib/poster-auto-fit"
+import { AUTO_FIT_FETCH_TIMEOUT_MS, selectAutoFitCandidates, selectBestLogoFitPosterPath } from "@/lib/poster-auto-fit"
 import { fetchAllWikidata, matchTMDBStudios, directorBadgeLabel, isValidWikidataQid, type WikidataResult } from "@/lib/awards"
 import { resolveWikidataId } from "@/lib/imdb-cache"
 import { createT } from "@/lib/i18n-server"
@@ -1982,12 +1982,12 @@ export async function GET(req: NextRequest, { params }: { params: Promise<RouteP
                 // like a failed TMDB fetch (best-fit degrades to the
                 // historical fallback, never 500).
                 if (isCustomPosterUrl(path)) {
-                  const buf = await fetchValidatedCustomImage(path, combineAbortSignals(renderAbort.signal, 5000))
+                  const buf = await fetchValidatedCustomImage(path, combineAbortSignals(renderAbort.signal, AUTO_FIT_FETCH_TIMEOUT_MS))
                   if (!buf) throw new Error("Custom logo fetch failed")
                   return buf
                 }
                 const url = imgSrc(path)
-                const imgSignal = combineAbortSignals(renderAbort.signal, 5000)
+                const imgSignal = combineAbortSignals(renderAbort.signal, AUTO_FIT_FETCH_TIMEOUT_MS)
                 return cachedImageBytes(url, async () => {
                   const res = await timedFetch(url, { signal: imgSignal })
                   if (!res.ok) throw new Error(`HTTP ${res.status}`)
@@ -1999,7 +1999,7 @@ export async function GET(req: NextRequest, { params }: { params: Promise<RouteP
                   throw new Error("Blocked external URL in fetchCandidateImage")
                 }
                 const url = path.startsWith("http") ? path : `https://image.tmdb.org/t/p/w342${path}`
-                const candidateSignal = combineAbortSignals(renderAbort.signal, 5000)
+                const candidateSignal = combineAbortSignals(renderAbort.signal, AUTO_FIT_FETCH_TIMEOUT_MS)
                 return cachedImageBytes(url, async () => {
                   const res = await timedFetch(url, { signal: candidateSignal })
                   if (!res.ok) throw new Error(`HTTP ${res.status}`)
@@ -2177,7 +2177,7 @@ export async function GET(req: NextRequest, { params }: { params: Promise<RouteP
                 logoPath,
                 fetchImage: async (path: string) => {
                   const url = imgSrc(path)
-                  const imgSignal = combineAbortSignals(renderAbort.signal, 5000)
+                  const imgSignal = combineAbortSignals(renderAbort.signal, AUTO_FIT_FETCH_TIMEOUT_MS)
                   return cachedImageBytes(url, async () => {
                     const res = await timedFetch(url, { signal: imgSignal })
                     if (!res.ok) throw new Error(`HTTP ${res.status}`)
@@ -2191,7 +2191,7 @@ export async function GET(req: NextRequest, { params }: { params: Promise<RouteP
                   // w780 come il client (BackdropOptions): a w342 il testo dei
                   // backdrop si perderebbe e la cleanliness sbaglierebbe.
                   const url = path.startsWith("http") ? path : `https://image.tmdb.org/t/p/w780${path}`
-                  const candidateSignal = combineAbortSignals(renderAbort.signal, 5000)
+                  const candidateSignal = combineAbortSignals(renderAbort.signal, AUTO_FIT_FETCH_TIMEOUT_MS)
                   return cachedImageBytes(url, async () => {
                     const res = await timedFetch(url, { signal: candidateSignal })
                     if (!res.ok) throw new Error(`HTTP ${res.status}`)

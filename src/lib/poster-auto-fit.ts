@@ -68,7 +68,7 @@ const AUTO_FIT_TIMEOUT_MS = (() => {
 // primo clean, anche quando un altro poster sarebbe stato molto migliore.
 // Il fetch del logo e dei candidati è I/O, non CPU: gli diamo il budget della
 // route (5000ms), coerente con AbortSignal.timeout(5000) già usato nei fetch.
-const AUTO_FIT_FETCH_TIMEOUT_MS = (() => {
+export const AUTO_FIT_FETCH_TIMEOUT_MS = (() => {
   const raw = envWithFallback("AUTO_FIT_FETCH_TIMEOUT_MS")
   const n = raw ? parseInt(raw, 10) : 5000
   return Number.isFinite(n) && n >= 1000 && n <= 15000 ? n : 5000
