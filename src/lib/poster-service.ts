@@ -5025,7 +5025,7 @@ export async function generatePosterBuffer(input: GenerationInput): Promise<Buff
             left: 0,
           },
         ])
-        .png()
+        .png({ compressionLevel: 1 })
         .toBuffer()
     }
     cardPng = await renderCardPoster({
