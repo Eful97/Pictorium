@@ -36,18 +36,9 @@ export const PICTORIUM_CATALOGS = [
   { id: "pictorium-anime", name: "⛩️ Top 20 Serie Anime", type: "series" },
 ] as const satisfies readonly PictoriumCatalogDefinition[]
 
-export type StremioCatalogExtra = {
-  readonly name: string
-  readonly isRequired?: boolean
-  readonly options?: readonly string[]
-}
 
-export type PictoriumManifestCatalog = {
-  id: string
-  name: string
-  type: PictoriumCatalogType
-  extra?: readonly StremioCatalogExtra[]
-}
+
+
 
 export const PICTORIUM_SEARCH_CATALOGS = [
   { id: "pictorium-search-movies", name: "🔍 Pictorium — Cerca Film", type: "movie" },

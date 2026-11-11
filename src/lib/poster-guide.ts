@@ -18,16 +18,8 @@ import {
 } from "./badge-styles"
 import { clearedExtraForPresetApply } from "./extra-materialize"
 import { DEFAULT_SASH_ORDER } from "./badge-priority"
-import {
-  DEFAULT_POSTER_FRESH_SCOPE,
-  isPosterFreshScope,
-  isPosterLayout,
-  type PosterFreshScope,
-  type PosterLayout,
-} from "./types"
 
 export type GuideShape = "portrait" | "landscape"
-export type GuideStep = "style" | "info" | "review"
 /**
  * Draft provenance: "current" = the user's live config (sparse raw
  * profile, incremental edits only), "preset" = a chosen builtin/personal
@@ -43,9 +35,6 @@ function guideValuesEqual(a: unknown, b: unknown): boolean {
   return false
 }
 
-/** Builtins offered in the guided Style step (full existing snapshots). */
-export const GUIDE_BUILTIN_IDS = ["apple", "better-poster", "rpdb"] as const
-export type GuideBuiltinId = (typeof GUIDE_BUILTIN_IDS)[number]
 
 /** Live snapshot + session guards captured when the guide opens. */
 export interface GuideBaseline {
@@ -106,109 +95,12 @@ export function guideSessionKey(shape: GuideShape, userId: string | null): strin
   return `${shape}::${userId ?? "anon"}`
 }
 
-/**
- * Transient local cover-layout selection (draft/overlay only, never the
- * saved preset/API schema: guide presets carry no root
- * defaultPosterLayout/FreshScope). The provider `applyVisualPreset` spreads
- * extra update keys, so the structurally typed confirm payload
- * (`VisualPresetValues & partial root layout/scope`) applies atomically in
- * ONE existing call. Pure.
- */
-export interface GuideLayoutDraft {
-  layout: PosterLayout
-  scope: PosterFreshScope
-}
 
-/** Confirm payload with the transient layout overlay (one atomic apply). */
-export type GuideConfirmWithLayout = VisualPresetValues & {
-  defaultPosterLayout?: PosterLayout
-  defaultPosterFreshScope?: PosterFreshScope
-}
 
-function normalizeGuideFlatLayout(v: unknown): PosterLayout {
-  return isPosterLayout(v) ? v : "standard"
-}
 
-function normalizeGuideFlatScope(v: unknown): PosterFreshScope {
-  return isPosterFreshScope(v) ? v : DEFAULT_POSTER_FRESH_SCOPE
-}
 
-/** Effective scoped baseline selection (`land ?? flat`, fail-closed). Pure. */
-export function readGuideLayoutBaseline(baseline: GuideBaseline, shape: GuideShape): GuideLayoutDraft {
-  const flatLayout = normalizeGuideFlatLayout(baseline.extraFlats.defaultPosterLayout)
-  const flatScope = normalizeGuideFlatScope(baseline.extraFlats.defaultPosterFreshScope)
-  if (shape !== "landscape") return { layout: flatLayout, scope: flatScope }
-  const raw = baseline.landscapeRawFull ?? {}
-  return {
-    layout: isPosterLayout(raw.posterLayout) ? raw.posterLayout : flatLayout,
-    scope: isPosterFreshScope(raw.posterFreshScope) ? raw.posterFreshScope : flatScope,
-  }
-}
 
-/** True when the transient selection moved off its baseline. Pure. */
-export function isGuideLayoutDirty(
-  baseline: GuideBaseline,
-  shape: GuideShape,
-  selection: GuideLayoutDraft,
-): boolean {
-  const base = readGuideLayoutBaseline(baseline, shape)
-  return selection.layout !== base.layout || selection.scope !== base.scope
-}
 
-/**
- * Overlay the transient layout selection onto a base confirm payload
- * (SAME value for visible preview + Apply/applyAdvanced, single source).
- * Portrait edits write flats + reuse `snapshotMissingLandscape` so an
- * inherited landscape layout/scope freezes at pre-edit values; landscape
- * edits patch the nested raw profile only (portrait/unknown extras
- * intact). Untouched layers stay absent (inherit-vs-explicit preserved).
- * Pure.
- */
-export function withGuideLayoutConfirm(
-  baseConfirm: VisualPresetValues,
-  baseline: GuideBaseline,
-  liveLandscapeRaw: LandscapeServerDefaults,
-  shape: GuideShape,
-  selection: GuideLayoutDraft,
-): GuideConfirmWithLayout {
-  const baseSel = readGuideLayoutBaseline(baseline, shape)
-  if (selection.layout === baseSel.layout && selection.scope === baseSel.scope) {
-    return baseConfirm as GuideConfirmWithLayout
-  }
-  if (shape !== "landscape") {
-    const flatLayout = normalizeGuideFlatLayout(baseline.extraFlats.defaultPosterLayout)
-    const flatScope = normalizeGuideFlatScope(baseline.extraFlats.defaultPosterFreshScope)
-    const flatPatch: Record<string, unknown> = {}
-    if (selection.layout !== flatLayout) flatPatch.defaultPosterLayout = selection.layout
-    if (selection.scope !== flatScope) flatPatch.defaultPosterFreshScope = selection.scope
-    const editedKeys = Object.keys(flatPatch)
-    if (editedKeys.length === 0) return baseConfirm as GuideConfirmWithLayout
-    const combinedFlats = {
-      ...(baseline.values as unknown as Record<string, unknown>),
-      ...baseline.extraFlats,
-    }
-    const frozen = snapshotMissingLandscape(
-      combinedFlats,
-      (liveLandscapeRaw ?? {}) as unknown as Record<string, unknown>,
-      editedKeys,
-    ) as unknown as Record<string, unknown>
-    const baseLand = ((baseConfirm.landscape ?? {}) as unknown as Record<string, unknown>)
-    return {
-      ...baseConfirm,
-      ...flatPatch,
-      landscape: { ...baseLand, ...frozen },
-    } as unknown as GuideConfirmWithLayout
-  }
-  const landPatch: Record<string, unknown> = {}
-  if (selection.layout !== baseSel.layout) landPatch.posterLayout = selection.layout
-  if (selection.scope !== baseSel.scope) landPatch.posterFreshScope = selection.scope
-  if (Object.keys(landPatch).length === 0) return baseConfirm as GuideConfirmWithLayout
-  const baseLand = ((baseConfirm.landscape ?? {}) as unknown as Record<string, unknown>)
-  return {
-    ...baseConfirm,
-    landscape: { ...baseLand, ...landPatch },
-  } as unknown as GuideConfirmWithLayout
-}
 
 /** Clone a draft from the baseline (local only, never live state). */
 export function createGuideDraft(baseline: GuideBaseline): VisualPresetValues {
@@ -618,15 +510,6 @@ export function buildGuideInfoPatch(
   return { landscape: land } as Partial<VisualPresetValues>
 }
 
-/** Gradient flat keys owned by the guide review step. */
-export const GUIDE_GRADIENT_FLAT_KEYS = [
-  "defaultBlurEnabled",
-  "defaultGradientHeight",
-  "defaultBlurIntensity",
-  "defaultBlurFade",
-  "defaultBlurDarkness",
-  "defaultTintStrength",
-] as const
 
 /**
  * Target-aware gradient patch: portrait writes flats, landscape nests the

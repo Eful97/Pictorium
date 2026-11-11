@@ -3,7 +3,7 @@ import { NextRequest } from "next/server"
 import { rateLimit, rateLimitKey, rateLimitResponse } from "@/lib/rate-limit"
 import { cacheGet, cacheGetShared, cacheSet, hashUserFragment } from "@/lib/cache"
 import { getTop10, resolveFlixPlatformSides } from "@/lib/flixpatrol"
-import { getServerDefaults, getServerDefaultsChecked, getServerDefaultsForUser, type ServerDefaults } from "@/lib/server-defaults"
+import { getServerDefaultsChecked, getServerDefaultsForUser, type ServerDefaults } from "@/lib/server-defaults"
 import { getScopedUserId, userExists, userRateLimitKey } from "@/lib/user-auth"
 import { touchUserActivity } from "@/lib/user-activity"
 import { POSTER_URL_VERSION } from "@/lib/render-version"
@@ -301,14 +301,7 @@ function isKnownCatalogId(catalogId: string): boolean {
   return false
 }
 
-/**
- * Regione del catalogo: `?region=` (alias `?country=`) > config-token `region` >
- * default server (`PICTORIUM_REGION` o salvato) > IT. Accetta sia codici JW
- * ("US") che slug FlixPatrol ("united-states"), fail-closed su IT.
- */
-export function resolveCatalogRegion(req: NextRequest, userConfig: Partial<PictoriumUserConfig> | null): RegionDef {
-  return resolveCatalogRegionWithDefaults(req, userConfig, getServerDefaults())
-}
+
 
 /**
  * Variante con defaults già risolti (multi-user: i defaults del namespace).

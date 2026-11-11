@@ -79,12 +79,6 @@ export function normalizeSessionAlignment(value: SettingsSessionValue): Settings
   } as unknown as SettingsSessionValue
 }
 
-export function settingsSessionEquals(
-  a: SettingsSessionValue,
-  b: SettingsSessionValue,
-): boolean {
-  return serializeSession(a) === serializeSession(b)
-}
 
 /**
  * Ranked-only scope normalization (staged session only): the settings UI no

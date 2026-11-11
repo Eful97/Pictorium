@@ -31,12 +31,7 @@ export type BadgeShapeTarget = "portrait" | "landscape"
  * (`usePerTitleBadgeGeometry`). Types live in the lib so the per-title adapter
  * never has to import a settings module.
  */
-export type {
-  BadgeGeometryFamily,
-  BadgeFamilyMove,
-  BadgeItemMove,
-  BadgeDragGeometryAdapter,
-} from "@/lib/badge-drag-adapter"
+export type { BadgeGeometryFamily, BadgeFamilyMove, BadgeItemMove } from "@/lib/badge-drag-adapter";
 
 /**
  * Scoped badge-default bindings for the Badge tab edit target.

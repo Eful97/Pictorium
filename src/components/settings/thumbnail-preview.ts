@@ -180,12 +180,7 @@ export function demoTvSeriesId(
   return null
 }
 
-/** Series id for the sample: the TV title when valid, else the stable demo. */
-export function resolveThumbnailPreviewSeriesId(
-  demoMedia: DefaultsPreviewDemoMedia | null | undefined,
-): number {
-  return demoTvSeriesId(demoMedia) ?? THUMBNAIL_PREVIEW_DEMO_SERIES_ID
-}
+
 
 /**
  * Fetch the first usable S01E01 still of a TV title through the existing

@@ -1,5 +1,5 @@
 "use client"
-import React, { createContext, useContext, useSyncExternalStore } from "react"
+import React, { createContext } from "react"
 import type { MetaInfo } from "@/lib/context"
 
 interface MetaStore {
@@ -18,9 +18,3 @@ export function MetaInfoProvider({ value, children }: { value: MetaInfo; childre
   return <MetaCtx.Provider value={store}>{children}</MetaCtx.Provider>
 }
 
-export function useMetaSelector<T>(selector: (v: MetaInfo) => T): T {
-  const store = useContext(MetaCtx)
-  if (!store) throw new Error("useMetaSelector must be inside MetaInfoProvider")
-  const get = () => selector(store.value)
-  return useSyncExternalStore((cb) => { store.listeners.add(cb); return () => { store.listeners.delete(cb) } }, get, get)
-}

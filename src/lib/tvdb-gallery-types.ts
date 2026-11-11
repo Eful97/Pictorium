@@ -30,12 +30,6 @@ export interface TvdbGalleryImage {
   readonly type: number | null
 }
 
-/** Full grouped gallery served by the route (all three kinds at once). */
-export interface TvdbGallery {
-  readonly posters: readonly TvdbGalleryImage[]
-  readonly backdrops: readonly TvdbGalleryImage[]
-  readonly logos: readonly TvdbGalleryImage[]
-}
 
 const KINDS: readonly TvdbGalleryKind[] = ["posters", "backdrops", "logos"]
 

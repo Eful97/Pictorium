@@ -156,4 +156,4 @@ export const MDBLIST_FEATURE_TAG_IDS = [
   "mustSee",
 ] as const
 
-export type MdbListFeatureTagId = (typeof MDBLIST_FEATURE_TAG_IDS)[number]
+

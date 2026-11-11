@@ -16,13 +16,7 @@
 export const DEFAULT_TOP20_MOVIE_CATALOG_ID = "pictorium-jw-movies"
 export const DEFAULT_TOP20_SERIES_CATALOG_ID = "pictorium-jw-series"
 
-/** Factory ids of the two removable/restorable default lists. */
-export const DEFAULT_TOP20_CATALOG_IDS = [
-  DEFAULT_TOP20_MOVIE_CATALOG_ID,
-  DEFAULT_TOP20_SERIES_CATALOG_ID,
-] as const
 
-export type DefaultTop20CatalogId = (typeof DEFAULT_TOP20_CATALOG_IDS)[number]
 
 /** True for the two factory default lists (never for custom/streaming ids). */
 export function isDefaultTop20CatalogId(id: string): boolean {

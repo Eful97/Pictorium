@@ -1076,19 +1076,7 @@ export async function getTvdbArtworksStrict(
   return arts
 }
 
-/**
- * Gallery TVDB raggruppata (strict + classify): il compose che la route
- * editor usa. Lancia `TvdbArtworksError` come `getTvdbArtworksStrict`;
- * la classificazione non lancia mai (item malformati = skip).
- */
-export async function getTvdbGallery(
-  mediaType: "movie" | "tv",
-  tvdbId: number,
-  apiKey: string,
-  signal?: AbortSignal,
-): Promise<TvdbGallery> {
-  return classifyTvdbArtworks(await getTvdbArtworksStrict(mediaType, tvdbId, apiKey, signal), mediaType)
-}
+
 
 export interface TvdbEpisodesResult {
   episodes: TvdbEpisode[];

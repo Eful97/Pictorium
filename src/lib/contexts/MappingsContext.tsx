@@ -1,5 +1,5 @@
 "use client"
-import React, { createContext, useContext, useSyncExternalStore } from "react"
+import React, { createContext } from "react"
 import type { Mapping } from "@/lib/types"
 
 interface MappingsStore {
@@ -20,9 +20,3 @@ export function MappingsProvider({ value, mapValue, children }: { value: Mapping
   return <MappingsCtx.Provider value={store}>{children}</MappingsCtx.Provider>
 }
 
-export function useMappingsSelector<T>(selector: (v: Mapping[], m: Map<string, Mapping>) => T): T {
-  const store = useContext(MappingsCtx)
-  if (!store) throw new Error("useMappingsSelector must be inside MappingsProvider")
-  const get = () => selector(store.value, store.mapValue)
-  return useSyncExternalStore((cb) => { store.listeners.add(cb); return () => { store.listeners.delete(cb) } }, get, get)
-}

@@ -4,9 +4,7 @@ import { REGIONS, UI_LANG_META } from "./regions"
 
 export const IMG_BASE = process.env.NEXT_PUBLIC_TMDB_IMG_URL || "https://image.tmdb.org/t/p"
 
-export function cn(...classes: (string | undefined | null | false)[]) {
-  return classes.filter(Boolean).join(" ")
-}
+
 
 export const LANG_FLAGS: Record<string, string> = {
   it: "🇮🇹", en: "🇬🇧", fr: "🇫🇷", de: "🇩🇪", es: "🇪🇸", "es-419": "🌎", pt: "🇵🇹", "pt-br": "🇧🇷",

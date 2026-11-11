@@ -104,9 +104,7 @@ export function flixSlugToRegionCode(slug: string): string | null {
   return BY_FLIX_SLUG.get(slug)?.code ?? null
 }
 
-export function isSupportedRegionCode(code: string): boolean {
-  return BY_CODE.has(code.toUpperCase())
-}
+
 
 export interface UiLangMeta {
   readonly code: string
@@ -169,11 +167,7 @@ export function contentLanguageForUiLang(lang: string | null | undefined, region
   return isSupportedUiLang(code) && code !== region.lang2 ? code! : region.lang
 }
 
-/** Voce del selettore lingua per una regione: bandiera + paese + lingua. */
-export function regionLangOption(regionCode: string): { key: string; lang: string; flag: string; name: string; sub: string } {
-  const r = getRegionDef(regionCode)
-  return { key: r.code, lang: r.lang2, flag: r.flag, name: `${r.label} · ${r.languageName}`, sub: r.lang2.toUpperCase() }
-}
+
 
 /**
  * Restituisce la regione predefinita per una lingua UI (es. "fr" -> "FR", "it" -> "IT", "de" -> "DE").

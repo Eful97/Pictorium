@@ -51,4 +51,3 @@ export function __resetSharpInit(): void {
   initialized = false
 }
 
-export default sharp

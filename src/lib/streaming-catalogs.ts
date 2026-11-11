@@ -176,13 +176,6 @@ export function streamingServiceShortName(service: StreamingService): string {
   return SERVICE_SHORT_NAMES[service]
 }
 
-/**
- * Canonical platform key shared with the chart families
- * (`platform:<key>:<movie|series>` in chart-generation/renewal).
- */
-export function streamingPlatformKey(service: StreamingService): string {
-  return service
-}
 
 /** FlixPatrol platform slug for a streaming service (country-catalog fetch). */
 const SERVICE_FLIX_SLUGS: Record<StreamingService, string> = {
@@ -398,9 +391,6 @@ export function parseStreamingCatalogId(catalogId: string): ParsedStreamingCatal
   return { service: service as StreamingService, country: code, section: section as StreamingSection }
 }
 
-export function isStreamingCatalogId(catalogId: string): boolean {
-  return parseStreamingCatalogId(catalogId) !== null
-}
 
 /**
  * Neutral stable manifest name (source-neutral by contract: the manifest

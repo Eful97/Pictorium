@@ -10,8 +10,6 @@
  * entries to safe values instead of throwing.
  */
 
-/** Diagnostic query flag: `?accentmeta=1` serves read-only accent JSON. */
-export const ACCENT_META_PARAM = "accentmeta"
 
 /**
  * Primary display-sync transport: compact validated JSON on EVERY poster 200

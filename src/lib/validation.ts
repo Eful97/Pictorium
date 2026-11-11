@@ -376,7 +376,7 @@ export const mappingSchema = z.object({
   thumbnailRotation: z.boolean().nullable().optional(),
 })
 
-export type MappingInput = z.infer<typeof mappingSchema>
+
 
 // Alias manuale IMDb → TMDB per-namespace (corpo POST /api/mappings/aliases).
 // Cuce i casi che TMDB /find non può risolvere (franchise-tt su entry di
@@ -388,7 +388,7 @@ export const aliasSchema = z.object({
   tmdbId: z.number().int().positive(),
 })
 
-export type AliasInput = z.infer<typeof aliasSchema>
+
 
 // Query string del poster: bound anti-DoS/cache-flood (R1). La cache key
 // contiene i raw params e i testi finiscono negli SVG: una stringa da 10KB
@@ -518,7 +518,7 @@ export const posterQuerySchema = z.object({
   rk: boundedQueryString(16).optional(),
 })
 
-export type PosterQuery = z.infer<typeof posterQuerySchema>
+
 
 /**
  * Ritorna il messaggio d'errore se un query param supera i bound, altrimenti
@@ -539,30 +539,15 @@ export function validatePosterQuery(searchParams: URLSearchParams): string | nul
 
 export const mappingUpdateSchema = mappingSchema.partial().omit({ tmdbId: true, mediaType: true })
 
-export type MappingUpdate = z.infer<typeof mappingUpdateSchema>
 
-// FlixPatrol catalog entry from scraper
-export const flixpatrolEntrySchema = z.object({
-  rank: z.number().int().positive(),
-  title: z.string(),
-  tmdb: z.object({
-    id: z.number().int().positive(),
-    media_type: z.string(),
-    release_date: z.string().optional(),
-  }).nullable(),
-})
 
-export type FlixPatrolEntry = z.infer<typeof flixpatrolEntrySchema>
 
-// MDBList anime list item
-export const mdblistAnimeSchema = z.object({
-  tmdb: z.number().int().positive().nullable().optional(),
-  id: z.number().int().positive().nullable().optional(),
-  imdb: z.string().nullable().optional(),
-  title: z.string().optional(),
-})
 
-export type MDBListAnimeItem = z.infer<typeof mdblistAnimeSchema>
+
+
+
+
+
 
 // Enriched anime item returned by /api/mdblist/anime
 export interface EnrichedAnimeItem {
@@ -573,32 +558,8 @@ export interface EnrichedAnimeItem {
   media_type: string
 }
 
-// TMDB search result (partial - what we use)
-export const tmdbSearchResultSchema = z.object({
-  id: z.number().int().positive(),
-  media_type: z.enum(["movie", "tv"]),
-  title: z.string().optional(),
-  name: z.string().optional(),
-  poster_path: z.string().nullable(),
-  release_date: z.string().optional(),
-  first_air_date: z.string().optional(),
-  imdb_id: z.string().nullable().optional(),
-})
 
-export type TMDBSearchResult = z.infer<typeof tmdbSearchResultSchema>
 
-// TMDB details (partial)
-export const tmdbDetailsSchema = z.object({
-  id: z.number(),
-  title: z.string().optional(),
-  name: z.string().optional(),
-  genres: z.array(z.object({ id: z.number(), name: z.string() })),
-  vote_average: z.number(),
-  type: z.string().optional(),
-  status: z.string().optional(),
-  release_date: z.string().nullable().optional(),
-  first_air_date: z.string().nullable().optional(),
-  networks: z.array(z.object({ id: z.number(), name: z.string(), logo_path: z.string().nullable(), origin_country: z.string() })).optional(),
-  production_companies: z.array(z.object({ id: z.number(), name: z.string(), logo_path: z.string().nullable(), origin_country: z.string() })).optional(),
-  original_language: z.string().optional(),
-})
+
+
+

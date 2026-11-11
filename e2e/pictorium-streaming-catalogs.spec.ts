@@ -941,7 +941,7 @@ test("cards render original thumbs with honest footer and no poster fetch", asyn
   await expect(seriesCard.getByText(/FlixPatrol|JustWatch/)).toHaveCount(0)
   await expect(seriesCard.locator(".sr-only", { hasText: /Sorgente/ })).toHaveCount(1)
   // Review artifact only (NOT a golden baseline; parent inspects manually).
-  await page.screenshot({ path: "cards-review.png" })
+  await page.screenshot({ path: "test-results/cards-review.png" })
 })
 
 async function awaitAddHulu(page: Page) {

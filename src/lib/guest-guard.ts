@@ -297,20 +297,4 @@ export function resetGuestGuardForTests(): void {
   ownerCheckCache.clear()
 }
 
-/**
- * Invalida il memo owner-check per un UUID (rotate secret/password, forget
- * spazio, wipe account): senza, un `true` memoizzato (TTL 5 min) direbbe
- * ancora "proprietario" per il vecchio token dopo la revoca — con autosave
- * che continua a scrivere per minuti. Le write server restano autenticate
- * per-richiesta (rifiutano subito il vecchio token), ma il memo non deve
- * sopravvivere alla revoca nemmeno sul solo autosave.
- */
-export function invalidateOwnerCheck(uuid: string): void {
-  if (typeof uuid !== "string" || !uuid) return
-  const id = uuid.trim().toLowerCase()
-  for (const key of [...ownerCheckCache.keys()]) {
-    if (key === `t:${id}` || key.startsWith(`t:${id}:`) || key === `p:${id}` || key.startsWith(`p:${id}:`)) {
-      ownerCheckCache.delete(key)
-    }
-  }
-}
+
