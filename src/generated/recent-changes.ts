@@ -11,4 +11,5 @@ export interface RecentChange {
 }
 
 export const RECENT_CHANGES: RecentChange[] = [
+  { type: "fix", text: "Keep portrait clean posters independent from landscape logos", sha: "a8ebf4c", date: "2026-11-11" },
 ]
