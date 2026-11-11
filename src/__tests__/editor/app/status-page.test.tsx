@@ -18,7 +18,6 @@ const healthPayload = {
   timestamp: new Date().toISOString(),
   tmdb: {
     apiKey: true,
-    apiKeyLength: 32,
     trending: { ok: true, status: 200, time: 1 },
     search: { ok: true, status: 200, time: 1 },
     popular: { ok: true, status: 200, time: 1 },
@@ -107,7 +106,7 @@ describe("StatusPage cache auth", () => {
     expect((cacheCall!.init?.headers as Record<string, string>)["x-admin-token"]).toBe("s3cr3t")
   })
 
-  it("shows muted unavailable (no dead-end unlock card) on 401 without server token", async () => {
+  const stubLocked = (auth: { hasPin: boolean; hasAdminToken: boolean }) =>
     vi.stubGlobal(
       "fetch",
       vi.fn(async (url: unknown) => {
@@ -115,15 +114,26 @@ describe("StatusPage cache auth", () => {
           return { ok: false, status: 401, json: async () => ({}) }
         }
         if (String(url).includes("/api/auth/pin")) {
-          return { ok: true, status: 200, json: async () => ({ hasPin: false, hasAdminToken: false }) }
+          return { ok: true, status: 200, json: async () => auth }
         }
         return { ok: true, status: 200, json: async () => healthPayload }
       }),
     )
+
+  it("explains how to enable cache telemetry (no dead-end unlock card) without token or PIN", async () => {
+    stubLocked({ hasPin: false, hasAdminToken: false })
     render(<StatusPage />)
 
-    expect(await screen.findByText("ui.statusCacheUnavailable")).toBeInTheDocument()
+    expect(await screen.findByText("ui.statusCacheNoAuth")).toBeInTheDocument()
     expect(screen.queryByText("ui.adminTokenTitle")).not.toBeInTheDocument()
+  })
+
+  it("offers the unlock card on 401 when only a PIN is configured", async () => {
+    stubLocked({ hasPin: true, hasAdminToken: false })
+    render(<StatusPage />)
+
+    expect(await screen.findByText("ui.adminTokenTitle")).toBeInTheDocument()
+    expect(screen.queryByText("ui.statusCacheNoAuth")).not.toBeInTheDocument()
   })
 })
 

@@ -23,7 +23,6 @@ interface HealthData {
   timestamp: string
   tmdb: {
     apiKey: boolean
-    apiKeyLength: number
     trending: CheckResult
     search: CheckResult
     popular: CheckResult
@@ -287,7 +286,8 @@ export default function StatusPage() {
     fetch("/api/auth/pin")
       .then((r) => (r.ok ? r.json() : null))
       .then((data) => {
-        if (data && typeof data.hasAdminToken === "boolean") setAdminTokenConfigured(data.hasAdminToken)
+        // A PIN session also satisfies requireAdminToken: offer unlock for either.
+        if (data && typeof data.hasAdminToken === "boolean") setAdminTokenConfigured(data.hasAdminToken || data.hasPin === true)
       })
       .catch(() => null)
   }, [loadHealth])
@@ -306,7 +306,8 @@ export default function StatusPage() {
   const backHref = uuid ? `/u/${encodeURIComponent(uuid)}/configure` : "/"
 
   return (
-    <div className="min-h-screen bg-background text-foreground">
+    <div className="min-h-screen bg-background text-foreground relative isolate">
+      <div className="app-shell-bg" aria-hidden="true" />
       <div className="max-w-2xl mx-auto px-4 py-8">
         <Link href={backHref} className="inline-flex items-center gap-2 text-sm text-zinc-400 hover:text-accent transition-colors mb-6">{t("ui.statusBack")}</Link>
         <div className="flex items-start justify-between gap-3">
@@ -403,7 +404,6 @@ export default function StatusPage() {
               <div className="flex items-center gap-2 mb-3">
                 <StatusBadge ok={data.tmdb.apiKey} />
                 <h2 className="text-base font-semibold">{t("ui.statusTmdb")}</h2>
-                {data.tmdb.apiKey && <span className="text-xs text-zinc-400">{t("ui.statusApiKeyLength", { count: data.tmdb.apiKeyLength })}</span>}
               </div>
               {data.tmdb.apiKey ? (
                 <div className="space-y-1">
@@ -598,7 +598,7 @@ export default function StatusPage() {
                     onLock={() => { setCacheLocked(true); setCacheStatus(null) }}
                   />
                 ) : (
-                  <p className="text-xs text-zinc-500">{t("ui.statusCacheUnavailable")}</p>
+                  <p className="text-xs text-zinc-400">{t("ui.statusCacheNoAuth")}</p>
                 )
               ) : cacheStatus ? (
                 <div className="space-y-1">

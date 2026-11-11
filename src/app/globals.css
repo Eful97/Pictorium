@@ -913,75 +913,41 @@ input[type="range"]::-moz-range-thumb:active {
   transition: opacity 0.25s ease, transform 0.25s ease;
 }
 
-/* Sfondo pagina — gradiente ambientale adattivo: arancione di default,
-   segue il colore dominante del poster in editing (--bg-accent impostato da
-   AppShell sul contenitore, fallback arancione). Tre strati: aura in alto,
-   riverbero in basso e una velatura verticale leggera perché il fondo non
-   sia mai nero piatto. */
+/* Sfondo pagina: colore pieno come fallback finché la foto ambient non carica. */
 .app-shell {
   min-height: 100dvh;
-  --page-glow: color-mix(in srgb, var(--bg-accent, var(--color-accent-orange)) 10%, transparent);
-  --page-glow-strong: color-mix(in srgb, var(--bg-accent, var(--color-accent-orange)) 15%, transparent);
-  background:
-    radial-gradient(ellipse 120% 62% at 50% -14%, var(--page-glow-strong), transparent 62%),
-    radial-gradient(ellipse 90% 50% at 50% 118%, var(--page-glow), transparent 58%),
-    linear-gradient(180deg, var(--page-glow), transparent 35%),
-    var(--color-background);
-  isolation: isolate;
-}
-
-/* Light mode — Sfondo galleria calda con pesca tenue vicino all'hero e lavanda opposta */
-[data-theme="light"] .app-shell,
-html.light .app-shell {
-  min-height: 100dvh;
   background-color: var(--color-background);
-  background-image:
-    radial-gradient(ellipse 75% 50% at 50% -10%, rgba(245, 185, 155, 0.28), transparent 65%),
-    radial-gradient(ellipse 65% 55% at 92% 100%, rgba(215, 205, 235, 0.24), transparent 65%),
-    radial-gradient(ellipse 55% 45% at 8% 90%, rgba(245, 215, 185, 0.18), transparent 60%);
   isolation: isolate;
 }
 
-/* Static ambient background — one fixed frame behind all content, dual theme
-   (dark photo for dark, light photo for light; no motion). Shown fully natural
-   in BOTH themes: no veil and no ::after tint wash sit above the photo. */
+/* Static ambient background — one fixed photo behind all content, dual theme
+   (dark photo for dark, light photo for light; no motion). Dark theme gets a
+   bottom veil so the bright glow doesn't compete with the orange CTAs. */
 .app-shell-bg {
   position: fixed;
   inset: 0;
   z-index: -1;
   pointer-events: none;
-  overflow: hidden;
+  background:
+    linear-gradient(to top, rgb(24 6 2 / 0.42), transparent 55%),
+    url("/bg/pictorium-bg-dark.webp") center / cover no-repeat;
 }
 
-.app-shell-bg__layer {
+[data-theme="light"] .app-shell-bg,
+html.light .app-shell-bg {
+  background: url("/bg/pictorium-bg-light.webp") center / cover no-repeat;
+}
+
+/* Per-poster tint: AppShell sets --bg-accent to the edited poster's dominant
+   color; `color` blend recolors the glow keeping the photo's luminance.
+   Unset (home, no poster) → transparent → photo untouched. */
+.app-shell-bg::after {
+  content: "";
   position: absolute;
   inset: 0;
-  background-image: url("/bg/pictorium-bg-dark.webp");
-  background-position: center;
-  background-size: cover;
-  background-repeat: no-repeat;
-}
-
-/* No veil in EITHER theme: the ambient photo is shown 1:1 (fully natural), so
-   nothing tints it between the artwork and the UI. The wrapper/layer stay
-   visible and fixed; only the veil's own paint is transparent. */
-.app-shell-bg__veil {
-  position: absolute;
-  inset: 0;
-  background: transparent;
-}
-
-/* Light theme: the cream photo replaces the dark one. */
-[data-theme="light"] .app-shell-bg__layer,
-html.light .app-shell-bg__layer {
-  background-image: url("/bg/pictorium-bg-light.webp");
-}
-
-/* Tint wash disabled for BOTH themes: the pseudo-element paints nothing, so no
-   radial/linear tint sits above the photo. The photo wrapper stays visible and
-   each theme keeps its own photo; the UI surfaces provide the contrast. */
-.app-shell::after {
-  content: none;
+  background-color: var(--bg-accent, transparent);
+  mix-blend-mode: color;
+  transition: background-color 0.4s ease;
 }
 
 /* Logo brand adattivo: dark su sfondo scuro, dark-text su sfondo chiaro */

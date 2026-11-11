@@ -21,7 +21,6 @@ const healthPayload = {
   timestamp: new Date().toISOString(),
   tmdb: {
     apiKey: true,
-    apiKeyLength: 32,
     trending: { ok: true, status: 200, time: 1 },
     search: { ok: true, status: 200, time: 1 },
     popular: { ok: true, status: 200, time: 1 },
