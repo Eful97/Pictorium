@@ -1264,8 +1264,8 @@ export function DefaultsPosterPreview({ compact, floating, suspended, previewSha
 
       <div data-testid="defaults-preview-media" className={`relative select-none bg-zinc-950/90 rounded-2xl overflow-hidden shadow-2xl border border-white/10 mx-auto mt-1 w-full shrink-0 ${
         isLandscape
-          ? "aspect-video max-w-[min(100%,calc((88dvh_-_493px)*1.778))] max-h-[calc(88dvh_-_493px)] min-h-[90px] [@media(min-height:820px)]:max-w-[min(100%,calc((88dvh_-_519px)*1.778))] [@media(min-height:820px)]:max-h-[calc(88dvh_-_519px)]"
-          : "aspect-[2/3] max-w-[min(100%,calc((88dvh_-_493px)*0.667))] max-h-[calc(88dvh_-_493px)] min-h-[120px] [@media(min-height:820px)]:max-w-[min(100%,calc((88dvh_-_519px)*0.667))] [@media(min-height:820px)]:max-h-[calc(88dvh_-_519px)]"
+          ? "aspect-video max-w-[min(100%,calc((88dvh_-_493px)*1.778))] max-h-[calc(88dvh_-_493px)] min-h-[90px] [@media(min-height:820px)]:max-w-[min(100%,calc((88dvh_-_545px)*1.778))] [@media(min-height:820px)]:max-h-[calc(88dvh_-_545px)]"
+          : "aspect-[2/3] max-w-[min(100%,calc((88dvh_-_493px)*0.667))] max-h-[calc(88dvh_-_493px)] min-h-[120px] [@media(min-height:820px)]:max-w-[min(100%,calc((88dvh_-_545px)*0.667))] [@media(min-height:820px)]:max-h-[calc(88dvh_-_545px)]"
       }`}>
         {previewLoading && (
           <div className="absolute top-0 inset-x-0 h-1 bg-accent-orange/20 z-30 overflow-hidden">

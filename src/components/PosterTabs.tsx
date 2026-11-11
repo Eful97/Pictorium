@@ -25,7 +25,6 @@ export function PosterTabs({
       {tabs.map((tab) => (
         <button
           type="button"
-          aria-label={tab.label}
           key={tab.key}
           onClick={() => onSelect(tab.key)}
           className={`tab-chip h-7 px-2.5 rounded-lg text-[11px] font-semibold border transition-all shrink-0 ${activeGroup === tab.key ? "tab-chip-active bg-accent-orange/15 text-accent-orange border-accent-orange/35" : "bg-white/5 text-muted border-white/10 hover:text-zinc-200 hover:bg-white/10"}`}

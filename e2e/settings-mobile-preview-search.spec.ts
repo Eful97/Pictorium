@@ -1,4 +1,5 @@
 import { test, expect, type Page, type Locator } from "@playwright/test"
+import { gotoPresetTab } from "./settings-tab"
 
 // Mobile settings floating preview: title-search dialog (preview-only).
 // Transport-level only (mock TMDB via mock-server + page.route on
@@ -47,6 +48,7 @@ async function openSettings(page: Page): Promise<Locator> {
     .click({ timeout: 15_000 })
   const dialog = page.getByRole("dialog").first()
   await expect(dialog).toBeVisible({ timeout: 15_000 })
+  await gotoPresetTab(dialog)
   return dialog
 }
 

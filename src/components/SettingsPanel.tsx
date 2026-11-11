@@ -646,10 +646,13 @@ export function SettingsPanel({ setSettingsOpen, exportData, importData, mobile,
         {/* Editing-target explanation (existing key, display-only): it was
             previously withheld to keep the compact header; the hint now
             documents that delivery format and shared data sources never
-            change with this selector. */}
+            change with this selector. Hidden on short desktop heights
+            (<820px, same breakpoint as the preview poster budget in
+            DefaultsPosterPreview): there the ~2 extra lines would push the
+            preview column into scroll at 720p/768p. */}
         <p
           data-testid="format-target-hint"
-          className="mt-1 text-[10px] text-muted leading-snug"
+          className="mt-1 text-[10px] text-muted leading-snug md:[@media(max-height:819px)]:hidden"
         >
           {t("ui.formatTargetHint")}
         </p>

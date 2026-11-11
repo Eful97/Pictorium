@@ -171,11 +171,13 @@ test.describe("manifest API", () => {
     expect(body.catalogs.every((c: { id: string }) => !c.id.startsWith("pictorium-search-"))).toBeTruthy()
   })
 
-  test("manifest extra includes genre and skip", async ({ request }) => {
+  test("manifest extra includes genre; bounded built-in catalogs omit skip", async ({ request }) => {
     const res = await request.get("/manifest.json")
     const body = await res.json()
     const first = body.catalogs[0]
     expect(first.extra.some((e: { name: string }) => e.name === "genre")).toBeTruthy()
-    expect(first.extra.some((e: { name: string }) => e.name === "skip")).toBeTruthy()
+    // Built-in Top 10/20 never exceed Stremio's 100-item page (build-manifest.ts):
+    // only custom lists and imported addon catalogs advertise `skip`.
+    expect(first.extra.some((e: { name: string }) => e.name === "skip")).toBeFalsy()
   })
 })

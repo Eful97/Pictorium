@@ -1,4 +1,5 @@
 import { test, expect, type Page } from "@playwright/test"
+import { gotoPresetTab } from "./settings-tab"
 
 async function ensureManageOpen(dialog: ReturnType<Page["getByRole"]>) {
   // Personal presets live in a gallery disclosure closed by default, and the
@@ -39,7 +40,8 @@ async function openSettings(page: Page) {
   // race the opening modal and get blocked. Bounded wait (10s, no retry).
   await page.getByRole("button", { name: /Configura tutti i poster|Impostazioni/i }).filter({ visible: true }).click()
   await expect(dialog).toBeVisible({ timeout: 10_000 })
-  // The save form lives on the Preset tab (dialog default): expand the
+  await gotoPresetTab(dialog)
+  // The save form lives on the Preset tab (fresh open lands on Preferenze): expand the
   // gallery + nested manage disclosures before asserting it.
   await ensureManageOpen(dialog)
   return dialog

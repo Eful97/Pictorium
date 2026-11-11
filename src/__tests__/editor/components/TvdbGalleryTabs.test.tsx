@@ -101,7 +101,7 @@ describe("PosterOptions TVDB tab", () => {
   it("hides the TVDB tab without a selected title", () => {
     renderWithCtx(<PosterOptions posters={mockPosters} posterActivePath={null} lang="it" selectPoster={() => {}} />)
     expect(screen.queryByTestId("tvdb-posters-panel")).toBeNull()
-    expect(screen.queryByRole("button", { name: "ui.tvdbTitle" })).toBeNull()
+    expect(screen.queryByRole("button", { name: /^ui\.tvdbTitle\s*\d*$/ })).toBeNull()
   })
 
   it("shows the TVDB tab lazily and selects a tile (stages portrait custom URL, no autosave)", async () => {
@@ -112,11 +112,11 @@ describe("PosterOptions TVDB tab", () => {
       <PosterOptions posters={mockPosters} posterActivePath={null} lang="it" selectPoster={onSelect} />,
       { selected: SELECTED },
     )
-    expect(screen.getByRole("button", { name: "ui.tvdbTitle" })).toBeInTheDocument()
+    expect(screen.getByRole("button", { name: /^ui\.tvdbTitle\s*\d*$/ })).toBeInTheDocument()
     // Lazy: no TVDB request before the tab opens.
     expect(tvdbCalls(fetchSpy)).toHaveLength(0)
 
-    await u.click(screen.getByRole("button", { name: "ui.tvdbTitle" }))
+    await u.click(screen.getByRole("button", { name: /^ui\.tvdbTitle\s*\d*$/ }))
     await waitFor(() => {
       expect(screen.getByTestId("tvdb-posters-panel").querySelectorAll("button img")).toHaveLength(2)
     })
@@ -150,7 +150,7 @@ describe("PosterOptions TVDB tab", () => {
       <PosterOptions posters={mockPosters} posterActivePath={POSTER_2} lang="it" selectPoster={() => {}} />,
       { selected: SELECTED },
     )
-    await u.click(screen.getByRole("button", { name: "ui.tvdbTitle" }))
+    await u.click(screen.getByRole("button", { name: /^ui\.tvdbTitle\s*\d*$/ }))
     await waitFor(() => {
       expect(screen.getByTestId("tvdb-posters-panel").querySelectorAll("button img")).toHaveLength(2)
     })
@@ -167,7 +167,7 @@ describe("PosterOptions TVDB tab", () => {
       <PosterOptions posters={mockPosters} posterActivePath={null} lang="it" selectPoster={() => {}} />,
       { selected: SELECTED },
     )
-    await u.click(screen.getByRole("button", { name: "ui.tvdbTitle" }))
+    await u.click(screen.getByRole("button", { name: /^ui\.tvdbTitle\s*\d*$/ }))
     await waitFor(() => {
       expect(screen.getByTestId("tvdb-posters-panel").textContent).toContain("ui.tvdbEmptyPosters")
     })
@@ -180,7 +180,7 @@ describe("PosterOptions TVDB tab", () => {
       <PosterOptions posters={mockPosters} posterActivePath={null} lang="it" selectPoster={() => {}} />,
       { selected: SELECTED },
     )
-    await u.click(screen.getByRole("button", { name: "ui.tvdbTitle" }))
+    await u.click(screen.getByRole("button", { name: /^ui\.tvdbTitle\s*\d*$/ }))
     await waitFor(() => {
       expect(screen.getByTestId("tvdb-posters-panel").textContent).toContain("ui.tvdbNotConfigured")
     })
@@ -193,7 +193,7 @@ describe("PosterOptions TVDB tab", () => {
       <PosterOptions posters={mockPosters} posterActivePath={null} lang="it" selectPoster={() => {}} />,
       { selected: SELECTED },
     )
-    await u.click(screen.getByRole("button", { name: "ui.tvdbTitle" }))
+    await u.click(screen.getByRole("button", { name: /^ui\.tvdbTitle\s*\d*$/ }))
     await waitFor(() => {
       expect(screen.getByTestId("tvdb-posters-panel").textContent).toContain("ui.tvdbUnavailable")
     })
@@ -218,7 +218,7 @@ describe("LogoOptions TVDB tab", () => {
 
   it("shows source tabs only with a selected title (TMDB UI unchanged otherwise)", () => {
     renderWithCtx(<LogoOptions logos={mockLogos} selectedLogo={null} lang="it" selectLogo={() => {}} removeLogo={() => {}} />)
-    expect(screen.queryByRole("button", { name: "ui.tvdbTitle" })).toBeNull()
+    expect(screen.queryByRole("button", { name: /^ui\.tvdbTitle\s*\d*$/ })).toBeNull()
     expect(screen.queryByTestId("tvdb-logos-panel")).toBeNull()
   })
 
@@ -230,10 +230,10 @@ describe("LogoOptions TVDB tab", () => {
       <LogoOptions logos={mockLogos} selectedLogo={null} lang="it" selectLogo={onSelect} removeLogo={() => {}} />,
       { selected: SELECTED },
     )
-    expect(screen.getByRole("button", { name: "ui.tvdbTitle" })).toBeInTheDocument()
+    expect(screen.getByRole("button", { name: /^ui\.tvdbTitle\s*\d*$/ })).toBeInTheDocument()
     expect(tvdbCalls(fetchSpy)).toHaveLength(0)
 
-    await u.click(screen.getByRole("button", { name: "ui.tvdbTitle" }))
+    await u.click(screen.getByRole("button", { name: /^ui\.tvdbTitle\s*\d*$/ }))
     await waitFor(() => {
       expect(screen.getByTestId("tvdb-logos-panel").querySelector(`img[src="${LOGO_1_THUMB}"]`)).not.toBeNull()
     })
@@ -261,7 +261,7 @@ describe("LogoOptions TVDB tab", () => {
       <LogoOptions logos={mockLogos} selectedLogo={selectedLogo} lang="it" selectLogo={() => {}} removeLogo={() => {}} />,
       { selected: SELECTED },
     )
-    await u.click(screen.getByRole("button", { name: "ui.tvdbTitle" }))
+    await u.click(screen.getByRole("button", { name: /^ui\.tvdbTitle\s*\d*$/ }))
     await waitFor(() => {
       expect(screen.getByTestId("tvdb-logos-panel").textContent).toContain("ui.tvdbEmptyLogos")
     })
@@ -277,10 +277,10 @@ describe("BackdropOptions TVDB tab", () => {
     render(
       <BackdropShell backdrops={mockBackdrops} onSelect={onSelect} onClear={onClear} />,
     )
-    expect(screen.getByRole("button", { name: "ui.tvdbTitle" })).toBeInTheDocument()
+    expect(screen.getByRole("button", { name: /^ui\.tvdbTitle\s*\d*$/ })).toBeInTheDocument()
     expect(tvdbCalls(fetchSpy)).toHaveLength(0)
 
-    await u.click(screen.getByRole("button", { name: "ui.tvdbTitle" }))
+    await u.click(screen.getByRole("button", { name: /^ui\.tvdbTitle\s*\d*$/ }))
     await waitFor(() => {
       expect(screen.getByTestId("tvdb-backdrops-panel").querySelectorAll("button img")).toHaveLength(1)
     })
@@ -304,12 +304,12 @@ describe("BackdropOptions TVDB tab", () => {
     const u = userEvent.setup()
     mockTvdbFetch(() => okRes(galleryPayload({ backdrops: [] })))
     render(<BackdropShell backdrops={mockBackdrops} onSelect={() => {}} onClear={() => {}} />)
-    await u.click(screen.getByRole("button", { name: "ui.tvdbTitle" }))
+    await u.click(screen.getByRole("button", { name: /^ui\.tvdbTitle\s*\d*$/ }))
     await waitFor(() => {
       expect(screen.getByTestId("tvdb-backdrops-panel").textContent).toContain("ui.tvdbEmptyBackdrops")
     })
     // Back to TMDB: the existing grid is untouched by the TVDB miss.
-    await u.click(screen.getByRole("button", { name: "ui.tmdb" }))
+    await u.click(screen.getByRole("button", { name: /^ui\.tmdb\s*\d*$/ }))
     expect(document.querySelectorAll('img[src*="/bd1.jpg"]')).toHaveLength(1)
   })
 })

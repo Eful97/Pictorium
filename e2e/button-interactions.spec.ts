@@ -104,10 +104,10 @@ test.describe("Button interactions and immediate updates", () => {
     const filmFilter = page.getByRole("button", { name: "Film", exact: true })
     const tuttiFilter = page.getByRole("button", { name: "Tutti", exact: true })
     await filmFilter.click()
-    await expect(filmFilter).toHaveClass(/bg-accent-orange\/15/)
-    await expect(tuttiFilter).not.toHaveClass(/bg-accent-orange\/15/)
+    await expect(filmFilter).toHaveClass(/bg-accent-orange\/8(\s|$)/)
+    await expect(tuttiFilter).not.toHaveClass(/bg-accent-orange\/8(\s|$)/)
     await tuttiFilter.click()
-    await expect(tuttiFilter).toHaveClass(/bg-accent-orange\/15/)
+    await expect(tuttiFilter).toHaveClass(/bg-accent-orange\/8(\s|$)/)
 
     // In MyPosters: test Sort dropdown button
     const sortBtn = page.getByRole("button", { name: /Recenti|A-Z/i }).first()
@@ -305,6 +305,10 @@ test.describe("Button interactions and immediate updates", () => {
     }
     // Arrange verificato (mai assunto): default+ribbon eredita Nastro.
     await expect(rankGroup.getByRole("radio", { name: "Nastro" })).toHaveAttribute("aria-checked", "true")
+    // Request mark BEFORE the picks: the client preview cache (usePosterPreview,
+    // 45s TTL) serves the second Numero pick from memory with no new request,
+    // so the rs=number render is the one fired by the first Numero pick below.
+    const mark = seen.length
     // Exclusivity over all five: each pick checks exactly itself.
     for (const name of presentationNames) {
       await rankGroup.getByRole("radio", { name, exact: true }).click()
@@ -320,7 +324,6 @@ test.describe("Button interactions and immediate updates", () => {
     const variantGroup = page.getByRole("radiogroup", { name: "Stile badge ranking predefinito" })
     await expect(variantGroup).toBeVisible()
     await expect(variantGroup.getByRole("radio")).toHaveCount(7)
-    const mark = seen.length
     await rankGroup.getByRole("radio", { name: "Numero" }).click()
     await expect(rankGroup.getByRole("radio", { name: "Numero" })).toHaveAttribute("aria-checked", "true")
     // Immediate preview: the new request carries rs=number (single ribbon flag).

@@ -163,7 +163,7 @@ for (const width of [390, 1280]) {
         .filter((el) => el.checkVisibility() && Array.from(el.childNodes).some((node) => node.nodeType === Node.TEXT_NODE && node.textContent?.trim()))
         .filter((el) => {
           const color = getComputedStyle(el).color.match(/[\d.]+/g)?.slice(0, 3).map(Number)
-          return color?.every((value) => value > 235) && !el.closest(".bg-accent-orange")
+          return color?.every((value) => value > 235) && !el.closest(".bg-accent-orange, .bg-accent-orange-strong")
         })
         .map((el) => ({ text: el.textContent?.trim(), className: el.className })))
       expect(whiteLabels, `White labels in Install Hub ${tab}`).toEqual([])

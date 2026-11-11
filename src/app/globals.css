@@ -2305,7 +2305,7 @@ a.status-live-badge:hover {
   border-radius: 6px;
   background: rgba(255, 255, 255, 0.025);
   border: 1px solid rgba(255, 255, 255, 0.06);
-  color: #71717a;
+  color: #a1a1aa;
   font-size: 10px;
   letter-spacing: 0.02em;
 }
@@ -2348,7 +2348,7 @@ button.status-version:hover {
   min-width: 0;
   font-size: 10.5px;
   line-height: 1.4;
-  color: #71717a;
+  color: #a1a1aa;
   letter-spacing: 0.01em;
   text-decoration: none;
   overflow-wrap: anywhere;
@@ -2356,7 +2356,7 @@ button.status-version:hover {
 }
 
 .status-credits-notice:hover {
-  color: #a1a1aa;
+  color: #d4d4d8;
   text-decoration: underline;
 }
 
@@ -2813,7 +2813,7 @@ button.status-version:hover {
   color: var(--color-accent-orange);
   filter: none;
 }
-[data-theme="light"] :is(.header-tagline, .feature-card-desc, .status-meta, .status-credits-notice) {
+[data-theme="light"] :is(.header-tagline, .feature-card-desc, .status-meta, .status-credits-notice, .status-version) {
   color: var(--color-muted);
 }
 [data-theme="light"] :is(.hero-kicker, .stat-pill, .feature-card-title, .status-pill, .control-label, .tab-chip, .counter-badge, .btn-secondary, .segmented-option:hover, .top-action-button:not(.top-action-button-primary):not(.top-action-button-accent)) {

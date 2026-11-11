@@ -314,7 +314,6 @@ export function BackdropOptions({ backdrops, backdropActivePath, selectBackdrop,
       {selected && (
         <div className="flex gap-1 mb-3 overflow-x-auto scrollbar-none">
           <button type="button"
-            aria-label={t("ui.tmdb")}
             onClick={() => setSource("tmdb")}
             className={`tab-chip h-7 px-2.5 rounded-lg text-[11px] font-semibold border transition-all shrink-0 ${source === "tmdb" ? "tab-chip-active bg-accent-orange/15 text-accent-orange border-accent-orange/35" : "bg-white/5 text-muted border-white/10 hover:text-zinc-200 hover:bg-white/10"}`}
           >
@@ -322,7 +321,6 @@ export function BackdropOptions({ backdrops, backdropActivePath, selectBackdrop,
             <span className="ml-1 text-[10px] opacity-60">{backdrops.length}</span>
           </button>
           <button type="button"
-            aria-label={t("ui.tvdbTitle")}
             onClick={() => setSource("tvdb")}
             className={`tab-chip h-7 px-2.5 rounded-lg text-[11px] font-semibold border transition-all shrink-0 ${source === "tvdb" ? "tab-chip-active bg-accent-orange/15 text-accent-orange border-accent-orange/35" : "bg-white/5 text-muted border-white/10 hover:text-zinc-200 hover:bg-white/10"}`}
           >
@@ -330,7 +328,6 @@ export function BackdropOptions({ backdrops, backdropActivePath, selectBackdrop,
             <span className="ml-1 text-[10px] opacity-60">{tvdb.items.length}</span>
           </button>
           <button type="button"
-            aria-label={t("ui.fanartTitle")}
             onClick={() => setSource("fanart")}
             className={`tab-chip h-7 px-2.5 rounded-lg text-[11px] font-semibold border transition-all shrink-0 ${source === "fanart" ? "tab-chip-active bg-accent-orange/15 text-accent-orange border-accent-orange/35" : "bg-white/5 text-muted border-white/10 hover:text-zinc-200 hover:bg-white/10"}`}
           >

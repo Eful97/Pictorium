@@ -1,4 +1,5 @@
 import { test, expect, type Locator, type Page, type Route } from "@playwright/test"
+import { gotoPresetTab } from "./settings-tab"
 import { putDefaultsWithRetry } from "./defaults-retry"
 
 // T6 badge-format-final: Badge tab per-format editing (Verticale/Orizzontale),
@@ -368,6 +369,7 @@ test.describe("Badge Verticale/Orizzontale: isolation + persistence", () => {
       async () => {
         await page.getByRole("button", { name: /Impostazioni/i }).click()
         await expect(dialog).toBeVisible()
+        await gotoPresetTab(dialog)
       },
       (u) => u.searchParams.get("shape") === "poster" && u.searchParams.get("rs") === "pill" && u.searchParams.get("bq") === "1",
     )
@@ -396,7 +398,7 @@ test.describe("Badge Verticale/Orizzontale: isolation + persistence", () => {
 
     await expect(dialog).toBeVisible()
 
-    // Actual five-tab home: the dialog opens on Preset, never on Badge.
+    // Fresh open lands on Preferenze; the opener moved to Preset (never Badge).
     await expect(dialog.getByRole("tab", { name: "Preset", exact: true })).toHaveAttribute(
       "aria-selected",
       "true",
@@ -664,7 +666,7 @@ test.describe("Badge Verticale/Orizzontale: isolation + persistence", () => {
     expect(afterDebug.badge.settings.rankingBadgeStyle).toBe(beforeRs)
     expect(JSON.stringify(afterDebug.badge.computed.badge)).toBe(beforeBadge)
 
-    // Reload: backend profile persists. Reopen lands on Preset first; the
+    // Reload: backend profile persists. Reopen moves to Preset first; the
     // shared target then replays the saved landscape profile, and each home
     // tab shows its saved local style.
     await page.reload()
@@ -673,6 +675,7 @@ test.describe("Badge Verticale/Orizzontale: isolation + persistence", () => {
     await page.getByRole("button", { name: /Impostazioni/i }).click()
     const dialog2 = page.getByRole("dialog")
     await expect(dialog2).toBeVisible()
+    await gotoPresetTab(dialog2)
     await expect(dialog2.getByRole("tab", { name: "Preset", exact: true })).toHaveAttribute(
       "aria-selected",
       "true",
@@ -731,6 +734,7 @@ test.describe("Badge Verticale/Orizzontale: isolation + persistence", () => {
       async () => {
         await page.getByRole("button", { name: /Impostazioni/i }).click()
         await expect(panel).toBeVisible()
+        await gotoPresetTab(panel)
       },
       (u) => u.searchParams.get("shape") === "poster" && u.searchParams.get("rs") === "pill" && u.searchParams.get("bq") === "1",
     )
@@ -739,7 +743,7 @@ test.describe("Badge Verticale/Orizzontale: isolation + persistence", () => {
 
     await expect(panel).toBeVisible()
     // Mobile nav is the responsive select (five primary options plus the
-    // secondary optgroup); the dialog opens on Preset, never on Badge.
+    // secondary optgroup); the opener moved from Preferenze to Preset.
     const category = panel.locator("#mobile-settings-category")
     await expect(category).toBeVisible()
     expect(await category.inputValue()).toBe("preset")
