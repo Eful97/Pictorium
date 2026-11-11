@@ -942,6 +942,48 @@ html.light .app-shell {
   isolation: isolate;
 }
 
+/* Static ambient background — one fixed frame behind all content, dual theme
+   (dark photo for dark, light photo for light; no motion). Shown fully natural
+   in BOTH themes: no veil and no ::after tint wash sit above the photo. */
+.app-shell-bg {
+  position: fixed;
+  inset: 0;
+  z-index: -1;
+  pointer-events: none;
+  overflow: hidden;
+}
+
+.app-shell-bg__layer {
+  position: absolute;
+  inset: 0;
+  background-image: url("/bg/pictorium-bg-dark.webp");
+  background-position: center;
+  background-size: cover;
+  background-repeat: no-repeat;
+}
+
+/* No veil in EITHER theme: the ambient photo is shown 1:1 (fully natural), so
+   nothing tints it between the artwork and the UI. The wrapper/layer stay
+   visible and fixed; only the veil's own paint is transparent. */
+.app-shell-bg__veil {
+  position: absolute;
+  inset: 0;
+  background: transparent;
+}
+
+/* Light theme: the cream photo replaces the dark one. */
+[data-theme="light"] .app-shell-bg__layer,
+html.light .app-shell-bg__layer {
+  background-image: url("/bg/pictorium-bg-light.webp");
+}
+
+/* Tint wash disabled for BOTH themes: the pseudo-element paints nothing, so no
+   radial/linear tint sits above the photo. The photo wrapper stays visible and
+   each theme keeps its own photo; the UI surfaces provide the contrast. */
+.app-shell::after {
+  content: none;
+}
+
 /* Logo brand adattivo: dark su sfondo scuro, dark-text su sfondo chiaro */
 .header-logo-light {
   display: none;

@@ -234,6 +234,14 @@ export function AppShell() {
       inert={pinLocked || undefined}
       aria-hidden={pinLocked || undefined}
     >
+      {/* Static ambient background: one fixed frame behind all content
+          (dark photo in dark theme, light photo in light theme). The
+          per-poster --bg-accent wash still paints above it via
+          .app-shell::after. No motion. */}
+      <div className="app-shell-bg" aria-hidden="true">
+        <div className="app-shell-bg__layer" />
+        <div className="app-shell-bg__veil" />
+      </div>
       {serviceErrors.tmdb && (
         <div className="mx-auto max-w-lg mt-2 mb-0 px-4 py-2 bg-red-900/40 border border-red-800/50 rounded-xl text-xs text-red-300 text-center">
           {t("ui.statusTmdbUnavailable")}
