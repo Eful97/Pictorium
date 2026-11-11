@@ -1,0 +1,11 @@
+# Automated updates for the GitHub Actions used by .github/workflows/*.yml.
+#
+# Actions are pinned to immutable 40-hex commit SHAs (with a `# vN` version
+# comment). Dependabot keeps them current: it bumps the SHA and the adjacent
+# version comment together, so pinning never freezes us on a stale action.
+version: 2
+updates:
+  - package-ecosystem: "github-actions"
+    directory: "/"
+    schedule:
+      interval: "weekly"
