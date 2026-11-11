@@ -52,7 +52,7 @@ import type { ThumbnailBadgeAnchor, ThumbnailBadgeStyle, ThumbnailFillerStatus, 
 import { getServerDefaultsForUser } from "@/lib/server-defaults"
 import { getCatalogEpoch } from "@/lib/catalog-epoch"
 import { baseLangCode, createT } from "@/lib/i18n-server"
-import { canonicalPosterLang } from "@/lib/poster-params-hardening"
+import { canonicalPosterLang, isPublicPosterInstance } from "@/lib/poster-params-hardening"
 
 type RouteParams = { id: string; season: string; episode: string }
 
@@ -526,12 +526,17 @@ export async function GET(req: NextRequest, { params }: { params: Promise<RouteP
   const badgeAnchor = rawAnchor === null
     ? storedThumbnailAnchor(spaceDefaults.thumbnailAnchor)
     : queryAnchor
+  // Anti cache-busting: su istanze pubbliche gli anonimi ottengono ox/oy solo a
+  // passi di 5px, prima della cache key. Solo i valori da query: i default salvati
+  // restano esatti (WYSIWYG); utente verificato / istanza privata invariati.
+  const quantizeAnonOffset = (v: number): number =>
+    !scopedUser && isPublicPosterInstance() ? Math.round(v / 5) * 5 : v
   const offsetX = rawOffsetX === null
     ? storedThumbnailOffset(spaceDefaults.thumbnailOffsetX)
-    : queryOffsetX
+    : quantizeAnonOffset(queryOffsetX)
   const offsetY = rawOffsetY === null
     ? storedThumbnailOffset(spaceDefaults.thumbnailOffsetY)
-    : queryOffsetY
+    : quantizeAnonOffset(queryOffsetY)
   const badgeScale = rawBadgeScale === null
     ? storedThumbnailScale(spaceDefaults.thumbnailBadgeScale)
     : queryBadgeScale

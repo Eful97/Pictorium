@@ -223,6 +223,18 @@ export async function rateLimit(key: string, bucket: string): Promise<{ ok: bool
 const HEADER_NAME_RE = /^[!#$%&'*+.^_`|~0-9a-z-]+$/
 const warnedPinned = new Set<string>()
 
+// Warning una volta per processo: multi-user senza TRUST_PROXY=1 condivide il
+// bucket "local" tra tutti i client anonimi (vedi rateLimitKey).
+let warnedLockout = false
+
+function warnLockoutRiskOnce(): void {
+  if (warnedLockout) return
+  warnedLockout = true
+  log.warn(
+    'multi-user without TRUST_PROXY=1 shares one "local" rate-limit bucket for all clients, so anyone knowing a user UUID can trigger the password fail limiter for that user; set TRUST_PROXY=1 (and CLIENT_IP_HEADER) behind a proxy',
+  )
+}
+
 function warnPinnedHeaderOnce(kind: "invalid" | "missing" | "multi", header: string): void {
   if (warnedPinned.has(kind)) return
   warnedPinned.add(kind)
@@ -305,7 +317,11 @@ export function rateLimitKey(request: Request): string {
   // l'isolamento reale per utente resta su `userRateLimitKey` (IP+UUID, solo
   // dopo la verifica di esistenza del namespace), e i bucket per-UA tornano
   // disponibili solo dietro `TRUST_PROXY=1` (ramo sotto, byte-identico).
-  if (!trusted) return "local"
+  if (!trusted) {
+    // Letto direttamente dall'env (non via user-auth.isMultiUserEnabled): user-auth importa questo modulo.
+    if (envWithFallback("MULTI_USER") === "1") warnLockoutRiskOnce()
+    return "local"
+  }
   // Dietro proxy fidato: granularità minima per user-agent come fallback.
   const ua = request.headers.get("user-agent")
   if (ua) return `ua:${ua.slice(0, 48)}`

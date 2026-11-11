@@ -43,7 +43,9 @@ function isAllowedHostname(hostname: string): boolean {
  */
 export function getOriginFromRequest(req: NextRequest): string {
   const forwardedHost = req.headers.get("X-Forwarded-Host")
-  const forwardedProto = req.headers.get("X-Forwarded-Proto") || "https"
+  // Solo http/https: qualunque altro valore (o assente) ricade su https.
+  const rawProto = (req.headers.get("X-Forwarded-Proto") || "").split(",")[0].trim().toLowerCase()
+  const forwardedProto = rawProto === "http" || rawProto === "https" ? rawProto : "https"
   if (forwardedHost) {
     const xfhHost = hostnameOf(forwardedHost)
     const host = hostnameOf(req.headers.get("host") || "")

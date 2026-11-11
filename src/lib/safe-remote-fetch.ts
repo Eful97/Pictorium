@@ -1,4 +1,5 @@
 import dns, { type LookupOptions } from "node:dns"
+import { createHash } from "node:crypto"
 import { createLogger } from "@/lib/logger"
 
 const log = createLogger("safe-remote-fetch")
@@ -273,9 +274,13 @@ export function redactUrlForLog(urlStr: string): string {
     if (u.searchParams.has("api_key")) u.searchParams.set("api_key", "[REDACTED]")
     if (u.searchParams.has("apikey")) u.searchParams.set("apikey", "[REDACTED]")
     if (u.searchParams.has("key")) u.searchParams.set("key", "[REDACTED]")
-    return u.toString()
+    // Il path degli addon porta config/chiavi: loggato solo come hash corto.
+    const pathTag = u.pathname === "/"
+      ? ""
+      : `/[path:${createHash("sha256").update(u.pathname).digest("hex").slice(0, 8)}]`
+    return `${u.origin}${pathTag}${u.search}`
   } catch {
-    return urlStr
+    return "[unparseable-url]"
   }
 }
 
