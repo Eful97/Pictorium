@@ -4,6 +4,7 @@ import React, { useCallback, useEffect, useRef, useState } from "react"
 import { X, Star, ExternalLink, Maximize2, Check } from "lucide-react"
 import type { Mapping } from "@/lib/types"
 import type { PosterCollection } from "@/lib/useCollections"
+import { effectiveMappingForShape } from "@/lib/types"
 
 const FOCUSABLE = "a[href], button:not([disabled]), input:not([disabled]), select:not([disabled]), textarea:not([disabled]), [tabindex]:not([tabindex='-1'])"
 
@@ -40,6 +41,10 @@ export function PosterLightbox({
   const rect = lightbox?.rect ?? null
   const posterKey = mapping ? `${mapping.mediaType}:${mapping.tmdbId}` : null
   const isLandscape = mapping?.posterShape === "landscape"
+  // Logo identity per shape (portrait flat / landscape profile): the lightbox
+  // shows the primary shape's own logo, never another shape's.
+  const effMapping = effectiveMappingForShape(mapping, isLandscape ? "landscape" : "poster")
+  const effLogoPath = effMapping?.logoDisabled === true ? null : (effMapping?.logoPath ?? null)
   // Same choice as the tile: saved custom of the editing shape, with a TMDB
   // fallback once the error is exhausted (portrait → posterPath, landscape →
   // backdropPath with poster fallback).
@@ -204,17 +209,17 @@ export function PosterLightbox({
                 }}
               />
               {/* Logo overlay */}
-              {mapping.logoPath && (
+              {effLogoPath && (
                 <div
                   className="absolute inset-x-0 bottom-[16%] flex items-center justify-center pointer-events-none"
                   style={{
-                    transform: `translate(${mapping.logoOffsetX ?? 0}%, ${-(mapping.logoOffsetY ?? 0)}%)`,
+                    transform: `translate(${effMapping?.logoOffsetX ?? 0}%, ${-(effMapping?.logoOffsetY ?? 0)}%)`,
                   }}
                 >
-                  <div style={{ width: `${mapping.logoScale ?? 75}%` }}>
+                  <div style={{ width: `${effMapping?.logoScale ?? 75}%` }}>
                     {/* eslint-disable-next-line @next/next/no-img-element -- TMDB dynamic URL */}
                     <img
-                      src={posterUrlFn(mapping.logoPath, "w500")}
+                      src={posterUrlFn(effLogoPath, "w500")}
                       alt=""
                       loading="lazy"
                       decoding="async"

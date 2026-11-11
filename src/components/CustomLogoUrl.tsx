@@ -6,6 +6,7 @@ import { usePSelector } from "@/lib/context"
 import { useT } from "@/lib/contexts/TranslationContext"
 import { userFetch } from "@/lib/http"
 import { isCustomPosterUrl } from "@/lib/utils"
+import { effectiveMappingForShape, type PosterShape } from "@/lib/types"
 import { toast } from "sonner"
 
 interface ResolvedImage {
@@ -26,6 +27,11 @@ interface Props {
   defaultOpen?: boolean
   /** Mirrors the logo grid disabled state so the import box never bypasses it. */
   disabled?: boolean
+  /**
+   * Canvas shape in editing (logo identity is per-shape in the saved mapping:
+   * the portrait flat vs the landscape profile). Defaults to portrait.
+   */
+  posterShape?: PosterShape
 }
 
 /**
@@ -44,7 +50,7 @@ interface Props {
  * while a resolve is in flight invalidates that request, so a late response
  * can neither select the obsolete URL nor wipe the newer input.
  */
-export function CustomLogoUrl({ onAdd, onRemove, collapsible = false, defaultOpen = false, disabled = false }: Props) {
+export function CustomLogoUrl({ onAdd, onRemove, collapsible = false, defaultOpen = false, disabled = false, posterShape = "poster" }: Props) {
   const [isOpen, setIsOpen] = useState(defaultOpen)
   const selected = usePSelector((v) => v.selected)
   const mappingsMap = usePSelector((v) => v.mappingsMap)
@@ -52,7 +58,11 @@ export function CustomLogoUrl({ onAdd, onRemove, collapsible = false, defaultOpe
   const { t: tt } = useT()
 
   const key = selected ? `${selected.media_type}:${selected.id}` : null
-  const savedLogoPath = key ? (mappingsMap.get(key)?.logoPath ?? null) : null
+  const savedMapping = key ? (mappingsMap.get(key) ?? null) : null
+  // Logo identity is per shape (portrait flat / landscape profile): the box
+  // shows and removes the custom logo of the SHAPE in editing.
+  const savedLogoEff = savedMapping ? effectiveMappingForShape(savedMapping, posterShape) : null
+  const savedLogoPath = savedLogoEff?.logoDisabled === true ? null : (savedLogoEff?.logoPath ?? null)
   const savedUrl = savedLogoPath && isCustomPosterUrl(savedLogoPath) ? savedLogoPath : null
 
   const [input, setInput] = useState("")
@@ -135,7 +145,12 @@ export function CustomLogoUrl({ onAdd, onRemove, collapsible = false, defaultOpe
       await http(`/api/mappings/${removeKey}`, {
         method: "PUT",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ logoPath: null }),
+        // Logo identity per shape: a landscape removal clears the landscape
+        // profile (PUT is a shallow merge, so the whole saved profile travels
+        // back with only the logo path cleared) and never the portrait flat.
+        body: JSON.stringify(posterShape === "landscape"
+          ? { landscape: { ...(savedMapping?.landscape ?? {}), logoPath: null } }
+          : { logoPath: null }),
       })
       await loadMappings()
       // The title may have changed (or the component unmounted) while the

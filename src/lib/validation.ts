@@ -275,6 +275,12 @@ export const mappingSchema = z.object({
   // Profilo di tuning landscape 16:9 (vedi LandscapeSettings in types.ts):
   // stessi bound dei campi flat. Chiavi assenti/null = fallback al flat.
   landscape: z.object({
+    // Per-shape logo identity (portrait flat is the fallback): a present key
+    // (null included) wins for landscape, absent inherits the flat.
+    logoDisabled: z.boolean().nullable().optional(),
+    logoPath: z.string().nullable().optional(),
+    logoText: z.string().max(TEXT_LOGO_MAX_LENGTH).nullable().optional(),
+    logoFont: z.enum(BADGE_FONTS).nullable().optional(),
     logoScale: z.number().int().min(10).max(200).nullable().optional(),
     logoOffsetX: z.number().int().nullable().optional(),
     logoOffsetY: z.number().int().nullable().optional(),

@@ -13,8 +13,9 @@ import type { Mapping, TMDBImage } from "@/lib/types"
 import { effectiveMappingForShape, isPosterLayout, isPosterFreshScope, DEFAULT_POSTER_FRESH_SCOPE, type LandscapeSettings } from "@/lib/types"
 import { perTitleDraftKey } from "@/lib/shape-draft"
 import { MAPPING_SHAPE_FACTORY, mappingShapeChainEffective, type MappingShapeLandKey } from "@/lib/visual-presets"
-import { isSeparateRatingsStyle } from "@/lib/badge-styles"
+import { isSeparateRatingsStyle, type BadgeFont } from "@/lib/badge-styles"
 import { isManualAccent } from "@/lib/accent-color"
+import { TEXT_LOGO_DEFAULT_FONT } from "@/lib/text-logo"
 import { resolveShapeBadgeItemTransforms } from "@/lib/badge-item-transforms"
 import { selectBestLogo } from "@/lib/logo-selection"
 import { resolveNetworkEffectiveView } from "@/lib/network-follow"
@@ -409,6 +410,18 @@ export default function EditView() {
   // formato promuoverebbe un auto a esplicito (setLogoScale di default marca
   // explicit) e un 100 automatico Fresh diventerebbe un 100 Standard baked.
   const shapeLogoExplicitRef = useRef(new Map<"poster" | "landscape", boolean>())
+  // Logo identity per shape (same boundary as the stashes above): the editor
+  // keeps ONE live logo identity, so a shape switch stashes the leaving
+  // shape's identity and restores the arriving one. Without this a landscape
+  // logo stayed live when returning to a portrait clean (and the next save
+  // wrote it back onto the portrait flat, resurrecting the leak).
+  const shapeLogoIdentityRef = useRef(new Map<"poster" | "landscape", {
+    logo: TMDBImage | null
+    logoDisabled: boolean
+    logoText: string
+    logoFont: BadgeFont
+    logoAutoSelected: boolean
+  }>())
   // Landscape backdrop-selection stash, per title (landscape → portrait →
   // landscape): entering portrait always clears selectedBackdrop (the
   // vertical preview must not carry `backdrop=`), but the unsaved landscape
@@ -444,6 +457,7 @@ export default function EditView() {
   useEffect(() => {
     shapeStashRef.current.clear()
     shapeLogoExplicitRef.current.clear()
+    shapeLogoIdentityRef.current.clear()
     backdropStashRef.current = { key: null, backdrop: null }
     setShapeStashKey(selectedStashKey)
     // A pending destructive confirm belongs to the title it was opened on:
@@ -616,11 +630,16 @@ export default function EditView() {
   customLogoTilesRef.current = customLogoTiles
   const logosRef = useRef(logos)
   logosRef.current = logos
-  // Saved custom logo in the mapping (logoPath URL, deduplicated by URL):
-  // shown in the grid without a remove button, like the saved custom base.
-  const savedCustomLogoUrl = selectedMapping?.logoPath && isCustomPosterUrl(selectedMapping.logoPath)
-    ? selectedMapping.logoPath
-    : null
+  // Saved custom logo in the mapping for the SHAPE in editing (logo identity
+  // is per-shape: landscape profile wins over the portrait flat): shown in
+  // the grid without a remove button, like the saved custom base.
+  const savedCustomLogoUrl = (() => {
+    const savedLogoEff = selectedMapping ? effectiveMappingForShape(selectedMapping, ed.posterShape) : null
+    if (savedLogoEff?.logoDisabled === true) return null
+    return savedLogoEff?.logoPath && isCustomPosterUrl(savedLogoEff.logoPath)
+      ? savedLogoEff.logoPath
+      : null
+  })()
   const savedCustomLogoTile = useMemo(() => {
     if (!savedCustomLogoUrl) return null
     if (customLogoTiles.some((tile) => tile.file_path === savedCustomLogoUrl)) return null
@@ -777,6 +796,7 @@ export default function EditView() {
     if (shapeStashKey !== stashKey) {
       shapeStashRef.current.clear()
       shapeLogoExplicitRef.current.clear()
+      shapeLogoIdentityRef.current.clear()
       setShapeStashKey(stashKey)
     }
     // Dopo il riallineamento qui sopra lo stash appartiene per costruzione
@@ -786,6 +806,13 @@ export default function EditView() {
     // lo shared store ricevono lo stesso contenuto (clonato dal ricevente).
     const draft: LandscapeSettings = {
       logoScale: ed.logoScale, logoOffsetX: ed.logoOffsetX, logoOffsetY: ed.logoOffsetY,
+      // Logo identity per shape: the draft carries the leaving shape's own
+      // identity (the save boundary consumes it verbatim for the other shape's
+      // flat/profile) — never the arriving shape's live logo.
+      logoDisabled: ed.logoDisabled,
+      logoPath: selectedLogo?.file_path ?? null,
+      logoText: ed.logoText,
+      logoFont: ed.logoFont,
       topBadgeScale: ed.topBadgeScale, topBadgeOffsetX: ed.topBadgeOffsetX, topBadgeOffsetY: ed.topBadgeOffsetY,
       extraBadgeScale: ed.extraBadgeScale, extraBadgeOffsetX: ed.extraBadgeOffsetX, extraBadgeOffsetY: ed.extraBadgeOffsetY,
       genreBadgeScale: ed.genreBadgeScale, genreBadgeOffsetX: ed.genreBadgeOffsetX, genreBadgeOffsetY: ed.genreBadgeOffsetY,
@@ -824,6 +851,15 @@ export default function EditView() {
     }
     shapeLogoExplicitRef.current.set(prev, ed.logoScaleExplicit)
     shapeStashRef.current.set(prev, draft)
+    // Same identity boundary for the logo (the stash above carries it for the
+    // save; this keeps the live editor restore cheap and provenance-aware).
+    shapeLogoIdentityRef.current.set(prev, {
+      logo: selectedLogo ?? null,
+      logoDisabled: ed.logoDisabled,
+      logoText: ed.logoText,
+      logoFont: ed.logoFont,
+      logoAutoSelected: ed.logoAutoSelected,
+    })
     // Mirror nello shared store (stesso contenuto, clonato dal ricevente):
     // gli autosave di esclusione risolvono da qui lo staged dell'altro
     // formato sullo stesso boundary del Save manuale. Solo con selezione
@@ -843,6 +879,36 @@ export default function EditView() {
     }
     ed.setPosterShape(next)
     ed.setLogoAlign(next === "landscape" ? (ed.defaultLogoAlign ?? "left") : "center")
+    // Restore the arriving shape's logo identity: its own staged draft first
+    // (both-shape edits before a save), else the saved mapping's shape-
+    // effective identity (explicit override, same as a reopen), else keep the
+    // live identity (shape never visited and no saved mapping). The leaving
+    // shape's identity was stashed above: the same title's portrait clean and
+    // landscape logo never overwrite each other.
+    {
+      const stashedLogoIdentity = shapeLogoIdentityRef.current.get(next)
+      if (stashedLogoIdentity) {
+        setSelectedLogo(stashedLogoIdentity.logo)
+        ed.setLogoDisabled(stashedLogoIdentity.logoDisabled)
+        ed.setLogoText(stashedLogoIdentity.logoText)
+        ed.setLogoFont(stashedLogoIdentity.logoFont)
+        ed.setLogoAutoSelected(stashedLogoIdentity.logoAutoSelected)
+      } else if (selectedMapping) {
+        const savedLogoEff = effectiveMappingForShape(selectedMapping, next)
+        const savedLogoDisabled = savedLogoEff?.logoDisabled === true
+        const savedLogoPath = savedLogoDisabled ? null : (savedLogoEff?.logoPath ?? null)
+        const foundSavedLogo = savedLogoPath ? (logos.find((l) => l.file_path === savedLogoPath) ?? null) : null
+        setSelectedLogo(savedLogoPath
+          ? (foundSavedLogo ?? { file_path: savedLogoPath, iso_639_1: selectedMapping.language ?? null, vote_average: 0, width: 0, height: 0 })
+          : null)
+        ed.setLogoDisabled(savedLogoDisabled)
+        ed.setLogoText(savedLogoEff?.logoText ?? "")
+        ed.setLogoFont(savedLogoEff?.logoFont ?? TEXT_LOGO_DEFAULT_FONT)
+        // Saved identity = explicit override: the auto-withdrawal rule never
+        // removes it (same provenance as a reopen).
+        ed.setLogoAutoSelected(false)
+      }
+    }
     // Fallback a tre livelli: stash non salvato > profilo salvato > default
     // globali Orizzontale (solo in landscape: senza, il primo ingresso in
     // landscape mostrerebbe i valori portrait invece dei default Orizzontale).
@@ -1066,7 +1132,7 @@ export default function EditView() {
         typeof restoredAccent === "string" && restoredAccent.length > 0 ? restoredAccent : autoAccentColor,
       )
     }
-  }, [ed, removeBackdrop, selectedMapping, selected, currentUserId, shapeStashKey, setShapeStashKey, accentColor, autoAccentColor, setAccentColor])
+  }, [ed, removeBackdrop, selectedMapping, selected, currentUserId, shapeStashKey, setShapeStashKey, accentColor, autoAccentColor, setAccentColor, selectedLogo, setSelectedLogo, logos])
 
   const handleSelectPoster = useCallback((img: TMDBImage) => {
     void selectPoster(img)
@@ -1819,7 +1885,7 @@ export default function EditView() {
                     onRemoveCustomLogo={handleDeleteCustomLogoTile}
                     // The import box mirrors the grid disabled state (same
                     // value): a disabled grid must never stay importable.
-                    topSlot={<CustomLogoUrl onAdd={handleAddCustomLogo} onRemove={handleRemoveCustomLogo} collapsible disabled={false} />}
+                    topSlot={<CustomLogoUrl onAdd={handleAddCustomLogo} onRemove={handleRemoveCustomLogo} collapsible disabled={false} posterShape={ed.posterShape} />}
                   />
                   {!cleanPoster && ed.posterShape !== "landscape" && <p className="text-xs text-zinc-400 text-center mt-2 px-1">{t("ui.logoHint")}</p>}
                 </>}

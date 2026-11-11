@@ -136,7 +136,8 @@ export function isArtworkDirty(
   const currentCustomBd = current.customBackdropUrl ?? (current.backdropPath && isCustomPosterUrl(current.backdropPath) ? current.backdropPath : null)
   const currentBackdrop = currentCustomBd ?? (current.backdropPath ?? null)
   if (savedBackdrop !== currentBackdrop) return true
-  const savedLogo = m.logoDisabled ? null : (m.logoPath ?? null)
+  const savedLogoEff = effectiveMappingForShape(m, current.posterShape) ?? m
+  const savedLogo = savedLogoEff.logoDisabled ? null : (savedLogoEff.logoPath ?? null)
   const currentLogo = current.logoDisabled ? null : (current.logoPath ?? null)
   if (savedLogo !== currentLogo) return true
   return false

@@ -289,6 +289,50 @@ describe("mounted EditView badge shape-switch independence (real handler)", () =
     expect(saveConfig).toHaveBeenCalledWith(undefined)
   })
 
+  it("per-shape logo identity survives the switch roundtrip (portrait clean vs landscape logo)", async () => {
+    const u = userEvent.setup()
+    const setSelectedLogo = vi.fn()
+    const saved: Mapping = {
+      tmdbId: 101,
+      mediaType: "movie",
+      title: "Alpha",
+      posterPath: "/a.jpg",
+      logoPath: null,
+      logoDisabled: true,
+      backdropPath: "/bd.jpg",
+      originalPosterPath: null,
+      language: null,
+      updatedAt: "2026-01-01",
+      posterShape: "poster",
+      landscape: { logoDisabled: false, logoPath: "/logo-land.png", logoText: null, logoFont: null },
+    }
+    const first = {
+      selected: ITEM_A,
+      posters: [img("/a.jpg", null)],
+      previewPoster: img("/a.jpg", null),
+      logos: [],
+      selectedLogo: null,
+      setSelectedLogo,
+      mappingsMap: new Map<string, Mapping>([["movie:101", saved]]),
+    }
+    const { editor } = renderSwitchableEditor(first)
+    await waitFor(() => expect(editor().posterShape).toBe("poster"))
+    // Portrait clean saved without logo (the editor live state mirrors it).
+    await act(async () => { editor().setLogoDisabled(true) })
+    // Landscape: the saved profile logo is restored live.
+    await u.click(screen.getByRole("button", { name: "ui.posterShapeLandscape" }))
+    await waitFor(() => expect(editor().posterShape).toBe("landscape"))
+    expect(editor().logoDisabled).toBe(false)
+    expect(setSelectedLogo).toHaveBeenCalledWith(expect.objectContaining({ file_path: "/logo-land.png" }))
+    // Back to portrait: the portrait no-logo identity is restored, never the
+    // landscape logo (which would be written back onto the flat on the next
+    // save and resurrect the Test URL leak).
+    await u.click(screen.getByRole("button", { name: "ui.posterShapePortrait" }))
+    await waitFor(() => expect(editor().posterShape).toBe("poster"))
+    expect(editor().logoDisabled).toBe(true)
+    expect(setSelectedLogo).toHaveBeenLastCalledWith(null)
+  })
+
   it("legacy mapping with flat absent resolves shape defaults, never edited live", async () => {
     const u = userEvent.setup()
     const legacy: Mapping = {
