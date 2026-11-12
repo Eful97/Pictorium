@@ -764,13 +764,14 @@ export function PosterEditorProvider({
   // `scale=0`, save null, ricalcolato solo dagli auto-path), true = scelta
   // utente o default esplicito (congelato, mai toccato dal rank-effect).
   // Stato iniziale auto (75 = fallback aspect senza dimensioni, mai baked).
-  const [logoScale, setLogoScaleState] = useState(75)
-  const [logoScaleExplicit, setLogoScaleExplicit] = useState(false)
+  // Scala e provenienza (explicit) si aggiornano sempre insieme: un solo stato.
+  const [logoScaleState, setLogoScaleState] = useState({ scale: 75, explicit: false })
+  const logoScale = logoScaleState.scale
+  const logoScaleExplicit = logoScaleState.explicit
   const setLogoScale = useCallback(
     (v: number | ((prev: number) => number), opts?: { auto?: boolean }) => {
       const next = typeof v === "function" ? v(logoScale) : v
-      setLogoScaleState(next)
-      setLogoScaleExplicit(opts?.auto !== true)
+      setLogoScaleState({ scale: next, explicit: opts?.auto !== true })
     }, [logoScale])
   const [logoOffsetX, setLogoOffsetX] = useState(0)
   const [logoOffsetY, setLogoOffsetY] = useState(0)
@@ -1338,17 +1339,18 @@ export function PosterEditorProvider({
   // Profilo sfumatura landscape (Trasforma · Orizzontale): stato per-titolo
   // indipendente dai flat (profilo portrait). Ogni patch utente alza il flag
   // dirty (guida il save); resetLandscapeBlur lo reinizializza (apertura titolo).
-  const [landscapeBlur, setLandscapeBlurState] = useState<LandscapeBlurState>(LANDSCAPE_BLUR_DEFAULTS)
-  const [landscapeBlurDirty, setLandscapeBlurDirty] = useState(false)
+  // Valori e flag dirty si aggiornano sempre insieme: un solo stato.
+  const [landscapeBlurState, setLandscapeBlurState] = useState<{ values: LandscapeBlurState; dirty: boolean }>(
+    { values: LANDSCAPE_BLUR_DEFAULTS, dirty: false })
+  const landscapeBlur = landscapeBlurState.values
+  const landscapeBlurDirty = landscapeBlurState.dirty
   const setLandscapeBlur = useCallback(
     (patch: Partial<LandscapeBlurState>) => {
-      setLandscapeBlurState((prev) => ({ ...prev, ...patch }))
-      setLandscapeBlurDirty(true)
+      setLandscapeBlurState((prev) => ({ values: { ...prev.values, ...patch }, dirty: true }))
     }, [])
   const resetLandscapeBlur = useCallback(
     (values: LandscapeBlurState) => {
-      setLandscapeBlurState(values)
-      setLandscapeBlurDirty(false)
+      setLandscapeBlurState({ values, dirty: false })
     }, [])
   const setBadgeStyle = useCallback(
     (v: BadgeStyle | ((prev: BadgeStyle) => BadgeStyle)) => {

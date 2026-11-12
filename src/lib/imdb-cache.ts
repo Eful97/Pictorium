@@ -9,12 +9,13 @@ interface ImdbCacheEntry {
 const IMDB_ID_CACHE_MAX = 2000
 const imdbIdCache = new Map<string, ImdbCacheEntry>()
 
-function imdbIdCacheSet(key: string, value: string | null, ttlMs: number): void {
-  if (imdbIdCache.size >= IMDB_ID_CACHE_MAX) {
-    const oldest = imdbIdCache.keys().next().value
-    if (oldest !== undefined) imdbIdCache.delete(oldest)
+// Map bounded FIFO con TTL, condivisa dalle due memo id qui sotto.
+function boundedSet(cache: Map<string, ImdbCacheEntry>, max: number, key: string, value: string | null, ttlMs: number): void {
+  if (cache.size >= max) {
+    const oldest = cache.keys().next().value
+    if (oldest !== undefined) cache.delete(oldest)
   }
-  imdbIdCache.set(key, { value, expiry: Date.now() + ttlMs })
+  cache.set(key, { value, expiry: Date.now() + ttlMs })
 }
 
 export async function resolveImdbId(mediaType: "movie" | "tv", tmdbId: number, apiKey?: string, timeoutMs = 30000, signal?: AbortSignal): Promise<string | null> {
@@ -24,13 +25,13 @@ export async function resolveImdbId(mediaType: "movie" | "tv", tmdbId: number, a
   try {
     const result = await getExternalIds(mediaType, tmdbId, apiKey, signal, timeoutMs).then((r) => r.imdb_id ?? null)
     const ttl = result !== null ? 7 * 24 * 60 * 60 * 1000 : 24 * 60 * 60 * 1000
-    imdbIdCacheSet(cacheKey, result, ttl)
+    boundedSet(imdbIdCache, IMDB_ID_CACHE_MAX, cacheKey, result, ttl)
     return result
   } catch {
     // Cancellation (budget abort) means "unknown", not "no IMDb id": never
     // freeze a null on an aborted signal, the retry must refetch upstream.
     if (signal?.aborted) return null
-    imdbIdCacheSet(cacheKey, null, 60_000)
+    boundedSet(imdbIdCache, IMDB_ID_CACHE_MAX, cacheKey, null, 60_000)
     return null
   }
 }
@@ -40,13 +41,8 @@ export function __clearImdbCache(): void {
   wikidataIdCache.clear()
 }
 
-interface WikidataCacheEntry {
-  value: string | null
-  expiry: number
-}
-
 const WIKIDATA_ID_CACHE_MAX = 2000
-const wikidataIdCache = new Map<string, WikidataCacheEntry>()
+const wikidataIdCache = new Map<string, ImdbCacheEntry>()
 
 // QID Wikidata (es. Q23577 per Dexter): immutabile per titolo, quindi memo
 // lunga come l'imdbId (7gg hit / 24h miss). Chiave solo memoria locale: i dati
@@ -67,12 +63,10 @@ export async function resolveWikidataId(mediaType: "movie" | "tv", tmdbId: numbe
   try {
     const raw = await getExternalIds(mediaType, tmdbId, apiKey, undefined, timeoutMs).then((r) => r.wikidata_id ?? null)
     const result = isValidWikidataQid(raw) ? raw : null
-    if (wikidataIdCache.size >= WIKIDATA_ID_CACHE_MAX) wikidataIdCache.delete(wikidataIdCache.keys().next().value!)
-    wikidataIdCache.set(cacheKey, { value: result, expiry: Date.now() + (result !== null ? WIKIDATA_ID_HIT_TTL_MS : WIKIDATA_ID_MISS_TTL_MS) })
+    boundedSet(wikidataIdCache, WIKIDATA_ID_CACHE_MAX, cacheKey, result, result !== null ? WIKIDATA_ID_HIT_TTL_MS : WIKIDATA_ID_MISS_TTL_MS)
     return result
   } catch {
-    if (wikidataIdCache.size >= WIKIDATA_ID_CACHE_MAX) wikidataIdCache.delete(wikidataIdCache.keys().next().value!)
-    wikidataIdCache.set(cacheKey, { value: null, expiry: Date.now() + 60_000 })
+    boundedSet(wikidataIdCache, WIKIDATA_ID_CACHE_MAX, cacheKey, null, 60_000)
     return null
   }
 }

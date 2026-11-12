@@ -22,6 +22,7 @@ const rootDir = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "..")
 // render-version-files.test.ts).
 const RENDER_FILES = [
   "src/app/api/poster/[type]/[id]/route.ts",
+  "src/app/api/poster/[type]/[id]/phases.ts",
   "src/lib/accent-color.ts",
   "src/lib/award-ids.ts",
   "src/lib/award-logo-files.ts",
@@ -63,6 +64,8 @@ const RENDER_FILES = [
   "src/lib/poster-auto-fit.ts",
   "src/lib/poster-badge.ts",
   "src/lib/poster-cache-infra.ts",
+  "src/lib/badge-layout.ts",
+  "src/lib/quality-badges.ts",
   "src/lib/poster-config.ts",
   "src/lib/poster-fit-adjust.ts",
   "src/lib/poster-fit-score.ts",
