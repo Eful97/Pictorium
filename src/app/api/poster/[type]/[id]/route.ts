@@ -1671,7 +1671,7 @@ export async function GET(req: NextRequest, { params }: { params: Promise<RouteP
       const canRequestRatings = !!imdbId || isMdbTmdbIdentityUsable(tmdbId, mediaType)
       ratingAbort = canRequestRatings ? new AbortController() : null
       aggregatedRating = canRequestRatings
-        ? fetchAggregatedRating(imdbId, effMdblistKey, ratingAbort!.signal, {
+        ? fetchAggregatedRating(imdbId, effMdblistKey, AbortSignal.any([renderAbort.signal, ratingAbort!.signal]), {
             simklKey: effSimklKey,
             tmdbId,
             mediaType,

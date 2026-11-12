@@ -74,9 +74,14 @@ Rating wait is SHARED with the tmdb-details route (same knob).
   non-first poster and eats the buffer-reuse win. Discuss before changing.
 
 ### 6. Concurrency & deadline
-- Slot limiter: `PICTORIUM_MAX_CONCURRENT_RENDERS` (default `clamp(availableParallelism, 2, 8)`; explicit env 1–32, invalid → 4),
-  `PICTORIUM_RENDER_SLOT_WAIT_MS` (15000, clamp 500–60000),
-  `PICTORIUM_RENDER_QUEUE` (0). Waiters don't hold image buffers.
+- Two-tier slot limiter (`poster-runtime-cache.ts`):
+  - **Fetch slot** (`acquirePosterFetchSlot`, upstream/image I/O):
+    `PICTORIUM_MAX_CONCURRENT_FETCHES` (12, 1–32, no queue limit).
+  - **Composite slot** (`acquirePosterRenderSlot`, sharp composite only):
+    `PICTORIUM_MAX_CONCURRENT_RENDERS` (default `clamp(availableParallelism, 2, 8)`; explicit env 1–32, invalid → 4),
+    `PICTORIUM_RENDER_QUEUE` (0, 0–128).
+  - Both wait up to `PICTORIUM_RENDER_SLOT_WAIT_MS` (15000; 7500 on Vercel when unset; clamp 500–60000), then 503 + Retry-After.
+    Waiters don't hold image buffers.
 - Deadline watchdog: `PICTORIUM_RENDER_TIMEOUT_MS` (30000; 8500 on Vercel when unset; clamp 1000–40000 = maxDuration)
   frees slot + inflight map on overrun.
 - Negative cache: `PICTORIUM_NEGATIVE_CACHE_TTL_MS` (5000) for 500/503.
