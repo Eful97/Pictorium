@@ -158,7 +158,7 @@ test.describe("Button interactions and immediate updates", () => {
     // grid column count follows the option count in BadgeStyleSelector).
     const genreWrap = badgePanel.getByTestId("badge-genre-style-wrap")
     const pillBtn = genreWrap.getByRole("button", { name: "Pill" })
-    const bordoBtn = genreWrap.getByRole("button", { name: "Bordo" })
+    const bordoBtn = genreWrap.getByRole("button", { name: "Aa Bordo", exact: true }) // exact: "Bordo sfumato" also matches
 
     await pillBtn.click()
     await expect(pillBtn).toHaveClass(/bg-accent-orange\/15/)
@@ -296,6 +296,7 @@ test.describe("Button interactions and immediate updates", () => {
       const url = req.url()
       if (/\/api\/poster\/(movie|tv)\//.test(url) && url.includes("preview=1") && !url.includes("demosamples=1")) seen.push(url)
     })
+    await page.getByRole("tab", { name: "In alto", exact: true }).click() // per-title sub-tab (3a2be9c7): rank lives under "In alto"
     const rankGroup = page.getByRole("radiogroup", { name: "Classifica" })
     await expect(rankGroup).toBeVisible()
     const presentationNames = ["Nastro", "Numero", "Badge", "Fresh", "Card"]
@@ -319,11 +320,11 @@ test.describe("Button interactions and immediate updates", () => {
     }
     // Side is defaults-only: never rendered per-title (not persistible).
     await expect(page.getByRole("radiogroup", { name: "Posizione" })).toHaveCount(0)
-    // Badge appearance exposes the 6 centered variants; back to Numero.
+    // Badge appearance exposes the centered variants; back to Numero.
     await rankGroup.getByRole("radio", { name: "Badge", exact: true }).click()
     const variantGroup = page.getByRole("radiogroup", { name: "Stile badge ranking predefinito" })
     await expect(variantGroup).toBeVisible()
-    await expect(variantGroup.getByRole("radio")).toHaveCount(7)
+    await expect(variantGroup.getByRole("radio")).toHaveCount(10) // RANK_BADGE_VARIANTS (+tinta/sfumato/editoriale, e2d200f2)
     await rankGroup.getByRole("radio", { name: "Numero" }).click()
     await expect(rankGroup.getByRole("radio", { name: "Numero" })).toHaveAttribute("aria-checked", "true")
     // Immediate preview: the new request carries rs=number (single ribbon flag).
@@ -347,7 +348,8 @@ test.describe("Button interactions and immediate updates", () => {
     const nextTrend = await trendSwitch.getAttribute("aria-checked")
     expect(nextTrend).not.toBe(initialTrend)
 
-    // Test Logo Network switch toggle in Badge tab
+    // Test Logo Network switch toggle in Badge tab ("Aspetto" sub-tab, 3a2be9c7)
+    await page.getByRole("tab", { name: "Aspetto", exact: true }).click()
     const netLogoSwitch = page.getByRole("switch", { name: /Logo Network|Network logo/i })
     await expect(netLogoSwitch).toBeVisible()
     const initialNetLogo = await netLogoSwitch.getAttribute("aria-checked")
