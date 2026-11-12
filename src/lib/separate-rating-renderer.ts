@@ -1,7 +1,7 @@
 import fs from "node:fs"
 import path from "node:path"
 import sharp from "sharp"
-import { escSvg, estimateTextWidth, fontFamilyFor, normalizeBadgeFont, satinPillStops } from "./badge-svg-shared"
+import { escSvg, estimateTextWidth, fontFamilyFor, normalizeBadgeFont, satinPillStops, badgeDropShadow } from "./badge-svg-shared"
 import { renderSVG } from "./svg-badge"
 import { formatSeparateValue, MAX_SEPARATE_RATINGS } from "./ratings"
 import type { BadgeFont, SeparateBottomVariant } from "./badge-styles"
@@ -77,7 +77,7 @@ function cacheSeparateLogo(
  * l'ombra standard sborda sul pill successivo e agli angoli sembra un
  * blocco squadrato. Con dy=2 + blur 2 l'estensione (~4px) resta nel gap.
  */
-const SEPARATE_SHADOW_FILTER = `<filter id="seps" x="-30%" y="-30%" width="160%" height="160%"><feDropShadow dx="2" dy="2" stdDeviation="2" flood-color="#000000" flood-opacity="0.55"/></filter>`
+const SEPARATE_SHADOW_FILTER = badgeDropShadow("seps")
 
 /**
  * Riserva perimetrale ORIZZONTALE per l'ombra `seps` della colonna rating
@@ -323,7 +323,10 @@ export async function renderSeparateRatingStack(
   scalePct: number = 130,
   /** Per-item corrections by stable provider identity (empty = automatic). */
   itemTransforms?: BadgeItemTransformMap | null,
+  /** `rings` = voto dentro un anello di progresso + logo sotto (stile `rings`). */
+  variant: "pill" | "rings" = "pill",
 ): Promise<SeparateRatingStack | null> {
+  const isRings = variant === "rings"
   // Pill compatte in stile moderno: proporzioni solide e bilanciate col badge 4K.
   const f = normalizeBadgeFont(font)
   const baseFs = Math.round(Math.max(14 * pw / 380, 11))
@@ -337,22 +340,29 @@ export async function renderSeparateRatingStack(
   const px = Math.round(fs * 0.6)
   const pt = Math.max(2, Math.round(fs * 0.22))
   const gap = Math.max(2, Math.round(fs * 0.18))
-  const logoH = Math.round(fs * 0.95)
+  const logoH = Math.round(fs * (isRings ? 1.05 : 0.95))
+  // Anello: raggio, spessore e diametro esterno della placca tonda.
+  const ringR = Math.round(fs * 1.25)
+  const ringStroke = Math.max(3, Math.round(fs * 0.28))
+  const ringD = 2 * (ringR + ringStroke + 1)
+  const ringGap = Math.max(2, Math.round(fs * 0.3))
   const fg = topLight ? "rgba(255,255,255,0.95)" : "rgba(0,0,0,0.88)"
   const stroke = topLight ? "rgba(0,0,0,0.12)" : "rgba(255,255,255,0.22)"
 
-  const rows: { id: string | null; logo: { png: Buffer; w: number; h: number }; display: string; textW: number; pillH: number }[] = []
+  const rows: { id: string | null; logo: { png: Buffer; w: number; h: number }; display: string; textW: number; pillH: number; value: number }[] = []
   for (const item of capped) {
     const logo = await loadSeparateRatingLogo(item.id, logoH)
     if (!logo) continue
     const rawDisplay = formatSeparateValue(item.id, item.value)
     const textW = Math.max(estimateTextWidth(rawDisplay, fs, f), 1)
-    rows.push({ id: ratingItemId(item.id), logo, display: rawDisplay, textW, pillH: pt + logo.h + gap + fs + pt })
+    rows.push({ id: ratingItemId(item.id), logo, display: rawDisplay, textW, pillH: isRings ? ringD + ringGap + logo.h : pt + logo.h + gap + fs + pt, value: item.value })
   }
   if (rows.length === 0) return null
 
   // Larghezza UNIFORME: max dei contenuti + padding — la colonna è dritta.
-  const colW = Math.max(...rows.map((r) => Math.max(r.logo.w, r.textW))) + px * 2
+  const colW = isRings
+    ? Math.max(ringD, ...rows.map((r) => r.logo.w)) + 2
+    : Math.max(...rows.map((r) => Math.max(r.logo.w, r.textW))) + px * 2
   const r = Math.round(Math.max(...rows.map((row) => row.pillH)) * 0.32)
   const totalH = rows.reduce((acc, row) => acc + row.pillH, 0) + SEPARATE_STACK_GAP * (rows.length - 1)
   // Canvas = inchiostro + riserva ombra ORIZZONTALE (vedi SEPARATE_SHADOW_PAD):
@@ -361,7 +371,27 @@ export async function renderSeparateRatingStack(
   const canvasW = colW + SEPARATE_SHADOW_PAD * 2
 
   const defs = `<defs><linearGradient id="sepg" x1="0" y1="0" x2="0" y2="1">${satinPillStops(topLight)}</linearGradient>${SEPARATE_SHADOW_FILTER}</defs>`
+  const ringSvg = (row: (typeof rows)[number], y: number): string => {
+    const cx = colW / 2
+    const cy = y + ringD / 2
+    const circ = 2 * Math.PI * ringR
+    const frac = Math.min(1, Math.max(0, row.value / 10))
+    // Colore per punteggio (leggibile a colpo d'occhio, indipendente dal provider).
+    const arc = row.value >= 7.5 ? "#22C55E" : row.value >= 6 ? "#EAB308" : "#EF4444"
+    const plate = topLight ? "rgba(255,255,255,0.82)" : "rgba(8,10,16,0.72)"
+    const track = topLight ? "rgba(0,0,0,0.14)" : "rgba(255,255,255,0.18)"
+    const vfs = Math.round(fs * (row.display.length > 3 ? 0.8 : 0.95))
+    const vw = Math.max(estimateTextWidth(row.display, vfs, f), 1)
+    return (
+      `<circle cx="${cx}" cy="${cy}" r="${ringR + ringStroke}" fill="${plate}" filter="url(#seps)"/>` +
+      `<circle cx="${cx}" cy="${cy}" r="${ringR}" fill="none" stroke="${track}" stroke-width="${ringStroke}"/>` +
+      `<circle cx="${cx}" cy="${cy}" r="${ringR}" fill="none" stroke="${arc}" stroke-width="${ringStroke}" stroke-linecap="round" stroke-dasharray="${(circ * frac).toFixed(1)} ${circ.toFixed(1)}" transform="rotate(-90 ${cx} ${cy})"/>` +
+      `<text x="${cx}" y="${cy}" text-anchor="middle" dominant-baseline="central" font-family="${fontFamilyFor(row.display, f)}" font-weight="800" font-size="${vfs}" fill="${topLight ? "rgba(0,0,0,0.88)" : "rgba(255,255,255,0.95)"}" textLength="${vw}" lengthAdjust="spacingAndGlyphs">${escSvg(row.display)}</text>` +
+      `<image href="data:image/png;base64,${row.logo.png.toString("base64")}" x="${Math.round((colW - row.logo.w) / 2)}" y="${y + ringD + ringGap}" width="${row.logo.w}" height="${row.logo.h}" filter="url(#seps)"/>`
+    )
+  }
   const pillSvg = (row: (typeof rows)[number], y: number): string => {
+    if (isRings) return ringSvg(row, y)
     const logoX = Math.round((colW - row.logo.w) / 2)
     const textY = y + pt + row.logo.h + gap + Math.round(fs / 2)
     return (

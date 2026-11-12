@@ -333,6 +333,55 @@ resto della famiglia, tenuto DENTRO il box (footprint invariato).
 cornici. `premium` e `color` condividono UN materiale di cornice; `gradient`
 resta un solo rect di fondo (nessun secondo rect) più il suo bordo.
 
+## Stili additivi 2: `tinta`, `sfumato`, `split` genere, `editoriale`, `rings`, vetro reale, anti-collisione logo
+
+Tutti additivi (appesi in coda agli enum, nessun identificatore esistente
+cambia; validazione/hardening/cache derivano dagli enum di `badge-styles.ts`).
+
+| Stile | Famiglie | Resa (builder in `badge-svg-shared.ts`) | Accent |
+|---|---|---|---|
+| `tinta` | genere (`bs`), classifica (`rs`), extra (`xbs`) | `buildGenreTintSvg`: velo neutro (0.38 nero / 0.62 bianco su banda chiara) + accent 25% con bordo accent 60%; testo/stella = accent schiarito (`mixHex` +0.62, banda chiara −0.55). Accent assente/`#555555` → bianco neutro | sì |
+| `sfumato` | genere, classifica, extra | `buildGenreGradientBorderSvg`: placca scura `rgba(10,14,24,0.74)` (chiara 0.80 su banda chiara) + cornice 1.6px in gradiente diagonale bianco → accent → bianco 0.25; stella oro | sì |
+| `split` (genere) | solo genere (`bs=split`; lo `split` classifica resta `buildSplitChipSvg`) | `buildGenreSplitSvg`: cella accent con ★ + voto (inchiostro `textColorForBg`), cella satin con genere • anno (fs × 0.86); rating nascosto → solo cella satin; raggio 0.30 × boxH | sì |
+| `editoriale` | solo genere | `buildGenreEditorialSvg`: maiuscolo Oswald 600 (fs × 0.92), tracking `EDITORIAL_TRACKING_EM` = 0.18em (`lengthAdjust="spacing"`), ordine GENERE · ANNO · ★ voto, lineetta 2.8fs × 1.5px sopra, nessuna placca, ombra testo morbida (assente su banda chiara); riserva in basso `TOP_SHADOW_PAD` = stessa linea visiva degli altri stili | no |
+
+- **`editoriale` esteso**: classifica (`rs`) ed extra (`xbs`) via
+  `buildEditorialLabelSvg` (maiuscolo Oswald 600 a fs × 0.72, tracking 0.18em,
+  lineetta SOTTO, riserva sopra `TOP_SHADOW_PAD`); qualità (`qbs`) ed età
+  (`agebs`) via `buildEditorialMarkSvg` (stessa `badgeTextBox` + riserva degli
+  altri marchi → colonna/home/anchor invariati; tier, età e marchi A/V con
+  l'etichetta breve; un'età `standard` dentro un gruppo qualità editoriale
+  diventa editoriale come nel `naked`). Nessun accent.
+- **Anti-collisione logo titolo (genere, non-bar)**: `shrinkAwayFromRect` in
+  `poster-service.ts` misura l'INCHIOSTRO del badge (alpha > 40) e del logo; se
+  distano meno di `LOGO_BADGE_GAP` = 6px il badge si riduce (passo 0.05, floor
+  0.75); se a 0.75 tocca ancora, torna a grandezza piena e sale sopra il logo.
+  Il logo non si muove mai. Nessuna collisione → byte-identico. Sostituisce la
+  vecchia regola "il logo non rimpicciolisce mai il genere".
+- Metriche genere dei nuovi stili a placca (`tinta`/`sfumato`/`split`) =
+  quelle della pill genere (`genrePillHeight`, `GENRE_PILL_PAD_X_FACTOR`, cap
+  larghezza `genrePillMaxW`): stessa linea visiva e stessa distanza dal logo.
+- Classifica/extra `tinta`/`sfumato` riusano gli stessi builder col solo testo
+  (`TOP_TEXT_ONLY`) e `padTop = TOP_SHADOW_PAD`; in `poster-service.ts`
+  ricevono il `pillTopGap` 10px come `pill`. Landscape genere: `tinta`,
+  `sfumato`, `split` prendono lo stesso shift d'angolo di `bordo`/`vetro`.
+- `genreBadgeConsumesAccent` include `tinta`/`sfumato`/`split`;
+  `topBadgeConsumesAccent` include `tinta`/`sfumato`.
+- **Vetro reale** (`vetro`, genere + classifica/extra standard): nella
+  composizione finale `insertFrostedGlassUnderlays` (`poster-render-helpers.ts`)
+  compone una volta la base + i layer sotto la prima placca vetro, ritaglia
+  l'area di ogni placca, la sfoca (σ = max(4, CW/40)) e la inserisce subito
+  SOTTO la placca con la sagoma dell'alpha del bitmap badge (soglia 24). Solo
+  quando c'è una placca vetro; fuori canvas/errore → vetro storico. `glassStops`
+  su banda scura è più leggero (0.34 → 0.14 → nero 0.12 → nero 0.30).
+- **`rings`** (`sepstyle=rings`): variante COLONNA dei rating separati
+  (`isBottomSeparateRatingsStyle("rings") === false`, `useSeparate` vale anche
+  per `rings`). `renderSeparateRatingStack(..., variant="rings")`: placca tonda
+  scura (chiara su top chiaro), traccia 18%, arco di progresso `value/10` colorato
+  per punteggio (≥7.5 `#22C55E`, ≥6 `#EAB308`, altrimenti `#EF4444`), voto al
+  centro, logo provider (fs × 1.05) sotto. Chiave cache stack + segmento `rings`.
+  Negli URL Stremio `sepstyle=rings` è emesso esplicito (non è il default).
+
 ## Badge contenuto: vera storia / libro / prossimo episodio / soli N episodi
 
 Quattro badge automatici opt-out via bucket `sash` (nessun nuovo parametro
@@ -416,7 +465,7 @@ Opt-in (`sep=1`, default OFF): sostituisce la media ★ nel badge con una colonn
 | Offset gruppo (`separateBadgeOffsetX/Y` / `sepox`/`sepoy`) | intero gruppo (colonna o riga, mai singoli provider): `left += ox`, `top += oy` (positivo Y = giù, come gli altri offset) con clamp dentro il canvas; `bottom-bar` portrait full-width: X ignorata esplicitamente (solo Y); in landscape la barra è pills (X attiva); catena `query > mapping effettivo per formato > config token > defaults effettivi > 0`, clamp `±2000`, step 5 in presets; bitmap badge invariati (solo placement, chiavi `separate` invariate; chiave poster/`dv` li includono). UI: slider X/Y in Trasforma per-titolo/default/Orizzontale (stesso range/bounds degli altri offset); X disabilitata con hint in `bottom-bar` portrait |
 | Priorità | mai col custom provider: se la riga custom è renderizzata, lo stack si nasconde |
 | Sostituzione | con stack attivo (`useSeparate`) il badge genere nasconde il segmento ★ (`badgeRating` effettivo = false) |
-| Stile layout (`separateRatingsStyle` / `sepstyle`) | enum `column` (default storico), `bottom-bar` (solo portrait), `bottom-pills`, `bottom-mono` (icone tonde + voti monocolore, senza contenitore), `bottom-color` (icone tonde brand + voti, senza contenitore); catena query > mapping effettivo per formato > config token > defaults effettivi > `column` (garbage → `column`); landscape: solo `bottom-bar` → `bottom-pills` DOPO cascata (`getSeparateRatingsStyleForShape` in `badge-styles.ts`, riusato da config/service/preview/UI — raw salvati intatti, portrait invariato; `bottom-mono`/`bottom-color` passano invariati in entrambi i formati); emesso esplicito solo quando bottom negli URL Stremio (come `bs`/`rs`, mai in `dv`), sempre esplicito in preview (`column` incluso, WYSIWYG); in allowlist cache key + hardening enum |
+| Stile layout (`separateRatingsStyle` / `sepstyle`) | enum `column` (default storico), `rings` (colonna ad anelli, vedi "Stili additivi 2"), `bottom-bar` (solo portrait), `bottom-pills`, `bottom-mono` (icone tonde + voti monocolore, senza contenitore), `bottom-color` (icone tonde brand + voti, senza contenitore); catena query > mapping effettivo per formato > config token > defaults effettivi > `column` (garbage → `column`); landscape: solo `bottom-bar` → `bottom-pills` DOPO cascata (`getSeparateRatingsStyleForShape` in `badge-styles.ts`, riusato da config/service/preview/UI — raw salvati intatti, portrait invariato; `bottom-mono`/`bottom-color` passano invariati in entrambi i formati); emesso esplicito solo quando bottom negli URL Stremio (come `bs`/`rs`, mai in `dv`), sempre esplicito in preview (`column` incluso, WYSIWYG); in allowlist cache key + hardening enum |
 | Bottom attivo | `badgesEnabled && badgeRating && sep && stile bottom` (centralizzato in `resolveSeparateDisplayState`, INDIPENDENTE dai valori: con voti assenti nasconde comunque genere+anno+voto, senza inventare valori); la soppressione è EFFETTIVA solo a render — `bg`/`by`/`br` salvati non mutati (tornando a `column` si ripristinano); in bottom la riga custom provider è esclusa (`suppressCustomRow`, mai duplicata; il custom conserva la priorità storica sulla colonna, invariata). UI: selettore `sepstyle` (Colonna/Barra/Pill/Monocolore/Icone colorate) visibile con rating separati ON — in landscape la Barra è disabilitata (visibile, mai selezionata, hint `ui.separateRatingsBarLandscapeHint`; selezione mostrata sullo stile normalizzato via `getSeparateRatingsStyleForShape`) e il raw salvato resta (in portrait torna); in bottom i toggle genere/anno sono disabilitati (visivo + aria, callback inattiva) ma i valori restano conservati — stesso comportamento nei default globali. Lo stile è condiviso tra formati in UI (niente selettore Orizzontale dedicato), ma un eventuale override `landscape` già salvato nei dati si rispetta in load/save (mapping effettivo, profilo preservato, stash cambio formato) |
 | Riga bottom (`renderSeparateRatingsBottom` + `poster-service.ts`) | UN solo bitmap: logo provider + valore inline (logo a sinistra, valore a destra, `textLength` stabilizzato); `bottom-bar` = fascia satinata adattiva `satinPillStops(bottomLight)` full-width a filo in basso (SOLO portrait — in landscape normalizzata a pills a monte, mai renderizzata); `bottom-pills` = 1-5 pill adattive `rx = h/2` con bordo 1.5px + ombra `seps`, in portrait riga centrata con margine `round(20 * CH / 570)` dal bordo + 5 Y portrait solo pills (`PORTRAIT_SEPARATE_SHIFT_Y`; bar full-width a filo esclusa: il +5 sarebbe annullato dal clamp), in landscape ancorate a DESTRA con la geometria base genere (`landscapeRightAnchorLeft` extra 0 opticalShift 0: margine pieno `18*CW/380` senza il +40 ottico del genere, base landscape −20 X / −10 Y via `LANDSCAPE_BOTTOM_PILLS_SHIFT_*`, slider `sepox`/`sepoy` neutri 0 e additivi dopo); `bottom-mono`/`bottom-color` = icone tonde + voto senza pillola/barra né contenitore (stessa geometria pills: centrata in portrait, destra in landscape con stessa base −20 X / −10 Y, stessi slider e collisioni logo; `loadRoundRatingLogo` in `separate-rating-renderer.ts`: piastra tonda, mono = grigio `208` su fondo scuro / `32` su chiaro con voto monocolore — bianchi oltre 230 preservati come controforme — color = piastra brand originale (`imdb` gialla `#f6c700` senza rettangolo, `tomatoes` natural senza piastra, resto `#032541`) + voto chiaro su scuro); materiale/testo/bordo seguono `bottomLight` come il badge genere (fondo chiaro → pill scura + testo chiaro, fondo scuro → pill chiara + testo scuro) — loghi brand invariati; reservation logo titolo = geometria colonna equivalente (`logoBadgeVisibility`, solo reservation); base font `round(max(15 * pw / 380, 11))` (`23` per i bare, `15` per bar/pills), scala % 10..200 nativa come la colonna; fit sul font (loop max 4 fino a `max(8, 55% base)` con rebuild coerente) + shrink bitmap proporzionale di sicurezza — mai clipping; vuota → null (mai placeholder) |
 | Cache | chiave stack `badge:separate:<src+val,...>:<CW>:<topLight>` (un composite); chiave bottom `badge:separate-bottom:<stile>:<src+val,...>:<CW>:<bottomLight>:<scala>:<w>` (il segmento `<stile>` distingue anche `bottom-mono`/`bottom-color`: mai collisioni tra stili); flag `sep` nella cache key poster; valori sep nell'etag dei poster dinamici |

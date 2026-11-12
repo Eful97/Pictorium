@@ -243,7 +243,7 @@ export function BadgeControls() {
   // Extra style options: the full renderer-supported subset (same order as
   // the defaults panel — colored always offered, never gated on the current
   // value; the renderer already handles every entry).
-  const extraOptions: ExtraBadgeStyle[] = ["default", "pill", "corner", "vetro", "bordo", "colored"]
+  const extraOptions: ExtraBadgeStyle[] = ["default", "pill", "corner", "vetro", "bordo", "colored", "tinta", "sfumato", "editoriale"]
   const EXTRA_STYLE_LABELS: Record<ExtraBadgeStyle, string> = {
     default: "ui.bsDefault",
     pill: "ui.pill",
@@ -251,6 +251,9 @@ export function BadgeControls() {
     vetro: "ui.vetro",
     bordo: "ui.bordo",
     colored: "ui.colored",
+    tinta: "ui.tinta",
+    sfumato: "ui.sfumato",
+    editoriale: "ui.editoriale",
   }
 
   return (
@@ -309,6 +312,7 @@ export function BadgeControls() {
                       { id: "bottom-pills", labelKey: "ui.separateRatingsBottomPills" },
                       { id: "bottom-mono", labelKey: "ui.separateRatingsBottomMono" },
                       { id: "bottom-color", labelKey: "ui.separateRatingsBottomColor" },
+                      { id: "rings", labelKey: "ui.sepRings" },
                     ] as const).map((opt) => {
                       // Barra disattivata in landscape (il server normalizza
                       // a pills): bottone visibile ma disabilitato e mai
@@ -451,7 +455,7 @@ export function BadgeControls() {
           <span className="text-[11px] text-muted font-medium block">{t("ui.styleGenreBadge")}</span>
           <BadgeStyleSelector
             value={ed.badgeStyle}
-            options={["shadow", "pill", "bar", "colored", "bordo", "vetro", "minimal", "ink"]}
+            options={["shadow", "pill", "bar", "colored", "bordo", "vetro", "minimal", "ink", "tinta", "sfumato", "split", "editoriale"]}
             // Stile "bar" non disponibile in landscape: il server lo degrada
             // a shadow (stesso endpoint, preview WYSIWYG garantita).
             disabled={ed.posterShape === "landscape" ? ["bar"] : []}

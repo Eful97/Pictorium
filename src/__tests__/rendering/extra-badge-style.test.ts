@@ -50,7 +50,7 @@ const config = (partial: Partial<PictoriumUserConfig> = {}): PictoriumUserConfig
 
 describe("extraBadgeStyle enum", () => {
   it("reuses the existing style names, ranking-only styles excluded", () => {
-    expect([...EXTRA_BADGE_STYLES].sort()).toEqual(["bordo", "colored", "corner", "default", "pill", "vetro"])
+    expect([...EXTRA_BADGE_STYLES].sort()).toEqual(["bordo", "colored", "corner", "default", "editoriale", "pill", "sfumato", "tinta", "vetro"])
     // `split` is ranking-only: never a valid xbs value (fail-closed to the
     // legacy rs behavior, no migration).
     for (const s of ["netflix", "netflix-color", "number", "bar", "shadow", "minimal", "split", ""]) {

@@ -97,8 +97,8 @@ const PRE_RANKED_LANDSCAPE = "33f2998c55de5a3eb6d331939005a8df1f875baeb4955cb97b
 const TASK8A2_BEFORE_UNRANKED_PORTRAIT = "413bc344ed1930ac4d98ae52dcb88485a76c56b929f93ef1c94e5ea88cdd8146"
 const TASK8A2_BEFORE_UNRANKED_LANDSCAPE = "7c80714616beae0f7d7ea886df768fcdbcd04554cba6154fd7e9533a5b560c07"
 // Star ink-centre re-pin (intentional user-visible fix in e24b2784: badge-svg-shared.ts:319 starDy = round2(starR * 0.0955); the commit omitted the re-pin) — the 80-era standard bytes below moved with the star row, nothing else.
-const PRE_STANDARD_PORTRAIT = "8c5f36043e7418b92da5fe24f8f68ad38c46bce03c82010d1fbead3f20c1a338"
-const PRE_STANDARD_LANDSCAPE = "1641ed80575d4a68567910efd7ddca74bba4ab39a024a4d353fc11bf8b06ee91"
+const PRE_STANDARD_PORTRAIT = "1744263c5a1ae0dacc6a7941e41ef72319e1ef97a6fe7e8a19d594d803e804fd"
+const PRE_STANDARD_LANDSCAPE = "4137f6e151154b45ccc4b8f64d3efda1c71951f6b6cf946845491f5350c520b4"
 // F2 re-pin (user-authorized genre clipping/centering fix: segmented texts +
 // path star replace the dx/dy ★-glyph flow for Inter latin — the standard
 // portrait/landscape genre badge re-renders, all other fixtures byte-identical.
@@ -113,8 +113,8 @@ const LEGACY_TOP_SHADE_50_RANKED_LANDSCAPE = "c504aab7722ba206cd6a23711a71b8beb7
 const LEGACY_TOP_SHADE_50_UNRANKED_PORTRAIT = "e1e4b228a05e29c6d9a5509c4b7769a1be7808c1456e2d6592b23803e7255359"
 const LEGACY_TOP_SHADE_50_UNRANKED_LANDSCAPE = "959f0b9aa491031004fa68c812f0323bd1024ff270c913633306bfc73a060429"
 // Same star ink-centre re-pin (e24b2784, badge-svg-shared.ts:319): the 50-default standard bytes moved with the star row.
-const LEGACY_TOP_SHADE_50_STANDARD_PORTRAIT = "8b64dc7d179ddc83d1e34c669a18acc92a4839e101feb02c04d01b52817a1033"
-const LEGACY_TOP_SHADE_50_STANDARD_LANDSCAPE = "0048d1ef079e8c795bae71e9c0ef965294f17c4f41fea0e95690f08bf6c2e8f0"
+const LEGACY_TOP_SHADE_50_STANDARD_PORTRAIT = "8e51a6d52c8fd105925fa8e458495358d4e2cbccbb755d94dacf2bf6f8b22d9e"
+const LEGACY_TOP_SHADE_50_STANDARD_LANDSCAPE = "f49524cc961c3e7ab9c2915cd39db0d1a3e30035d58fd63c0723afe242218e34"
 
 function sha(buf: Buffer): string {
   return createHash("sha256").update(buf).digest("hex")

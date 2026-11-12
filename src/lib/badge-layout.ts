@@ -55,7 +55,7 @@ export function resolveTopBadgeStyle(params: {
  * adaptive tint in their badge cache key.
  */
 export function genreBadgeConsumesAccent(style: BadgeStyle | string | null | undefined): boolean {
-  return style === "colored" || style === "ink"
+  return style === "colored" || style === "ink" || style === "tinta" || style === "sfumato" || style === "split"
 }
 
 /**
@@ -83,7 +83,7 @@ export function topBadgeConsumesAccent(params: {
   const eff: string = topBadgeType === "extra"
     ? (normalizeExtraBadgeStyleForRender(params.extraBadgeStyle) ?? (rankingBadgeAccent ? "colored" : rankingBadgeStyle))
     : rankingBadgeStyle
-  if (eff === "colored" || eff === "corner") return true
+  if (eff === "colored" || eff === "corner" || eff === "tinta" || eff === "sfumato") return true
   if (eff === "split") return topBadgeType === "rank"
   if (eff === "number") return topBadgeType === "extra"
   if (eff === "default") return topBadgeType === "rank" && rankingBadgeAccent === true

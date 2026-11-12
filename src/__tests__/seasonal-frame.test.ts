@@ -693,8 +693,11 @@ describe("seasonal landscape render (own 768x432 art, frame below chrome)", () =
       }
       expect(overlap.length, "opaque-chrome/frame overlap with distinguishable colors").toBeGreaterThanOrEqual(5)
       // Framed, every overlap pixel matches the chromed render (chrome won).
+      // Tolerance 30: the flat satin plate is ~90% opaque (never fully
+      // opaque by design), so a saturated frame bleeds ~20 levels through
+      // it; a frame painted ABOVE the chrome would differ by >100.
       for (const [x, y] of overlap) {
-        expect(close(px(fp, x, y), px(up, x, y), 12), `chrome wins at ${x},${y}`).toBe(true)
+        expect(close(px(fp, x, y), px(up, x, y), 30), `chrome wins at ${x},${y}`).toBe(true)
       }
     }, 120000)
   }

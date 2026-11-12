@@ -12,7 +12,7 @@ export type RankingAppearance = "nastro" | "numero" | "badge"
 export type RankingPresentation = RankingAppearance | "fresh" | "card"
 
 /** Badge variants for the Badge appearance (`standard` = centered default plate). */
-export const RANK_BADGE_VARIANTS = ["pill", "colored", "bordo", "vetro", "corner", "standard", "split"] as const
+export const RANK_BADGE_VARIANTS = ["pill", "colored", "bordo", "vetro", "corner", "standard", "split", "tinta", "sfumato", "editoriale"] as const
 export type RankBadgeVariant = (typeof RANK_BADGE_VARIANTS)[number]
 
 /**
@@ -41,7 +41,7 @@ export function resolveRankingAppearance(args: {
  * selected pill. Pure read — never writes.
  */
 export function resolveRankVariant(rs: string | null | undefined): RankBadgeVariant {
-  if (rs === "pill" || rs === "colored" || rs === "bordo" || rs === "vetro" || rs === "corner" || rs === "split") return rs
+  if (rs === "pill" || rs === "colored" || rs === "bordo" || rs === "vetro" || rs === "corner" || rs === "split" || rs === "tinta" || rs === "sfumato" || rs === "editoriale") return rs
   return "standard"
 }
 
@@ -111,7 +111,7 @@ export function rankVariantValue(variant: RankBadgeVariant): RankVariantValue {
  */
 export function legacyExtraStyleForRank(rs: string | null | undefined): ExtraBadgeStyle {
   if (rs === "corner" || rs === "number") return "corner"
-  if (rs === "pill" || rs === "colored" || rs === "bordo" || rs === "vetro") return rs
+  if (rs === "pill" || rs === "colored" || rs === "bordo" || rs === "vetro" || rs === "tinta" || rs === "sfumato" || rs === "editoriale") return rs
   return "default"
 }
 
@@ -143,6 +143,9 @@ const VARIANT_LABELS: Record<RankBadgeVariant, string> = {
   corner: "ui.corner",
   standard: "ui.qbsStandard",
   split: "ui.split",
+  tinta: "ui.tinta",
+  sfumato: "ui.sfumato",
+  editoriale: "ui.editoriale",
 }
 
 /** Demo accent for the mini previews (same fallback as the badge style selector). */
@@ -161,6 +164,9 @@ const BADGE_VARIANT_SWATCH: Record<RankBadgeVariant, { style: RankingBadgeStyle;
   corner: { style: "corner", ribbon: true },
   standard: { style: "default", ribbon: false },
   split: { style: "split", ribbon: true },
+  tinta: { style: "tinta", ribbon: true },
+  sfumato: { style: "sfumato", ribbon: true },
+  editoriale: { style: "editoriale", ribbon: true },
 }
 /** Ribbon rows → the same canonical pairs `ribbonVariantValue` writes. */
 const RIBBON_VARIANT_SWATCH: Record<RankRibbonVariant, { style: RankingBadgeStyle; ribbon: boolean }> = {

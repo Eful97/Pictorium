@@ -8,7 +8,7 @@ import { renderSeparateRatingStack, renderSeparateRatingsBottom, type SeparateRa
 import { cacheGet, cacheSet } from "./cache"
 import { GENRE_FALLBACK, cinematicVignetteSVG, cinematicCornerGradientSVG, topShadeSVG } from "./badges"
 import { applyBlur } from "./blur"
-import { STD_W, STD_H, extractBadgeColor, extractSceneTint, fitBadgeToCanvas, fitCompositeToCanvas, isValidHex, BadgeRender, PosterComposite, badgeBody, badgeCanvasForBody, scaleBadgeBleed, topBandMeanRGB, bottomBandMeanRGB, effectiveTopBackgroundLuminance, effectiveBottomBackgroundLuminance, adaptiveAccentHexForBand } from "./poster-render-helpers"
+import { STD_W, STD_H, extractBadgeColor, extractSceneTint, fitBadgeToCanvas, fitCompositeToCanvas, isValidHex, BadgeRender, PosterComposite, badgeBody, badgeCanvasForBody, scaleBadgeBleed, topBandMeanRGB, bottomBandMeanRGB, effectiveTopBackgroundLuminance, effectiveBottomBackgroundLuminance, adaptiveAccentHexForBand, insertFrostedGlassUnderlays } from "./poster-render-helpers"
 import { LAND_W, LAND_H } from "./image-utils"
 import { normalizeAutomaticAccentHex } from "./accent-color"
 import type { EffectiveAccentMeta } from "./effective-accent"
@@ -75,6 +75,64 @@ async function scaleBitmapForLayout<T extends BadgeRender>(r: T, pct: number): P
   return { ...r, png, w, h, ...(bleed ? { bleed } : {}) }
 }
 
+
+/** Bounding box dell'inchiostro (alpha > 40) di un bitmap badge, in px del bitmap. */
+async function inkBounds(png: Buffer): Promise<{ x: number; y: number; w: number; h: number } | null> {
+  const { data, info } = await sharp(png).ensureAlpha().raw().toBuffer({ resolveWithObject: true })
+  let x0 = info.width, y0 = info.height, x1 = -1, y1 = -1
+  for (let y = 0; y < info.height; y++) {
+    for (let x = 0; x < info.width; x++) {
+      if (data[(y * info.width + x) * info.channels + 3] > 40) {
+        if (x < x0) x0 = x
+        if (x > x1) x1 = x
+        if (y < y0) y0 = y
+        if (y > y1) y1 = y
+      }
+    }
+  }
+  return x1 < 0 ? null : { x: x0, y: y0, w: x1 - x0 + 1, h: y1 - y0 + 1 }
+}
+
+/** Respiro minimo tra inchiostro del badge genere e logo titolo. */
+const LOGO_BADGE_GAP = 6
+
+/**
+ * Anti-collisione badge/logo: shrink (floor 0.75, passo 0.05) finché
+ * l'inchiostro del badge, piazzato da `placeBody` (ancora del CORPO, come il
+ * layout), resta a più di `LOGO_BADGE_GAP` px da `rect`. Se nemmeno a 0.75
+ * basta (logo molto largo sulla stessa linea), il badge resta a grandezza
+ * piena e sale sopra il logo (`dy` negativo sul top). Nessuna collisione →
+ * stesso oggetto e `dy` 0 (byte-identico allo storico).
+ */
+async function shrinkAwayFromRect<T extends BadgeRender>(
+  badge: T,
+  rect: { top: number; left: number; w: number; h: number },
+  placeBody: (body: { w: number; h: number }) => { top: number; left: number },
+): Promise<{ badge: T; dy: number }> {
+  const ink = await inkBounds(badge.png)
+  if (!ink) return { badge, dy: 0 }
+  const inkAt = (scale: number) => {
+    const w = Math.max(1, Math.round(badge.w * scale))
+    const h = Math.max(1, Math.round(badge.h * scale))
+    const bleed = badge.bleed ? scaleBadgeBleed(badge.bleed, w / badge.w, h / badge.h) : undefined
+    const at = placeBody(badgeBody({ w, h, bleed }))
+    const canvas = badgeCanvasForBody(at.left, at.top, { bleed })
+    const kx = w / badge.w
+    const ky = h / badge.h
+    return { x: canvas.left + ink.x * kx, y: canvas.top + ink.y * ky, w: ink.w * kx, h: ink.h * ky }
+  }
+  const hits = (scale: number): boolean => {
+    const k = inkAt(scale)
+    return k.x < rect.left + rect.w + LOGO_BADGE_GAP && k.x + k.w > rect.left - LOGO_BADGE_GAP
+      && k.y < rect.top + rect.h + LOGO_BADGE_GAP && k.y + k.h > rect.top - LOGO_BADGE_GAP
+  }
+  if (!hits(1)) return { badge, dy: 0 }
+  let scale = 1
+  while (scale > 0.75 && hits(scale)) scale = Math.max(0.75, Math.round((scale - 0.05) * 100) / 100)
+  if (!hits(scale)) return { badge: await scaleBitmapForLayout(badge, scale * 100), dy: 0 }
+  const full = inkAt(1)
+  return { badge, dy: Math.min(0, Math.round(rect.top - LOGO_BADGE_GAP - (full.y + full.h))) }
+}
 
 // Base geometrica pills landscape: -20px X / -10px Y rispetto all'ancoraggio
 // neutro (margine pieno 18*CW/380 + margine basso 20*CH/570). Solo default di
@@ -1093,6 +1151,8 @@ export async function generatePosterBuffer(input: GenerationInput): Promise<Buff
   // 1. Backdrop composite layer
   // -----------------------------------------------------------------------
   const composites: PosterComposite[] = []
+  // Placche `vetro` che ricevono lo sfondo sfocato reale (sezione 7).
+  const glassLayers = new Set<PosterComposite>()
 
   // SOLO landscape: il backdrop storico è la base 16:9 ed è già full-bleed in
   // `posterBuf` per la route; in portrait non esiste un layer backdrop (la base
@@ -1144,6 +1204,7 @@ export async function generatePosterBuffer(input: GenerationInput): Promise<Buff
   const effSepTopLight = topLight
   const effSepBottomLight = bottomLight
   const isBottomStyle = isBottomSeparateRatingsStyle(effBottomStyle)
+  const sepColumnVariant = effBottomStyle === "rings" ? "rings" as const : "pill" as const
   const bottomVariant: SeparateBottomVariant | null = isBottomStyle ? effBottomStyle : null
   const bottomItemCount = bottomVariant ? (input.separateRatings?.length ?? 0) : 0
   // Offset gruppo rating separati (default 0 = percorso storico byte-identico):
@@ -1769,8 +1830,8 @@ export async function generatePosterBuffer(input: GenerationInput): Promise<Buff
       // Posizione unificata: altezza standardizzata per tutti gli stili, la baseline del testo non salta.
       // Bordo/vetro in landscape: troppo incollati all'angolo → -30px X,
       // -15px Y (con e senza separati: si somma allo shift sep).
-      const styleCornerShiftX = anchorRight && (badgeStyle === "bordo" || badgeStyle === "vetro") ? 30 : 0
-      const styleCornerShiftY = anchorRight && (badgeStyle === "bordo" || badgeStyle === "vetro") ? 15 : 0
+      const styleCornerShiftX = anchorRight && (badgeStyle === "bordo" || badgeStyle === "vetro" || badgeStyle === "tinta" || badgeStyle === "sfumato" || badgeStyle === "split") ? 30 : 0
+      const styleCornerShiftY = anchorRight && (badgeStyle === "bordo" || badgeStyle === "vetro" || badgeStyle === "tinta" || badgeStyle === "sfumato" || badgeStyle === "split") ? 15 : 0
       // Ombra/minimale in landscape: testo nudo, +10px verso l'alto per
       // staccarlo dal bordo (con e senza separati).
       const styleLiftY = anchorRight && (badgeStyle === "shadow" || badgeStyle === "minimal") ? 10 : 0
@@ -1800,20 +1861,29 @@ export async function generatePosterBuffer(input: GenerationInput): Promise<Buff
         : (isLandscapeLeft
           ? logoAlignPadX(CW) + combinedGenreOX
           : Math.round((CW - w) / 2) + combinedGenreOX) + landscapeShiftX
-      const genreBox = safeGenreBadgeResult
       // L'ancora posiziona il corpo visibile (senza bleed è il percorso
-      // storico byte-identico); la tela segue per differenza. Anche
-      // l'overlap col logo e lo shrink ragionano sul corpo.
-      // Decoupling (fix): il logo NON rimpicciolisce mai il badge genere.
-      // La dimensione del badge genere dipende SOLO da gscale + contenuto;
-      // il logo si muove/scala/clip per contratto senza toccare il badge.
+      // storico byte-identico); la tela segue per differenza.
+      // Anti-collisione col logo titolo (richiesta utente, sostituisce il
+      // vecchio "il logo non rimpicciolisce mai il genere"): se l'INCHIOSTRO
+      // del badge (alpha reale, non la riserva d'ombra trasparente) arriva a
+      // meno di 6px dal logo, il badge si riduce (shrink-only, floor 0.7, come
+      // le righe separate). Il logo non si muove mai.
+      const logoInk = logoResult ? await inkBounds(logoResult.input) : null
+      const logoInkRect = logoResult && logoInk
+        ? { left: logoResult.left + logoInk.x, top: logoResult.top + logoInk.y, w: logoInk.w, h: logoInk.h }
+        : null
+      const logoFit = logoInkRect
+        ? await shrinkAwayFromRect(safeGenreBadgeResult, logoInkRect, (body) => ({ top: genreTopFor(body.h), left: genreLeftFor(body.w) }))
+        : { badge: safeGenreBadgeResult, dy: 0 }
+      const genreBox = logoFit.badge
       const genreBody = badgeBody(genreBox)
-      // Historic placement (auto): no logo shrink.
-      const genreTop = genreTopFor(genreBody.h)
+      const genreTop = Math.max(0, genreTopFor(genreBody.h) + logoFit.dy)
       const genreLeft = genreLeftFor(genreBody.w)
       genreBadgeRect = { top: genreTop, left: genreLeft, w: genreBody.w, h: genreBody.h }
       const genreCanvas = badgeCanvasForBody(genreLeft, genreTop, genreBox)
-      composites.push({ input: genreBox.png, top: genreCanvas.top, left: genreCanvas.left })
+      const genreLayer = { input: genreBox.png, top: genreCanvas.top, left: genreCanvas.left }
+      if (badgeStyle === "vetro") glassLayers.add(genreLayer)
+      composites.push(genreLayer)
     }
   }
   if (genreBadgeRect) {
@@ -1870,7 +1940,7 @@ export async function generatePosterBuffer(input: GenerationInput): Promise<Buff
     // The pill (centered or corner) sits 10px below the top edge (fixed
     // editorial measure). Default is flush with the top. Pill/corner only,
     // independent of the quality badge.
-    const pillTopGap = topBadgeStyle === "pill" || isCornerAnchoredStyle(topBadgeStyle) ? 10 : 0
+    const pillTopGap = topBadgeStyle === "pill" || topBadgeStyle === "tinta" || topBadgeStyle === "sfumato" || isCornerAnchoredStyle(topBadgeStyle) ? 10 : 0
     const rankBody = badgeBody(safeRankBadgeResult)
     let left: number
     if (isNetflixRibbon && isRightRibbon) {
@@ -1948,11 +2018,9 @@ export async function generatePosterBuffer(input: GenerationInput): Promise<Buff
   if (finalRankBadge && finalRankLeft !== null && !isFresh && !isCard) {
     // La tela segue l'ancora del corpo: il bleed resta complanare, mai un salto.
     const rankCanvas = badgeCanvasForBody(finalRankLeft, finalRankTop, finalRankBadge)
-    composites.push({
-      input: finalRankBadge.png,
-      top: rankCanvas.top,
-      left: rankCanvas.left,
-    })
+    const rankLayer = { input: finalRankBadge.png, top: rankCanvas.top, left: rankCanvas.left }
+    if (topBadgeStyle === "vetro") glassLayers.add(rankLayer)
+    composites.push(rankLayer)
   }
   // Nastro Coming Soon: angolo in alto (a sinistra; a destra con side="right"), sopra il badge centrale
   // (quando coesistono per custom esplicito) e sopra il velo pre-digitale.
@@ -2584,10 +2652,10 @@ export async function generatePosterBuffer(input: GenerationInput): Promise<Buff
         || isTopBadgeNumberRightCorner({ topBadgeType: topBadge?.type, rankingBadgeStyle, extraBadgeStyle, ribbonSide, hasTopBadge: !!finalRankBadge }))
     const stackTop = (qualityStackAnchor ? qualityStackAnchor.top + 6 : netBaseTop - 10)
       + (isLandscape ? 0 : PORTRAIT_SEPARATE_SHIFT_Y)
-    const stackKey = badgeCacheKey("separate", items.map((i) => `${i.id}${i.value}`).join(","), CW, badgeFont, effSepTopLight, separateBadgeScaleEff, separateItemKey)
+    const stackKey = badgeCacheKey("separate", items.map((i) => `${i.id}${i.value}`).join(","), CW, badgeFont, effSepTopLight, separateBadgeScaleEff, separateItemKey, sepColumnVariant === "rings" ? "rings" : undefined)
     const cached = cacheGet<SeparateRatingStack>(stackKey)
     const stack = cached ?? await coalesceBadgeRender(stackKey, () =>
-      renderSeparateRatingStack(items, badgePw, effSepTopLight, badgeFont, separateBadgeScaleEff, itemTransformsForSeparate)
+      renderSeparateRatingStack(items, badgePw, effSepTopLight, badgeFont, separateBadgeScaleEff, itemTransformsForSeparate, sepColumnVariant)
         .then((r) => { if (r) cacheSet(stackKey, r, ["badge"], BADGE_CACHE_TTL); return r })
     )
     const fitted = stack ? await fitBadgeToCanvas(stack, CW, CH) : null
@@ -3091,10 +3159,10 @@ export async function generatePosterBuffer(input: GenerationInput): Promise<Buff
           || isTopBadgeNumberRightCorner({ topBadgeType: topBadge?.type, rankingBadgeStyle, extraBadgeStyle, ribbonSide, hasTopBadge: !!finalRankBadge }))
       const stackTop = (qualityStackAnchor ? qualityStackAnchor.top + 6 : netBaseTop - 10)
         + (isLandscape ? 0 : PORTRAIT_SEPARATE_SHIFT_Y)
-      const stackKey = badgeCacheKey("separate", columnItems.map((i) => `${i.id}${i.value}`).join(","), CW, badgeFont, effSepTopLight, separateBadgeScaleEff)
+      const stackKey = badgeCacheKey("separate", columnItems.map((i) => `${i.id}${i.value}`).join(","), CW, badgeFont, effSepTopLight, separateBadgeScaleEff, sepColumnVariant === "rings" ? "rings" : undefined)
       const cachedStack = cacheGet<{ png: Buffer; w: number; h: number }>(stackKey)
       const stack = cachedStack ?? await coalesceBadgeRender(stackKey, () =>
-        renderSeparateRatingStack(columnItems, badgePw, effSepTopLight, badgeFont, separateBadgeScaleEff)
+        renderSeparateRatingStack(columnItems, badgePw, effSepTopLight, badgeFont, separateBadgeScaleEff, undefined, sepColumnVariant)
           .then((r) => { if (r) cacheSet(stackKey, r, ["badge"], BADGE_CACHE_TTL); return r })
       )
       let stackFitted = stack ? await fitBadgeToCanvas(stack, CW, CH) : null
@@ -3515,6 +3583,8 @@ export async function generatePosterBuffer(input: GenerationInput): Promise<Buff
   if (showComingSoon) {
     pipeline = pipeline.blur(PRE_RELEASE_BLUR_SIGMA)
   }
+
+  if (glassLayers.size > 0) await insertFrostedGlassUnderlays(pipeline, layers, glassLayers, CW, CH)
 
   pipeline = pipeline.composite(layers)
 

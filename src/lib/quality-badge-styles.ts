@@ -176,8 +176,10 @@ export function avPlateGlyphBox(
   frameW: number,
   boxH: number,
   fs: number,
+  /** Inset orizzontale (em di `fs`): le pill full-round ne vogliono di più. */
+  insetFactor: number = AV_PLATE_GLYPH_INSET_FACTOR,
 ): AvPlateGlyphBox {
-  const inset = Math.max(1, Math.round(fs * AV_PLATE_GLYPH_INSET_FACTOR))
+  const inset = Math.max(1, Math.round(fs * insetFactor))
   const targetW = Math.max(1, frameW - inset * 2)
   const naturalH = Math.max(1, Math.round(targetW * (ink.h / ink.w)))
   const h = Math.min(naturalH, Math.round(boxH * AV_PLATE_GLYPH_HEIGHT_FACTOR))

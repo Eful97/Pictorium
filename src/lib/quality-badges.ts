@@ -2,7 +2,7 @@ import sharp from "sharp"
 import { renderSVG, renderComposedSvg } from "./svg-badge"
 import fs from "fs"
 import path from "path"
-import { buildQualityBadgeSvg, buildQualityKnockoutSvg, buildQualityNakedSvg, buildAgeKnockoutSvg, buildAgeEmphasisSvg, buildGradientMarkSvg, buildStripBadgeSvg, QUALITY_GROUP_ROW_MAX_ITEMS, badgeBoxHeight, TOP_SHADOW_PAD, TOP_SHADOW_FILTER, KNOCKOUT_SHADOW_FILTER, KNOCKOUT_INK_OPACITY, knockoutOuterShadow, AGE_KNOCKOUT_RADIUS_FACTOR, AGE_MONO_STROKE_FACTOR, AGE_MONO_STROKE_MIN, AGE_MONO_INK_DARK, AGE_MONO_INK_LIGHT, SATIN_PILL_INK_DARK, SATIN_PILL_INK_LIGHT, SATIN_PILL_STROKE_DARK, SATIN_PILL_STROKE_LIGHT, SATIN_PILL_STROKE_WIDTH, satinPillStops } from "./badge-svg-shared"
+import { buildEditorialMarkSvg, buildQualityBadgeSvg, buildQualityKnockoutSvg, buildQualityNakedSvg, buildAgeKnockoutSvg, buildAgeEmphasisSvg, buildGradientMarkSvg, buildStripBadgeSvg, QUALITY_GROUP_ROW_MAX_ITEMS, badgeBoxHeight, TOP_SHADOW_PAD, TOP_SHADOW_FILTER, KNOCKOUT_SHADOW_FILTER, KNOCKOUT_INK_OPACITY, knockoutOuterShadow, AGE_KNOCKOUT_RADIUS_FACTOR, AGE_MONO_STROKE_FACTOR, AGE_MONO_STROKE_MIN, AGE_MONO_INK_DARK, AGE_MONO_INK_LIGHT, SATIN_PILL_INK_DARK, SATIN_PILL_INK_LIGHT, SATIN_PILL_STROKE_DARK, SATIN_PILL_STROKE_LIGHT, SATIN_PILL_STROKE_WIDTH, satinPillStops } from "./badge-svg-shared"
 import type { BadgeFont } from "./badge-styles"
 import { isAgeBadgeStyle, resolveQualityGroupLayout, isMergedQualityStrip, DEFAULT_AGE_BADGE_STYLE, type AgeBadgeStyle, type QualityGroupLayout } from "./badge-styles"
 import { normalizeBadgeFont } from "./badge-svg-shared"
@@ -200,7 +200,7 @@ async function buildQualityIconSvg(
     // stacca l'icona mono/color da sfondi chiari o complessi, mentre
     // il padding TOP_SHADOW_PAD mantiene l'esatto ancoraggio visivo a valle.
     const compositeSvg = `<svg xmlns="http://www.w3.org/2000/svg" width="${totalW}" height="${totalH}" viewBox="0 0 ${totalW} ${totalH}">` +
-      `<defs><filter id="tds" x="-20%" y="-20%" width="180%" height="180%"><feDropShadow dx="2" dy="2" stdDeviation="2.5" flood-color="#000000" flood-opacity="0.65"/></filter></defs>` +
+      `<defs>${TOP_SHADOW_FILTER}</defs>` +
       `<g filter="url(#tds)">` +
       `<svg x="${TOP_SHADOW_PAD}" y="${TOP_SHADOW_PAD}" width="${w}" height="${h}" viewBox="0 0 ${vb.w} ${vb.h}"${fillAttr}>${innerContent}</svg>` +
       `</g></svg>`
@@ -237,7 +237,7 @@ async function buildBareAvIconSvg(
   const totalW = w + TOP_SHADOW_PAD * 2
   const totalH = h + TOP_SHADOW_PAD * 2
   const compositeSvg = `<svg xmlns="http://www.w3.org/2000/svg" width="${totalW}" height="${totalH}" viewBox="0 0 ${totalW} ${totalH}">` +
-    `<defs><filter id="tds" x="-20%" y="-20%" width="180%" height="180%"><feDropShadow dx="2" dy="2" stdDeviation="2.5" flood-color="#000000" flood-opacity="0.65"/></filter></defs>` +
+    `<defs>${TOP_SHADOW_FILTER}</defs>` +
     `<g filter="url(#tds)">` +
     `<svg x="${TOP_SHADOW_PAD}" y="${TOP_SHADOW_PAD}" width="${w}" height="${h}" viewBox="${ink.x} ${ink.y} ${ink.w} ${ink.h}" fill="${fill}" color="${fill}">${svgInnerContent(src)}</svg>` +
     `</g></svg>`
@@ -323,6 +323,17 @@ async function buildPlatedAvBadgeSvg(
  * ogni tacca della colonna ha lo stesso box. `color`/`premium` restano sulle
  * placche esistenti, `knockout` sul tag bianco.
  */
+/** Margine minimo tra glifo A/V e profilo della pill satin (em di fs). */
+const AV_SATIN_GLYPH_MARGIN_FACTOR = 0.15
+
+function satinGlyphBox(ink: { readonly w: number; readonly h: number }, frameW: number, boxH: number, fs: number) {
+  const base = avPlateGlyphBox(ink, frameW, boxH, fs)
+  const R = boxH / 2
+  const half = base.h / 2
+  const clearance = R - Math.sqrt(Math.max(0, R * R - half * half)) + fs * AV_SATIN_GLYPH_MARGIN_FACTOR
+  return base.x >= clearance ? base : avPlateGlyphBox(ink, frameW, boxH, fs, clearance / fs)
+}
+
 async function buildFramedAvBadgeSvg(
   iconPath: string,
   pw: number,
@@ -338,7 +349,10 @@ async function buildFramedAvBadgeSvg(
     const fs = Math.round(Math.max(17 * pw / 380, 10))
     const boxH = badgeBoxHeight(fs)
     const frameW = Math.max(1, Math.round(frameWidth))
-    const glyph = avPlateGlyphBox(ink, frameW, boxH, fs)
+    // Pill satin full-round: gli angoli del glifo restano dentro le estremità
+    // tonde (clearance geometrica del semicerchio all'altezza del glifo +
+    // margine), così i marchi bassi e larghi (Dolby) non rimpiccioliscono.
+    const glyph = frame === "satin" ? satinGlyphBox(ink, frameW, boxH, fs) : avPlateGlyphBox(ink, frameW, boxH, fs)
     const totalW = frameW + TOP_SHADOW_PAD * 2
     const totalH = boxH + TOP_SHADOW_PAD * 2
     const ox = TOP_SHADOW_PAD
@@ -653,6 +667,9 @@ export async function renderQualityBadgeGroup(
   // scrim interno + inchiostro satin), condiviso da tier, età e marchi A/V —
   // nessun asset, nessun secondo renderer.
   const isOutline = qualityBadgeStyle === "outline"
+  // Editoriale: maiuscolo Oswald tracciato + lineetta, nessuna placca, stessa
+  // scatola di testo degli altri marchi (tier, età e A/V con etichetta breve).
+  const isEditorial = qualityBadgeStyle === "editoriale"
   // Strip: materiale a placca scura condiviso (una sola ricetta con
   // tier/età/marchi A/V). Il LAYOUT del gruppo è un parametro esplicito
   // (`qgl` > mapping > token > defaults > `stacked`), indipendente dallo
@@ -707,6 +724,9 @@ export async function renderQualityBadgeGroup(
     // ricetta condivisa di tier/età/marchi A/V).
     if (isOutline) {
       return Math.max(1, buildAgeEmphasisSvg("4K", markFs, "outline", !!topLight, markFont).w - TOP_SHADOW_PAD * 2)
+    }
+    if (isEditorial) {
+      return Math.max(1, buildEditorialMarkSvg("4K", markFs, !!topLight).w - TOP_SHADOW_PAD * 2)
     }
     // Strip: la colonna è la SINGOLA placca scura del 4K (stessa ricetta della
     // strip merged — padX airier, inchiostro bianco, placca `gradient`
@@ -883,6 +903,9 @@ export async function renderQualityBadgeGroup(
       // formato inventato).
       return buildGradientMarkSvg(novaLabel, markFs, gradientMarkStops(iconPath) ?? GRADIENT_TIER_INK, markFont, markRefWidth)
     }
+    if (isEditorial) {
+      return buildEditorialMarkSvg(novaLabel, markFs, !!topLightForMark, markRefWidth)
+    }
     if (isOutline) {
       // Wireframe dinamico condiviso: l'etichetta breve del formato dentro la
       // stessa cornice di tier/età, larghezza pinnata alla colonna.
@@ -915,7 +938,7 @@ export async function renderQualityBadgeGroup(
   // mono asset — the renderer must never mix the two materials.
   // Knockout has no icon asset (qualityBadgeIconPath stays null by design):
   // it renders its own tag below and never falls back to the standard pill.
-  const qualityIconPath = !hasQuality || isKnockout || isMono || isNova || isOutline || isStripStyle ? null : qualityBadgeIconPath(qualityBadgeStyle, qualityText)
+  const qualityIconPath = !hasQuality || isKnockout || isMono || isNova || isOutline || isStripStyle || isEditorial ? null : qualityBadgeIconPath(qualityBadgeStyle, qualityText)
   // Nothing painted at all (no quality, no age): legacy path, no format work.
   // (With a quality, the tier ALWAYS renders: icon or text pill.)
   if (!hasQuality && ageText === "") return null
@@ -1052,6 +1075,9 @@ export async function renderQualityBadgeGroup(
     // box to the common group width (glyph font reduced to fit, never a
     // stretched label).
     if (effAgeStyle === "knockout") return buildAgeKnockoutSvg(ageText, markFs, markFont, columnW)
+    // Editoriale: età esplicita `editoriale`, oppure età standard dentro un
+    // gruppo qualità editoriale (stessa regola del `naked`).
+    if (effAgeStyle === "editoriale" || (isEditorial && effAgeStyle === "standard")) return buildEditorialMarkSvg(ageText, markFs, !!topLight, columnW)
     if (effAgeStyle === "gradient") return buildGradientMarkSvg(ageText, markFs, GRADIENT_TIER_INK, markFont, columnW)
     if (effAgeStyle === "mono" || effAgeStyle === "color" || effAgeStyle === "premium" || effAgeStyle === "nova" || effAgeStyle === "outline") {
       return buildAgeEmphasisSvg(ageText, markFs, effAgeStyle, !!topLight, markFont, columnW)
@@ -1105,6 +1131,8 @@ export async function renderQualityBadgeGroup(
       // Glifi nudi bianchi: stessa ricetta condivisa di età e marchi A/V, nessun
       // asset (anche SD: l'etichetta è un parametro).
       resBadge = buildGradientMarkSvg(qualityText, markFs, GRADIENT_TIER_INK, markFont, tierTargetW)
+    } else if (isEditorial) {
+      resBadge = buildEditorialMarkSvg(qualityText, markFs, !!topLight, tierTargetW)
     } else if (isOutline) {
       // Wireframe condiviso (stessa ricetta di età e marchi A/V): l'etichetta
       // reale del tier dentro cornice+scrim, nessun asset.

@@ -312,7 +312,7 @@ describe("colored is always offered in both extra style selectors", () => {
     const wrap = screen.getByTestId("badge-extra-style-wrap")
     const labels = extraOptionButtons(wrap).map((b) => b.textContent ?? "")
     expect(labels.some((t) => t.includes("ui.colored"))).toBe(true)
-    expect(extraOptionButtons(wrap)).toHaveLength(6)
+    expect(extraOptionButtons(wrap)).toHaveLength(9)
     // Every offered option is a canonical renderer-supported style.
     for (const b of extraOptionButtons(wrap)) {
       const key = (b.textContent ?? "").replace(/^Aa/, "")
@@ -324,6 +324,9 @@ describe("colored is always offered in both extra style selectors", () => {
           "ui.vetro": "vetro",
           "ui.bordo": "bordo",
           "ui.colored": "colored",
+          "ui.tinta": "tinta",
+          "ui.sfumato": "sfumato",
+          "ui.editoriale": "editoriale",
         } as Record<string, string>
       )[key]
       expect(style, key).toBeTruthy()

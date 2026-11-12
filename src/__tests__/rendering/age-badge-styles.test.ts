@@ -113,7 +113,7 @@ async function tintStats(png: Buffer, hex: string, tol = 24) {
 
 describe("age badge style enum (single source for schemas, URL and cache)", () => {
   it("exposes the quality vocabulary with the historic standard default", () => {
-    expect([...AGE_BADGE_STYLES]).toEqual(["standard", "mono", "color", "knockout", "premium", "nova", "gradient", "outline"])
+    expect([...AGE_BADGE_STYLES]).toEqual(["standard", "mono", "color", "knockout", "premium", "nova", "gradient", "outline", "editoriale"])
     expect(DEFAULT_AGE_BADGE_STYLE).toBe("standard")
     for (const style of AGE_BADGE_STYLES) expect(isAgeBadgeStyle(style), style).toBe(true)
     // Unknown/uppercase values are still rejected (fail-closed, no inference).
@@ -723,7 +723,7 @@ describe("age styles keep the quality defaults independent", () => {
     // Same vocabulary, separate constants: adding/removing a quality style can
     // never silently change the age transport (and vice versa).
     expect(AGE_BADGE_STYLES).not.toBe(EMPHASIS_STYLES)
-    expect([...AGE_BADGE_STYLES]).toEqual(["standard", "mono", "color", "knockout", "premium", "nova", "gradient", "outline"])
+    expect([...AGE_BADGE_STYLES]).toEqual(["standard", "mono", "color", "knockout", "premium", "nova", "gradient", "outline", "editoriale"])
     // Nova is a family style of its own (dynamic SVG plate), never part of the
     // emphasis subset that reuses the existing plate palettes.
     expect(isAgeBadgeStyle("nova")).toBe(true)

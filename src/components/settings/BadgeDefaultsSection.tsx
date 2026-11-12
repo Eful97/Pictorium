@@ -341,7 +341,7 @@ export function BadgeDefaultsSection({ active, shape, onPreviewFamilyChange, pre
   // EXTRA_BADGE_STYLES order preserved: colored always offered, never gated
   // on the current value — the renderer already handles every entry).
   // Hoisted above the shared cards (same values, same callbacks).
-  const extraOptions: ExtraBadgeStyle[] = ["default", "pill", "corner", "vetro", "bordo", "colored"]
+  const extraOptions: ExtraBadgeStyle[] = ["default", "pill", "corner", "vetro", "bordo", "colored", "tinta", "sfumato", "editoriale"]
   const EXTRA_STYLE_LABELS: Record<ExtraBadgeStyle, string> = {
     default: "ui.bsDefault",
     pill: "ui.pill",
@@ -349,6 +349,9 @@ export function BadgeDefaultsSection({ active, shape, onPreviewFamilyChange, pre
     vetro: "ui.vetro",
     bordo: "ui.bordo",
     colored: "ui.colored",
+    tinta: "ui.tinta",
+    sfumato: "ui.sfumato",
+    editoriale: "ui.editoriale",
   }
   // Shared separate-style picker (single implementation, reused callbacks):
   // the appearance tab owns it in a dedicated wrapper; standalone keeps the
@@ -363,6 +366,7 @@ export function BadgeDefaultsSection({ active, shape, onPreviewFamilyChange, pre
           { id: "bottom-pills", labelKey: "ui.separateRatingsBottomPills" },
           { id: "bottom-mono", labelKey: "ui.separateRatingsBottomMono" },
           { id: "bottom-color", labelKey: "ui.separateRatingsBottomColor" },
+          { id: "rings", labelKey: "ui.sepRings" },
         ] as const).map((opt) => {
           const barOff = opt.id === "bottom-bar" && targetShape === "landscape"
           const pressed = getSeparateRatingsStyleForShape(

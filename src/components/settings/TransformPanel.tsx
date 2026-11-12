@@ -1224,6 +1224,7 @@ export function TransformPanel({ active, previewShape, onPreviewShapeChange, onP
               { id: "bottom-pills", labelKey: "ui.separateRatingsBottomPills" },
               { id: "bottom-mono", labelKey: "ui.separateRatingsBottomMono" },
               { id: "bottom-color", labelKey: "ui.separateRatingsBottomColor" },
+              { id: "rings", labelKey: "ui.sepRings" },
             ] as const).map((opt) => {
               // Portrait target always allows the bar (landscape normalizes
               // it to pills); the raw value is kept, never hidden.

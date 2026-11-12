@@ -1,4 +1,4 @@
-import { escSvg, estimateTextWidth, fontFamilyFor, normalizeBadgeFont, satinPillStops, TOP_SHADOW_PAD } from "./badge-svg-shared"
+import { escSvg, estimateTextWidth, fontFamilyFor, normalizeBadgeFont, satinPillStops, TOP_SHADOW_PAD, badgeDropShadow } from "./badge-svg-shared"
 import { renderSVG } from "./svg-badge"
 import { formatRating } from "./custom-rating/formatter"
 import type { RatingItem } from "./custom-rating/types"
@@ -27,7 +27,7 @@ const PILL_FIT_ATTEMPTS = 4
  * 3.5) sborderebbe sulla pill accanto; stessa ricetta ridotta della riga
  * separati (`seps`: dx=2, dy=2, blur 2, 0.55).
  */
-const CUSTOM_SHADOW_FILTER = `<filter id="mrs" x="-30%" y="-30%" width="160%" height="160%"><feDropShadow dx="2" dy="2" stdDeviation="2" flood-color="#000000" flood-opacity="0.55"/></filter>`
+const CUSTOM_SHADOW_FILTER = badgeDropShadow("mrs")
 
 /**
  * A separate horizontal row; no network or changes to legacy badge layout.
