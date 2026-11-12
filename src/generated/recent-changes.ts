@@ -11,4 +11,6 @@ export interface RecentChange {
 }
 
 export const RECENT_CHANGES: RecentChange[] = [
+  { type: "feature", text: "Modernize animations and transitions", sha: "29ed00a", date: "2026-11-12" },
+  { type: "fix", text: "Realign specs with Preferenze-first settings and fix a11y", sha: "16f2e0b", date: "2026-11-12" },
 ]
