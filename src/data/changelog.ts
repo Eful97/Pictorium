@@ -36,6 +36,10 @@ export const CHANGELOG: ChangelogRelease[] = [
     items: [
       { type: "feature", text: "Show a static ambient background photo behind the whole app, one for the dark theme and one for the light theme" },
       { type: "fix", text: "Keep a clean portrait poster without a logo independent from the landscape logo saved on the same title" },
+      { type: "fix", text: "Keep API keys and addon configurations out of server logs" },
+      { type: "fix", text: "Unlock cache telemetry on the status page with a PIN and see how to enable it without an admin token" },
+      { type: "fix", text: "Stop the status page from showing an API key character count that could read as undefined" },
+      { type: "perf", text: "Load Provider Glass, Nuvio and Stremio posters faster with a lighter blur pass" },
     ],
   },
   {
