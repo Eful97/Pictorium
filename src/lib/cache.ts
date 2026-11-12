@@ -1,4 +1,7 @@
 import crypto from "node:crypto"
+import fsp from "node:fs/promises"
+import path from "node:path"
+import { POSTER_DISK_CACHE_DIR } from "@/lib/data-dir"
 import { envWithFallback } from "@/lib/env-compat"
 import { getKv, getStorageMode, withKvTimeout } from "@/lib/kv"
 
@@ -251,8 +254,8 @@ export function cacheSetSharedUpstream<T>(
 
 const MAX_TTL = 30 * 60 * 1000
 const rawMaxEntries = envWithFallback("CACHE_MAX")
-const ENV_MAX_ENTRIES = rawMaxEntries ? parseInt(rawMaxEntries, 10) : 2000
-const MAX_ENTRIES = Number.isFinite(ENV_MAX_ENTRIES) && ENV_MAX_ENTRIES > 100 ? ENV_MAX_ENTRIES : 2000
+const ENV_MAX_ENTRIES = rawMaxEntries ? parseInt(rawMaxEntries, 10) : 4000
+const MAX_ENTRIES = Number.isFinite(ENV_MAX_ENTRIES) && ENV_MAX_ENTRIES > 100 ? ENV_MAX_ENTRIES : 4000
 const rawMaxMb = envWithFallback("CACHE_MAX_MB")
 const ENV_MAX_MB = rawMaxMb ? parseFloat(rawMaxMb) : 150
 const MAX_BYTES = (Number.isFinite(ENV_MAX_MB) && ENV_MAX_MB > 10 ? ENV_MAX_MB : 150) * 1024 * 1024
@@ -507,11 +510,41 @@ export function cacheSet<T>(key: string, data: T, tags: string[] = [], ttlMs?: n
   }
 }
 
+/**
+ * Restore a local entry with its ORIGINAL timestamp (poster disk cache
+ * hydration): TTL, scheduled refresh and SWR stale behave exactly as if the
+ * entry had never left memory. Local only — never written through to L2.
+ */
+export function cacheRestoreLocal<T>(key: string, data: T, tags: string[], ttlMs: number | undefined, timestamp: number): void {
+  cacheSetLocalOnly(key, data, tags, ttlMs, timestamp)
+}
+
+// Poster disk cache wipe (poster-disk-cache.ts reads the generation): done
+// HERE, not via a registered hook, so a clear that lands before any poster
+// route loaded the disk module still wipes it. Fired on every whole-poster
+// invalidation so a restart can never resurrect posters the operator just
+// cleared. Per-title tags need no wipe: their saves rotate the poster cache
+// key (mapVersion / sdHash).
+let posterWipeGen = 0
+export function posterDiskWipeGeneration(): number {
+  return posterWipeGen
+}
+function wipePosterDisk(): void {
+  posterWipeGen++
+  if (process.env.VERCEL || process.env.VITEST) return
+  const dir = POSTER_DISK_CACHE_DIR
+  void fsp.readdir(dir).then(
+    (names) => Promise.all(names.filter((n) => n.endsWith(".bin")).map((n) => fsp.unlink(path.join(dir, n)).catch(() => {}))),
+    () => {},
+  )
+}
+
 export function cacheHas(key: string): boolean {
   return cacheGet(key) !== null
 }
 
 export function cacheInvalidate(tag: string): void {
+  if (tag === "poster") wipePosterDisk()
   for (const [key, entry] of store) {
     if (entry.tags.includes(tag)) deleteEntry(key)
   }
@@ -523,6 +556,7 @@ export function cacheInvalidate(tag: string): void {
  * Ritorna il numero di entry scadute.
  */
 export function cacheExpire(tagOrKey: string): number {
+  if (tagOrKey === "poster" || tagOrKey.startsWith("poster:")) wipePosterDisk()
   let count = 0
   for (const [key, entry] of store) {
     if (entry.tags.includes(tagOrKey) || key === tagOrKey || key.startsWith(tagOrKey) || key.includes(tagOrKey)) {
@@ -627,6 +661,7 @@ export function cacheStatus(): CacheStatus {
 }
 
 export function cacheClear(): void {
+  wipePosterDisk()
   store.clear()
   totalBytes = 0
   if (cleanupTimer) {

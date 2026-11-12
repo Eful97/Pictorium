@@ -17,3 +17,6 @@ export const DATA_DIR = envWithFallback("DATA_DIR") || path.join(process.cwd(), 
 if (process.env.VERCEL && getStorageMode() === "file") {
   log.warn("⚠️  Vercel rilevato senza backend KV (PICTORIUM_REDIS_URL o UPSTASH_REDIS_REST_URL/UPSTASH_REDIS_REST_TOKEN): mapping NON persistono; i profili degradano a stateless (config token). Imposta PICTORIUM_REDIS_URL o lo store Upstash Redis per la persistenza server-side.")
 }
+
+/** Rendered-poster disk cache (poster-disk-cache.ts; wiped by cache.ts). */
+export const POSTER_DISK_CACHE_DIR = path.join(DATA_DIR, "poster-cache")

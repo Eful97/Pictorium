@@ -402,8 +402,10 @@ All variables use the `PICTORIUM_*` prefix. The legacy `POSTERIUM_*` names are s
 | `PICTORIUM_NEGATIVE_CACHE_TTL_MS` | `5000` | How long a failed render (500/503/404) is remembered so a broken upstream is not hammered (1000–60000 ms). |
 | `PICTORIUM_DYNAMIC_POSTER_TTL_MS` | `21600000` (6 h) | Storage TTL for on-demand (unmapped) posters, which also drives their `Cache-Control`/Surrogate headers (clamped 5 min–24 h, ±10% deterministic jitter per cache key). Mapped posters follow the scheduled daily refresh policy. |
 | `PICTORIUM_IMG_CACHE_MB` | `32` | RAM budget for the in-process downloaded-image byte cache (0–512 MB, `0` disables it). |
-| `PICTORIUM_CACHE_MAX` | `2000` | Max entries in the in-memory metadata cache (must be > 100, otherwise `2000`). This is the entry-cap knob: `PICTORIUM_CACHE_MAX_ENTRIES` is not read. |
+| `PICTORIUM_CACHE_MAX` | `4000` | Max entries in the in-memory metadata cache (must be > 100, otherwise `4000`). A rendered poster takes 2 entries (~60-110KB webp + headers), so 4000 lets the `PICTORIUM_CACHE_MAX_MB` byte cap bind first. This is the entry-cap knob: `PICTORIUM_CACHE_MAX_ENTRIES` is not read. |
 | `PICTORIUM_CACHE_MAX_MB` | `150` | Maximum RAM allocated for the in-memory metadata cache (must be > 10 MB, otherwise `150`). |
+| `PICTORIUM_POSTER_DISK_CACHE` | on (off on Vercel) | Persist rendered posters to `DATA_DIR/poster-cache` so a restart/deploy serves them from disk (~0.4 ms) instead of re-rendering cold. Same TTL/SWR as memory; wiped on cache clear / global defaults save. `0`/`false`/`off`/`no` disables. |
+| `PICTORIUM_POSTER_DISK_CACHE_MB` | `512` | Size cap of the poster disk cache (16–10240 MB); least recently used files are evicted first. |
 
 </details>
 
