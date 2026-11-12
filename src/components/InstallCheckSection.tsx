@@ -633,7 +633,7 @@ export function InstallCheckSection({ manifestUrl }: { manifestUrl: string }) {
           data-testid="install-check-run"
           onClick={run}
           disabled={running}
-          className="w-full py-2 px-3 rounded-xl border border-white/10 bg-white/[0.04] hover:bg-white/[0.08] disabled:opacity-50 text-xs sm:text-sm font-medium text-zinc-200 hover:text-white flex items-center justify-center gap-1.5 transition-all active:scale-[0.98] cursor-pointer focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-accent-orange focus-visible:ring-offset-2 focus-visible:ring-offset-zinc-950"
+          className="w-full py-2 px-3 rounded-xl border border-white/10 bg-white/[0.04] hover:bg-white/[0.08] disabled:opacity-50 text-xs sm:text-sm font-medium text-zinc-200 hover:text-white flex items-center justify-center gap-1.5 transition active:scale-[0.98] cursor-pointer focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-accent-orange focus-visible:ring-offset-2 focus-visible:ring-offset-zinc-950"
         >
           {running && <Loader2 className="w-3.5 h-3.5 animate-spin" aria-hidden="true" />}
           <ShieldCheck className="w-3.5 h-3.5 text-accent-orange" aria-hidden="true" />

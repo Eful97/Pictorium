@@ -47,7 +47,7 @@ export const PosterBtn = React.memo(function PosterBtn({ img, active, onSelect, 
   return (
     <button type="button"
       onClick={() => onSelect(img)}
-      className={`poster-tile group relative w-full rounded-xl overflow-hidden transition-all duration-200 ease-out ${active ? "poster-tile-active scale-[1.02]" : ""}`}
+      className={`poster-tile group relative w-full rounded-xl overflow-hidden transition duration-200 ease-out ${active ? "poster-tile-active scale-[1.02]" : ""}`}
       title={title || ""}
       style={staggerIndex !== undefined ? { animation: `fade-scale-in 0.3s cubic-bezier(0.34, 1.56, 0.64, 1) ${staggerIndex * 40}ms both` } : undefined}
     >

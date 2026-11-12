@@ -327,7 +327,7 @@ export function BadgeControls() {
                           aria-pressed={pressed}
                           disabled={barOff}
                           title={barOff ? t("ui.separateRatingsBarLandscapeHint") : undefined}
-                          className={`flex-1 py-1 px-1 rounded-lg text-[11px] font-semibold transition-all duration-150 ${
+                          className={`flex-1 py-1 px-1 rounded-lg text-[11px] font-semibold transition duration-150 ${
                             pressed
                               ? "bg-white/20 text-white shadow-sm"
                               : "bg-white/5 text-muted hover:bg-white/10 hover:text-zinc-200"
@@ -355,7 +355,7 @@ export function BadgeControls() {
                     onClick={() => setSourcesOpen((prev) => !prev)}
                     aria-expanded={sourcesOpen}
                     aria-controls={sourcesPanelId}
-                    className="w-full flex items-center justify-between px-2.5 py-1.5 rounded-lg bg-surface2/70 hover:bg-surface2 text-zinc-200 hover:text-white border border-surface2 transition-all group cursor-pointer"
+                    className="w-full flex items-center justify-between px-2.5 py-1.5 rounded-lg bg-surface2/70 hover:bg-surface2 text-zinc-200 hover:text-white border border-surface2 transition group cursor-pointer"
                   >
                     <span className="flex items-center gap-1.5 text-[11px] font-semibold">
                       <Star className="w-3 h-3 text-amber-400 fill-amber-400/30" />
@@ -411,7 +411,7 @@ export function BadgeControls() {
                                   ed.setRatingSources([...current, s.id])
                                 }
                               }}
-                              className={`flex items-center justify-between px-2 py-1.5 rounded-lg text-[10.5px] transition-all duration-150 border ${
+                              className={`flex items-center justify-between px-2 py-1.5 rounded-lg text-[10.5px] transition duration-150 border ${
                                 isSelected
                                   ? "bg-accent-orange/[0.08] border-accent-orange/25 text-zinc-100 font-medium"
                                   : "bg-white/[0.03] border-white/[0.04] text-zinc-400 hover:bg-white/[0.06] hover:text-zinc-200 hover:border-white/[0.08]"
@@ -985,7 +985,7 @@ export function BadgeControls() {
                     key={pos}
                     type="button"
                     onClick={() => ed.setNetworkLogoPosition(pos)}
-                    className={`flex-1 py-1 rounded-lg text-[11px] font-semibold transition-all duration-150 cursor-pointer ${
+                    className={`flex-1 py-1 rounded-lg text-[11px] font-semibold transition duration-150 cursor-pointer ${
                       ed.networkLogoPosition === pos
                         ? "bg-white/20 text-white shadow-sm"
                         : "bg-white/5 text-muted hover:bg-white/10 hover:text-zinc-200"

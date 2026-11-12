@@ -224,7 +224,7 @@ export function DefaultsPreviewTitleSearch({
             aria-controls={bodyId}
             aria-label={open ? t("ui.close") : t("ui.defaultsPreviewSearchLabel")}
             title={open ? t("ui.close") : t("ui.defaultsPreviewSearchLabel")}
-            className="shrink-0 w-[44px] h-[44px] min-w-[44px] min-h-[44px] flex items-center justify-center rounded-xl text-zinc-300 hover:text-white hover:bg-white/10 active:scale-90 transition-all cursor-pointer touch-manipulation"
+            className="shrink-0 w-[44px] h-[44px] min-w-[44px] min-h-[44px] flex items-center justify-center rounded-xl text-zinc-300 hover:text-white hover:bg-white/10 active:scale-90 transition cursor-pointer touch-manipulation"
           >
             {open ? <X className="w-4 h-4" /> : <Search className="w-4 h-4" />}
           </button>
@@ -270,7 +270,7 @@ export function DefaultsPreviewTitleSearch({
             onClick={handleReset}
             aria-label={t("ui.defaultsPreviewReset")}
             title={t("ui.defaultsPreviewReset")}
-            className="shrink-0 p-1.5 rounded-lg text-zinc-400 hover:text-white hover:bg-white/10 transition-all active:scale-90 cursor-pointer min-w-[32px] min-h-[32px] flex items-center justify-center"
+            className="shrink-0 p-1.5 rounded-lg text-zinc-400 hover:text-white hover:bg-white/10 transition active:scale-90 cursor-pointer min-w-[32px] min-h-[32px] flex items-center justify-center"
           >
             <RotateCcw className="w-3.5 h-3.5" />
           </button>

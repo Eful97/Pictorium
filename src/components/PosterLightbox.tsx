@@ -1,15 +1,16 @@
 "use client"
 
-import React, { useCallback, useEffect, useRef, useState } from "react"
+import React, { useEffect, useRef, useState } from "react"
 import { X, Star, ExternalLink, Maximize2, Check } from "lucide-react"
 import type { Mapping } from "@/lib/types"
 import type { PosterCollection } from "@/lib/useCollections"
 import { effectiveMappingForShape } from "@/lib/types"
+import { QUICK_VIEW_VT, supportsViewTransition } from "@/lib/motion"
 
 const FOCUSABLE = "a[href], button:not([disabled]), input:not([disabled]), select:not([disabled]), textarea:not([disabled]), [tabindex]:not([tabindex='-1'])"
 
 interface PosterLightboxProps {
-  lightbox: { mapping: Mapping; rect: DOMRect } | null
+  lightbox: { mapping: Mapping } | null
   onClose: () => void
   posterUrlFn: (path: string, size?: string) => string
   t: (key: string, params?: Record<string, string | number>) => string
@@ -31,14 +32,10 @@ export function PosterLightbox({
   lang,
   onOpenEditor,
 }: PosterLightboxProps) {
-  const [mounted, setMounted] = useState(false)
-  const [closing, setClosing] = useState(false)
   const [imgFailed, setImgFailed] = useState(false)
   const cardRef = useRef<HTMLDivElement>(null)
-  const closeTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null)
 
   const mapping = lightbox?.mapping ?? null
-  const rect = lightbox?.rect ?? null
   const posterKey = mapping ? `${mapping.mediaType}:${mapping.tmdbId}` : null
   const isLandscape = mapping?.posterShape === "landscape"
   // Logo identity per shape (portrait flat / landscape profile): the lightbox
@@ -59,43 +56,15 @@ export function PosterLightbox({
     ? null
     : (customFailed ? shapeFallbackSrc : (customBase ?? shapeFallbackSrc))
 
-  // Start animation on mount
-  useEffect(() => {
-    if (!mapping) return
-    const raf = requestAnimationFrame(() => {
-      requestAnimationFrame(() => setMounted(true))
-    })
-    return () => cancelAnimationFrame(raf)
-  }, [mapping])
-
   // Reset the fallbacks when the poster or URL changes: the new image retries.
   useEffect(() => {
     setImgFailed(false)
     setCustomFailed(false)
   }, [posterKey, mapping?.customPosterUrl, mapping?.customBackdropUrl, mapping?.posterPath, mapping?.backdropPath, mapping?.posterShape])
 
-  // Set transform-origin on the card once measured
-  useEffect(() => {
-    if (!mounted || !cardRef.current || !rect) return
-    const cardRect = cardRef.current.getBoundingClientRect()
-    const tileCenterX = rect.left + rect.width / 2
-    const tileCenterY = rect.top + rect.height / 2
-    const originX = tileCenterX - cardRect.left
-    const originY = tileCenterY - cardRect.top
-    cardRef.current.style.transformOrigin = `${originX}px ${originY}px`
-  }, [mounted, rect])
-
-  const handleClose = useCallback(() => {
-    setClosing(true)
-    // 300ms = durata dell'exit della card (transition-all duration-300):
-    // smontare prima tagliava l'animazione a metà (era 150ms).
-    closeTimerRef.current = setTimeout(() => {
-      setClosing(false)
-      setMounted(false)
-      onClose()
-      closeTimerRef.current = null
-    }, 300)
-  }, [onClose])
+  // Apertura/chiusura animate dal chiamante con una View Transition (morph
+  // tile ↔ poster, vedi MyPostersView): qui la chiusura è immediata.
+  const handleClose = onClose
 
   // Keyboard handler: Escape chiude, Tab resta intrappolato nel dialog
   useEffect(() => {
@@ -127,13 +96,6 @@ export function PosterLightbox({
     }
   }, [mapping, handleClose])
 
-  // Cleanup del timer di chiusura su unmount: evita setState su componente smontato
-  useEffect(() => {
-    return () => {
-      if (closeTimerRef.current) clearTimeout(closeTimerRef.current)
-    }
-  }, [])
-
   if (!mapping) return null
 
   const year = (mapping.releaseDate || mapping.firstAirDate || "").slice(0, 4)
@@ -156,41 +118,37 @@ export function PosterLightbox({
 
   return (
     <div
-      className={`fixed inset-0 z-[200] flex items-center justify-center p-4 transition-all duration-200 ${
-        closing ? "bg-black/30" : mounted ? "bg-black/50 backdrop-blur-sm" : "bg-black/0"
-      }`}
+      className="fixed inset-0 z-[200] flex items-center justify-center p-4 bg-black/50 backdrop-blur-sm animate-fade-in"
       onClick={handleClose}
       role="dialog"
       aria-modal="true"
       aria-label={`${mapping.title} ${t("ui.quickView")}`}
     >
-      {/* Card — anima dalla posizione del tile al centro */}
+      {/* Card — con View Transition il poster arriva dalla tile (morph) e la
+          card si limita a un fade: un transform qui falserebbe la geometria
+          catturata. Senza VT entra come un pannello modale. */}
       <div
         ref={cardRef}
         onClick={(e) => e.stopPropagation()}
-        className={`relative w-full ${isLandscape ? "max-w-3xl" : "max-w-xs sm:max-w-sm"} rounded-2xl surface-card overflow-hidden shadow-2xl shadow-black/60 transition-all duration-300 ${
-          mounted && !closing
-            ? "opacity-100 scale-100"
-            : closing
-              ? "opacity-0 scale-75"
-              : "opacity-0 scale-[0.3]"
+        className={`relative w-full ${isLandscape ? "max-w-3xl" : "max-w-xs sm:max-w-sm"} rounded-2xl surface-card overflow-hidden shadow-2xl shadow-black/60 ${
+          supportsViewTransition() ? "animate-fade-in" : "animate-modal-panel-in"
         }`}
-        style={{
-          transitionTimingFunction: "cubic-bezier(0.34, 1.56, 0.64, 1)",
-        }}
       >
         {/* Close button */}
         <button type="button"
           autoFocus
           onClick={handleClose}
           aria-label={t("ui.cancel")}
-          className="absolute top-3 right-3 w-8 h-8 rounded-full bg-black/50 backdrop-blur-sm flex items-center justify-center text-white/70 hover:bg-black/70 hover:text-white transition-all duration-200 active:scale-90 z-10"
+          className="absolute top-3 right-3 w-8 h-8 rounded-full bg-black/50 backdrop-blur-sm flex items-center justify-center text-white/70 hover:bg-black/70 hover:text-white transition duration-200 active:scale-90 z-10"
         >
           <X className="w-4 h-4" />
         </button>
 
         {/* Poster area */}
-        <div className={`${isLandscape ? "aspect-video" : "aspect-[2/3]"} bg-surface relative overflow-hidden`}>
+        <div
+          className={`${isLandscape ? "aspect-video" : "aspect-[2/3]"} bg-surface relative overflow-hidden`}
+          style={{ viewTransitionName: QUICK_VIEW_VT }}
+        >
           {displaySrc ? (
             <>
               {/* eslint-disable-next-line @next/next/no-img-element -- TMDB dynamic URL */}
@@ -290,7 +248,7 @@ export function PosterLightbox({
                         onAddToCollection?.(col.id, posterKey)
                       }
                     }}
-                    className={`flex items-center gap-1.5 px-2.5 py-1 rounded-lg text-[11px] font-medium transition-all duration-150 active:scale-95 ${
+                    className={`flex items-center gap-1.5 px-2.5 py-1 rounded-lg text-[11px] font-medium transition duration-150 active:scale-95 ${
                       checked
                         ? "bg-accent-orange/15 text-accent-orange border border-accent-orange/25"
                         : "bg-white/5 text-muted hover:text-zinc-300 border border-white/5 hover:border-white/10"

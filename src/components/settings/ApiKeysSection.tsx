@@ -462,7 +462,7 @@ export function ApiKeysSection({ multiUser }: { multiUser: boolean | null }) {
                 onClick={() => void testKey(kind)}
                 title={t("ui.verifyKey")}
                 aria-label={`${t("ui.verifyKey")} ${KIND_LABELS[kind]}`}
-                className="w-9 h-9 shrink-0 flex items-center justify-center rounded-lg bg-surface2 hover:bg-zinc-700 text-zinc-400 hover:text-emerald-300 transition-all disabled:opacity-30 disabled:pointer-events-none cursor-pointer"
+                className="w-9 h-9 shrink-0 flex items-center justify-center rounded-lg bg-surface2 hover:bg-zinc-700 text-zinc-400 hover:text-emerald-300 transition disabled:opacity-30 disabled:pointer-events-none cursor-pointer"
               >
                 {verifyingKind === kind
                   ? <Loader2 className="w-4 h-4 animate-spin" />
@@ -482,7 +482,7 @@ export function ApiKeysSection({ multiUser }: { multiUser: boolean | null }) {
                 }}
                 title={showTitle}
                 aria-label={showTitle}
-                className="w-9 h-9 shrink-0 flex items-center justify-center rounded-lg bg-surface2 hover:bg-zinc-700 text-zinc-400 hover:text-zinc-200 transition-all disabled:opacity-30 disabled:pointer-events-none cursor-pointer"
+                className="w-9 h-9 shrink-0 flex items-center justify-center rounded-lg bg-surface2 hover:bg-zinc-700 text-zinc-400 hover:text-zinc-200 transition disabled:opacity-30 disabled:pointer-events-none cursor-pointer"
               >
                 {revealingKind === kind
                   ? <Loader2 className="w-4 h-4 animate-spin" />
@@ -496,7 +496,7 @@ export function ApiKeysSection({ multiUser }: { multiUser: boolean | null }) {
                 onClick={() => void clearKey(kind)}
                 title={t("ui.remove")}
                 aria-label={`${t("ui.remove")} ${KIND_LABELS[kind]}`}
-                className="w-9 h-9 shrink-0 flex items-center justify-center rounded-lg bg-surface2 hover:bg-zinc-700 text-zinc-400 hover:text-red-300 transition-all disabled:opacity-30 disabled:pointer-events-none cursor-pointer"
+                className="w-9 h-9 shrink-0 flex items-center justify-center rounded-lg bg-surface2 hover:bg-zinc-700 text-zinc-400 hover:text-red-300 transition disabled:opacity-30 disabled:pointer-events-none cursor-pointer"
               >
                 {clearingKind === kind ? <Loader2 className="w-4 h-4 animate-spin" /> : <Trash2 className="w-4 h-4" />}
               </button>

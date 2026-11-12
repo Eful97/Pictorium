@@ -22,7 +22,7 @@ export function DesktopCommunityLinks() {
           rel="noopener noreferrer"
           aria-label="GitHub Repository"
           title="GitHub Repository"
-          className="p-2 rounded-xl text-zinc-400 hover:text-white hover:bg-white/[0.08] active:scale-90 transition-all duration-150 flex items-center justify-center cursor-pointer"
+          className="p-2 rounded-xl text-zinc-400 hover:text-white hover:bg-white/[0.08] active:scale-90 transition duration-150 flex items-center justify-center cursor-pointer"
         >
           <GithubIcon className="w-4 h-4" />
         </a>
@@ -34,7 +34,7 @@ export function DesktopCommunityLinks() {
           rel="noopener noreferrer"
           aria-label="Discord Community"
           title="Discord Community"
-          className="p-2 rounded-xl text-zinc-400 hover:text-white hover:bg-white/[0.08] active:scale-90 transition-all duration-150 flex items-center justify-center cursor-pointer"
+          className="p-2 rounded-xl text-zinc-400 hover:text-white hover:bg-white/[0.08] active:scale-90 transition duration-150 flex items-center justify-center cursor-pointer"
         >
           <DiscordIcon className="w-4 h-4" />
         </a>
@@ -47,7 +47,7 @@ export function DesktopCommunityLinks() {
             aria-expanded={menu.open}
             aria-label={t("ui.hostedByToggle")}
             title={t("ui.hostedByToggle")}
-            className={`p-1.5 rounded-xl active:scale-90 transition-all duration-150 flex items-center justify-center cursor-pointer ${
+            className={`p-1.5 rounded-xl active:scale-90 transition duration-150 flex items-center justify-center cursor-pointer ${
               menu.open ? "bg-white/10" : "hover:bg-white/[0.08]"
             }`}
           >
@@ -63,7 +63,7 @@ export function DesktopCommunityLinks() {
           rel="noopener noreferrer"
           aria-label="Support on Ko-fi"
           title="Support on Ko-fi"
-          className="p-2 rounded-xl text-zinc-400 hover:text-white hover:bg-white/[0.08] active:scale-90 transition-all duration-150 flex items-center justify-center cursor-pointer"
+          className="p-2 rounded-xl text-zinc-400 hover:text-white hover:bg-white/[0.08] active:scale-90 transition duration-150 flex items-center justify-center cursor-pointer"
         >
           <KofiIcon className="w-4 h-4" />
         </a>
@@ -95,7 +95,7 @@ export function MobileCommunityLinks() {
         target="_blank"
         rel="noopener noreferrer"
         aria-label="GitHub Repository"
-        className="flex items-center gap-1.5 px-2.5 py-1 rounded-xl bg-white/[0.05] border border-white/10 text-xs text-zinc-300 active:scale-95 transition-all duration-150"
+        className="flex items-center gap-1.5 px-2.5 py-1 rounded-xl bg-white/[0.05] border border-white/10 text-xs text-zinc-300 active:scale-95 transition duration-150"
       >
         <GithubIcon className="w-3.5 h-3.5" />
         <span className="text-[11px] font-medium">GitHub</span>
@@ -107,7 +107,7 @@ export function MobileCommunityLinks() {
         target="_blank"
         rel="noopener noreferrer"
         aria-label="Discord Community"
-        className="flex items-center gap-1.5 px-2.5 py-1 rounded-xl bg-white/[0.05] border border-white/10 text-xs text-zinc-300 active:scale-95 transition-all duration-150"
+        className="flex items-center gap-1.5 px-2.5 py-1 rounded-xl bg-white/[0.05] border border-white/10 text-xs text-zinc-300 active:scale-95 transition duration-150"
       >
         <DiscordIcon className="w-3.5 h-3.5" />
         <span className="text-[11px] font-medium">Discord</span>
@@ -120,7 +120,7 @@ export function MobileCommunityLinks() {
           onClick={menu.toggle}
           aria-expanded={menu.open}
           aria-label={t("ui.hostedByToggle")}
-          className={`flex items-center px-2 py-1 rounded-xl border active:scale-95 transition-all duration-150 cursor-pointer ${
+          className={`flex items-center px-2 py-1 rounded-xl border active:scale-95 transition duration-150 cursor-pointer ${
             menu.open
               ? "bg-white/10 border-white/20"
               : "bg-white/[0.05] border-white/10"
@@ -138,7 +138,7 @@ export function MobileCommunityLinks() {
         rel="noopener noreferrer"
         aria-label="Support on Ko-fi"
         title="Support on Ko-fi"
-        className="flex items-center justify-center px-2 py-1 rounded-xl bg-white/[0.05] border border-white/10 text-zinc-300 active:scale-95 transition-all duration-150"
+        className="flex items-center justify-center px-2 py-1 rounded-xl bg-white/[0.05] border border-white/10 text-zinc-300 active:scale-95 transition duration-150"
       >
         <KofiIcon className="w-3.5 h-3.5" />
       </a>

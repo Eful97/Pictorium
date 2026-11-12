@@ -233,7 +233,7 @@ export function BadgeStyleSelector<S extends string>({
             key={s}
             type="button"
             onClick={() => !isDisabled && onChange(s)}
-            className={`flex flex-col items-center justify-center gap-0.5 w-full py-1.5 px-1 rounded-lg border transition-all duration-150 ${
+            className={`flex flex-col items-center justify-center gap-0.5 w-full py-1.5 px-1 rounded-lg border transition duration-150 ${
               isDisabled
                 ? "bg-white/5 text-zinc-600 cursor-not-allowed opacity-50 border-transparent"
                 : isActive

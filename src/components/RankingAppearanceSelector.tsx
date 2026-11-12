@@ -269,7 +269,7 @@ export function RankingAppearanceSelector({
             role="radio"
             aria-checked={checked}
             onClick={() => onPrimary(a)}
-            className={`flex flex-1 min-w-0 flex-col items-center justify-center gap-0.5 py-1 px-1 rounded-lg text-[11px] font-semibold transition-all duration-150 cursor-pointer ${
+            className={`flex flex-1 min-w-0 flex-col items-center justify-center gap-0.5 py-1 px-1 rounded-lg text-[11px] font-semibold transition duration-150 cursor-pointer ${
               checked
                 ? "bg-white/20 text-white shadow-sm"
                 : "bg-white/5 text-muted hover:bg-white/10 hover:text-zinc-200"
@@ -305,7 +305,7 @@ export function RankingAppearanceSelector({
               role="radio"
               aria-checked={cardSkin === skin}
               onClick={() => onCardSkin(skin)}
-              className={`flex flex-col gap-1 p-1.5 rounded-lg transition-all duration-150 cursor-pointer min-w-0 ${
+              className={`flex flex-col gap-1 p-1.5 rounded-lg transition duration-150 cursor-pointer min-w-0 ${
                 cardSkin === skin
                   ? "bg-white/20 text-white shadow-sm ring-1 ring-white/30"
                   : "bg-white/5 text-muted hover:bg-white/10 hover:text-zinc-200"
@@ -328,7 +328,7 @@ export function RankingAppearanceSelector({
               role="radio"
               aria-checked={ribbonVariant === v}
               onClick={() => onRibbonVariant(v)}
-              className={`flex flex-1 min-w-[56px] flex-col items-center justify-center gap-0.5 py-1 px-1 rounded-lg text-[10px] font-semibold transition-all duration-150 cursor-pointer ${
+              className={`flex flex-1 min-w-[56px] flex-col items-center justify-center gap-0.5 py-1 px-1 rounded-lg text-[10px] font-semibold transition duration-150 cursor-pointer ${
                 ribbonVariant === v
                   ? "bg-white/20 text-white shadow-sm"
                   : "bg-white/5 text-muted hover:bg-white/10 hover:text-zinc-200"
@@ -349,7 +349,7 @@ export function RankingAppearanceSelector({
               role="radio"
               aria-checked={variant === v}
               onClick={() => onVariant(v)}
-              className={`flex flex-1 min-w-[56px] flex-col items-center justify-center gap-0.5 py-1 px-1 rounded-lg text-[10px] font-semibold transition-all duration-150 cursor-pointer ${
+              className={`flex flex-1 min-w-[56px] flex-col items-center justify-center gap-0.5 py-1 px-1 rounded-lg text-[10px] font-semibold transition duration-150 cursor-pointer ${
                 variant === v
                   ? "bg-white/20 text-white shadow-sm"
                   : "bg-white/5 text-muted hover:bg-white/10 hover:text-zinc-200"
@@ -374,7 +374,7 @@ export function RankingAppearanceSelector({
                 role="radio"
                 aria-checked={side === s}
                 onClick={() => onSide(s)}
-                className={`flex-1 py-1 rounded-lg text-[11px] font-semibold transition-all duration-150 cursor-pointer ${
+                className={`flex-1 py-1 rounded-lg text-[11px] font-semibold transition duration-150 cursor-pointer ${
                   side === s
                     ? "bg-white/20 text-foreground shadow-sm"
                     : "bg-white/5 text-muted hover:bg-white/10 hover:text-zinc-200"

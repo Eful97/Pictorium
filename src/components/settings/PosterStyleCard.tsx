@@ -99,7 +99,7 @@ export function PosterStyleCard({
             data-testid={`poster-style-${opt.id}`}
             onClick={opt.onApply}
             aria-pressed={opt.active}
-            className={`flex flex-col text-left p-2.5 rounded-xl border transition-all cursor-pointer ${
+            className={`flex flex-col text-left p-2.5 rounded-xl border transition-[min-height,background-color,border-color,color,box-shadow] cursor-pointer ${
               compact ? "min-h-[44px]" : ""
             } ${
               opt.active

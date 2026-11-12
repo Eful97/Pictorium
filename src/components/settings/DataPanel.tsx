@@ -218,7 +218,7 @@ export function DataPanel({ active, exportData, importData, setSettingsOpen, mul
               setShowLangPicker(true)
             })
           }}
-          className="w-full flex items-center justify-center gap-2 px-4 py-2.5 min-h-[42px] rounded-xl text-xs sm:text-sm font-medium bg-white/[0.04] text-zinc-200 hover:text-white hover:bg-white/[0.08] active:scale-[0.98] transition-all border border-white/[0.08] cursor-pointer touch-manipulation"
+          className="w-full flex items-center justify-center gap-2 px-4 py-2.5 min-h-[42px] rounded-xl text-xs sm:text-sm font-medium bg-white/[0.04] text-zinc-200 hover:text-white hover:bg-white/[0.08] active:scale-[0.98] transition border border-white/[0.08] cursor-pointer touch-manipulation"
         >
           <Wand2 className="w-4 h-4 text-accent-orange" />
           <span>{t("ui.repeatSetup")}</span>
@@ -268,7 +268,7 @@ export function DataPanel({ active, exportData, importData, setSettingsOpen, mul
             href="/status"
             target="_blank"
             rel="noopener noreferrer"
-            className="w-full flex items-center justify-center gap-2 px-4 py-2.5 min-h-[42px] rounded-xl text-xs sm:text-sm font-medium bg-white/[0.04] text-zinc-200 hover:text-white hover:bg-white/[0.08] active:scale-[0.98] transition-all border border-white/[0.08]"
+            className="w-full flex items-center justify-center gap-2 px-4 py-2.5 min-h-[42px] rounded-xl text-xs sm:text-sm font-medium bg-white/[0.04] text-zinc-200 hover:text-white hover:bg-white/[0.08] active:scale-[0.98] transition border border-white/[0.08]"
           >
             <Activity className="w-4 h-4 text-emerald-400" />
             <span>{t("ui.statusTitle")}</span>
@@ -287,7 +287,7 @@ export function DataPanel({ active, exportData, importData, setSettingsOpen, mul
                 toast.error(t("ui.warmupError"))
               }
             }}
-            className="w-full flex items-center justify-center gap-2 px-4 py-2.5 min-h-[42px] rounded-xl text-xs sm:text-sm font-semibold bg-amber-500/10 text-amber-300 hover:bg-amber-500/20 active:scale-[0.98] transition-all border border-amber-500/20 cursor-pointer touch-manipulation"
+            className="w-full flex items-center justify-center gap-2 px-4 py-2.5 min-h-[42px] rounded-xl text-xs sm:text-sm font-semibold bg-amber-500/10 text-amber-300 hover:bg-amber-500/20 active:scale-[0.98] transition border border-amber-500/20 cursor-pointer touch-manipulation"
           >
             <Flame className="w-4 h-4" />
             <span>Warmup</span>
@@ -295,7 +295,7 @@ export function DataPanel({ active, exportData, importData, setSettingsOpen, mul
           <button
             type="button"
             onClick={clearCache}
-            className="w-full flex items-center justify-center gap-2 px-4 py-2.5 min-h-[42px] rounded-xl text-xs sm:text-sm font-semibold bg-rose-500/10 text-rose-300 hover:bg-rose-500/20 active:scale-[0.98] transition-all border border-rose-500/20 cursor-pointer touch-manipulation"
+            className="w-full flex items-center justify-center gap-2 px-4 py-2.5 min-h-[42px] rounded-xl text-xs sm:text-sm font-semibold bg-rose-500/10 text-rose-300 hover:bg-rose-500/20 active:scale-[0.98] transition border border-rose-500/20 cursor-pointer touch-manipulation"
           >
             <Trash2 className="w-4 h-4" />
             <span>{clearStatus === "cleared" ? t("ui.cleared") : t("ui.clearCache")}</span>
@@ -372,7 +372,7 @@ export function DataPanel({ active, exportData, importData, setSettingsOpen, mul
                   setNewPinInput("")
                   setPinModalMode("set")
                 }}
-                className="w-full flex items-center justify-center gap-2 px-4 py-2.5 min-h-[42px] rounded-xl text-xs sm:text-sm font-semibold bg-amber-500/10 text-amber-300 hover:bg-amber-500/20 active:scale-[0.98] transition-all border border-amber-500/20 cursor-pointer touch-manipulation"
+                className="w-full flex items-center justify-center gap-2 px-4 py-2.5 min-h-[42px] rounded-xl text-xs sm:text-sm font-semibold bg-amber-500/10 text-amber-300 hover:bg-amber-500/20 active:scale-[0.98] transition border border-amber-500/20 cursor-pointer touch-manipulation"
               >
                 <Lock className="w-4 h-4" />
                 <span>{t("ui.pinConfigure")}</span>
@@ -386,7 +386,7 @@ export function DataPanel({ active, exportData, importData, setSettingsOpen, mul
                     setNewPinInput("")
                     setPinModalMode("set")
                   }}
-                  className="flex-1 flex items-center justify-center gap-2 px-4 py-2.5 min-h-[42px] rounded-xl text-xs sm:text-sm font-semibold bg-white/[0.05] text-zinc-200 hover:bg-white/[0.1] active:scale-[0.98] transition-all border border-white/10 cursor-pointer"
+                  className="flex-1 flex items-center justify-center gap-2 px-4 py-2.5 min-h-[42px] rounded-xl text-xs sm:text-sm font-semibold bg-white/[0.05] text-zinc-200 hover:bg-white/[0.1] active:scale-[0.98] transition border border-white/10 cursor-pointer"
                 >
                   <KeyRound className="w-4 h-4 text-amber-400" />
                   <span>{t("ui.pinChange")}</span>
@@ -397,7 +397,7 @@ export function DataPanel({ active, exportData, importData, setSettingsOpen, mul
                     setCurPinInput("")
                     setPinModalMode("remove")
                   }}
-                  className="flex-1 flex items-center justify-center gap-2 px-4 py-2.5 min-h-[42px] rounded-xl text-xs sm:text-sm font-semibold bg-rose-500/10 text-rose-300 hover:bg-rose-500/20 active:scale-[0.98] transition-all border border-rose-500/20 cursor-pointer"
+                  className="flex-1 flex items-center justify-center gap-2 px-4 py-2.5 min-h-[42px] rounded-xl text-xs sm:text-sm font-semibold bg-rose-500/10 text-rose-300 hover:bg-rose-500/20 active:scale-[0.98] transition border border-rose-500/20 cursor-pointer"
                 >
                   <Trash2 className="w-4 h-4" />
                   <span>{t("ui.pinRemove")}</span>
@@ -454,7 +454,7 @@ export function DataPanel({ active, exportData, importData, setSettingsOpen, mul
                     type="button"
                     onClick={() => setPinModalMode(null)}
                     disabled={pinBusy}
-                    className="flex-1 py-2.5 min-h-[42px] rounded-xl text-xs sm:text-sm font-medium bg-white/5 text-zinc-300 hover:text-white border border-white/10 cursor-pointer touch-manipulation transition-all"
+                    className="flex-1 py-2.5 min-h-[42px] rounded-xl text-xs sm:text-sm font-medium bg-white/5 text-zinc-300 hover:text-white border border-white/10 cursor-pointer touch-manipulation transition"
                   >
                     {t("ui.cancel")}
                   </button>
@@ -500,7 +500,7 @@ export function DataPanel({ active, exportData, importData, setSettingsOpen, mul
                         setPinBusy(false)
                       }
                     }}
-                    className="flex-1 py-2.5 min-h-[42px] rounded-xl text-xs sm:text-sm font-semibold bg-amber-500 text-black hover:bg-amber-400 disabled:opacity-30 disabled:pointer-events-none cursor-pointer touch-manipulation transition-all"
+                    className="flex-1 py-2.5 min-h-[42px] rounded-xl text-xs sm:text-sm font-semibold bg-amber-500 text-black hover:bg-amber-400 disabled:opacity-30 disabled:pointer-events-none cursor-pointer touch-manipulation transition"
                   >
                     {pinBusy ? t("ui.saving") : t("ui.save")}
                   </button>
@@ -532,7 +532,7 @@ export function DataPanel({ active, exportData, importData, setSettingsOpen, mul
                     type="button"
                     onClick={() => setPinModalMode(null)}
                     disabled={pinBusy}
-                    className="flex-1 py-2.5 min-h-[42px] rounded-xl text-xs sm:text-sm font-medium bg-white/5 text-zinc-300 hover:text-white border border-white/10 cursor-pointer touch-manipulation transition-all"
+                    className="flex-1 py-2.5 min-h-[42px] rounded-xl text-xs sm:text-sm font-medium bg-white/5 text-zinc-300 hover:text-white border border-white/10 cursor-pointer touch-manipulation transition"
                   >
                     {t("ui.cancel")}
                   </button>
@@ -565,7 +565,7 @@ export function DataPanel({ active, exportData, importData, setSettingsOpen, mul
                         setPinBusy(false)
                       }
                     }}
-                    className="flex-1 py-2.5 min-h-[42px] rounded-xl text-xs sm:text-sm font-semibold bg-rose-500 text-white hover:bg-rose-600 disabled:opacity-30 disabled:pointer-events-none cursor-pointer touch-manipulation transition-all"
+                    className="flex-1 py-2.5 min-h-[42px] rounded-xl text-xs sm:text-sm font-semibold bg-rose-500 text-white hover:bg-rose-600 disabled:opacity-30 disabled:pointer-events-none cursor-pointer touch-manipulation transition"
                   >
                     {pinBusy ? t("ui.loading") : t("ui.pinConfirmRemove")}
                   </button>

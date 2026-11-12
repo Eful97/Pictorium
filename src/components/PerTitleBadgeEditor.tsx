@@ -90,7 +90,7 @@ export function PerTitleBadgeEditor({
                 aria-label={t(level === "group" ? "ui.badgeTargetGroups" : "ui.badgeTargetItems")}
                 title={t(level === "group" ? "ui.badgeTargetGroupsHint" : "ui.badgeTargetItemsHint")}
                 onClick={() => setTargetLevel(level)}
-                className={`min-h-[36px] px-3 text-xs font-semibold transition-all cursor-pointer active:scale-95 ${
+                className={`min-h-[36px] px-3 text-xs font-semibold transition cursor-pointer active:scale-95 ${
                   targetLevel === level
                     ? "bg-accent-orange/20 text-accent-orange"
                     : "bg-white/5 text-zinc-100 hover:bg-white/15"
@@ -107,7 +107,7 @@ export function PerTitleBadgeEditor({
             aria-label={t("ui.badgeDragToggle")}
             title={t("ui.badgeDragHint")}
             onClick={toggleDrag}
-            className={`flex items-center gap-1 min-h-[36px] px-3 rounded-lg border text-xs font-semibold transition-all cursor-pointer active:scale-95 ${
+            className={`flex items-center gap-1 min-h-[36px] px-3 rounded-lg border text-xs font-semibold transition cursor-pointer active:scale-95 ${
               dragEnabled
                 ? "bg-accent-orange/20 text-accent-orange border-accent-orange/50"
                 : "bg-white/10 text-zinc-100 border-white/20 hover:bg-white/20"
@@ -121,7 +121,7 @@ export function PerTitleBadgeEditor({
             data-testid="per-title-badge-editor-close"
             onClick={onClose}
             aria-label={t("ui.defaultsPreviewZoomClose")}
-            className="min-h-[36px] w-9 flex items-center justify-center rounded-lg border border-white/20 bg-white/10 hover:bg-white/20 text-zinc-100 cursor-pointer transition-all active:scale-95"
+            className="min-h-[36px] w-9 flex items-center justify-center rounded-lg border border-white/20 bg-white/10 hover:bg-white/20 text-zinc-100 cursor-pointer transition active:scale-95"
           >
             <X className="w-4 h-4" />
           </button>

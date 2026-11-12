@@ -562,7 +562,7 @@ export function SettingsPanel({ setSettingsOpen, exportData, importData, mobile,
               role="tab"
               aria-selected={isActive}
               onClick={() => requestTabChange(tab.id)}
-              className={`flex items-center gap-2 py-3 px-3.5 text-xs sm:text-sm font-semibold border-b-2 transition-all cursor-pointer shrink-0 whitespace-nowrap ${
+              className={`flex items-center gap-2 py-3 px-3.5 text-xs sm:text-sm font-semibold border-b-2 transition cursor-pointer shrink-0 whitespace-nowrap ${
                 isActive
                   ? "border-accent-orange text-accent-orange"
                   : "border-transparent text-zinc-400 hover:text-zinc-200"
@@ -592,7 +592,7 @@ export function SettingsPanel({ setSettingsOpen, exportData, importData, mobile,
               data-testid={`settings-secondary-${tab.id}`}
               aria-pressed={isActive}
               onClick={() => requestTabChange(tab.id)}
-              className={`flex items-center gap-1.5 py-1.5 px-2.5 rounded-lg text-[11px] font-semibold transition-all cursor-pointer whitespace-nowrap ${
+              className={`flex items-center gap-1.5 py-1.5 px-2.5 rounded-lg text-[11px] font-semibold transition cursor-pointer whitespace-nowrap ${
                 isActive
                   ? "bg-white/10 text-zinc-100"
                   : "text-zinc-400 hover:text-zinc-300 hover:bg-white/5"
@@ -628,7 +628,7 @@ export function SettingsPanel({ setSettingsOpen, exportData, importData, mobile,
                 data-testid={`format-target-${shape}`}
                 aria-pressed={editTargetShape === shape}
                 onClick={() => requestShapeChange(shape)}
-                className={`flex-1 min-h-[44px] md:min-h-0 py-1.5 px-3 rounded-lg text-[11px] font-semibold transition-all cursor-pointer whitespace-nowrap touch-manipulation ${
+                className={`flex-1 min-h-[44px] md:min-h-0 py-1.5 px-3 rounded-lg text-[11px] font-semibold transition cursor-pointer whitespace-nowrap touch-manipulation ${
                   editTargetShape === shape
                     ? "bg-white/15 text-foreground shadow-sm"
                     : "text-muted hover:bg-white/5 hover:text-zinc-200"
@@ -804,7 +804,7 @@ export function SettingsPanel({ setSettingsOpen, exportData, importData, mobile,
               doClose()
               onOpenInstall()
             })}
-            className="px-4 py-2.5 min-h-[44px] h-11 rounded-xl bg-accent-orange/15 hover:bg-accent-orange/25 border border-accent-orange/30 text-xs sm:text-sm font-semibold text-accent-orange transition-all active:scale-95 cursor-pointer touch-manipulation flex items-center justify-center gap-1.5 disabled:opacity-40 disabled:cursor-not-allowed"
+            className="px-4 py-2.5 min-h-[44px] h-11 rounded-xl bg-accent-orange/15 hover:bg-accent-orange/25 border border-accent-orange/30 text-xs sm:text-sm font-semibold text-accent-orange transition active:scale-95 cursor-pointer touch-manipulation flex items-center justify-center gap-1.5 disabled:opacity-40 disabled:cursor-not-allowed"
           >
             <Download className="w-3.5 h-3.5" />
             <span>{t("ui.install")}</span>
@@ -815,7 +815,7 @@ export function SettingsPanel({ setSettingsOpen, exportData, importData, mobile,
           data-testid="settings-save"
           disabled={saveDisabled}
           onClick={handleSave}
-          className="flex items-center justify-center gap-2 px-5 py-2.5 min-h-[44px] h-11 rounded-xl text-xs sm:text-sm font-semibold bg-accent-orange hover:bg-accent-orange/90 disabled:opacity-40 text-white shadow-lg shadow-accent-orange/25 active:scale-95 transition-all cursor-pointer disabled:cursor-not-allowed touch-manipulation"
+          className="flex items-center justify-center gap-2 px-5 py-2.5 min-h-[44px] h-11 rounded-xl text-xs sm:text-sm font-semibold bg-accent-orange hover:bg-accent-orange/90 disabled:opacity-40 text-white shadow-lg shadow-accent-orange/25 active:scale-95 transition cursor-pointer disabled:cursor-not-allowed touch-manipulation"
         >
           <span>{session.saving ? t("ui.saving") : t("ui.settingsSaveChanges")}</span>
         </button>
@@ -917,7 +917,7 @@ export function SettingsPanel({ setSettingsOpen, exportData, importData, mobile,
                   doClose()
                   router.push("cataloghi")
                 })}
-                className="flex items-center gap-2 px-4 py-2.5 min-h-[44px] rounded-xl bg-white/10 hover:bg-white/20 text-xs sm:text-sm font-semibold text-zinc-100 transition-all active:scale-95 cursor-pointer touch-manipulation"
+                className="flex items-center gap-2 px-4 py-2.5 min-h-[44px] rounded-xl bg-white/10 hover:bg-white/20 text-xs sm:text-sm font-semibold text-zinc-100 transition active:scale-95 cursor-pointer touch-manipulation"
               >
                 {t("ui.priorityNames")}
               </button>
@@ -968,7 +968,7 @@ export function SettingsPanel({ setSettingsOpen, exportData, importData, mobile,
         aria-label={t("ui.back")}
         disabled={session.saving}
         onClick={requestClose}
-        className="px-4 py-2.5 rounded-xl bg-white/[0.08] border border-white/10 text-xs sm:text-sm font-semibold text-zinc-200 hover:text-white active:scale-95 transition-all duration-150 min-h-[44px] min-w-[44px] inline-flex items-center justify-center touch-manipulation cursor-pointer disabled:opacity-40 disabled:cursor-not-allowed"
+        className="px-4 py-2.5 rounded-xl bg-white/[0.08] border border-white/10 text-xs sm:text-sm font-semibold text-zinc-200 hover:text-white active:scale-95 transition duration-150 min-h-[44px] min-w-[44px] inline-flex items-center justify-center touch-manipulation cursor-pointer disabled:opacity-40 disabled:cursor-not-allowed"
       >
         {t("ui.back")}
       </button>
@@ -997,7 +997,7 @@ export function SettingsPanel({ setSettingsOpen, exportData, importData, mobile,
         tabIndex={-1}
         className={isMobileLayout
           ? "settings-panel flex flex-col h-full min-h-0 w-full max-w-lg mx-auto overflow-hidden"
-          : "settings-panel settings-dialog-panel relative outline-none w-full max-w-5xl h-[88dvh] max-h-[88dvh] flex flex-col rounded-2xl border border-white/10 bg-[#121216] shadow-2xl shadow-black/90 select-text animate-modal-panel-in overflow-hidden my-auto transition-all duration-200"}
+          : "settings-panel settings-dialog-panel relative outline-none w-full max-w-5xl h-[88dvh] max-h-[88dvh] flex flex-col rounded-2xl border border-white/10 bg-[#121216] shadow-2xl shadow-black/90 select-text animate-modal-panel-in overflow-hidden my-auto transition-[max-width,height,max-height,margin] duration-200"}
         onClick={isMobileLayout ? undefined : (e) => e.stopPropagation()}
       >
         {isMobileLayout ? (
@@ -1019,7 +1019,7 @@ export function SettingsPanel({ setSettingsOpen, exportData, importData, mobile,
               aria-label={t("ui.close")}
               disabled={session.saving}
               onClick={requestClose}
-              className="p-1.5 rounded-xl text-zinc-400 hover:text-white hover:bg-white/10 transition-all active:scale-90 cursor-pointer min-w-[36px] min-h-[36px] flex items-center justify-center disabled:opacity-40 disabled:cursor-not-allowed"
+              className="p-1.5 rounded-xl text-zinc-400 hover:text-white hover:bg-white/10 transition active:scale-90 cursor-pointer min-w-[36px] min-h-[36px] flex items-center justify-center disabled:opacity-40 disabled:cursor-not-allowed"
             >
               <X className="w-4 h-4" />
             </button>

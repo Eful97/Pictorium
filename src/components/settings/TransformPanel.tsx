@@ -166,7 +166,7 @@ function PortraitEffectiveGeometry({ editVal, editTxt, setEditVal, setEditTxt, e
         <span className="text-[11px] text-muted font-medium block">{t("ui.networkLogoPosition")}</span>
           <div className="flex gap-1">
             {(["auto", "top"] as const).map((pos) => (
-              <button key={pos} type="button" onClick={() => ed.setDefaultNetworkLogoPosition(pos)} aria-pressed={ed.defaultNetworkLogoPosition === pos} className={`flex-1 py-1 rounded-lg text-[11px] font-semibold transition-all duration-150 cursor-pointer ${ed.defaultNetworkLogoPosition === pos ? "bg-white/20 text-foreground shadow-sm" : "bg-white/5 text-muted hover:bg-white/10 hover:text-zinc-200"}`}>
+              <button key={pos} type="button" onClick={() => ed.setDefaultNetworkLogoPosition(pos)} aria-pressed={ed.defaultNetworkLogoPosition === pos} className={`flex-1 py-1 rounded-lg text-[11px] font-semibold transition duration-150 cursor-pointer ${ed.defaultNetworkLogoPosition === pos ? "bg-white/20 text-foreground shadow-sm" : "bg-white/5 text-muted hover:bg-white/10 hover:text-zinc-200"}`}>
                 {pos === "auto" ? t("ui.auto") : t("ui.networkLogoPositionTop")}
               </button>
             ))}
@@ -588,7 +588,7 @@ export function TransformPanel({ active, previewShape, onPreviewShapeChange, onP
             type="button"
             aria-pressed={trasformaShape === shape}
             onClick={() => setTrasformaShape(shape)}
-            className={`flex-1 py-1.5 rounded-lg text-[11px] font-semibold transition-all cursor-pointer ${
+            className={`flex-1 py-1.5 rounded-lg text-[11px] font-semibold transition cursor-pointer ${
               trasformaShape === shape
                 ? "bg-white/15 text-foreground shadow-sm"
                 : "text-muted hover:bg-white/5 hover:text-zinc-200"
@@ -727,7 +727,7 @@ export function TransformPanel({ active, previewShape, onPreviewShapeChange, onP
                 type="button"
                 onClick={() => ed.setDefaultNetworkLogoPosition(pos)}
                 aria-pressed={ed.defaultNetworkLogoPosition === pos}
-                className={`flex-1 py-1 rounded-lg text-[11px] font-semibold transition-all duration-150 cursor-pointer ${
+                className={`flex-1 py-1 rounded-lg text-[11px] font-semibold transition duration-150 cursor-pointer ${
                   ed.defaultNetworkLogoPosition === pos
                     ? "bg-white/20 text-foreground shadow-sm"
                     : "bg-white/5 text-muted hover:bg-white/10 hover:text-zinc-200"
@@ -1239,7 +1239,7 @@ export function TransformPanel({ active, previewShape, onPreviewShapeChange, onP
                   aria-pressed={pressed}
                   disabled={barOff}
                   title={barOff ? t("ui.separateRatingsBarLandscapeHint") : undefined}
-                  className={`flex-1 py-1 px-1 rounded-lg text-[11px] font-semibold transition-all duration-150 ${
+                  className={`flex-1 py-1 px-1 rounded-lg text-[11px] font-semibold transition duration-150 ${
                     pressed
                       ? "bg-white/20 text-white shadow-sm"
                       : "bg-white/5 text-muted hover:bg-white/10 hover:text-zinc-200"

@@ -340,7 +340,7 @@ export function PosterOptions({ posters, posterActivePath, lang, selectPoster, a
                   aria-controls="poster-custom-url-panel"
                   aria-label={t("ui.customPosterTitle")}
                   title={t("ui.customPosterTitle")}
-                  className={`relative inline-flex items-center justify-center w-9 h-9 rounded-lg border transition-all duration-150 focus:outline-none focus-visible:ring-2 focus-visible:ring-accent-orange focus-visible:ring-offset-2 focus-visible:ring-offset-zinc-950 ${customPanelOpen ? "bg-accent-orange/15 text-accent-orange border-accent-orange/40" : "bg-white/[0.03] text-zinc-400 border-white/10 hover:text-white hover:bg-white/[0.06]"}`}
+                  className={`relative inline-flex items-center justify-center w-9 h-9 rounded-lg border transition duration-150 focus:outline-none focus-visible:ring-2 focus-visible:ring-accent-orange focus-visible:ring-offset-2 focus-visible:ring-offset-zinc-950 ${customPanelOpen ? "bg-accent-orange/15 text-accent-orange border-accent-orange/40" : "bg-white/[0.03] text-zinc-400 border-white/10 hover:text-white hover:bg-white/[0.06]"}`}
                 >
                   <Link2 className="w-4 h-4" aria-hidden="true" />
                   {customCount > 0 && (
@@ -355,7 +355,7 @@ export function PosterOptions({ posters, posterActivePath, lang, selectPoster, a
                 aria-controls="poster-rotation-panel"
                 aria-label={t("ui.autoRotate")}
                 title={t("ui.autoRotate")}
-                className={`relative inline-flex items-center justify-center w-9 h-9 rounded-lg border transition-all duration-150 focus:outline-none focus-visible:ring-2 focus-visible:ring-accent-orange focus-visible:ring-offset-2 focus-visible:ring-offset-zinc-950 ${rotationPanelOpen ? "bg-accent-orange/15 text-accent-orange border-accent-orange/40" : "bg-white/[0.03] text-zinc-400 border-white/10 hover:text-white hover:bg-white/[0.06]"}`}
+                className={`relative inline-flex items-center justify-center w-9 h-9 rounded-lg border transition duration-150 focus:outline-none focus-visible:ring-2 focus-visible:ring-accent-orange focus-visible:ring-offset-2 focus-visible:ring-offset-zinc-950 ${rotationPanelOpen ? "bg-accent-orange/15 text-accent-orange border-accent-orange/40" : "bg-white/[0.03] text-zinc-400 border-white/10 hover:text-white hover:bg-white/[0.06]"}`}
               >
                 <Clock className="w-4 h-4" aria-hidden="true" />
                 {ed.autoRotateClean && (
@@ -410,7 +410,7 @@ export function PosterOptions({ posters, posterActivePath, lang, selectPoster, a
                   <button type="button"
                     aria-pressed={ed.rotationIncludeNonClean}
                     onClick={() => ed.setRotationIncludeNonClean(!ed.rotationIncludeNonClean)}
-                    className={`px-2 py-1 text-[11px] font-semibold rounded-lg border transition-all ${ed.rotationIncludeNonClean ? "bg-accent-orange/20 text-accent-orange border-accent-orange/25" : "bg-white/5 text-muted border-white/10"}`}
+                    className={`px-2 py-1 text-[11px] font-semibold rounded-lg border transition ${ed.rotationIncludeNonClean ? "bg-accent-orange/20 text-accent-orange border-accent-orange/25" : "bg-white/5 text-muted border-white/10"}`}
                   >
                     {ed.rotationIncludeNonClean ? t("ui.rotationScopeWithLanguage") : t("ui.rotationScopeNoLanguage")}
                   </button>
@@ -446,7 +446,7 @@ export function PosterOptions({ posters, posterActivePath, lang, selectPoster, a
               <button type="button"
                 aria-label={t("ui.chooseBestPosterAria")}
                 onClick={() => selectPoster(bestPoster)}
-                className="w-full flex items-center justify-center gap-1.5 px-3 py-1.5 text-[11px] font-semibold rounded-lg transition-all duration-150 bg-accent-orange/15 text-accent-orange hover:bg-accent-orange/25 active:scale-[0.98]"
+                className="w-full flex items-center justify-center gap-1.5 px-3 py-1.5 text-[11px] font-semibold rounded-lg transition duration-150 bg-accent-orange/15 text-accent-orange hover:bg-accent-orange/25 active:scale-[0.98]"
               >
                 <Sparkles className="w-3 h-3" />{t("ui.chooseBestPoster")}
               </button>
@@ -466,7 +466,7 @@ export function PosterOptions({ posters, posterActivePath, lang, selectPoster, a
                 type="button"
                 aria-label={showFitDebug ? t("ui.hideDebug") : t("ui.showDebug")}
                 onClick={() => setShowFitDebug((v) => !v)}
-                className="w-full flex items-center justify-center gap-1.5 px-2 py-1 text-[10px] font-medium rounded-lg transition-all duration-150 text-zinc-600 hover:text-muted hover:bg-white/[0.03]"
+                className="w-full flex items-center justify-center gap-1.5 px-2 py-1 text-[10px] font-medium rounded-lg transition duration-150 text-zinc-600 hover:text-muted hover:bg-white/[0.03]"
               >
                 <svg className="w-3 h-3" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><circle cx="12" cy="12" r="3"/><path d="M12 1v2M12 21v2M4.22 4.22l1.42 1.42M18.36 18.36l1.42 1.42M1 12h2M21 12h2M4.22 19.78l1.42-1.42M18.36 5.64l1.42-1.42"/></svg>
                 {showFitDebug ? t("ui.hide") : t("ui.debugFit")}
@@ -489,7 +489,7 @@ export function PosterOptions({ posters, posterActivePath, lang, selectPoster, a
                       aria-label={t("ui.remove")}
                       title={t("ui.remove")}
                       onClick={(e) => { e.stopPropagation(); onRemoveCustomPoster(img.file_path) }}
-                      className="poster-image-action w-6 h-6 rounded-lg flex items-center justify-center backdrop-blur-md border transition-all duration-150 bg-black/55 border-white/10 text-zinc-300 hover:bg-red-500/90 hover:text-white hover:border-red-400/60"
+                      className="poster-image-action w-6 h-6 rounded-lg flex items-center justify-center backdrop-blur-md border transition duration-150 bg-black/55 border-white/10 text-zinc-300 hover:bg-red-500/90 hover:text-white hover:border-red-400/60"
                     >
                       <X className="w-3.5 h-3.5" />
                     </button>
@@ -523,7 +523,7 @@ export function PosterOptions({ posters, posterActivePath, lang, selectPoster, a
                     <button type="button"
                       aria-label={inRotation ? t("ui.removeFromRotation") : t("ui.addToRotation")}
                       onClick={(e) => { e.stopPropagation(); toggleRotation(img.file_path) }}
-                      className={`poster-image-action w-6 h-6 rounded-lg flex items-center justify-center backdrop-blur-md border transition-all duration-150 ${inRotation ? "bg-accent-orange text-white border-accent-orange shadow-sm shadow-accent-orange/40" : "bg-black/55 border-white/10 text-zinc-200 hover:bg-accent-orange/90 hover:text-white hover:border-accent-orange/60"}`}
+                      className={`poster-image-action w-6 h-6 rounded-lg flex items-center justify-center backdrop-blur-md border transition duration-150 ${inRotation ? "bg-accent-orange text-white border-accent-orange shadow-sm shadow-accent-orange/40" : "bg-black/55 border-white/10 text-zinc-200 hover:bg-accent-orange/90 hover:text-white hover:border-accent-orange/60"}`}
                       title={inRotation ? t("ui.removeFromRotation") : t("ui.addToRotation")}
                     >
                       {inRotation ? <Check className="w-3.5 h-3.5" /> : <RotateCcw className="w-3.5 h-3.5" />}
@@ -531,7 +531,7 @@ export function PosterOptions({ posters, posterActivePath, lang, selectPoster, a
                     <button type="button"
                       aria-label={t("ui.excludePoster")}
                       onClick={(e) => { e.stopPropagation(); excludePoster(img.file_path) }}
-                      className="poster-image-action w-6 h-6 rounded-lg flex items-center justify-center backdrop-blur-md border transition-all duration-150 bg-black/55 border-white/10 text-zinc-300 hover:bg-red-500/90 hover:text-white hover:border-red-400/60"
+                      className="poster-image-action w-6 h-6 rounded-lg flex items-center justify-center backdrop-blur-md border transition duration-150 bg-black/55 border-white/10 text-zinc-300 hover:bg-red-500/90 hover:text-white hover:border-red-400/60"
                       title={t("ui.excludePoster")}
                     >
                       <EyeOff className="w-3.5 h-3.5" />
@@ -579,7 +579,7 @@ export function PosterOptions({ posters, posterActivePath, lang, selectPoster, a
                       <button type="button"
                         aria-label={inRotation ? t("ui.removeFromRotation") : t("ui.addToRotation")}
                         onClick={(e) => { e.stopPropagation(); toggleRotation(img.file_path) }}
-                        className={`poster-image-action w-6 h-6 rounded-lg flex items-center justify-center backdrop-blur-md border transition-all duration-150 ${inRotation ? "bg-accent-orange text-white border-accent-orange shadow-sm shadow-accent-orange/40" : "bg-black/55 border-white/10 text-zinc-200 hover:bg-accent-orange/90 hover:text-white hover:border-accent-orange/60"}`}
+                        className={`poster-image-action w-6 h-6 rounded-lg flex items-center justify-center backdrop-blur-md border transition duration-150 ${inRotation ? "bg-accent-orange text-white border-accent-orange shadow-sm shadow-accent-orange/40" : "bg-black/55 border-white/10 text-zinc-200 hover:bg-accent-orange/90 hover:text-white hover:border-accent-orange/60"}`}
                         title={inRotation ? t("ui.removeFromRotation") : t("ui.addToRotation")}
                       >
                         {inRotation ? <Check className="w-3.5 h-3.5" /> : <RotateCcw className="w-3.5 h-3.5" />}
@@ -626,7 +626,7 @@ export function PosterOptions({ posters, posterActivePath, lang, selectPoster, a
               <button
                 type="button"
                 onClick={() => fanart.reload()}
-                className="mt-2 px-3 py-1.5 rounded-lg bg-white/5 border border-white/10 text-[11px] font-semibold text-zinc-300 hover:text-white hover:bg-white/10 transition-all"
+                className="mt-2 px-3 py-1.5 rounded-lg bg-white/5 border border-white/10 text-[11px] font-semibold text-zinc-300 hover:text-white hover:bg-white/10 transition"
               >
                 {t("ui.retry")}
               </button>
@@ -674,7 +674,7 @@ export function PosterOptions({ posters, posterActivePath, lang, selectPoster, a
               <button
                 type="button"
                 onClick={() => tvdb.reload()}
-                className="mt-2 px-3 py-1.5 rounded-lg bg-white/5 border border-white/10 text-[11px] font-semibold text-zinc-300 hover:text-white hover:bg-white/10 transition-all"
+                className="mt-2 px-3 py-1.5 rounded-lg bg-white/5 border border-white/10 text-[11px] font-semibold text-zinc-300 hover:text-white hover:bg-white/10 transition"
               >
                 {t("ui.retry")}
               </button>

@@ -31,7 +31,7 @@ export function AwardBadgeModeSelector({
             type="button"
             aria-pressed={isActive}
             onClick={() => onChange(opt.id)}
-            className={`flex flex-col items-center justify-center gap-0.5 w-full py-1.5 px-1 rounded-lg border transition-all duration-150 ${
+            className={`flex flex-col items-center justify-center gap-0.5 w-full py-1.5 px-1 rounded-lg border transition duration-150 ${
               isActive
                 ? "bg-accent-orange/15 text-accent-orange border-accent-orange/25"
                 : "bg-white/5 text-muted hover:bg-white/10 hover:text-zinc-200 border-transparent"

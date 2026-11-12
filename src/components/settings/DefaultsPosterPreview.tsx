@@ -836,7 +836,7 @@ export function DefaultsPosterPreview({ compact, floating, suspended, previewSha
                     aria-label={t(level === "group" ? "ui.badgeTargetGroups" : "ui.badgeTargetItems")}
                     title={t(level === "group" ? "ui.badgeTargetGroupsHint" : "ui.badgeTargetItemsHint")}
                     onClick={() => setTargetLevel(level)}
-                    className={`min-h-[44px] px-3 text-xs font-semibold transition-all cursor-pointer active:scale-95 ${
+                    className={`min-h-[44px] px-3 text-xs font-semibold transition cursor-pointer active:scale-95 ${
                       targetLevel === level
                         ? "bg-accent-orange/20 text-accent-orange"
                         : "bg-white/5 text-zinc-100 hover:bg-white/15"
@@ -853,7 +853,7 @@ export function DefaultsPosterPreview({ compact, floating, suspended, previewSha
                 aria-label={`${t("ui.badgeDragToggle")} · ${t(dragBadges ? "ui.badgeDragModeOn" : "ui.badgeDragModeOff")}`}
                 title={t("ui.badgeDragHint")}
                 onClick={() => setDragBadgesPersisted(!dragBadges)}
-                className={`flex items-center gap-1 min-h-[44px] px-3 rounded-lg border text-xs font-semibold transition-all cursor-pointer active:scale-95 ${
+                className={`flex items-center gap-1 min-h-[44px] px-3 rounded-lg border text-xs font-semibold transition cursor-pointer active:scale-95 ${
                   dragBadges
                     ? "bg-accent-orange/20 text-accent-orange border-accent-orange/50"
                     : "bg-white/10 text-zinc-100 border-white/20 hover:bg-white/20"
@@ -868,7 +868,7 @@ export function DefaultsPosterPreview({ compact, floating, suspended, previewSha
                 data-testid="defaults-preview-badge-edit-close"
                 onClick={() => setZoomed(false)}
                 aria-label={t("ui.defaultsPreviewZoomClose")}
-                className="min-h-[44px] px-3 rounded-lg border border-white/20 bg-white/10 hover:bg-white/20 text-xs font-semibold text-zinc-100 cursor-pointer transition-all active:scale-95"
+                className="min-h-[44px] px-3 rounded-lg border border-white/20 bg-white/10 hover:bg-white/20 text-xs font-semibold text-zinc-100 cursor-pointer transition active:scale-95"
               >
                 {t("ui.close")}
               </button>
@@ -1019,7 +1019,7 @@ export function DefaultsPosterPreview({ compact, floating, suspended, previewSha
               aria-controls={bodyId}
               aria-label={t(collapsed ? "ui.previewExpand" : "ui.previewCollapse")}
               title={t(collapsed ? "ui.previewExpand" : "ui.previewCollapse")}
-              className="shrink-0 min-w-[44px] min-h-[44px] -my-2 -mr-2 px-2 flex items-center justify-center rounded-lg text-zinc-400 hover:text-white hover:bg-white/10 transition-all active:scale-90 cursor-pointer touch-manipulation"
+              className="shrink-0 min-w-[44px] min-h-[44px] -my-2 -mr-2 px-2 flex items-center justify-center rounded-lg text-zinc-400 hover:text-white hover:bg-white/10 transition active:scale-90 cursor-pointer touch-manipulation"
             >
               <ChevronDown className={`w-4 h-4 transition-transform duration-200 ${collapsed ? "" : "rotate-180"}`} />
             </button>
@@ -1036,7 +1036,7 @@ export function DefaultsPosterPreview({ compact, floating, suspended, previewSha
             {previewLoading && (
               <div className="absolute top-0 inset-x-0 h-0.5 bg-accent-orange/30 z-30 overflow-hidden">
                 <div
-                  className="h-full bg-accent-orange transition-all duration-200"
+                  className="h-full bg-accent-orange transition duration-200"
                   style={{ width: `${Math.max(loadProgress, 10)}%` }}
                 />
               </div>
@@ -1112,7 +1112,7 @@ export function DefaultsPosterPreview({ compact, floating, suspended, previewSha
           {previewLoading && (
             <div className="absolute top-0 inset-x-0 h-0.5 bg-accent-orange/30 z-30 overflow-hidden">
               <div
-                className="h-full bg-accent-orange transition-all duration-200"
+                className="h-full bg-accent-orange transition duration-200"
                 style={{ width: `${Math.max(loadProgress, 10)}%` }}
               />
             </div>
@@ -1179,7 +1179,7 @@ export function DefaultsPosterPreview({ compact, floating, suspended, previewSha
               aria-controls={searchDialogBodyId}
               aria-label={t("ui.defaultsPreviewSearchLabel")}
               title={t("ui.defaultsPreviewSearchLabel")}
-              className="absolute right-1 top-1 z-30 flex h-[44px] w-[44px] items-center justify-center rounded-xl bg-black/60 border border-white/15 text-zinc-200 transition-all hover:bg-white/10 hover:text-white active:scale-90 cursor-pointer touch-manipulation"
+              className="absolute right-1 top-1 z-30 flex h-[44px] w-[44px] items-center justify-center rounded-xl bg-black/60 border border-white/15 text-zinc-200 transition hover:bg-white/10 hover:text-white active:scale-90 cursor-pointer touch-manipulation"
             >
               <Search className="w-4 h-4 shrink-0 text-accent-orange" />
             </button>
@@ -1212,7 +1212,7 @@ export function DefaultsPosterPreview({ compact, floating, suspended, previewSha
               type="button"
               data-testid="floating-preview-search-close"
               onClick={() => setMobileSearchOpen(false)}
-              className="mt-3 w-full min-h-[44px] rounded-xl bg-white/10 hover:bg-white/20 text-xs font-semibold text-zinc-100 transition-all active:scale-95 cursor-pointer touch-manipulation"
+              className="mt-3 w-full min-h-[44px] rounded-xl bg-white/10 hover:bg-white/20 text-xs font-semibold text-zinc-100 transition active:scale-95 cursor-pointer touch-manipulation"
             >
               {t("ui.close")}
             </button>
@@ -1270,7 +1270,7 @@ export function DefaultsPosterPreview({ compact, floating, suspended, previewSha
         {previewLoading && (
           <div className="absolute top-0 inset-x-0 h-1 bg-accent-orange/20 z-30 overflow-hidden">
             <div
-              className="h-full bg-accent-orange transition-all duration-200 shadow-sm"
+              className="h-full bg-accent-orange transition duration-200 shadow-sm"
               style={{ width: `${Math.max(loadProgress, 10)}%` }}
             />
           </div>
@@ -1323,7 +1323,7 @@ export function DefaultsPosterPreview({ compact, floating, suspended, previewSha
             <button
               type="button"
               onClick={() => setRetryNonce((n) => n + 1)}
-              className="mt-3 px-3 py-1.5 text-xs text-zinc-200 bg-white/10 hover:bg-white/20 border border-white/15 rounded-lg flex items-center gap-1.5 cursor-pointer transition-all active:scale-95"
+              className="mt-3 px-3 py-1.5 text-xs text-zinc-200 bg-white/10 hover:bg-white/20 border border-white/15 rounded-lg flex items-center gap-1.5 cursor-pointer transition active:scale-95"
             >
               <RefreshCw className="w-3.5 h-3.5" />
               {t("ui.retry")}

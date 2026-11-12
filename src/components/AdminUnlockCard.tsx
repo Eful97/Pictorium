@@ -90,7 +90,7 @@ export function AdminUnlockCard({ t, description, className, onUnlocked, onLock 
         <button
           type="button"
           onClick={lock}
-          className="w-full flex items-center justify-center gap-1.5 px-3 py-2 rounded-lg text-[11px] font-medium bg-rose-500/10 text-rose-300 hover:bg-rose-500/20 active:scale-[0.98] transition-all border border-rose-500/20 cursor-pointer"
+          className="w-full flex items-center justify-center gap-1.5 px-3 py-2 rounded-lg text-[11px] font-medium bg-rose-500/10 text-rose-300 hover:bg-rose-500/20 active:scale-[0.98] transition border border-rose-500/20 cursor-pointer"
         >
           <Lock className="w-3.5 h-3.5" />
           {t("ui.adminTokenLock")}
@@ -115,7 +115,7 @@ export function AdminUnlockCard({ t, description, className, onUnlocked, onLock 
             type="button"
             onClick={() => void unlock()}
             disabled={!input.trim() || busy}
-            className="shrink-0 px-3 py-1.5 rounded-lg bg-amber-500 text-black text-xs font-semibold hover:bg-amber-400 active:scale-95 transition-all disabled:opacity-30 disabled:pointer-events-none cursor-pointer"
+            className="shrink-0 px-3 py-1.5 rounded-lg bg-amber-500 text-black text-xs font-semibold hover:bg-amber-400 active:scale-95 transition disabled:opacity-30 disabled:pointer-events-none cursor-pointer"
           >
             {t("ui.adminTokenUnlock")}
           </button>

@@ -128,7 +128,7 @@ function KeyRow({
           onClick={onVerify}
           title={verifyTitle}
           aria-label={verifyTitle}
-          className="w-9 h-9 shrink-0 grow-0 basis-auto flex items-center justify-center rounded-lg bg-surface2 hover:bg-zinc-700 text-zinc-400 hover:text-emerald-300 transition-all disabled:opacity-30 disabled:pointer-events-none cursor-pointer"
+          className="w-9 h-9 shrink-0 grow-0 basis-auto flex items-center justify-center rounded-lg bg-surface2 hover:bg-zinc-700 text-zinc-400 hover:text-emerald-300 transition disabled:opacity-30 disabled:pointer-events-none cursor-pointer"
         >
           {verifying
             ? <Loader2 className="w-4 h-4 animate-spin" />
@@ -142,7 +142,7 @@ function KeyRow({
           onClick={onToggleShow}
           title={show ? hideTitle : showTitle}
           aria-label={show ? hideTitle : showTitle}
-          className="w-9 h-9 shrink-0 grow-0 basis-auto flex items-center justify-center rounded-lg bg-surface2 hover:bg-zinc-700 text-zinc-400 hover:text-zinc-200 transition-all disabled:opacity-50 cursor-pointer"
+          className="w-9 h-9 shrink-0 grow-0 basis-auto flex items-center justify-center rounded-lg bg-surface2 hover:bg-zinc-700 text-zinc-400 hover:text-zinc-200 transition disabled:opacity-50 cursor-pointer"
         >
           {show ? <EyeOff className="w-4 h-4" /> : <Eye className="w-4 h-4" />}
         </button>
@@ -152,7 +152,7 @@ function KeyRow({
           onClick={onCopy}
           title={copyTitle}
           aria-label={copyTitle}
-          className="w-9 h-9 shrink-0 grow-0 basis-auto flex items-center justify-center rounded-lg bg-surface2 hover:bg-zinc-700 text-zinc-300 transition-all disabled:opacity-30 disabled:pointer-events-none cursor-pointer"
+          className="w-9 h-9 shrink-0 grow-0 basis-auto flex items-center justify-center rounded-lg bg-surface2 hover:bg-zinc-700 text-zinc-300 transition disabled:opacity-30 disabled:pointer-events-none cursor-pointer"
         >
           {copied ? <Check className="w-4 h-4 text-emerald-400" /> : <Copy className="w-4 h-4" />}
         </button>
@@ -162,7 +162,7 @@ function KeyRow({
           onClick={onDeactivate}
           title={isDisabled ? activateTitle : deactivateTitle}
           aria-label={isDisabled ? activateTitle : deactivateTitle}
-          className="w-9 h-9 shrink-0 grow-0 basis-auto flex items-center justify-center rounded-lg bg-surface2 hover:bg-zinc-700 text-zinc-400 hover:text-red-300 transition-all disabled:opacity-30 disabled:pointer-events-none cursor-pointer"
+          className="w-9 h-9 shrink-0 grow-0 basis-auto flex items-center justify-center rounded-lg bg-surface2 hover:bg-zinc-700 text-zinc-400 hover:text-red-300 transition disabled:opacity-30 disabled:pointer-events-none cursor-pointer"
         >
           {deactivating
             ? <Loader2 className="w-4 h-4 animate-spin" />

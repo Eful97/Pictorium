@@ -24,6 +24,12 @@ export function ScrollReveal({
   useEffect(() => {
     const el = ref.current
     if (!el) return
+    // Reveal guidato dallo scroll in CSS (animation-timeline, globals.css):
+    // niente observer. Con moto ridotto resta il fallback .visible.
+    const cssDriven =
+      typeof CSS !== "undefined" && CSS.supports("animation-timeline: view()") &&
+      typeof window.matchMedia === "function" && !window.matchMedia("(prefers-reduced-motion: reduce)").matches
+    if (cssDriven) return
     if (typeof IntersectionObserver === "undefined") {
       el.classList.add("visible")
       return

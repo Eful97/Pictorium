@@ -317,7 +317,7 @@ export function AddonCatalogModal({ isOpen, onClose }: { isOpen: boolean; onClos
             type="button"
             onClick={save}
             disabled={saving || selected.size === 0}
-            className="flex items-center gap-1.5 px-3.5 py-1.5 rounded-xl bg-accent-orange text-white text-[11px] font-semibold hover:bg-accent-orange/90 active:scale-95 transition-all shadow-md disabled:opacity-50"
+            className="flex items-center gap-1.5 px-3.5 py-1.5 rounded-xl bg-accent-orange text-white text-[11px] font-semibold hover:bg-accent-orange/90 active:scale-95 transition shadow-md disabled:opacity-50"
           >
             <Plus className="w-3 h-3" /> {t("ui.addCatalogBtn")}
           </button>

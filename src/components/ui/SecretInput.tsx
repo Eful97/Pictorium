@@ -72,7 +72,7 @@ export function SecretInput({
         <button
           type="button"
           onClick={() => setShow((s) => !s)}
-          className="px-2 bg-surface2 rounded-lg text-xs hover:bg-zinc-700 active:scale-90 transition-all duration-150 text-zinc-300"
+          className="px-2 bg-surface2 rounded-lg text-xs hover:bg-zinc-700 active:scale-90 transition duration-150 text-zinc-300"
           aria-label={show ? "Hide password" : "Show password"}
           title={show ? "Nascondi chiave" : "Mostra chiave"}
         >
@@ -83,7 +83,7 @@ export function SecretInput({
             type="button"
             disabled={validating || !value.trim()}
             onClick={handleValidate}
-            className={`px-2 rounded-lg text-xs font-medium border transition-all duration-150 flex items-center justify-center disabled:opacity-40 disabled:cursor-not-allowed ${
+            className={`px-2 rounded-lg text-xs font-medium border transition duration-150 flex items-center justify-center disabled:opacity-40 disabled:cursor-not-allowed ${
               validStatus === "valid"
                 ? "bg-emerald-500/20 text-emerald-400 border-emerald-500/40"
                 : validStatus === "invalid"

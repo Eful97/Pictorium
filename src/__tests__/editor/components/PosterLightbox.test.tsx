@@ -27,7 +27,7 @@ const t = (key: string) => key
 function renderLightbox(mapping: Mapping) {
   return render(
     <PosterLightbox
-      lightbox={{ mapping, rect: new DOMRect() }}
+      lightbox={{ mapping }}
       onClose={() => {}}
       posterUrlFn={posterUrlFn}
       t={t}
@@ -64,7 +64,7 @@ describe("PosterLightbox customPosterUrl", () => {
     expect(screen.getByAltText("Fight Club").getAttribute("src")).toBe(posterUrlFn("/abc.jpg", "w500"))
     view.rerender(
       <PosterLightbox
-        lightbox={{ mapping: baseMapping({ customPosterUrl: CUSTOM_NEXT }), rect: new DOMRect() }}
+        lightbox={{ mapping: baseMapping({ customPosterUrl: CUSTOM_NEXT }) }}
         onClose={() => {}}
         posterUrlFn={posterUrlFn}
         t={t}

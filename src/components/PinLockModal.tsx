@@ -182,7 +182,7 @@ export function PinLockModal({ onSuccess }: PinLockModalProps) {
               key={n}
               type="button"
               onClick={() => handleKeyPress(String(n))}
-              className="h-12 rounded-xl bg-white/[0.05] hover:bg-white/[0.1] active:scale-95 border border-white/5 text-base font-semibold text-zinc-200 transition-all"
+              className="h-12 rounded-xl bg-white/[0.05] hover:bg-white/[0.1] active:scale-95 border border-white/5 text-base font-semibold text-zinc-200 transition"
             >
               {n}
             </button>
@@ -191,14 +191,14 @@ export function PinLockModal({ onSuccess }: PinLockModalProps) {
             type="button"
             onClick={handleDelete}
             aria-label={t("ui.pinLockDelete")}
-            className="h-12 rounded-xl bg-white/[0.03] hover:bg-white/[0.08] active:scale-95 border border-white/5 flex items-center justify-center text-zinc-400 hover:text-zinc-200 transition-all"
+            className="h-12 rounded-xl bg-white/[0.03] hover:bg-white/[0.08] active:scale-95 border border-white/5 flex items-center justify-center text-zinc-400 hover:text-zinc-200 transition"
           >
             <Delete className="w-5 h-5" />
           </button>
           <button
             type="button"
             onClick={() => handleKeyPress("0")}
-            className="h-12 rounded-xl bg-white/[0.05] hover:bg-white/[0.1] active:scale-95 border border-white/5 text-base font-semibold text-zinc-200 transition-all"
+            className="h-12 rounded-xl bg-white/[0.05] hover:bg-white/[0.1] active:scale-95 border border-white/5 text-base font-semibold text-zinc-200 transition"
           >
             0
           </button>
@@ -207,7 +207,7 @@ export function PinLockModal({ onSuccess }: PinLockModalProps) {
             onClick={() => handleSubmit()}
             disabled={pin.length < 4 || loading}
             aria-label={t("ui.pinLockUnlock")}
-            className="h-12 rounded-xl bg-amber-500/20 hover:bg-amber-500/30 active:scale-95 border border-amber-500/30 flex items-center justify-center text-amber-400 hover:text-amber-300 disabled:opacity-30 disabled:pointer-events-none transition-all"
+            className="h-12 rounded-xl bg-amber-500/20 hover:bg-amber-500/30 active:scale-95 border border-amber-500/30 flex items-center justify-center text-amber-400 hover:text-amber-300 disabled:opacity-30 disabled:pointer-events-none transition"
           >
             <ArrowRight className="w-5 h-5" />
           </button>
@@ -217,7 +217,7 @@ export function PinLockModal({ onSuccess }: PinLockModalProps) {
           type="button"
           onClick={() => handleSubmit()}
           disabled={pin.length < 4 || loading}
-          className="w-full py-3 rounded-xl bg-gradient-to-r from-amber-500 to-orange-500 text-black font-semibold text-xs tracking-wide uppercase hover:opacity-90 active:scale-98 disabled:opacity-30 disabled:pointer-events-none transition-all shadow-lg shadow-amber-500/20"
+          className="w-full py-3 rounded-xl bg-gradient-to-r from-amber-500 to-orange-500 text-black font-semibold text-xs tracking-wide uppercase hover:opacity-90 active:scale-98 disabled:opacity-30 disabled:pointer-events-none transition shadow-lg shadow-amber-500/20"
         >
           {loading ? t("ui.setupPinSaving") : t("ui.pinLockUnlock")}
         </button>

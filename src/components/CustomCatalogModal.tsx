@@ -383,7 +383,7 @@ export function CustomCatalogModal({ isOpen, onClose }: CustomCatalogModalProps)
           <button
             type="button"
             onClick={() => setMode("url")}
-            className={`py-1.5 px-2 rounded-xl text-[11px] font-semibold border transition-all ${
+            className={`py-1.5 px-2 rounded-xl text-[11px] font-semibold border transition ${
               mode === "url"
                 ? "bg-accent-orange/20 border-accent-orange/40 text-accent-orange"
                 : "bg-surface2/60 border-white/5 text-muted hover:text-white"
@@ -394,7 +394,7 @@ export function CustomCatalogModal({ isOpen, onClose }: CustomCatalogModalProps)
           <button
             type="button"
             onClick={() => setMode("csv")}
-            className={`py-1.5 px-2 rounded-xl text-[11px] font-semibold border transition-all ${
+            className={`py-1.5 px-2 rounded-xl text-[11px] font-semibold border transition ${
               mode === "csv"
                 ? "bg-accent-orange/20 border-accent-orange/40 text-accent-orange"
                 : "bg-surface2/60 border-white/5 text-muted hover:text-white"
@@ -440,7 +440,7 @@ export function CustomCatalogModal({ isOpen, onClose }: CustomCatalogModalProps)
               onClick={handleBrowseToggle}
               aria-expanded={browseOpen}
               aria-label="MDBList"
-              className="w-full py-1.5 px-2 rounded-xl text-[11px] font-semibold border border-white/10 bg-white/5 text-zinc-300 hover:text-white hover:bg-white/10 transition-all"
+              className="w-full py-1.5 px-2 rounded-xl text-[11px] font-semibold border border-white/10 bg-white/5 text-zinc-300 hover:text-white hover:bg-white/10 transition"
             >
               MDBList
             </button>
@@ -458,7 +458,7 @@ export function CustomCatalogModal({ isOpen, onClose }: CustomCatalogModalProps)
                     <button
                       type="button"
                       onClick={() => void loadBrowse()}
-                      className="mt-1 px-2 py-1 rounded-lg bg-white/5 border border-white/10 text-[10px] font-semibold text-zinc-300 hover:text-white hover:bg-white/10 transition-all"
+                      className="mt-1 px-2 py-1 rounded-lg bg-white/5 border border-white/10 text-[10px] font-semibold text-zinc-300 hover:text-white hover:bg-white/10 transition"
                     >
                       {t("ui.retry")}
                     </button>
@@ -574,7 +574,7 @@ export function CustomCatalogModal({ isOpen, onClose }: CustomCatalogModalProps)
             <button
               type="button"
               onClick={() => setType("movie")}
-              className={`flex items-center justify-center gap-1.5 py-1.5 px-2 rounded-xl text-[11px] font-semibold border transition-all ${
+              className={`flex items-center justify-center gap-1.5 py-1.5 px-2 rounded-xl text-[11px] font-semibold border transition ${
                 type === "movie"
                   ? "bg-blue-500/20 border-blue-500/40 text-blue-300"
                   : "bg-surface2/60 border-white/5 text-muted hover:text-white"
@@ -585,7 +585,7 @@ export function CustomCatalogModal({ isOpen, onClose }: CustomCatalogModalProps)
             <button
               type="button"
               onClick={() => setType("series")}
-              className={`flex items-center justify-center gap-1.5 py-1.5 px-2 rounded-xl text-[11px] font-semibold border transition-all ${
+              className={`flex items-center justify-center gap-1.5 py-1.5 px-2 rounded-xl text-[11px] font-semibold border transition ${
                 type === "series"
                   ? "bg-purple-500/20 border-purple-500/40 text-purple-300"
                   : "bg-surface2/60 border-white/5 text-muted hover:text-white"
@@ -596,7 +596,7 @@ export function CustomCatalogModal({ isOpen, onClose }: CustomCatalogModalProps)
             <button
               type="button"
               onClick={() => setType("mixed")}
-              className={`flex items-center justify-center gap-1.5 py-1.5 px-2 rounded-xl text-[11px] font-semibold border transition-all ${
+              className={`flex items-center justify-center gap-1.5 py-1.5 px-2 rounded-xl text-[11px] font-semibold border transition ${
                 type === "mixed"
                   ? "bg-accent-orange/20 border-accent-orange/40 text-accent-orange"
                   : "bg-surface2/60 border-white/5 text-muted hover:text-white"
@@ -618,7 +618,7 @@ export function CustomCatalogModal({ isOpen, onClose }: CustomCatalogModalProps)
           <button
             type="button"
             onClick={handleTraktConnect}
-            className="w-full py-2 rounded-xl text-[11px] font-semibold bg-amber-500 text-black hover:bg-amber-400 active:scale-[0.99] transition-all cursor-pointer"
+            className="w-full py-2 rounded-xl text-[11px] font-semibold bg-amber-500 text-black hover:bg-amber-400 active:scale-[0.99] transition cursor-pointer"
           >
             {t("ui.customTraktConnect")}
           </button>
@@ -647,7 +647,7 @@ export function CustomCatalogModal({ isOpen, onClose }: CustomCatalogModalProps)
           <button
             type="submit"
             disabled={loading}
-            className="flex items-center gap-1.5 px-3.5 py-1.5 rounded-xl bg-accent-orange text-white text-[11px] font-semibold hover:bg-accent-orange/90 active:scale-95 transition-all shadow-md disabled:opacity-50"
+            className="flex items-center gap-1.5 px-3.5 py-1.5 rounded-xl bg-accent-orange text-white text-[11px] font-semibold hover:bg-accent-orange/90 active:scale-95 transition shadow-md disabled:opacity-50"
           >
             {loading ? t("ui.saving") : <><Plus className="w-3 h-3" /> {t("ui.addCatalogBtn")}</>}
           </button>

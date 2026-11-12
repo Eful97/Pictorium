@@ -297,7 +297,7 @@ export function VisualPresetsSection({ shape = "portrait", enabled = true, galle
                 title={preset.name}
                 data-testid={`visual-preset-${preset.id}`}
                 onClick={() => applyPresetOrCustom(preset)}
-                className={`flex flex-col text-left p-2.5 rounded-xl border transition-all cursor-pointer disabled:opacity-50 min-h-[44px] ${
+                className={`flex flex-col text-left p-2.5 rounded-xl border transition cursor-pointer disabled:opacity-50 min-h-[44px] ${
                   active
                     ? "bg-accent-orange/15 border-accent-orange/60 text-foreground shadow-sm ring-1 ring-accent-orange/30"
                     : "bg-surface2/40 hover:bg-surface2/70 border-surface2 text-zinc-300 hover:text-foreground"

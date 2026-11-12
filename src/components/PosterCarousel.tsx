@@ -336,7 +336,7 @@ export function PosterCarousel() {
           <div className="hidden sm:flex items-center gap-2">
             <div className="w-20 h-1 rounded-full bg-surface2 overflow-hidden">
               <div
-                className="h-full rounded-full bg-accent-orange transition-all duration-300"
+                className="h-full rounded-full bg-accent-orange transition duration-300"
                 style={{ width: `${(activeIndex / Math.max(totalItems - 1, 1)) * 100}%` }}
               />
             </div>
@@ -356,7 +356,7 @@ export function PosterCarousel() {
         {showLeft && (
           <button type="button"
             onClick={() => scrollTo(-1)}
-            className="absolute -left-2 sm:-left-3 top-1/2 -translate-y-1/2 z-20 w-8 sm:w-9 h-8 sm:h-9 rounded-full bg-surface/80 border border-border/50 backdrop-blur-xl flex items-center justify-center text-zinc-300 hover:text-white hover:bg-surface2/80 active:scale-90 transition-all shadow-xl"
+            className="absolute -left-2 sm:-left-3 top-1/2 -translate-y-1/2 z-20 w-8 sm:w-9 h-8 sm:h-9 rounded-full bg-surface/80 border border-border/50 backdrop-blur-xl flex items-center justify-center text-zinc-300 hover:text-white hover:bg-surface2/80 active:scale-90 transition shadow-xl"
             aria-label={t("ui.scrollLeft")}
           >
             <ChevronLeft className="w-4 h-4" />
@@ -421,7 +421,7 @@ export function PosterCarousel() {
         {showRight && (
           <button type="button"
             onClick={() => scrollTo(1)}
-            className="absolute -right-2 sm:-right-3 top-1/2 -translate-y-1/2 z-20 w-8 sm:w-9 h-8 sm:h-9 rounded-full bg-surface/80 border border-border/50 backdrop-blur-xl flex items-center justify-center text-zinc-300 hover:text-white hover:bg-surface2/80 active:scale-90 transition-all shadow-xl"
+            className="absolute -right-2 sm:-right-3 top-1/2 -translate-y-1/2 z-20 w-8 sm:w-9 h-8 sm:h-9 rounded-full bg-surface/80 border border-border/50 backdrop-blur-xl flex items-center justify-center text-zinc-300 hover:text-white hover:bg-surface2/80 active:scale-90 transition shadow-xl"
             aria-label={t("ui.scrollRight")}
           >
             <ChevronRight className="w-4 h-4" />

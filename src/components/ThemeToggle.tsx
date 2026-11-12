@@ -83,7 +83,7 @@ export function ThemeToggle({ className = "", showLabels = false, bottomBar = fa
             aria-label={opt.label}
             title={opt.label}
             onClick={() => { setTheme(opt.id); setOpen(false); if (!showLabels) trigger.current?.focus() }}
-            className={`flex items-center justify-center gap-1.5 px-2 py-1 rounded-lg text-xs font-medium transition-all duration-150 cursor-pointer ${
+            className={`flex items-center justify-center gap-1.5 px-2 py-1 rounded-lg text-xs font-medium transition-[width,min-height,padding,background-color,color,box-shadow] duration-150 cursor-pointer ${
               active
                 ? "bg-accent-orange text-white shadow-sm font-semibold"
                 : "text-muted hover:text-foreground hover:bg-surface2"

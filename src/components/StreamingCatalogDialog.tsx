@@ -256,7 +256,7 @@ export function StreamingCatalogDialog({ isOpen, onClose, existing, isLegacy, on
                   type="button"
                   onClick={() => pickSource(opt)}
                   aria-pressed={source === opt}
-                  className={`px-2.5 py-2 rounded-xl border text-xs font-semibold transition-all active:scale-95 ${
+                  className={`px-2.5 py-2 rounded-xl border text-xs font-semibold transition active:scale-95 ${
                     source === opt
                       ? "bg-accent-orange/15 border-accent-orange/40 text-foreground"
                       : "bg-surface2/60 border-white/10 text-zinc-300 hover:border-white/20 hover:text-white"
@@ -281,7 +281,7 @@ export function StreamingCatalogDialog({ isOpen, onClose, existing, isLegacy, on
                     type="button"
                     onClick={() => pickCountry(c.slug)}
                     aria-pressed={country === c.slug}
-                    className={`flex items-center gap-2 px-2.5 py-2 rounded-xl border text-xs transition-all active:scale-95 ${
+                    className={`flex items-center gap-2 px-2.5 py-2 rounded-xl border text-xs transition active:scale-95 ${
                       country === c.slug
                         ? "bg-accent-orange/15 border-accent-orange/40 text-foreground font-semibold"
                         : "bg-surface2/60 border-white/10 text-zinc-300 hover:border-white/20 hover:text-white"
@@ -456,7 +456,7 @@ export function StreamingCatalogDialog({ isOpen, onClose, existing, isLegacy, on
             <button
               type="button"
               onClick={onClose}
-              className="px-4 py-2 rounded-xl bg-white/5 border border-white/10 text-zinc-300 text-xs font-semibold hover:bg-white/10 hover:text-white transition-all"
+              className="px-4 py-2 rounded-xl bg-white/5 border border-white/10 text-zinc-300 text-xs font-semibold hover:bg-white/10 hover:text-white transition"
             >
               {t("ui.cancel")}
             </button>
@@ -464,7 +464,7 @@ export function StreamingCatalogDialog({ isOpen, onClose, existing, isLegacy, on
               type="button"
               onClick={handleAdd}
               disabled={!canAdd}
-              className="flex items-center gap-1.5 px-4 py-2 rounded-xl bg-accent-orange text-white text-xs font-semibold hover:bg-accent-orange/90 active:scale-95 transition-all shadow-md disabled:opacity-40 disabled:active:scale-100"
+              className="flex items-center gap-1.5 px-4 py-2 rounded-xl bg-accent-orange text-white text-xs font-semibold hover:bg-accent-orange/90 active:scale-95 transition shadow-md disabled:opacity-40 disabled:active:scale-100"
             >
               <Plus className="w-3.5 h-3.5" />
               {t("ui.streamAddCount", { count: addable })}

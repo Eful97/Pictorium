@@ -138,7 +138,7 @@ function SlotSelect({
         type="button"
         disabled={disabled}
         onClick={() => setIsOpen((prev) => !prev)}
-        className={`group flex items-center gap-2 px-3 py-1.5 rounded-xl border text-xs font-medium transition-all duration-150 cursor-pointer select-none focus:outline-none focus:ring-1 focus:ring-white/30 ${
+        className={`group flex items-center gap-2 px-3 py-1.5 rounded-xl border text-xs font-medium transition duration-150 cursor-pointer select-none focus:outline-none focus:ring-1 focus:ring-white/30 ${
           isIncompatible
             ? "bg-amber-500/10 border-amber-500/40 text-amber-200 hover:border-amber-500/60 hover:bg-amber-500/15"
             : isCustom
@@ -357,7 +357,7 @@ function RankingInfoPopover({
     >
       <summary
         aria-label={t("ui.rankingSourceTitle")}
-        className="flex h-7 w-7 cursor-pointer list-none items-center justify-center rounded-xl bg-white/[0.04] border border-white/[0.08] text-zinc-400 transition-all hover:border-white/20 hover:bg-white/[0.08] hover:text-zinc-200 focus:outline-none focus:ring-1 focus:ring-white/30 [&::-webkit-details-marker]:hidden"
+        className="flex h-7 w-7 cursor-pointer list-none items-center justify-center rounded-xl bg-white/[0.04] border border-white/[0.08] text-zinc-400 transition hover:border-white/20 hover:bg-white/[0.08] hover:text-zinc-200 focus:outline-none focus:ring-1 focus:ring-white/30 [&::-webkit-details-marker]:hidden"
       >
         <Info className="h-3.5 w-3.5" />
       </summary>

@@ -10,7 +10,7 @@ import { PosterDepthEdge, PosterDepthSheen } from "@/components/PosterDepthGlow"
 export interface TileHandlers {
   select: (key: string) => void
   open: (m: Mapping) => void
-  quickView: (m: Mapping, rect: DOMRect) => void
+  quickView: (m: Mapping, tileEl: HTMLElement | null) => void
   remove: (m: Mapping) => void
   confirmRemove: (m: Mapping) => void
   cancelRemove: () => void
@@ -39,10 +39,9 @@ export const MoodBoardTile = React.memo(function MoodBoardTile({
   t,
 }: MoodBoardTileProps) {
   const key = `${m.mediaType}:${m.tmdbId}`
-  const tileRectOf = (e: React.MouseEvent) => {
+  const quickViewFrom = (e: React.MouseEvent) => {
     const target = e.currentTarget as HTMLElement
-    const tileEl = target.closest(".surface-card") || target.closest(".group") || target
-    return tileEl ? tileEl.getBoundingClientRect() : new DOMRect(window.innerWidth / 2, window.innerHeight / 2, 0, 0)
+    handlers.quickView(m, (target.closest(".surface-card") || target.closest(".group") || target) as HTMLElement)
   }
   const year = (m.releaseDate || m.firstAirDate || "").slice(0, 4)
   const typeLabel = m.mediaType === "movie"
@@ -197,10 +196,10 @@ export const MoodBoardTile = React.memo(function MoodBoardTile({
             type="button"
             onClick={(e) => {
               e.stopPropagation()
-              handlers.quickView(m, tileRectOf(e))
+              quickViewFrom(e)
             }}
             aria-label={t("ui.quickView")}
-            className="absolute top-2 right-2 w-10 h-10 rounded-full bg-black/75 border border-white/10 flex items-center justify-center text-white/80 hover:bg-black/85 hover:text-white transition-all duration-200 opacity-100 md:opacity-0 md:group-hover:opacity-100 focus-visible:opacity-100 active:scale-90 cursor-pointer shadow-lg z-10 touch-manipulation"
+            className="absolute top-2 right-2 w-10 h-10 rounded-full bg-black/75 border border-white/10 flex items-center justify-center text-white/80 hover:bg-black/85 hover:text-white transition duration-200 opacity-100 md:opacity-0 md:group-hover:opacity-100 focus-visible:opacity-100 active:scale-90 cursor-pointer shadow-lg z-10 touch-manipulation"
           >
             <Maximize2 className="w-4 h-4" />
           </button>
@@ -210,9 +209,9 @@ export const MoodBoardTile = React.memo(function MoodBoardTile({
         {!selectMode && (
           <button
             type="button"
-            onClick={(e) => { e.stopPropagation(); handlers.quickView(m, tileRectOf(e)) }}
+            onClick={(e) => { e.stopPropagation(); quickViewFrom(e) }}
             aria-label={t("ui.collections")}
-            className="absolute bottom-2 right-2 flex items-center gap-1 px-2.5 py-2 rounded-lg bg-black/75 border border-white/10 text-zinc-300 hover:text-white hover:bg-black/85 transition-all duration-200 active:scale-90 cursor-pointer z-10 touch-manipulation"
+            className="absolute bottom-2 right-2 flex items-center gap-1 px-2.5 py-2 rounded-lg bg-black/75 border border-white/10 text-zinc-300 hover:text-white hover:bg-black/85 transition duration-200 active:scale-90 cursor-pointer z-10 touch-manipulation"
           >
             <Folder className="w-3 h-3" />
             {collectionCount > 0 && (
@@ -228,7 +227,7 @@ export const MoodBoardTile = React.memo(function MoodBoardTile({
             aria-label={t("ui.delete")}
             onClick={(e) => { e.stopPropagation(); handlers.remove(m) }}
             onKeyDown={(e) => e.stopPropagation()}
-            className="absolute top-2 left-2 w-10 h-10 rounded-lg bg-red-900/70 flex items-center justify-center text-xs text-red-300 hover:bg-red-800 hover:text-red-200 active:scale-90 transition-all duration-150 opacity-100 md:opacity-0 md:group-hover:opacity-100 focus-visible:opacity-100 cursor-pointer shadow-lg shadow-black/30 touch-manipulation"
+            className="absolute top-2 left-2 w-10 h-10 rounded-lg bg-red-900/70 flex items-center justify-center text-xs text-red-300 hover:bg-red-800 hover:text-red-200 active:scale-90 transition duration-150 opacity-100 md:opacity-0 md:group-hover:opacity-100 focus-visible:opacity-100 cursor-pointer shadow-lg shadow-black/30 touch-manipulation"
           >
             <Trash2 className="w-4 h-4" />
           </button>
@@ -251,14 +250,14 @@ export const MoodBoardTile = React.memo(function MoodBoardTile({
                 type="button"
                 autoFocus
                 onClick={() => handlers.confirmRemove(m)}
-                className="min-h-[36px] px-3.5 rounded-lg text-xs font-semibold bg-red-600 text-white hover:bg-red-500 active:scale-95 transition-all cursor-pointer"
+                className="min-h-[36px] px-3.5 rounded-lg text-xs font-semibold bg-red-600 text-white hover:bg-red-500 active:scale-95 transition cursor-pointer"
               >
                 {t("ui.delete")}
               </button>
               <button
                 type="button"
                 onClick={() => handlers.cancelRemove()}
-                className="min-h-[36px] px-3.5 rounded-lg text-xs font-medium bg-white/10 text-zinc-200 hover:bg-white/15 active:scale-95 transition-all cursor-pointer"
+                className="min-h-[36px] px-3.5 rounded-lg text-xs font-medium bg-white/10 text-zinc-200 hover:bg-white/15 active:scale-95 transition cursor-pointer"
               >
                 {t("ui.cancelAction")}
               </button>
@@ -274,7 +273,7 @@ export const MoodBoardTile = React.memo(function MoodBoardTile({
             title={isLandscape ? t("ui.setAsPortrait") : t("ui.setAsLandscape")}
             onClick={(e) => { e.stopPropagation(); handlers.toggleShape(m) }}
             onKeyDown={(e) => e.stopPropagation()}
-            className="absolute bottom-2 left-2 w-10 h-10 rounded-lg bg-black/75 border border-white/10 flex items-center justify-center text-zinc-300 hover:text-white hover:bg-black/85 active:scale-90 transition-all duration-150 opacity-100 md:opacity-0 md:group-hover:opacity-100 focus-visible:opacity-100 cursor-pointer shadow-lg shadow-black/30 z-10 touch-manipulation"
+            className="absolute bottom-2 left-2 w-10 h-10 rounded-lg bg-black/75 border border-white/10 flex items-center justify-center text-zinc-300 hover:text-white hover:bg-black/85 active:scale-90 transition duration-150 opacity-100 md:opacity-0 md:group-hover:opacity-100 focus-visible:opacity-100 cursor-pointer shadow-lg shadow-black/30 z-10 touch-manipulation"
           >
             {isLandscape ? <RectangleVertical className="w-4 h-4" /> : <RectangleHorizontal className="w-4 h-4" />}
           </button>
@@ -283,7 +282,7 @@ export const MoodBoardTile = React.memo(function MoodBoardTile({
         {/* Select mode checkbox */}
         {selectMode && (
           <div
-            className={`absolute top-2 right-2 w-6 h-6 rounded-lg border-2 flex items-center justify-center transition-all duration-200 ${
+            className={`absolute top-2 right-2 w-6 h-6 rounded-lg border-2 flex items-center justify-center transition duration-200 ${
               isSelected
                 ? "bg-red-500 border-red-500 shadow-lg shadow-red-500/30 scale-110"
                 : "border-white/40 bg-black/30"

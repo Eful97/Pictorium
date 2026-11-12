@@ -127,18 +127,18 @@ export function LangPicker({ onPickLang, onPickRegion, onDone, skipPin }: SetupW
       <div className="w-full max-w-lg mx-4">
         <div className="text-center mb-8">
           {/* eslint-disable-next-line @next/next/no-img-element -- local SVG asset */}
-          <img src="/pictorium.svg" alt="Pictorium" loading="eager" decoding="async" className="header-logo-dark h-auto w-[min(92vw,430px)] mx-auto mb-4 hover:brightness-110 transition-all duration-150" />
+          <img src="/pictorium.svg" alt="Pictorium" loading="eager" decoding="async" className="header-logo-dark h-auto w-[min(92vw,430px)] mx-auto mb-4 hover:brightness-110 transition duration-150" />
           {/* eslint-disable-next-line @next/next/no-img-element -- local SVG asset */}
-          <img src="/pictorium-light.svg" alt="Pictorium" loading="eager" decoding="async" className="header-logo-light h-auto w-[min(92vw,430px)] mx-auto mb-4 hover:brightness-110 transition-all duration-150" />
+          <img src="/pictorium-light.svg" alt="Pictorium" loading="eager" decoding="async" className="header-logo-light h-auto w-[min(92vw,430px)] mx-auto mb-4 hover:brightness-110 transition duration-150" />
           <h2 className="text-2xl font-bold text-zinc-100">{getTitle()}</h2>
           <p className="text-sm text-muted mt-1.5">{getSubtitle()}</p>
 
           {/* Step dots */}
           <div className="flex items-center justify-center gap-1.5 mt-4" aria-hidden="true">
-            <span className={`h-1.5 rounded-full transition-all duration-300 ${step === "lang" ? "w-6 bg-accent-orange" : "w-1.5 bg-zinc-600"}`} />
-            <span className={`h-1.5 rounded-full transition-all duration-300 ${step === "region" ? "w-6 bg-accent-orange" : "w-1.5 bg-zinc-600"}`} />
+            <span className={`h-1.5 rounded-full transition-[width,background-color] duration-300 ${step === "lang" ? "w-6 bg-accent-orange" : "w-1.5 bg-zinc-600"}`} />
+            <span className={`h-1.5 rounded-full transition-[width,background-color] duration-300 ${step === "region" ? "w-6 bg-accent-orange" : "w-1.5 bg-zinc-600"}`} />
             {!shouldSkipPin && (
-              <span className={`h-1.5 rounded-full transition-all duration-300 ${step === "pin" ? "w-6 bg-accent-orange" : "w-1.5 bg-zinc-600"}`} />
+              <span className={`h-1.5 rounded-full transition-[width,background-color] duration-300 ${step === "pin" ? "w-6 bg-accent-orange" : "w-1.5 bg-zinc-600"}`} />
             )}
           </div>
         </div>
@@ -146,7 +146,7 @@ export function LangPicker({ onPickLang, onPickRegion, onDone, skipPin }: SetupW
         {step === "lang" && (
           <div key="lang" className="grid grid-cols-2 gap-2 max-h-[52vh] overflow-y-auto pr-0.5 animate-step-enter">
             {UI_LANGUAGES.map((l) => (
-              <button type="button" key={l.code} onClick={() => pickLang(l.code)} className="surface-card flex items-center gap-2 px-4 py-3.5 rounded-2xl hover:-translate-y-0.5 active:scale-[0.97] transition-all duration-200 text-left group cursor-pointer">
+              <button type="button" key={l.code} onClick={() => pickLang(l.code)} className="surface-card flex items-center gap-2 px-4 py-3.5 rounded-2xl hover:-translate-y-0.5 active:scale-[0.97] transition duration-200 text-left group cursor-pointer">
                 <span className="text-2xl shrink-0">{l.flag}</span>
                 <div>
                   <p className="text-sm font-medium text-zinc-200 group-hover:text-accent transition-colors">{l.name}</p>
@@ -160,7 +160,7 @@ export function LangPicker({ onPickLang, onPickRegion, onDone, skipPin }: SetupW
         {step === "region" && (
           <div key="region" className="grid grid-cols-2 gap-2 max-h-[52vh] overflow-y-auto pr-0.5 animate-step-enter">
             {CHART_REGIONS.map((r) => (
-              <button type="button" key={r.code} onClick={() => pickRegion(r.code)} className="surface-card flex items-center gap-2 px-4 py-3.5 rounded-2xl hover:-translate-y-0.5 active:scale-[0.97] transition-all duration-200 text-left group cursor-pointer">
+              <button type="button" key={r.code} onClick={() => pickRegion(r.code)} className="surface-card flex items-center gap-2 px-4 py-3.5 rounded-2xl hover:-translate-y-0.5 active:scale-[0.97] transition duration-200 text-left group cursor-pointer">
                 <span className="text-2xl shrink-0">{r.flag}</span>
                 <div>
                   <p className="text-sm font-medium text-zinc-200 group-hover:text-accent transition-colors">{r.code === GLOBAL_REGION_CODE ? t("ui.regionGlobal") : r.label}</p>
@@ -212,7 +212,7 @@ export function LangPicker({ onPickLang, onPickRegion, onDone, skipPin }: SetupW
               <button
                 type="submit"
                 disabled={pin.trim().length < 6 || pinLoading}
-                className="w-full py-3 rounded-xl bg-gradient-to-r from-amber-500 to-orange-500 text-black font-semibold text-xs tracking-wide uppercase hover:opacity-90 active:scale-98 disabled:opacity-30 disabled:pointer-events-none transition-all shadow-lg shadow-amber-500/20 flex items-center justify-center gap-2 cursor-pointer"
+                className="w-full py-3 rounded-xl bg-gradient-to-r from-amber-500 to-orange-500 text-black font-semibold text-xs tracking-wide uppercase hover:opacity-90 active:scale-98 disabled:opacity-30 disabled:pointer-events-none transition shadow-lg shadow-amber-500/20 flex items-center justify-center gap-2 cursor-pointer"
               >
                 <span>{pinLoading ? t("ui.setupPinSaving") : t("ui.setupPinSave")}</span>
                 <ArrowRight className="w-4 h-4" />
@@ -233,7 +233,7 @@ export function LangPicker({ onPickLang, onPickRegion, onDone, skipPin }: SetupW
           <button
             type="button"
             onClick={() => setStep(step === "pin" ? "region" : "lang")}
-            className="mx-auto mt-5 flex items-center gap-1.5 px-4 py-2 rounded-xl text-xs font-medium text-zinc-400 hover:text-white hover:bg-white/5 transition-all active:scale-95 cursor-pointer"
+            className="mx-auto mt-5 flex items-center gap-1.5 px-4 py-2 rounded-xl text-xs font-medium text-zinc-400 hover:text-white hover:bg-white/5 transition active:scale-95 cursor-pointer"
           >
             <ChevronLeft className="w-3.5 h-3.5" />
             {t("ui.back")}

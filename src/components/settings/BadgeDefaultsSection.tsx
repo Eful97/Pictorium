@@ -376,7 +376,7 @@ export function BadgeDefaultsSection({ active, shape, onPreviewFamilyChange, pre
               aria-pressed={pressed}
               disabled={barOff}
               title={barOff ? t("ui.separateRatingsBarLandscapeHint") : undefined}
-              className={`flex-1 py-1 px-1 rounded-lg text-[11px] font-semibold transition-all duration-150 ${
+              className={`flex-1 py-1 px-1 rounded-lg text-[11px] font-semibold transition duration-150 ${
                 pressed
                   ? "bg-white/20 text-white shadow-sm"
                   : "bg-white/5 text-muted hover:bg-white/10 hover:text-zinc-200"
@@ -425,7 +425,7 @@ export function BadgeDefaultsSection({ active, shape, onPreviewFamilyChange, pre
               type="button"
               onClick={() => setExtraBadgeStyle("follow-rank" as never)}
               aria-pressed={extraBadgeStyle === "follow-rank"}
-              className={`flex-1 py-1 px-1 rounded-lg text-[11px] font-semibold transition-all duration-150 cursor-pointer ${
+              className={`flex-1 py-1 px-1 rounded-lg text-[11px] font-semibold transition duration-150 cursor-pointer ${
                 extraBadgeStyle === "follow-rank"
                   ? "bg-white/20 text-white shadow-sm"
                   : "bg-white/5 text-muted hover:bg-white/10 hover:text-zinc-200"
@@ -437,7 +437,7 @@ export function BadgeDefaultsSection({ active, shape, onPreviewFamilyChange, pre
               type="button"
               onClick={() => ed.setLandscape({ extraBadgeStyle: undefined })}
               aria-pressed={!("extraBadgeStyle" in ed.landscape) || (ed.landscape as { extraBadgeStyle?: unknown }).extraBadgeStyle == null}
-              className={`flex-1 py-1 px-1 rounded-lg text-[11px] font-semibold transition-all duration-150 cursor-pointer ${
+              className={`flex-1 py-1 px-1 rounded-lg text-[11px] font-semibold transition duration-150 cursor-pointer ${
                 (!("extraBadgeStyle" in ed.landscape) || (ed.landscape as { extraBadgeStyle?: unknown }).extraBadgeStyle == null)
                   ? "bg-white/20 text-white shadow-sm"
                   : "bg-white/5 text-muted hover:bg-white/10 hover:text-zinc-200"
@@ -1232,7 +1232,7 @@ export function BadgeDefaultsSection({ active, shape, onPreviewFamilyChange, pre
             disabled={defaultBottomActive}
             title={defaultBottomActive ? t("ui.separateRatingsBottomHint") : undefined}
             onClick={() => { if (defaultBottomActive) return; if (globalBadges && badgeGenre) setBadgeGenre(false); else { setGlobalBadges(true); setBadgeGenre(true) } }}
-            className={`min-h-[44px] py-1.5 px-2 rounded-lg text-[11px] font-semibold transition-all duration-150 ${globalBadges && badgeGenre ? "bg-white/20 text-white shadow-sm" : "bg-white/5 text-muted hover:bg-white/10 hover:text-zinc-200"} ${defaultBottomActive ? "cursor-not-allowed opacity-40" : "cursor-pointer"}`}
+            className={`min-h-[44px] py-1.5 px-2 rounded-lg text-[11px] font-semibold transition duration-150 ${globalBadges && badgeGenre ? "bg-white/20 text-white shadow-sm" : "bg-white/5 text-muted hover:bg-white/10 hover:text-zinc-200"} ${defaultBottomActive ? "cursor-not-allowed opacity-40" : "cursor-pointer"}`}
           >
             {t("ui.badgeGenre")}
           </button>
@@ -1243,7 +1243,7 @@ export function BadgeDefaultsSection({ active, shape, onPreviewFamilyChange, pre
             disabled={defaultBottomActive}
             title={defaultBottomActive ? t("ui.separateRatingsBottomHint") : undefined}
             onClick={() => { if (defaultBottomActive) return; if (globalBadges && badgeYear) setBadgeYear(false); else { setGlobalBadges(true); setBadgeYear(true) } }}
-            className={`min-h-[44px] py-1.5 px-2 rounded-lg text-[11px] font-semibold transition-all duration-150 ${globalBadges && badgeYear ? "bg-white/20 text-white shadow-sm" : "bg-white/5 text-muted hover:bg-white/10 hover:text-zinc-200"} ${defaultBottomActive ? "cursor-not-allowed opacity-40" : "cursor-pointer"}`}
+            className={`min-h-[44px] py-1.5 px-2 rounded-lg text-[11px] font-semibold transition duration-150 ${globalBadges && badgeYear ? "bg-white/20 text-white shadow-sm" : "bg-white/5 text-muted hover:bg-white/10 hover:text-zinc-200"} ${defaultBottomActive ? "cursor-not-allowed opacity-40" : "cursor-pointer"}`}
           >
             {t("ui.badgeYear")}
           </button>
@@ -1252,7 +1252,7 @@ export function BadgeDefaultsSection({ active, shape, onPreviewFamilyChange, pre
             data-testid="whattoshow-rating"
             aria-pressed={globalBadges && badgeRating}
             onClick={() => { if (globalBadges && badgeRating) setBadgeRating(false); else { setGlobalBadges(true); setBadgeRating(true) } }}
-            className={`min-h-[44px] py-1.5 px-2 rounded-lg text-[11px] font-semibold transition-all duration-150 cursor-pointer ${globalBadges && badgeRating ? "bg-white/20 text-white shadow-sm" : "bg-white/5 text-muted hover:bg-white/10 hover:text-zinc-200"}`}
+            className={`min-h-[44px] py-1.5 px-2 rounded-lg text-[11px] font-semibold transition duration-150 cursor-pointer ${globalBadges && badgeRating ? "bg-white/20 text-white shadow-sm" : "bg-white/5 text-muted hover:bg-white/10 hover:text-zinc-200"}`}
           >
             {t("ui.badgeRating")}
           </button>
@@ -1261,7 +1261,7 @@ export function BadgeDefaultsSection({ active, shape, onPreviewFamilyChange, pre
             data-testid="whattoshow-quality"
             aria-pressed={badgeQuality}
             onClick={() => setBadgeQuality(!badgeQuality)}
-            className={`min-h-[44px] py-1.5 px-2 rounded-lg text-[11px] font-semibold transition-all duration-150 cursor-pointer ${badgeQuality ? "bg-white/20 text-white shadow-sm" : "bg-white/5 text-muted hover:bg-white/10 hover:text-zinc-200"}`}
+            className={`min-h-[44px] py-1.5 px-2 rounded-lg text-[11px] font-semibold transition duration-150 cursor-pointer ${badgeQuality ? "bg-white/20 text-white shadow-sm" : "bg-white/5 text-muted hover:bg-white/10 hover:text-zinc-200"}`}
           >
             {t("ui.badgeQuality")}
           </button>
@@ -1270,7 +1270,7 @@ export function BadgeDefaultsSection({ active, shape, onPreviewFamilyChange, pre
             data-testid="whattoshow-rank"
             aria-pressed={rankingBadges && rankOn}
             onClick={() => { if (rankingBadges && rankOn) setRankBucket(false); else { setRankingBadges(true); setRankBucket(true) } }}
-            className={`min-h-[44px] py-1.5 px-2 rounded-lg text-[11px] font-semibold transition-all duration-150 cursor-pointer ${rankingBadges && rankOn ? "bg-white/20 text-white shadow-sm" : "bg-white/5 text-muted hover:bg-white/10 hover:text-zinc-200"}`}
+            className={`min-h-[44px] py-1.5 px-2 rounded-lg text-[11px] font-semibold transition duration-150 cursor-pointer ${rankingBadges && rankOn ? "bg-white/20 text-white shadow-sm" : "bg-white/5 text-muted hover:bg-white/10 hover:text-zinc-200"}`}
           >
             {t("ui.sash_rank")}
           </button>
@@ -1279,7 +1279,7 @@ export function BadgeDefaultsSection({ active, shape, onPreviewFamilyChange, pre
             data-testid="whattoshow-age"
             aria-pressed={globalBadges && ageBadge}
             onClick={() => { if (globalBadges && ageBadge) setAgeBadge(false); else { setGlobalBadges(true); setAgeBadge(true) } }}
-            className={`min-h-[44px] py-1.5 px-2 rounded-lg text-[11px] font-semibold transition-all duration-150 cursor-pointer ${globalBadges && ageBadge ? "bg-white/20 text-white shadow-sm" : "bg-white/5 text-muted hover:bg-white/10 hover:text-zinc-200"}`}
+            className={`min-h-[44px] py-1.5 px-2 rounded-lg text-[11px] font-semibold transition duration-150 cursor-pointer ${globalBadges && ageBadge ? "bg-white/20 text-white shadow-sm" : "bg-white/5 text-muted hover:bg-white/10 hover:text-zinc-200"}`}
           >
             {t("ui.ageBadge")}
           </button>
@@ -1389,7 +1389,7 @@ export function BadgeDefaultsSection({ active, shape, onPreviewFamilyChange, pre
             type="button"
             onClick={() => setAdvancedOpen((v) => !v)}
             aria-expanded={advancedOpen}
-            className="w-full flex items-center justify-between px-2.5 py-1.5 rounded-lg bg-surface2/70 hover:bg-surface2 text-zinc-200 hover:text-foreground border border-surface2 transition-all cursor-pointer"
+            className="w-full flex items-center justify-between px-2.5 py-1.5 rounded-lg bg-surface2/70 hover:bg-surface2 text-zinc-200 hover:text-foreground border border-surface2 transition cursor-pointer"
           >
             <span className="text-[11px] font-semibold">{t("ui.advancedBadgePriority")}</span>
             <ChevronDown
@@ -1656,7 +1656,7 @@ export function BadgeDefaultsSection({ active, shape, onPreviewFamilyChange, pre
                   <button
                     type="button"
                     onClick={() => setSourcesOpen((prev) => !prev)}
-                    className="w-full flex items-center justify-between px-2.5 py-1.5 rounded-lg bg-surface2/70 hover:bg-surface2 text-zinc-200 hover:text-foreground border border-surface2 transition-all group cursor-pointer"
+                    className="w-full flex items-center justify-between px-2.5 py-1.5 rounded-lg bg-surface2/70 hover:bg-surface2 text-zinc-200 hover:text-foreground border border-surface2 transition group cursor-pointer"
                   >
                     <span className="flex items-center gap-1.5 text-[11px] font-semibold">
                       <Star className="w-3 h-3 text-amber-400 fill-amber-400/30" />
@@ -1724,7 +1724,7 @@ export function BadgeDefaultsSection({ active, shape, onPreviewFamilyChange, pre
                                   ed.setDefaultRatingSources(updated)
                                 }
                               }}
-                              className={`flex items-center justify-between px-2 py-1.5 rounded-lg text-[10.5px] transition-all duration-150 border cursor-pointer ${
+                              className={`flex items-center justify-between px-2 py-1.5 rounded-lg text-[10.5px] transition duration-150 border cursor-pointer ${
                                 isSelected
                                   ? "bg-accent-orange/[0.12] border-accent-orange/35 text-zinc-100 font-medium shadow-sm"
                                   : "bg-white/[0.03] border-white/[0.04] text-zinc-400 hover:bg-white/[0.06] hover:text-zinc-200 hover:border-white/[0.08]"
@@ -1939,7 +1939,7 @@ export function BadgeDefaultsSection({ active, shape, onPreviewFamilyChange, pre
                     key={pos}
                     type="button"
                     onClick={() => setNetworkLogoPosition(pos)}
-                    className={`flex-1 py-1 rounded-lg text-[11px] font-semibold transition-all duration-150 cursor-pointer ${
+                    className={`flex-1 py-1 rounded-lg text-[11px] font-semibold transition duration-150 cursor-pointer ${
                       networkLogoPosition === pos
                         ? "bg-white/20 text-foreground shadow-sm"
                         : "bg-white/5 text-muted hover:bg-white/10 hover:text-zinc-200"

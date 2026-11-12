@@ -18,10 +18,15 @@
   --color-warning: #fbbf24;
   --font-sans: var(--font-geist-sans);
   --font-mono: var(--font-geist-mono);
+  --ease-out-expo: cubic-bezier(0.22, 1, 0.36, 1);
+  --ease-spring: linear(0, 0.009, 0.035 2.1%, 0.141 4.4%, 0.723 12.9%, 0.938 16.7%, 1.017 19.4%, 1.067, 1.099 24.3%, 1.108 26%, 1.103 28.4%, 1.075 31.5%, 0.998 39.2%, 0.981 42.8%, 0.98 47.6%, 0.999 61.6%, 1.002 70.3%, 1);
 }
 
 :root {
   color-scheme: dark;
+  --dur-fast: 150ms;
+  --dur-base: 220ms;
+  --dur-slow: 350ms;
   --bg: #0a0a0a;
   --fg: #ededed;
   --surface: #18181b;
@@ -108,7 +113,7 @@ body {
 ::-webkit-scrollbar-thumb {
   background: linear-gradient(to bottom, rgb(var(--accent-rgb) / 0.55), rgb(var(--accent-rgb) / 0.28));
   border-radius: 3px;
-  transition: background 0.2s ease;
+  transition: background var(--dur-base) ease;
 }
 ::-webkit-scrollbar-thumb:hover {
   background: linear-gradient(to bottom, rgb(var(--accent-rgb) / 0.82), rgb(var(--accent-rgb) / 0.52));
@@ -141,7 +146,7 @@ input[type="range"]::-webkit-slider-thumb {
   margin-top: -6px;
   border: 2px solid var(--color-background);
   box-shadow: 0 0 0 2px rgb(var(--accent-rgb) / 0.5);
-  transition: transform 0.15s ease, box-shadow 0.15s ease;
+  transition: transform var(--dur-fast) ease, box-shadow var(--dur-fast) ease;
 }
 @media (max-width: 768px) {
   input[type="range"]::-webkit-slider-thumb {
@@ -200,11 +205,6 @@ input[type="range"]::-moz-range-thumb:active {
   transform: scale(1.3);
 }
 
-@keyframes overlay-in {
-  from { opacity: 0; transform: translateY(6px); }
-  to { opacity: 1; transform: translateY(0); }
-}
-
 @keyframes fade-scale-in {
   from { opacity: 0; transform: scale(0.95) translateY(-4px); }
   to { opacity: 1; }
@@ -220,15 +220,9 @@ input[type="range"]::-moz-range-thumb:active {
   to { opacity: 1; }
 }
 
-@keyframes slide-in-right {
-  from { opacity: 0; transform: translateX(12px); }
-  to { opacity: 1; }
-}
-
 @keyframes pulse-ring {
-  0% { box-shadow: 0 0 0 0 color-mix(in srgb, var(--color-accent) 30%, transparent); }
-  70% { box-shadow: 0 0 0 6px color-mix(in srgb, var(--color-accent) 0%, transparent); }
-  100% { box-shadow: 0 0 0 0 color-mix(in srgb, var(--color-accent) 0%, transparent); }
+  0% { opacity: 1; transform: scale(1); }
+  70%, 100% { opacity: 0; transform: scale(1.18); }
 }
 
 @keyframes shimmer {
@@ -427,9 +421,22 @@ input[type="range"]::-moz-range-thumb:active {
   justify-content: center !important;
   flex-shrink: 0 !important;
   margin: 0 !important;
-  animation:
-    droplet-pop 0.5s cubic-bezier(0.34, 1.56, 0.64, 1) both,
-    droplet-breathe 3s ease-in-out infinite 0.6s !important;
+  position: relative;
+  animation: droplet-pop 0.5s cubic-bezier(0.34, 1.56, 0.64, 1) both !important;
+}
+
+/* Respiro della goccia: glow forte nello ::after, animato solo in opacity */
+[data-sonner-toast] [data-icon]::after {
+  content: '';
+  position: absolute;
+  inset: 0;
+  border-radius: inherit;
+  pointer-events: none;
+  box-shadow:
+    0 0 22px rgba(232, 93, 42, 0.95),
+    0 0 8px #ff8c53;
+  opacity: 0;
+  animation: droplet-glow 3s ease-in-out 0.6s infinite;
 }
 
 [data-sonner-toast] [data-icon] svg {
@@ -512,7 +519,7 @@ input[type="range"]::-moz-range-thumb:active {
   box-shadow: 0 2px 8px rgba(232, 93, 42, 0.4) !important;
   border: none !important;
   cursor: pointer !important;
-  transition: transform 0.15s ease, filter 0.15s ease !important;
+  transition: transform var(--dur-fast) ease, filter var(--dur-fast) ease !important;
 }
 
 [data-sonner-toast] [data-button]:hover {
@@ -525,7 +532,14 @@ input[type="range"]::-moz-range-thumb:active {
   border: 1px solid rgba(255, 255, 255, 0.15) !important;
   color: rgba(255, 255, 255, 0.8) !important;
   border-radius: 9999px !important;
-  transition: all 0.2s ease !important;
+  transition:
+    color var(--dur-base) ease,
+    background-color var(--dur-base) ease,
+    border-color var(--dur-base) ease,
+    box-shadow var(--dur-base) ease,
+    opacity var(--dur-base) ease,
+    transform var(--dur-base) ease,
+    filter var(--dur-base) ease !important;
 }
 
 [data-sonner-toast] [data-close-button]:hover {
@@ -624,6 +638,11 @@ input[type="range"]::-moz-range-thumb:active {
   }
 }
 
+@keyframes droplet-glow {
+  0%, 100% { opacity: 0; }
+  50% { opacity: 1; }
+}
+
 @keyframes droplet-breathe {
   0%, 100% {
     box-shadow:
@@ -655,11 +674,6 @@ input[type="range"]::-moz-range-thumb:active {
     background-position: -30% 0;
     opacity: 0;
   }
-}
-
-@keyframes scale-in {
-  from { opacity: 0; transform: scale(0.92); }
-  to { opacity: 1; transform: scale(1); }
 }
 
 @keyframes toggle-on {
@@ -700,19 +714,30 @@ input[type="range"]::-moz-range-thumb:active {
   to { opacity: 1; transform: translateY(0) scale(1); }
 }
 
-.animate-overlay-in { animation: overlay-in 0.2s ease-out both; }
-.animate-fade-scale-in { animation: fade-scale-in 0.2s cubic-bezier(0.22, 1, 0.36, 1) both; }
-.animate-fade-scale-out { animation: fade-scale-out 0.15s ease-in both; }
-.animate-fade-in { animation: fade-in 0.15s ease-out both; }
-.animate-fade-out { animation: fade-out 0.12s ease-in both; }
-.animate-slide-up { animation: slide-up 0.25s cubic-bezier(0.22, 1, 0.36, 1) both; }
-.animate-slide-in-right { animation: slide-in-right 0.2s cubic-bezier(0.22, 1, 0.36, 1) both; }
-.animate-slide-down-out { animation: slide-down-out 0.15s ease-in both; }
-.animate-slide-out-right { animation: slide-out-right 0.2s ease-in both; }
-.animate-slide-down-out-toast { animation: slide-down-out-toast 0.2s ease-in both; }
-.animate-scale-in { animation: scale-in 0.25s cubic-bezier(0.22, 1, 0.36, 1) both; }
-.animate-pulse-ring { animation: pulse-ring 2s infinite; }
-.animate-stagger-in { animation: stagger-in 0.25s cubic-bezier(0.22, 1, 0.36, 1) both; }
+.animate-overlay-in { animation: tab-fade-in var(--dur-base) ease-out both; }
+.animate-fade-scale-in { animation: fade-scale-in var(--dur-base) var(--ease-out-expo) both; }
+.animate-fade-scale-out { animation: fade-scale-out var(--dur-fast) ease-in both; }
+.animate-fade-in { animation: fade-in var(--dur-fast) ease-out both; }
+.animate-fade-out { animation: fade-out var(--dur-fast) ease-in both; }
+.animate-slide-up { animation: slide-up var(--dur-base) var(--ease-out-expo) both; }
+.animate-slide-in-right { animation: step-enter var(--dur-base) var(--ease-out-expo) both; }
+.animate-slide-down-out { animation: slide-down-out var(--dur-fast) ease-in both; }
+.animate-slide-out-right { animation: slide-out-right var(--dur-base) ease-in both; }
+.animate-slide-down-out-toast { animation: slide-down-out-toast var(--dur-base) ease-in both; }
+.animate-scale-in { animation: scale-in-subtle var(--dur-base) var(--ease-out-expo) both; }
+.animate-pulse-ring {
+  position: relative;
+}
+.animate-pulse-ring::after {
+  content: '';
+  position: absolute;
+  inset: 0;
+  border-radius: inherit;
+  pointer-events: none;
+  box-shadow: 0 0 0 2px color-mix(in srgb, var(--color-accent) 35%, transparent);
+  animation: pulse-ring 2s infinite;
+}
+.animate-stagger-in { animation: stagger-in var(--dur-base) var(--ease-out-expo) both; }
 
 /* Tile griglia My Posters: salta paint/layout fuori schermo (scroll fluido
    senza virtualizer). contain-intrinsic-size evita salti di scrollbar. */
@@ -723,7 +748,7 @@ input[type="range"]::-moz-range-thumb:active {
   20%, 60% { transform: translateX(-6px); }
   40%, 80% { transform: translateX(6px); }
 }
-.animate-shake { animation: shake 0.4s ease-in-out both; }
+.animate-shake { animation: shake var(--dur-slow) ease-in-out both; }
 
 /* ═══════════════════════════════════════════════
    Premium animation polish — ingressi a strati
@@ -739,7 +764,7 @@ input[type="range"]::-moz-range-thumb:active {
      (dialog di conferma, lightbox): apparivano disallineati/"in basso". */
   to { opacity: 1; transform: none; }
 }
-.animate-view-enter { animation: view-enter 0.24s cubic-bezier(0.22, 1, 0.36, 1) both; }
+.animate-view-enter { animation: view-enter var(--dur-base) var(--ease-out-expo) both; }
 
 /* Contenuto tab editor (destra): il cambio sezione sale leggermente invece
    di un fade piatto. */
@@ -747,14 +772,14 @@ input[type="range"]::-moz-range-thumb:active {
   from { opacity: 0; transform: translateY(6px); }
   to { opacity: 1; transform: translateY(0); }
 }
-.animate-tab-fade-in { animation: tab-fade-in 0.2s cubic-bezier(0.22, 1, 0.36, 1) both; }
+.animate-tab-fade-in { animation: tab-fade-in var(--dur-base) var(--ease-out-expo) both; }
 
 /* Cambio step dell'OnboardingTour: scorre da destra come un carosello. */
 @keyframes step-enter {
   from { opacity: 0; transform: translateX(16px); }
   to { opacity: 1; transform: translateX(0); }
 }
-.animate-step-enter { animation: step-enter 0.25s cubic-bezier(0.22, 1, 0.36, 1) both; }
+.animate-step-enter { animation: step-enter var(--dur-base) var(--ease-out-expo) both; }
 
 /* Pannello modale (Modal/ProfileUnlock): sale con un leggero scale — la
    differenza con fade-scale-in (dropdown) è la traduzione verticale, che
@@ -763,7 +788,7 @@ input[type="range"]::-moz-range-thumb:active {
   from { opacity: 0; transform: translateY(14px) scale(0.97); }
   to { opacity: 1; transform: translateY(0) scale(1); }
 }
-.animate-modal-panel-in { animation: modal-panel-in 0.28s cubic-bezier(0.22, 1, 0.36, 1) both; }
+.animate-modal-panel-in { animation: modal-panel-in var(--dur-base) var(--ease-out-expo) both; }
 
 /* Respirazione del glow del podio: scala appena percettibile (nessuna
    variazione di opacity → nessun flicker, e lo stato 0% coincide col
@@ -783,7 +808,7 @@ input[type="range"]::-moz-range-thumb:active {
   border-radius: 9999px;
   background: white;
   box-shadow: 0 2px 6px rgba(0,0,0,0.3), inset 0 1px 1px rgba(255,255,255,0.6);
-  transition: transform 0.35s cubic-bezier(0.22, 1, 0.36, 1);
+  transition: transform var(--dur-slow) var(--ease-out-expo);
 }
 
 .toggle-thumb-on {
@@ -799,7 +824,7 @@ input[type="range"]::-moz-range-thumb:active {
   width: 48px;
   height: 26px;
   border-radius: 9999px;
-  transition: background 0.3s ease, box-shadow 0.3s ease;
+  transition: background var(--dur-slow) ease, box-shadow var(--dur-slow) ease;
   flex-shrink: 0;
   cursor: pointer;
 }
@@ -827,7 +852,7 @@ input[type="range"]::-moz-range-thumb:active {
 }
 
 .press-scale {
-  transition: transform 0.12s cubic-bezier(0.22, 1, 0.36, 1);
+  transition: transform var(--dur-fast) var(--ease-out-expo);
 }
 
 .press-scale:active {
@@ -835,7 +860,7 @@ input[type="range"]::-moz-range-thumb:active {
 }
 
 .lift-on-hover {
-  transition: transform 0.2s ease, box-shadow 0.2s ease, border-color 0.2s ease;
+  transition: transform var(--dur-base) ease, box-shadow var(--dur-base) ease, border-color var(--dur-base) ease;
 }
 
 .lift-on-hover:hover {
@@ -849,7 +874,7 @@ input[type="range"]::-moz-range-thumb:active {
 }
 
 .button-icon {
-  transition: transform 0.12s cubic-bezier(0.22, 1, 0.36, 1);
+  transition: transform var(--dur-fast) var(--ease-out-expo);
 }
 
 .button-icon:active {
@@ -889,7 +914,7 @@ input[type="range"]::-moz-range-thumb:active {
   background: linear-gradient(90deg, var(--color-accent-orange), #f59e0b);
   box-shadow: 0 0 10px rgb(var(--accent-rgb) / 0.7);
   transform-origin: left;
-  transition: transform 0.2s cubic-bezier(0.22, 1, 0.36, 1);
+  transition: transform var(--dur-base) var(--ease-out-expo);
 }
 
 .preview-loading-pill {
@@ -910,7 +935,7 @@ input[type="range"]::-moz-range-thumb:active {
   font-variant-numeric: tabular-nums;
   color: #f4f4f5;
   pointer-events: none;
-  transition: opacity 0.25s ease, transform 0.25s ease;
+  transition: opacity var(--dur-base) ease, transform var(--dur-base) ease;
 }
 
 /* Sfondo pagina: colore pieno come fallback finché la foto ambient non carica. */
@@ -947,7 +972,7 @@ html.light .app-shell-bg {
   inset: 0;
   background-color: var(--bg-accent, transparent);
   mix-blend-mode: color;
-  transition: background-color 0.4s ease;
+  transition: background-color var(--dur-slow) ease;
 }
 
 /* Logo brand adattivo: dark su sfondo scuro, dark-text su sfondo chiaro */
@@ -1067,7 +1092,7 @@ html.light .header-logo-dark {
   background: rgba(255,255,255,0.07);
   color: rgb(228 228 231);
   box-shadow: inset 0 1px 0 rgba(255,255,255,0.04);
-  transition: transform 150ms ease, border-color 150ms ease, background 150ms ease, color 150ms ease, box-shadow 150ms ease;
+  transition: transform var(--dur-fast) ease, border-color var(--dur-fast) ease, background var(--dur-fast) ease, color var(--dur-fast) ease, box-shadow var(--dur-fast) ease;
 }
 
 .top-action-button:hover {
@@ -1171,7 +1196,7 @@ html.light .header-logo-dark {
   font-weight: 700;
   white-space: nowrap;
   flex-shrink: 0;
-  transition: color 150ms ease, background 150ms ease, border-color 150ms ease, box-shadow 150ms ease;
+  transition: color var(--dur-fast) ease, background var(--dur-fast) ease, border-color var(--dur-fast) ease, box-shadow var(--dur-fast) ease;
 }
 
 /* will-change limitato esclusivamente ad azioni fluttuanti animate per preservare memoria GPU */
@@ -1257,7 +1282,7 @@ html.light .header-logo-dark {
   --glass-tint: rgba(24,24,27,0.90);
   --glass-border: rgba(255,255,255,0.06);
   --glass-shadow: inset 0 1px 0 rgba(255,255,255,0.02);
-  transition: transform 0.3s cubic-bezier(0.22, 1, 0.36, 1), box-shadow 0.3s cubic-bezier(0.22, 1, 0.36, 1), border-color 0.3s ease;
+  transition: transform var(--dur-slow) var(--ease-out-expo), box-shadow var(--dur-slow) var(--ease-out-expo), border-color var(--dur-slow) ease;
 }
 
 .poster-tile:hover {
@@ -1283,7 +1308,7 @@ html.light .header-logo-dark {
   --glass-tint: rgba(18,18,22,0.92);
   --glass-border: rgba(255,255,255,0.07);
   --glass-shadow: 0 18px 40px rgba(0,0,0,0.30), inset 0 1px 0 rgba(255,255,255,0.04);
-  transition: box-shadow 0.3s ease, border-color 0.3s ease;
+  transition: box-shadow var(--dur-slow) ease, border-color var(--dur-slow) ease;
 }
 
 .preview-frame-active {
@@ -1292,7 +1317,7 @@ html.light .header-logo-dark {
 }
 
 .header-logo {
-  transition: filter 0.3s ease, transform 0.2s ease;
+  transition: filter var(--dur-slow) ease, transform var(--dur-base) ease;
 }
 
 .header-logo:hover {
@@ -1337,7 +1362,7 @@ html.light .header-logo-dark {
   white-space: nowrap;
   pointer-events: none;
   z-index: 100;
-  animation: fade-in 0.12s ease-out both;
+  animation: fade-in var(--dur-fast) ease-out both;
 }
 
 .section-heading {
@@ -1387,9 +1412,9 @@ html.light .header-logo-dark {
   to { opacity: 1; }
 }
 
-.animate-fade-scale-in-hero { animation: fade-scale-in-hero 0.35s cubic-bezier(0.22, 1, 0.36, 1) both; }
-.animate-fade-scale-in-panel-left { animation: fade-scale-in-panel-left 0.3s cubic-bezier(0.22, 1, 0.36, 1) both; }
-.animate-fade-scale-in-panel-right { animation: fade-scale-in-panel-right 0.3s cubic-bezier(0.22, 1, 0.36, 1) both; }
+.animate-fade-scale-in-hero { animation: fade-scale-in-hero var(--dur-slow) var(--ease-out-expo) both; }
+.animate-fade-scale-in-panel-left { animation: fade-scale-in-panel-left var(--dur-slow) var(--ease-out-expo) both; }
+.animate-fade-scale-in-panel-right { animation: fade-scale-in-panel-right var(--dur-slow) var(--ease-out-expo) both; }
 
 /* Scroll-reveal animations */
 @keyframes fade-up {
@@ -1412,26 +1437,26 @@ html.light .header-logo-dark {
   to { opacity: 1; transform: translateX(0); }
 }
 
-.animate-fade-up { animation: fade-up 0.5s cubic-bezier(0.22, 1, 0.36, 1) both; }
-.animate-fade-up-fast { animation: fade-up-fast 0.35s cubic-bezier(0.22, 1, 0.36, 1) both; }
-.animate-scale-in-subtle { animation: scale-in-subtle 0.4s cubic-bezier(0.22, 1, 0.36, 1) both; }
-.animate-slide-in-left-subtle { animation: slide-in-left-subtle 0.4s cubic-bezier(0.22, 1, 0.36, 1) both; }
+.animate-fade-up { animation: fade-up 0.5s var(--ease-out-expo) both; }
+.animate-fade-up-fast { animation: fade-up-fast var(--dur-slow) var(--ease-out-expo) both; }
+.animate-scale-in-subtle { animation: scale-in-subtle var(--dur-slow) var(--ease-out-expo) both; }
+.animate-slide-in-left-subtle { animation: slide-in-left-subtle var(--dur-slow) var(--ease-out-expo) both; }
 
 /* Utility: hidden until revealed */
 .reveal { opacity: 0; }
 .reveal.visible { opacity: 1; }
-.reveal-up { opacity: 0; transform: translateY(24px); transition: opacity 0.5s cubic-bezier(0.22, 1, 0.36, 1), transform 0.5s cubic-bezier(0.22, 1, 0.36, 1); }
+.reveal-up { opacity: 0; transform: translateY(24px); transition: opacity 0.5s var(--ease-out-expo), transform 0.5s var(--ease-out-expo); }
 .reveal-up.visible { opacity: 1; transform: translateY(0); }
-.reveal-up-fast { opacity: 0; transform: translateY(12px); transition: opacity 0.35s cubic-bezier(0.22, 1, 0.36, 1), transform 0.35s cubic-bezier(0.22, 1, 0.36, 1); }
+.reveal-up-fast { opacity: 0; transform: translateY(12px); transition: opacity var(--dur-slow) var(--ease-out-expo), transform var(--dur-slow) var(--ease-out-expo); }
 .reveal-up-fast.visible { opacity: 1; transform: translateY(0); }
-.reveal-scale-in-subtle { opacity: 0; transform: scale(0.92); transition: opacity 0.4s cubic-bezier(0.22, 1, 0.36, 1), transform 0.4s cubic-bezier(0.22, 1, 0.36, 1); }
+.reveal-scale-in-subtle { opacity: 0; transform: scale(0.92); transition: opacity var(--dur-slow) var(--ease-out-expo), transform var(--dur-slow) var(--ease-out-expo); }
 .reveal-scale-in-subtle.visible { opacity: 1; transform: scale(1); }
-.reveal-slide-in-left-subtle { opacity: 0; transform: translateX(-16px); transition: opacity 0.4s cubic-bezier(0.22, 1, 0.36, 1), transform 0.4s cubic-bezier(0.22, 1, 0.36, 1); }
+.reveal-slide-in-left-subtle { opacity: 0; transform: translateX(-16px); transition: opacity var(--dur-slow) var(--ease-out-expo), transform var(--dur-slow) var(--ease-out-expo); }
 .reveal-slide-in-left-subtle.visible { opacity: 1; transform: translateX(0); }
 
 .preview-meta-info {
   opacity: 0.65;
-  transition: opacity 0.2s ease;
+  transition: opacity var(--dur-base) ease;
 }
 
 .preview-meta-info:hover,
@@ -1462,7 +1487,7 @@ html.light .header-logo-dark {
   border-radius: 4px;
   border: 1px solid rgba(255,255,255,0.15);
   flex-shrink: 0;
-  transition: transform 0.15s ease;
+  transition: transform var(--dur-fast) ease;
 }
 
 .color-swatch:hover {
@@ -1483,7 +1508,7 @@ html.light .header-logo-dark {
 }
 
 .btn-primary {
-  @apply inline-flex items-center justify-center rounded-xl bg-accent-orange text-white font-semibold text-sm shadow-lg shadow-accent-orange/15 hover:bg-accent-orange/90 active:scale-95 transition-all duration-200 disabled:opacity-40 disabled:shadow-none disabled:active:scale-100;
+  @apply inline-flex items-center justify-center rounded-xl bg-accent-orange text-white font-semibold text-sm shadow-lg shadow-accent-orange/15 hover:bg-accent-orange/90 active:scale-95 transition duration-200 disabled:opacity-40 disabled:shadow-none disabled:active:scale-100;
   /* Arancione scurito (85%) per raggiungere AA 4.5:1 col testo bianco */
   background-color: color-mix(in srgb, var(--color-accent-orange) 85%, black);
   box-shadow: 0 12px 28px rgb(var(--accent-rgb) / 0.12), inset 0 1px 0 rgba(255,255,255,0.18);
@@ -1501,16 +1526,16 @@ html.light .header-logo-dark {
   top: -25%;
   bottom: -25%;
   width: 42%;
-  left: -55%;
+  left: 0;
   background: linear-gradient(105deg, transparent 0%, rgba(255,255,255,0.32) 45%, rgba(255,255,255,0.10) 55%, transparent 100%);
-  transform: skewX(-18deg);
+  transform: translateX(-131%) skewX(-18deg);
   pointer-events: none;
-  transition: left 0.55s cubic-bezier(0.22, 1, 0.36, 1);
+  transition: transform 0.55s var(--ease-out-expo);
 }
 
 .btn-primary:hover::before,
 .top-action-button-primary:hover::before {
-  left: 125%;
+  transform: translateX(298%) skewX(-18deg);
 }
 
 .btn-primary:disabled::before,
@@ -1552,7 +1577,7 @@ select:focus-visible {
 .pb-safe { padding-bottom: max(1rem, env(safe-area-inset-bottom)); }
 
 .poster-slide {
-  transition: translate 0.3s ease-out;
+  transition: translate var(--dur-slow) ease-out;
   backface-visibility: hidden;
 }
 
@@ -1575,7 +1600,7 @@ select:focus-visible {
   text-decoration: none;
   color: #fff;
   cursor: pointer;
-  transition: transform 0.3s ease-out, box-shadow 0.3s ease-out, border-color 0.3s ease-out;
+  transition: transform var(--dur-slow) ease-out, box-shadow var(--dur-slow) ease-out, border-color var(--dur-slow) ease-out;
   flex-shrink: 0;
 }
 
@@ -1653,7 +1678,7 @@ select:focus-visible {
   cursor: pointer;
   position: relative;
   overflow: hidden;
-  transition: box-shadow 0.3s ease-out, translate 0.3s ease-out;
+  transition: box-shadow var(--dur-slow) ease-out, translate var(--dur-slow) ease-out;
 }
 
 .posters > *:hover {
@@ -1672,7 +1697,7 @@ select:focus-visible {
 }
 
 .posters > * {
-  transition: translate 0.3s ease-out;
+  transition: translate var(--dur-slow) ease-out;
   will-change: translate;
   backface-visibility: hidden;
 }
@@ -1723,7 +1748,7 @@ select:focus-visible {
 .grid-hint {
   font-size: 0.7rem;
   opacity: 0.3;
-  transition: opacity 0.2s;
+  transition: opacity var(--dur-base);
 }
 .simkl-list-card:hover .grid-hint {
   opacity: 0.7;
@@ -1758,7 +1783,7 @@ select:focus-visible {
     rgba(255,255,255,0.04);
   border: 1px solid rgba(255,255,255,0.06);
   backdrop-filter: blur(8px);
-  transition: background 0.15s ease, border-color 0.15s ease, color 0.15s ease;
+  transition: background var(--dur-fast) ease, border-color var(--dur-fast) ease, color var(--dur-fast) ease;
 }
 .collection-chip-glass:hover {
   border-color: rgba(255,255,255,0.14);
@@ -1856,7 +1881,7 @@ select:focus-visible {
   border-radius: 0.875rem;
   background: rgba(255,255,255,0.03);
   border: 1px solid rgba(255,255,255,0.05);
-  transition: transform 0.2s cubic-bezier(0.22, 1, 0.36, 1), border-color 0.2s ease, background 0.2s ease;
+  transition: transform var(--dur-base) var(--ease-out-expo), border-color var(--dur-base) ease, background var(--dur-base) ease;
 }
 
 .feature-card:hover {
@@ -1899,7 +1924,7 @@ select:focus-visible {
   isolation: isolate;
   border-radius: 1rem;
   overflow: hidden;
-  transition: transform 0.3s cubic-bezier(0.22, 1, 0.36, 1), box-shadow 0.3s cubic-bezier(0.22, 1, 0.36, 1), border-color 0.3s ease;
+  transition: transform var(--dur-slow) var(--ease-out-expo), box-shadow var(--dur-slow) var(--ease-out-expo), border-color var(--dur-slow) ease;
 }
 
 .carousel-card:hover {
@@ -2009,7 +2034,7 @@ select:focus-visible {
 
 /* Bottone secondario ghost (stesso linguaggio visivo di .btn-primary) */
 .btn-ghost {
-  @apply inline-flex items-center justify-center rounded-xl text-sm font-semibold transition-all duration-200 active:scale-95 disabled:opacity-40;
+  @apply inline-flex items-center justify-center rounded-xl text-sm font-semibold transition duration-200 active:scale-95 disabled:opacity-40;
   color: var(--color-muted);
   background: rgba(255,255,255,0.05);
   border: 1px solid rgba(255,255,255,0.08);
@@ -2037,7 +2062,7 @@ select:focus-visible {
   align-items: center;
   justify-content: center;
   transform-style: preserve-3d;
-  transition: transform 0.4s cubic-bezier(0.22, 1, 0.36, 1);
+  transition: transform var(--dur-slow) var(--ease-out-expo);
 }
 
 .p-frame {
@@ -2068,7 +2093,7 @@ select:focus-visible {
 .p-frame-side {
   width: clamp(120px, 12vw, 170px);
   aspect-ratio: 2/3;
-  transition: transform 0.2s cubic-bezier(0.22, 1, 0.36, 1), box-shadow 0.2s ease;
+  transition: transform var(--dur-base) var(--ease-out-expo), box-shadow var(--dur-base) ease;
 }
 
 .p-frame-side:hover {
@@ -2192,7 +2217,7 @@ select:focus-visible {
   box-shadow: 0 6px 16px rgb(var(--accent-rgb) / 0.4), 0 0 0 1px rgba(255,255,255,0.2);
   opacity: 0;
   transform: scale(0.7);
-  transition: opacity 150ms ease, transform 150ms cubic-bezier(0.22, 1, 0.36, 1);
+  transition: opacity var(--dur-fast) ease, transform var(--dur-fast) var(--ease-out-expo);
 }
 
 .carousel-card:hover .car-arrow {
@@ -2214,7 +2239,7 @@ select:focus-visible {
   box-shadow: 0 10px 30px -5px rgba(0, 0, 0, 0.5), inset 0 1px 0 rgba(255, 255, 255, 0.05);
   backdrop-filter: blur(16px);
   -webkit-backdrop-filter: blur(16px);
-  transition: border-color 0.2s ease, box-shadow 0.2s ease;
+  transition: border-color var(--dur-base) ease, box-shadow var(--dur-base) ease;
 }
 
 .status-strip:hover {
@@ -2245,7 +2270,7 @@ select:focus-visible {
   letter-spacing: 0.01em;
   white-space: nowrap;
   text-decoration: none;
-  transition: border-color 150ms ease, background 150ms ease;
+  transition: border-color var(--dur-fast) ease, background var(--dur-fast) ease;
 }
 
 a.status-live-badge:hover {
@@ -2260,7 +2285,16 @@ a.status-live-badge:hover {
   border-radius: 50%;
   background: #22c55e;
   box-shadow: 0 0 8px rgba(34, 197, 94, 0.6);
-  animation: pulse 2.2s cubic-bezier(0.4, 0, 0.6, 1) infinite;
+}
+
+.pulse-dot::after {
+  content: '';
+  position: absolute;
+  inset: 0;
+  border-radius: inherit;
+  pointer-events: none;
+  box-shadow: 0 0 0 4px rgba(34, 197, 94, 0.35);
+  animation: pulse-dot-glow 2.2s cubic-bezier(0.4, 0, 0.6, 1) infinite;
 }
 
 .status-divider {
@@ -2314,7 +2348,7 @@ a.status-live-badge:hover {
 button.status-version {
   font: inherit;
   cursor: pointer;
-  transition: all 150ms ease;
+  transition: color var(--dur-fast) ease, background-color var(--dur-fast) ease, border-color var(--dur-fast) ease, box-shadow var(--dur-fast) ease, opacity var(--dur-fast) ease, transform var(--dur-fast) ease, filter var(--dur-fast) ease;
 }
 
 button.status-version:hover {
@@ -2368,10 +2402,9 @@ button.status-version:hover {
   box-shadow: 0 0 8px rgba(249, 115, 22, 0.7);
 }
 
-@keyframes pulse {
-  0% { box-shadow: 0 0 0 0 rgba(34, 197, 94, 0.5); }
-  70% { box-shadow: 0 0 0 6px rgba(34, 197, 94, 0); }
-  100% { box-shadow: 0 0 0 0 rgba(34, 197, 94, 0); }
+@keyframes pulse-dot-glow {
+  0% { opacity: 1; }
+  70%, 100% { opacity: 0; }
 }
 
 /* Home responsive */
@@ -2485,22 +2518,6 @@ button.status-version:hover {
 
   .float-chip {
     display: none;
-  }
-}
-
-/* Riduzione movimento: congela bob/pulse (il marquee rAF è gestito in JS) */
-@media (prefers-reduced-motion: reduce) {
-  .float-chip,
-  .pulse-dot,
-  .animate-view-enter,
-  .animate-tab-fade-in,
-  .animate-fade-scale-in,
-  .animate-fade-scale-in-hero,
-  .animate-fade-scale-in-panel-left,
-  .animate-fade-scale-in-panel-right,
-  .animate-modal-panel-in,
-  .animate-step-enter {
-    animation: none;
   }
 }
 
@@ -2621,7 +2638,7 @@ button.status-version:hover {
   color: rgb(228 228 231);
   font-size: 0.75rem;
   font-weight: 600;
-  transition: color 200ms ease, background 200ms ease, border-color 200ms ease, transform 200ms cubic-bezier(0.22, 1, 0.36, 1);
+  transition: color var(--dur-base) ease, background var(--dur-base) ease, border-color var(--dur-base) ease, transform var(--dur-base) var(--ease-out-expo);
 }
 .btn-secondary:hover {
   background: rgba(255,255,255,0.12);
@@ -2643,7 +2660,7 @@ button.status-version:hover {
   background: rgba(127,29,29,0.30);
   color: var(--color-danger);
   font-weight: 600;
-  transition: color 200ms ease, background 200ms ease, border-color 200ms ease, transform 200ms cubic-bezier(0.22, 1, 0.36, 1);
+  transition: color var(--dur-base) ease, background var(--dur-base) ease, border-color var(--dur-base) ease, transform var(--dur-base) var(--ease-out-expo);
 }
 .btn-danger:hover {
   background: rgba(127,29,29,0.50);
@@ -2659,7 +2676,7 @@ button.status-version:hover {
   border-radius: 0.625rem;
   padding: 0.25rem 0.375rem;
   margin: 0 -0.375rem;
-  transition: background 150ms ease;
+  transition: background var(--dur-fast) ease;
 }
 .control-row:hover {
   background: rgba(255,255,255,0.035);
@@ -2695,7 +2712,7 @@ button.status-version:hover {
   font-size: 11px;
   font-weight: 600;
   color: var(--color-muted);
-  transition: color 150ms ease, background 150ms ease;
+  transition: color var(--dur-fast) ease, background var(--dur-fast) ease;
   cursor: pointer;
   white-space: nowrap;
 }
@@ -2722,7 +2739,7 @@ button.status-version:hover {
   font-size: 12px;
   color: rgb(212 212 216);
   outline: none;
-  transition: border-color 150ms ease, box-shadow 150ms ease;
+  transition: border-color var(--dur-fast) ease, box-shadow var(--dur-fast) ease;
 }
 .editor-input:focus {
   border-color: var(--color-accent-orange);
@@ -2892,5 +2909,38 @@ html.light button:has(> .badge-style-preview):not([class*="bg-accent-orange"]):h
     animation-iteration-count: 1 !important;
     transition-duration: 0.001ms !important;
     scroll-behavior: auto !important;
+  }
+}
+
+/* ═══ View Transitions (cambio vista, morph tile → lightbox) ═══
+   La vecchia istantanea svanisce sopra la nuova, che entra con le proprie
+   animazioni live (animate-view-enter ecc.): niente doppio fade. */
+::view-transition-old(root) { animation: fade-out var(--dur-fast) ease-in both; }
+::view-transition-new(root) { animation: none; }
+::view-transition-group(poster-qv) { animation-duration: var(--dur-slow); animation-timing-function: var(--ease-spring); }
+::view-transition-old(poster-qv),
+::view-transition-new(poster-qv) { height: 100%; object-fit: cover; overflow: clip; }
+@media (prefers-reduced-motion: reduce) {
+  ::view-transition-group(*),
+  ::view-transition-old(*),
+  ::view-transition-new(*) { animation: none !important; }
+}
+
+/* ═══ Scroll-reveal guidato dallo scroll (CSS puro) ═══
+   Dove supportato sostituisce IntersectionObserver (ScrollReveal): niente JS,
+   segue lo scroll. Altrove resta il fallback .reveal-* + .visible. */
+@media (prefers-reduced-motion: no-preference) {
+  @supports (animation-timeline: view()) {
+    .reveal-up, .reveal-up-fast, .reveal-scale-in-subtle, .reveal-slide-in-left-subtle {
+      opacity: 1; transform: none; transition: none;
+      animation-timing-function: var(--ease-out-expo);
+      animation-fill-mode: both;
+      animation-timeline: view();
+      animation-range: entry 0% entry 70%;
+    }
+    .reveal-up { animation-name: fade-up; }
+    .reveal-up-fast { animation-name: fade-up-fast; }
+    .reveal-scale-in-subtle { animation-name: scale-in-subtle; }
+    .reveal-slide-in-left-subtle { animation-name: slide-in-left-subtle; }
   }
 }

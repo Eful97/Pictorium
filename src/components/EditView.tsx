@@ -1312,10 +1312,10 @@ export default function EditView() {
             </button>
           </div>
           {recentSearches.map((s) => (
-            <button type="button" key={s} onMouseDown={(e) => e.preventDefault()} onClick={() => { setQuery(s); router.push("search"); doSearch(s); setSearchFocused(false) }} className="w-full flex items-center gap-2 px-3 py-2 rounded-lg hover:bg-accent-orange/10 text-sm text-zinc-300 hover:text-accent transition-all duration-150 text-left">
+            <button type="button" key={s} onMouseDown={(e) => e.preventDefault()} onClick={() => { setQuery(s); router.push("search"); doSearch(s); setSearchFocused(false) }} className="w-full flex items-center gap-2 px-3 py-2 rounded-lg hover:bg-accent-orange/10 text-sm text-zinc-300 hover:text-accent transition duration-150 text-left">
               <Clock className="w-4 h-4 text-zinc-500 shrink-0" />
               <span className="flex-1 truncate">{s}</span>
-              <span onMouseDown={(e) => { e.preventDefault(); e.stopPropagation() }} onClick={(e) => { e.stopPropagation(); removeRecentSearch(s) }} aria-label={t("ui.remove")} className="text-danger hover:text-red-300 transition-all duration-150 text-sm px-2 shrink-0"><X className="w-3.5 h-3.5" /></span>
+              <span onMouseDown={(e) => { e.preventDefault(); e.stopPropagation() }} onClick={(e) => { e.stopPropagation(); removeRecentSearch(s) }} aria-label={t("ui.remove")} className="text-danger hover:text-red-300 transition duration-150 text-sm px-2 shrink-0"><X className="w-3.5 h-3.5" /></span>
             </button>
           ))}
         </div>
@@ -1427,7 +1427,7 @@ export default function EditView() {
               src="/pictorium.svg"
               alt="Pictorium"
               decoding="async"
-              className="header-logo header-logo-dark h-20 md:h-24 w-auto cursor-pointer hover:brightness-110 active:scale-95 transition-all duration-150 mb-1"
+              className="header-logo header-logo-dark h-20 md:h-24 w-auto cursor-pointer hover:brightness-110 active:scale-95 transition duration-150 mb-1"
               title="Pictorium"
             />
             {/* eslint-disable-next-line @next/next/no-img-element -- local SVG asset */}
@@ -1436,7 +1436,7 @@ export default function EditView() {
               src="/pictorium-light.svg"
               alt="Pictorium"
               decoding="async"
-              className="header-logo header-logo-light h-20 md:h-24 w-auto cursor-pointer hover:brightness-110 active:scale-95 transition-all duration-150 mb-1"
+              className="header-logo header-logo-light h-20 md:h-24 w-auto cursor-pointer hover:brightness-110 active:scale-95 transition duration-150 mb-1"
               title="Pictorium"
             />
           </header>
@@ -1448,7 +1448,7 @@ export default function EditView() {
               <button
                 type="button"
                 onClick={exitEditor}
-                className="flex items-center gap-1 px-3 py-2 rounded-xl bg-surface border border-white/10 text-xs font-semibold text-zinc-300 hover:text-white active:scale-95 transition-all shrink-0 cursor-pointer"
+                className="flex items-center gap-1 px-3 py-2 rounded-xl bg-surface border border-white/10 text-xs font-semibold text-zinc-300 hover:text-white active:scale-95 transition shrink-0 cursor-pointer"
               >
                 <ChevronLeft className="w-4 h-4" />
                 <span>{t("ui.back")}</span>
@@ -1463,7 +1463,7 @@ export default function EditView() {
                   aria-label={t("ui.savePoster")}
                   onClick={handleSave}
                   disabled={saveState === "saving"}
-                  className={`flex items-center gap-1.5 px-3.5 py-2 rounded-xl font-semibold text-xs shrink-0 cursor-pointer transition-all ${
+                  className={`flex items-center gap-1.5 px-3.5 py-2 rounded-xl font-semibold text-xs shrink-0 cursor-pointer transition ${
                     saveState === "saving"
                       ? "bg-zinc-800 text-zinc-400 border border-white/10 opacity-70 cursor-wait"
                       : saveState === "error"
@@ -1503,7 +1503,7 @@ export default function EditView() {
                   title={t("ui.saveCoverOnlyHint")}
                   onClick={handleSaveCoverOnly}
                   disabled={saveState === "saving"}
-                  className={`flex items-center px-3 py-2 rounded-xl border border-white/10 bg-surface font-semibold text-xs shrink-0 cursor-pointer transition-all active:scale-95 ${
+                  className={`flex items-center px-3 py-2 rounded-xl border border-white/10 bg-surface font-semibold text-xs shrink-0 cursor-pointer transition active:scale-95 ${
                     saveState === "saving"
                       ? "text-zinc-500 opacity-70 cursor-wait"
                       : "text-zinc-300 hover:text-white"
@@ -1616,7 +1616,7 @@ export default function EditView() {
                     aria-expanded={badgeEditorFor === selectedStashKey}
                     data-testid="per-title-badge-editor-open"
                     onClick={() => setBadgeEditorFor(selectedStashKey)}
-                    className="w-7 h-7 flex items-center justify-center rounded-lg bg-white/5 text-muted transition-all duration-150 cursor-pointer hover:bg-white/10 hover:text-zinc-200"
+                    className="w-7 h-7 flex items-center justify-center rounded-lg bg-white/5 text-muted transition duration-150 cursor-pointer hover:bg-white/10 hover:text-zinc-200"
                   >
                     <Move className="w-4 h-4" />
                   </button>
@@ -1627,7 +1627,7 @@ export default function EditView() {
                     aria-label={t("ui.posterShapePortrait")}
                     aria-pressed={ed.posterShape !== "landscape"}
                     onClick={() => handleShapeChange("poster")}
-                    className={`w-7 h-7 flex items-center justify-center rounded-lg transition-all duration-150 cursor-pointer ${
+                    className={`w-7 h-7 flex items-center justify-center rounded-lg transition duration-150 cursor-pointer ${
                       ed.posterShape !== "landscape"
                         ? "bg-white/20 text-white shadow-sm"
                         : "bg-white/5 text-muted hover:bg-white/10 hover:text-zinc-200"
@@ -1641,7 +1641,7 @@ export default function EditView() {
                     aria-label={t("ui.posterShapeLandscape")}
                     aria-pressed={ed.posterShape === "landscape"}
                     onClick={() => handleShapeChange("landscape")}
-                    className={`w-7 h-7 flex items-center justify-center rounded-lg transition-all duration-150 cursor-pointer ${
+                    className={`w-7 h-7 flex items-center justify-center rounded-lg transition duration-150 cursor-pointer ${
                       ed.posterShape === "landscape"
                         ? "bg-white/20 text-white shadow-sm"
                         : "bg-white/5 text-muted hover:bg-white/10 hover:text-zinc-200"
@@ -1661,7 +1661,7 @@ export default function EditView() {
                       const hasMapping = mappingsMap.get(key)
                       if (!hasMapping) return null
                       return (
-                        <button type="button" aria-label={t("ui.remove")} onClick={() => setPendingRemove(hasMapping)} className="flex w-full h-full min-h-[44px] items-center justify-center gap-2 rounded-xl border border-red-500/25 bg-red-500/10 px-4 py-2 text-center text-xs font-semibold text-red-300 transition-all hover:border-red-500/40 hover:bg-red-500/15 active:scale-[0.97] cursor-pointer">
+                        <button type="button" aria-label={t("ui.remove")} onClick={() => setPendingRemove(hasMapping)} className="flex w-full h-full min-h-[44px] items-center justify-center gap-2 rounded-xl border border-red-500/25 bg-red-500/10 px-4 py-2 text-center text-xs font-semibold text-red-300 transition hover:border-red-500/40 hover:bg-red-500/15 active:scale-[0.97] cursor-pointer">
                           <Trash2 className="w-[18px] h-[18px] shrink-0" />
                           <span>{t("ui.remove")}</span>
                         </button>
@@ -1680,7 +1680,7 @@ export default function EditView() {
                       aria-label={t("ui.savePoster")}
                       onClick={handleSave}
                       disabled={saveState === "saving"}
-                      className={`w-full h-full min-h-[44px] px-5 py-2 rounded-xl font-semibold text-xs flex items-center justify-center gap-2 text-center cursor-pointer transition-all ${
+                      className={`w-full h-full min-h-[44px] px-5 py-2 rounded-xl font-semibold text-xs flex items-center justify-center gap-2 text-center cursor-pointer transition ${
                         saveState === "saving"
                           ? "bg-zinc-800 text-zinc-400 border border-white/10 opacity-70 cursor-wait"
                           : saveState === "error"
@@ -1718,7 +1718,7 @@ export default function EditView() {
                       title={t("ui.saveCoverOnlyHint")}
                       onClick={handleSaveCoverOnly}
                       disabled={saveState === "saving"}
-                      className={`w-full h-full min-h-[44px] px-5 py-2 rounded-xl font-semibold text-xs flex items-center justify-center gap-2 text-center cursor-pointer transition-all ${
+                      className={`w-full h-full min-h-[44px] px-5 py-2 rounded-xl font-semibold text-xs flex items-center justify-center gap-2 text-center cursor-pointer transition ${
                         saveState === "saving"
                           ? "bg-zinc-800 text-zinc-400 border border-white/10 opacity-70 cursor-wait"
                           : "btn-secondary"
@@ -1747,7 +1747,7 @@ export default function EditView() {
                       <PosterDepthEdge edgeStrength={40} edgeCoverage={10} />
                       {/* Accent Glow (firma Pictorium: si ritinta col colore dominante) */}
                       <div
-                        className="absolute -inset-8 rounded-3xl opacity-45 blur-3xl pointer-events-none transition-all duration-700 ease-out z-0"
+                        className="absolute -inset-8 rounded-3xl opacity-45 blur-3xl pointer-events-none transition duration-700 ease-out z-0"
                         style={{
                           background: accentColor
                             ? `radial-gradient(circle at 50% 50%, ${accentColor}, transparent 70%)`
@@ -1995,7 +1995,7 @@ export default function EditView() {
           <div className="max-w-md mx-auto px-4 py-8 min-h-full flex flex-col justify-center" onClick={(e) => e.stopPropagation()}>
             <div className="flex items-center justify-between mb-4">
               <h3 className="text-lg font-bold text-zinc-50">Stremio</h3>
-              <button type="button" onClick={closeStremioModal} aria-label={t("ui.close")} className="w-9 h-9 flex items-center justify-center rounded-xl bg-surface2 hover:bg-zinc-700 text-muted hover:text-zinc-200 transition-all"><X className="w-5 h-5" /></button>
+              <button type="button" onClick={closeStremioModal} aria-label={t("ui.close")} className="w-9 h-9 flex items-center justify-center rounded-xl bg-surface2 hover:bg-zinc-700 text-muted hover:text-zinc-200 transition"><X className="w-5 h-5" /></button>
             </div>
             <div className="rounded-2xl overflow-hidden border border-white/10 bg-surface shadow-2xl">
               {/* eslint-disable-next-line @next/next/no-img-element -- poster reale renderizzato dal server */}

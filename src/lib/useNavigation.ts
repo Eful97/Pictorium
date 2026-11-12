@@ -4,6 +4,7 @@ import { useState, useEffect, useCallback, useRef, useMemo } from "react"
 import type { SearchResult, TMDBImage } from "./types"
 import { detectSeasonalThemeFromCatalogName, type SeasonalCustomKeywordsInput, type SeasonalTheme } from "./seasonal-theme"
 import { pushView, replaceView, goBack, type View } from "./router"
+import { withViewTransition } from "./motion"
 
 /**
  * SPA navigation guard for the per-title editor draft.
@@ -77,8 +78,9 @@ export function useNavigation() {
 
   // Router centralizzato: gestisce history + stato view insieme.
   const router = useMemo(() => ({
-    push: (v: View) => { pushView(v); setViewState(v) },
-    replace: (v: View) => { replaceView(v); setViewState(v) },
+    // Cambio vista in View Transition: la vista uscente svanisce sopra la nuova.
+    push: (v: View) => { pushView(v); withViewTransition(() => setViewState(v)) },
+    replace: (v: View) => { replaceView(v); withViewTransition(() => setViewState(v)) },
     back: () => { goBack() },
   }), [])
 

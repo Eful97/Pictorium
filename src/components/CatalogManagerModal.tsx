@@ -637,7 +637,7 @@ export function CatalogManagerModal({ isOpen, onClose }: CatalogManagerModalProp
           <button
             type="button"
             onClick={toggleSelectAll}
-            className="flex items-center gap-1.5 px-2.5 py-1 rounded-lg bg-surface border border-white/10 text-zinc-300 hover:text-white hover:border-white/20 transition-all font-medium text-[11px]"
+            className="flex items-center gap-1.5 px-2.5 py-1 rounded-lg bg-surface border border-white/10 text-zinc-300 hover:text-white hover:border-white/20 transition font-medium text-[11px]"
           >
             {allSelected ? <CheckSquare className="w-3.5 h-3.5 text-accent-orange" /> : <Square className="w-3.5 h-3.5" />}
             <span>{selectedIds.size > 0 ? t("ui.selectedCount", { count: selectedIds.size }) : t("ui.selectAll")}</span>
@@ -812,7 +812,7 @@ export function CatalogManagerModal({ isOpen, onClose }: CatalogManagerModalProp
               onDragOver={(e) => handleDragOver(e, index)}
               onDrop={(e) => handleDrop(e, index)}
               onDragEnd={handleDragEnd}
-              className={`flex items-center justify-between gap-3 p-3 rounded-2xl border transition-all ${
+              className={`flex items-center justify-between gap-3 p-3 rounded-2xl border transition ${
                 isBeingDragged
                   ? "opacity-25 border-dashed border-accent-orange/70 bg-accent-orange/5"
                   : isDragTarget
@@ -1081,7 +1081,7 @@ export function CatalogManagerModal({ isOpen, onClose }: CatalogManagerModalProp
         <button
           type="button"
           onClick={handleClose}
-          className="px-4 py-2 rounded-xl bg-accent-orange text-white text-xs font-semibold hover:bg-accent-orange/90 active:scale-95 transition-all shadow-md"
+          className="px-4 py-2 rounded-xl bg-accent-orange text-white text-xs font-semibold hover:bg-accent-orange/90 active:scale-95 transition shadow-md"
         >
           {t("ui.done")}
         </button>
