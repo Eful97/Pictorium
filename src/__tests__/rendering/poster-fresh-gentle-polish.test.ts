@@ -32,6 +32,7 @@ import {
   renderFreshNumeralMask,
   renderFreshNumeralRim,
   FRESH_LEFT_BLUR_FEATHER,
+  freshLeftBlurFeather,
   FRESH_LEFT_BLUR_SIGMA,
   type FreshMetaInput,
 } from "@/lib/fresh-layout";
@@ -163,12 +164,15 @@ describe("task15 left blur (wider feather + eased falloff, same scope)", () => {
   it("keeps sigma 9, feather 32 (old 16), full-height ink-bound scope", () => {
     expect(FRESH_LEFT_BLUR_SIGMA).toBe(9);
     expect(FRESH_LEFT_BLUR_FEATHER).toBe(32);
+    // Feather scales with width (12% CW), 32px floor: 500 → 60, 768 → 92.
+    expect(freshLeftBlurFeather(500)).toBe(60);
+    expect(freshLeftBlurFeather(768)).toBe(92);
     for (const [CW, CH] of [[STD_W, STD_H], [LAND_W, LAND_H]] as const) {
       const region = freshLeftBlurRegion(CW, CH, 200)!;
       expect(region.left).toBe(0);
       expect(region.top).toBe(0);
       expect(region.height).toBe(CH);
-      expect(region.width).toBe(Math.min(CW, 200 + 32));
+      expect(region.width).toBe(Math.min(CW, 200 + freshLeftBlurFeather(CW)));
     }
   });
 
@@ -204,7 +208,7 @@ describe("task15 left blur (wider feather + eased falloff, same scope)", () => {
         const rim = freshNumeralSvg(box).rim;
         const inkRight = box.left - rim + ink!.maxX;
         const strip = await renderFreshLeftBlurStrip(base, CW, CH, box);
-        expect(strip!.w).toBe(Math.min(CW, Math.round(inkRight + 32)));
+        expect(strip!.w).toBe(Math.min(CW, Math.round(inkRight + freshLeftBlurFeather(CW))));
         expect(strip!.h).toBe(CH);
       }
       const far = freshGeometry(CW, CH, 7, { numeralScale: 200, numeralOffsetX: 2000 });

@@ -480,7 +480,10 @@ describe("task11 compositor alignment + resampling (actual overlays)", () => {
       expect(meta.top).toBe(Math.round(geo.metaTop))
       expect(meta.top).toBe(geo.numeral!.top + geo.numeral!.capH + geo.metaGap)
       const metaPngMeta = await sharp(meta.input as Buffer).metadata()
-      expect(meta.left + (metaPngMeta.width ?? 0)).toBeLessThanOrEqual(geo.zoneW + 1)
+      // Left-aligned column on the numeral ink edge (rows start at the 8px
+      // shadow pad): the block hugs the numeral, never drifts into the art.
+      expect(meta.left).toBeLessThanOrEqual(geo.numeral!.left + 24)
+      expect(meta.left + (metaPngMeta.width ?? 0)).toBeLessThanOrEqual(CW)
       expect({ shape: name }).toBeDefined()
     }
   }, 180000)

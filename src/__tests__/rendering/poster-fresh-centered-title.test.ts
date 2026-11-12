@@ -74,7 +74,7 @@ const PRE_RANKED_PORTRAIT = "1fa71a22783ee98a0fe033e5f8ebdd8dd443336ee2992f28698
 // identical inputs/bytes as poster-fresh-unranked.test.ts landscape pin,
 // which moves identically); unranked and Standard pins below untouched
 // (verified by the suites pinning them).
-const PRE_RANKED_LANDSCAPE = "33f2998c55de5a3eb6d331939005a8df1f875baeb4955cb97b513da29f0e5a9a"
+const PRE_RANKED_LANDSCAPE = "9855da6e40a3868899b83547ee22b3926c3849dd43c0c7b9aa5dbe98eec94c6d"
 // Task8a2 BEFORE hashes (captured with the pre-task8a2 fresh-layout via the
 // same helpers/inputs as this file — task8a2/before-unranked-*.sha): the
 // pre-task4 pins below are historic references only (task4 moved the meta
@@ -109,7 +109,7 @@ const PRE_STANDARD_LANDSCAPE = "4137f6e151154b45ccc4b8f64d3efda1c71951f6b6cf9468
 // C:/Users/lucaf/AppData/Local/Temp/opencode/badge-lab-final-F2/.
 // Explicit topShade 50 pins (demonstrated 50-default bytes for the exact
 // fixtures above — the omitted default renders these).
-const LEGACY_TOP_SHADE_50_RANKED_LANDSCAPE = "c504aab7722ba206cd6a23711a71b8beb78358411e9bcc97f5a3754af535d48c"
+const LEGACY_TOP_SHADE_50_RANKED_LANDSCAPE = "65d45c108f0e81c14ac5e9402414e329083450d58759293d45f7faf5521918e1"
 const LEGACY_TOP_SHADE_50_UNRANKED_PORTRAIT = "e1e4b228a05e29c6d9a5509c4b7769a1be7808c1456e2d6592b23803e7255359"
 const LEGACY_TOP_SHADE_50_UNRANKED_LANDSCAPE = "959f0b9aa491031004fa68c812f0323bd1024ff270c913633306bfc73a060429"
 // Same star ink-centre re-pin (e24b2784, badge-svg-shared.ts:319): the 50-default standard bytes moved with the star row.

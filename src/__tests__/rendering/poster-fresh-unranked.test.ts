@@ -138,8 +138,8 @@ import type { RatingItem } from "@/lib/custom-rating/types"
 // pins byte-exactly through the current code, proving no other drift). The
 // 80-era pins are kept as PRE_* guards below: explicit stored 80 values must
 // keep rendering those exact bytes.
-const PRE_RANKED_PORTRAIT = "85723d9ec81b5e4eb567cb0815379b3b4b01f3c9475d217c4d0608301f285d77"
-const PRE_RANKED_LANDSCAPE = "33f2998c55de5a3eb6d331939005a8df1f875baeb4955cb97b513da29f0e5a9a"
+const PRE_RANKED_PORTRAIT = "6276bc1c4b5a6001fb8b47c8b29531213840f8d3402e1151c24a283a9f46bf52"
+const PRE_RANKED_LANDSCAPE = "9855da6e40a3868899b83547ee22b3926c3849dd43c0c7b9aa5dbe98eec94c6d"
 const PRE_UNRANKED_PORTRAIT = "9167e67cf8174efea64dad431d7b2d1765e07031f3cbef5c2e8e6ccc441e5a11"
 const PRE_UNRANKED_LANDSCAPE = "2a9adbec71d8a3da7a00cc377ea611036829cc77a32c33de1bd442142d9b17e2"
 // Star ink-centre re-pin (intentional user-visible fix in e24b2784: badge-svg-shared.ts:319 starDy = round2(starR * 0.0955); the commit omitted the re-pin) — the 80-era standard bytes below moved with the star row, nothing else.
@@ -148,8 +148,8 @@ const PRE_STANDARD_LANDSCAPE = "4137f6e151154b45ccc4b8f64d3efda1c71951f6b6cf9468
 // F2 re-pin (user-authorized genre clip fix — see poster-fresh-centered-title.test.ts).
 // Explicit topShade 80 pins (80-era bytes for the exact
 // fixtures above).
-const LEGACY_TOP_SHADE_50_RANKED_PORTRAIT = "3fe42bb095d84b11ad340e513bba9e2e4827c5656a334c133e814c53ca5fd67c"
-const LEGACY_TOP_SHADE_50_RANKED_LANDSCAPE = "c504aab7722ba206cd6a23711a71b8beb78358411e9bcc97f5a3754af535d48c"
+const LEGACY_TOP_SHADE_50_RANKED_PORTRAIT = "8037644f301527ac6a8763397ff2eef89af8a722d7419681f0b724981beca043"
+const LEGACY_TOP_SHADE_50_RANKED_LANDSCAPE = "65d45c108f0e81c14ac5e9402414e329083450d58759293d45f7faf5521918e1"
 // Same star ink-centre re-pin (e24b2784, badge-svg-shared.ts:319): the 50-default standard bytes moved with the star row.
 const LEGACY_TOP_SHADE_50_STANDARD_PORTRAIT = "8e51a6d52c8fd105925fa8e458495358d4e2cbccbb755d94dacf2bf6f8b22d9e"
 const LEGACY_TOP_SHADE_50_STANDARD_LANDSCAPE = "f49524cc961c3e7ab9c2915cd39db0d1a3e30035d58fd63c0723afe242218e34"

@@ -37,7 +37,7 @@ import {
   measureNumeralInk,
   renderFreshLeftBlurStrip,
   renderFreshNumeralMask,
-  FRESH_LEFT_BLUR_FEATHER,
+  freshLeftBlurFeather,
   type FreshMetaInput,
 } from "@/lib/fresh-layout"
 import { LAND_W, LAND_H, STD_W, STD_H } from "@/lib/image-utils"
@@ -151,7 +151,7 @@ describe("left-blur geometry (pure)", () => {
         expect(region!.top).toBe(0)
         expect(region!.height).toBe(CH)
         expect(region!.width).toBe(
-          Math.min(CW, Math.round(box.left + box.estW + FRESH_LEFT_BLUR_FEATHER)),
+          Math.min(CW, Math.round(box.left + box.estW + freshLeftBlurFeather(CW))),
         )
         expect(region!.width).toBeLessThanOrEqual(CW)
         expect(region!.width).toBeGreaterThan(0)
@@ -258,7 +258,7 @@ describe("left-blur strip (pixels, pattern artwork)", () => {
         expect(strip).not.toBeNull()
         // Band end == ink right + feather (clamped), far inside the zone
         // estimate for small ranks (tight, not the column width).
-        expect(strip!.w).toBe(Math.min(CW, Math.round(inkRight + FRESH_LEFT_BLUR_FEATHER)))
+        expect(strip!.w).toBe(Math.min(CW, Math.round(inkRight + freshLeftBlurFeather(CW))))
         const zoneW = geo.zoneW
         if (rank === 1) expect(strip!.w).toBeLessThan(zoneW)
       }
