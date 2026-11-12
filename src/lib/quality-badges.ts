@@ -2,7 +2,7 @@ import sharp from "sharp"
 import { renderSVG, renderComposedSvg } from "./svg-badge"
 import fs from "fs"
 import path from "path"
-import { buildEditorialMarkSvg, buildQualityBadgeSvg, buildQualityKnockoutSvg, buildQualityNakedSvg, buildAgeKnockoutSvg, buildAgeEmphasisSvg, buildGradientMarkSvg, buildStripBadgeSvg, type StripSegmentGlyph, QUALITY_GROUP_ROW_MAX_ITEMS, badgeBoxHeight, TOP_SHADOW_PAD, TOP_SHADOW_FILTER, KNOCKOUT_SHADOW_FILTER, KNOCKOUT_INK_OPACITY, knockoutOuterShadow, AGE_KNOCKOUT_RADIUS_FACTOR, AGE_MONO_STROKE_FACTOR, AGE_MONO_STROKE_MIN, AGE_MONO_INK_DARK, AGE_MONO_INK_LIGHT, SATIN_PILL_INK_DARK, SATIN_PILL_INK_LIGHT, SATIN_PILL_STROKE_DARK, SATIN_PILL_STROKE_LIGHT, SATIN_PILL_STROKE_WIDTH, satinPillStops } from "./badge-svg-shared"
+import { EDITORIAL_MARK_PAD_X_FACTOR, buildEditorialMarkSvg,buildQualityBadgeSvg, buildQualityKnockoutSvg, buildQualityNakedSvg, buildAgeKnockoutSvg, buildAgeEmphasisSvg, buildGradientMarkSvg, buildStripBadgeSvg, type StripSegmentGlyph, QUALITY_GROUP_ROW_MAX_ITEMS, badgeBoxHeight, TOP_SHADOW_PAD, TOP_SHADOW_FILTER, KNOCKOUT_SHADOW_FILTER, KNOCKOUT_INK_OPACITY, knockoutOuterShadow, AGE_KNOCKOUT_RADIUS_FACTOR, AGE_MONO_STROKE_FACTOR, AGE_MONO_STROKE_MIN, AGE_MONO_INK_DARK, AGE_MONO_INK_LIGHT, SATIN_PILL_INK_DARK, SATIN_PILL_INK_LIGHT, SATIN_PILL_STROKE_DARK, SATIN_PILL_STROKE_LIGHT, SATIN_PILL_STROKE_WIDTH, satinPillStops } from "./badge-svg-shared"
 import type { BadgeFont } from "./badge-styles"
 import { isAgeBadgeStyle, resolveQualityGroupLayout, isMergedQualityStrip, DEFAULT_AGE_BADGE_STYLE, type AgeBadgeStyle, type QualityGroupLayout } from "./badge-styles"
 import { normalizeBadgeFont } from "./badge-svg-shared"
@@ -255,7 +255,17 @@ async function withDolbyLogo(spec: BadgeSvgSpec, iconPath: string, frameW: numbe
   const rule = /^<rect x="[\d.]+" y="([\d.]+)"/.exec(spec.svg.slice(m.index + m[0].length))
   const cy = rule ? Math.min(Number(m[2]), Number(rule[1]) - EDITORIAL_RULE_GAP - g.h / 2) : Number(m[2])
   const logo = dolbyLogoSvg(src, ink, Number(m[1]), cy, g.w, g.h, fill)
-  return { ...spec, svg: spec.svg.replace(m[0], logo) }
+  const svg = spec.svg.replace(m[0], logo)
+  if (frameW !== DOLBY_LOGO_UNFRAMED_W) return { ...spec, svg }
+  // Unframed (editoriale): the box was sized on the long "DV+ATMOS" text; shrink
+  // it to the logo so the stack column (and the editor frame) hugs the marks.
+  const w = Math.min(spec.w, g.w + (Math.round(fs * EDITORIAL_MARK_PAD_X_FACTOR) + TOP_SHADOW_PAD) * 2)
+  if (w === spec.w) return { ...spec, svg }
+  const dx = Math.round((w - spec.w) / 2)
+  const open = /^<svg[^>]*>/.exec(svg)
+  if (!open) return { ...spec, svg }
+  const root = open[0].replace(/ width="[\d.]+"/, ` width="${w}"`).replace(/viewBox="0 0 [\d.]+ /, `viewBox="0 0 ${w} `)
+  return { svg: `${root}<g transform="translate(${dx} 0)">${svg.slice(open[0].length).replace(/<\/svg>\s*$/, "")}</g></svg>`, w, h: spec.h }
 }
 
 /** The Dolby asset centred on (cx, cy) at w×h, recolored to `fill`. */
