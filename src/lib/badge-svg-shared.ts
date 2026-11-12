@@ -1893,11 +1893,19 @@ export interface StripBadgeSvgResult {
  * is unchanged; every extra row adds one band plus
  * `QUALITY_STRIP_ROW_GAP_FACTOR`).
  */
+/** Optional non-text strip segment (e.g. a logo): its width at a glyph size
+ *  and its SVG centred on (cx, cy); null = the label stays text. */
+export type StripSegmentGlyph = (
+  label: string,
+  glyphFs: number,
+) => { readonly w: number; readonly render: (cx: number, cy: number) => string } | null
+
 export function buildStripBadgeSvg(
   labels: readonly string[],
   fs: number,
   font: BadgeFont = "inter",
   maxW?: number,
+  segmentGlyph?: StripSegmentGlyph,
 ): StripBadgeSvgResult {
   const texts = labels.map((label) => label.trim()).filter((label) => label !== "")
   const boxH = badgeBoxHeight(fs)
@@ -1924,7 +1932,7 @@ export function buildStripBadgeSvg(
     const padX = Math.round(glyphFs * QUALITY_STRIP_PAD_X_FACTOR)
     const rowGap = Math.max(2, Math.round(glyphFs * QUALITY_STRIP_ROW_GAP_FACTOR))
     const rows = lines(texts).map((row) => {
-      const segW = row.map((text) => badgeTextBox(text, glyphFs, 0, font).textW)
+      const segW = row.map((text) => segmentGlyph?.(text, glyphFs)?.w ?? badgeTextBox(text, glyphFs, 0, font).textW)
       const contentW =
         segW.reduce((sum, w) => sum + w, 0) +
         (row.length > 0 ? (row.length - 1) * (sepW + sepGap * 2) : 0)
@@ -1973,7 +1981,9 @@ export function buildStripBadgeSvg(
       const textW = row.segW[i]
       const text = row.texts[i]
       segments.push({ top: rowTop, left: cursor, w: textW, h: boxH })
-      runs.push(
+      const custom = segmentGlyph?.(text, glyphFs)
+      if (custom) runs.push(custom.render(cursor + textW / 2, rowCenterY))
+      else runs.push(
         `<text x="${cursor + textW / 2}" y="${rowCenterY}" text-anchor="middle" dominant-baseline="central" font-family="${fontFamilyFor(text, font)}" font-weight="700" font-size="${glyphFs}" letter-spacing="0.06em" fill="#ffffff"${textFitAttrs(textW)}>${escSvg(text)}</text>`,
       )
       cursor += textW

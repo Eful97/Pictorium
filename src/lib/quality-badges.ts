@@ -2,11 +2,11 @@ import sharp from "sharp"
 import { renderSVG, renderComposedSvg } from "./svg-badge"
 import fs from "fs"
 import path from "path"
-import { buildEditorialMarkSvg, buildQualityBadgeSvg, buildQualityKnockoutSvg, buildQualityNakedSvg, buildAgeKnockoutSvg, buildAgeEmphasisSvg, buildGradientMarkSvg, buildStripBadgeSvg, QUALITY_GROUP_ROW_MAX_ITEMS, badgeBoxHeight, TOP_SHADOW_PAD, TOP_SHADOW_FILTER, KNOCKOUT_SHADOW_FILTER, KNOCKOUT_INK_OPACITY, knockoutOuterShadow, AGE_KNOCKOUT_RADIUS_FACTOR, AGE_MONO_STROKE_FACTOR, AGE_MONO_STROKE_MIN, AGE_MONO_INK_DARK, AGE_MONO_INK_LIGHT, SATIN_PILL_INK_DARK, SATIN_PILL_INK_LIGHT, SATIN_PILL_STROKE_DARK, SATIN_PILL_STROKE_LIGHT, SATIN_PILL_STROKE_WIDTH, satinPillStops } from "./badge-svg-shared"
+import { buildEditorialMarkSvg, buildQualityBadgeSvg, buildQualityKnockoutSvg, buildQualityNakedSvg, buildAgeKnockoutSvg, buildAgeEmphasisSvg, buildGradientMarkSvg, buildStripBadgeSvg, type StripSegmentGlyph, QUALITY_GROUP_ROW_MAX_ITEMS, badgeBoxHeight, TOP_SHADOW_PAD, TOP_SHADOW_FILTER, KNOCKOUT_SHADOW_FILTER, KNOCKOUT_INK_OPACITY, knockoutOuterShadow, AGE_KNOCKOUT_RADIUS_FACTOR, AGE_MONO_STROKE_FACTOR, AGE_MONO_STROKE_MIN, AGE_MONO_INK_DARK, AGE_MONO_INK_LIGHT, SATIN_PILL_INK_DARK, SATIN_PILL_INK_LIGHT, SATIN_PILL_STROKE_DARK, SATIN_PILL_STROKE_LIGHT, SATIN_PILL_STROKE_WIDTH, satinPillStops } from "./badge-svg-shared"
 import type { BadgeFont } from "./badge-styles"
 import { isAgeBadgeStyle, resolveQualityGroupLayout, isMergedQualityStrip, DEFAULT_AGE_BADGE_STYLE, type AgeBadgeStyle, type QualityGroupLayout } from "./badge-styles"
 import { normalizeBadgeFont } from "./badge-svg-shared"
-import { AV_KNOCKOUT_RADIUS_FACTOR, AV_KNOCKOUT_TAG_INSET_FACTOR, AV_MARK_CAP_HEIGHT_FACTOR, AV_PLATE_RADIUS_FACTOR, AV_PLATE_STROKE_WIDTH, AV_COMBO_SHORT_LABEL, COLOR_MARK_GLYPH, COLOR_MARK_PLATE_BG, COLOR_MARK_PLATE_STROKE, GRADIENT_TIER_INK, avMarkGroupInkBox, avMarkInkBox, avPlateGlyphBox, gradientMarkStops, qualityBadgeIconPath, qualityIconReferenceWidth, qualityMarkAccent, type AvMarkInkBox, PREMIUM_COMBO_ACCENT, PREMIUM_PLATE_BG, PREMIUM_PLATE_STROKE, premiumAccentHex } from "./quality-badge-styles"
+import { AV_KNOCKOUT_RADIUS_FACTOR, AV_KNOCKOUT_TAG_INSET_FACTOR, avMarkCapHeight, QUALITY_TIER_ICON_FILLS, tierAssetPlateGeometry, AV_COMBO_SHORT_LABEL, COLOR_MARK_GLYPH, COLOR_MARK_PLATE_BG, COLOR_MARK_PLATE_STROKE, GRADIENT_TIER_INK, avMarkGroupInkBox, avMarkInkBox, avPlateGlyphBox, gradientMarkStops, qualityBadgeIconPath, qualityIconReferenceWidth, qualityMarkAccent, type AvMarkInkBox, PREMIUM_COMBO_ACCENT, PREMIUM_PLATE_BG, PREMIUM_PLATE_STROKE, premiumAccentHex } from "./quality-badge-styles"
 import type { QualityBadgeStyle } from "./badge-styles"
 import { MAX_QUALITY_MARKS, QUALITY_MARK_IDS, isQualityMarkId, qualityMarkAspect, qualityMarkIconPath, qualityMarkLabel, qualityMarkMode } from "./quality-badge-pack"
 import { BADGE_ITEM_QUALITY_AGE, BADGE_ITEM_QUALITY_COMBO, BADGE_ITEM_QUALITY_HOMES, BADGE_ITEM_QUALITY_TIER, applyBadgeItemTransform, badgeItemTransform, homeIdForPainted, isNeutralBadgeItemTransform, qualityFormatItemId, type BadgeItemTransform, type BadgeItemTransformMap } from "./badge-item-transforms"
@@ -35,6 +35,13 @@ const NAKED_GROUP_SCALE = 1.125
 // marchi del pack), così un pack grande non manda la memo in thrash.
 const qualityIconMemo = new Map<string, Promise<string | null>>()
 const QUALITY_ICON_MEMO_MAX = Math.max(20, QUALITY_MARK_IDS.length * 2)
+
+/** `premium` tier: the color tier asset with its frame/plate recolored to the
+ *  premium A/V plate (letters stay gold), so the stack shares one material. */
+const PREMIUM_TIER_RECOLOR: Readonly<Record<string, string>> = {
+  [QUALITY_TIER_ICON_FILLS.frame]: PREMIUM_PLATE_STROKE,
+  [QUALITY_TIER_ICON_FILLS.plate]: PREMIUM_PLATE_BG,
+}
 
 function loadQualityIconSvg(iconPath: string): Promise<string | null> {
   const memo = qualityIconMemo.get(iconPath)
@@ -174,10 +181,16 @@ async function buildQualityIconSvg(
    * (historic bytes).
    */
   inkOverride?: AvMarkInkBox | null,
+  /** Fill substitutions on the tier asset (`premium`: frame/plate recolored
+   *  to the premium plate so the tier matches its A/V plates). */
+  recolor?: Readonly<Record<string, string>>,
 ): Promise<BadgeSvgSpec | null> {
   try {
-    const src = await loadQualityIconSvg(iconPath)
-    if (!src) return null
+    const raw = await loadQualityIconSvg(iconPath)
+    if (!raw) return null
+    const src = recolor
+      ? Object.entries(recolor).reduce((s, [from, to]) => s.replaceAll(`fill="${from}"`, `fill="${to}"`), raw)
+      : raw
     // Marchio A/V: viewBox ritagliato sull'inchiostro e larghezza normalizzata.
     // Il tier (mono/color) non entra qui: percorso storico byte-identico.
     const ink = inkOverride ?? avMarkInkBox(iconPath)
@@ -207,6 +220,66 @@ async function buildQualityIconSvg(
     return { svg: compositeSvg, w: totalW, h: totalH }
   } catch {
     return null
+  }
+}
+
+const DOLBY_ICON_RE = /(^|\/)dolby-[a-z-]+\.svg$/
+function isDolbyIconPath(iconPath: string): boolean {
+  return DOLBY_ICON_RE.test(iconPath)
+}
+
+/** Horizontal glyph inset (em of fs) of the Dolby logo in text-style frames:
+ *  clears the outline border/scrim padding on every text style. */
+const DOLBY_LOGO_INSET_FACTOR = 0.35
+/** Unframed styles (editoriale): no visible column, the logo is sized by the
+ *  `4K` text height alone (width follows the logo aspect). */
+const DOLBY_LOGO_UNFRAMED_W = 10_000
+/** Gap (px) between the Dolby logo and the editoriale underline below it. */
+const EDITORIAL_RULE_GAP = 2
+
+/**
+ * Text styles (nova/gradient/outline/strip/editoriale): replace the single
+ * centred `<text>` label of a mark with the Dolby logo, same frame, same
+ * position and the label's own ink (solid hex or gradient url). Size follows
+ * the shared plate glyph rule (column width minus inset, capped at the `4K`
+ * text height). Falls back to the text mark when anything is missing.
+ */
+async function withDolbyLogo(spec: BadgeSvgSpec, iconPath: string, frameW: number, fs: number): Promise<BadgeSvgSpec> {
+  const src = await loadQualityIconSvg(iconPath)
+  const ink = avMarkInkBox(iconPath)
+  const m = /<text x="([\d.]+)" y="([\d.]+)"([^>]*)>[^<]*<\/text>/.exec(spec.svg)
+  if (!src || !ink || !m) return spec
+  const fill = /\sfill="([^"]*)"/.exec(m[3])?.[1] ?? /<g fill="([^"]*)"/.exec(spec.svg)?.[1] ?? "#ffffff"
+  const g = avPlateGlyphBox(ink, frameW, badgeBoxHeight(fs), fs, DOLBY_LOGO_INSET_FACTOR)
+  // Editoriale underlines the label: keep the rule, the logo sits above it.
+  const rule = /^<rect x="[\d.]+" y="([\d.]+)"/.exec(spec.svg.slice(m.index + m[0].length))
+  const cy = rule ? Math.min(Number(m[2]), Number(rule[1]) - EDITORIAL_RULE_GAP - g.h / 2) : Number(m[2])
+  const logo = dolbyLogoSvg(src, ink, Number(m[1]), cy, g.w, g.h, fill)
+  return { ...spec, svg: spec.svg.replace(m[0], logo) }
+}
+
+/** The Dolby asset centred on (cx, cy) at w×h, recolored to `fill`. */
+function dolbyLogoSvg(src: string, ink: AvMarkInkBox, cx: number, cy: number, w: number, h: number, fill: string): string {
+  const color = fill.startsWith("url(") ? "" : ` color="${fill}"`
+  return `<svg x="${Math.round(cx - w / 2)}" y="${Math.round(cy - h / 2)}" width="${w}" height="${h}" viewBox="${ink.x} ${ink.y} ${ink.w} ${ink.h}" fill="${fill}"${color}>${svgInnerContent(src).replaceAll("currentColor", fill)}</svg>`
+}
+
+/** Merged `strip`: Dolby segments (combo / DV / Atmos) drawn as the logo,
+ *  `4K`-text tall, white like the strip text. Null when no Dolby label. */
+async function stripDolbyGlyph(labelIcons: ReadonlyMap<string, string>): Promise<StripSegmentGlyph | undefined> {
+  const logos = new Map<string, { src: string; ink: AvMarkInkBox }>()
+  for (const [label, iconPath] of labelIcons) {
+    const src = await loadQualityIconSvg(iconPath)
+    const ink = avMarkInkBox(iconPath)
+    if (src && ink) logos.set(label, { src, ink })
+  }
+  if (logos.size === 0) return undefined
+  return (label, glyphFs) => {
+    const logo = logos.get(label)
+    if (!logo) return null
+    const h = avMarkCapHeight(glyphFs)
+    const w = Math.max(1, Math.round(h * (logo.ink.w / logo.ink.h)))
+    return { w, render: (cx, cy) => dolbyLogoSvg(logo.src, logo.ink, cx, cy, w, h, "#ffffff") }
   }
 }
 
@@ -271,10 +344,9 @@ async function buildPlatedAvBadgeSvg(
     const boxH = badgeBoxHeight(fs)
     // Larghezza placca = larghezza del tier 4K (unica per tutti i marchi).
     const plateW = Math.max(1, Math.round(plateWidth))
-    // Il glifo sta dentro la placca: inset e aspect nativo dalla regola
-    // condivisa `avPlateGlyphBox` (stessa per pill satinata e cornice mono).
-    const glyph = avPlateGlyphBox(ink, plateW, boxH, fs)
-    const r = Math.round(boxH * AV_PLATE_RADIUS_FACTOR)
+    // Frame = the tier asset's own frame (radius + border thickness), so the
+    // 4K tier and every A/V plate of the stack share one shape; glyph inside.
+    const { strokeW, r, glyph } = tierAssetPlateGeometry(ink, plateW, boxH, fs)
     const totalW = plateW + TOP_SHADOW_PAD * 2
     const totalH = boxH + TOP_SHADOW_PAD * 2
     const ox = TOP_SHADOW_PAD
@@ -282,7 +354,6 @@ async function buildPlatedAvBadgeSvg(
     // Lo stroke (centrato sulla path in SVG) è tenuto DENTRO il box: il bordo
     // ESTERNO visibile finisce esattamente su [ox, ox + plateW) × [oy, oy +
     // boxH), cioè sulla larghezza/altezza del tier 4K dello stile attivo.
-    const strokeW = AV_PLATE_STROKE_WIDTH
     const rectW = Math.max(1, plateW - strokeW)
     const rectH = Math.max(1, boxH - strokeW)
     const rectX = ox + strokeW / 2
@@ -487,8 +558,10 @@ async function buildAvKnockoutBadgeSvg(
     const fs = Math.round(Math.max(17 * pw / 380, 10))
     const boxH = badgeBoxHeight(fs)
     const tagW = Math.max(1, Math.round(tagWidth))
-    const glyphW = Math.min(tagW, Math.max(1, Math.round(inkWidth)))
-    const glyphH = Math.max(1, Math.round(glyphW * (ink.h / ink.w)))
+    const widthBoundW = Math.min(tagW, Math.max(1, Math.round(inkWidth)))
+    // Same optical cap as the plates: never taller than the `4K` text.
+    const glyphH = Math.min(Math.max(1, Math.round(widthBoundW * (ink.h / ink.w))), avMarkCapHeight(fs))
+    const glyphW = Math.min(widthBoundW, Math.max(1, Math.round(glyphH * (ink.w / ink.h))))
     const r = Math.round(boxH * AV_KNOCKOUT_RADIUS_FACTOR)
     const totalW = tagW + TOP_SHADOW_PAD * 2
     const totalH = boxH + TOP_SHADOW_PAD * 2
@@ -807,7 +880,7 @@ export async function renderQualityBadgeGroup(
   // `avMarkGroupInkBox`): the cap is the tier TEXT cap height, so tall icon
   // wordmarks stop reading larger than the `4K` tier while width-bound marks
   // keep their bytes. Every other style keeps its pre-HDR measured box.
-  const avCapHeight = Math.max(1, Math.round(markFs * AV_MARK_CAP_HEIGHT_FACTOR))
+  const avCapHeight = avMarkCapHeight(markFs)
   /**
    * Un marchio nel layout `stacked` dello stile `strip`: UNA placca scura per
    * elemento (stessa ricetta/materiale/airier padding della strip merged, un
@@ -884,16 +957,19 @@ export async function renderQualityBadgeGroup(
     // `buildQualityIconSvg` bare-icon path with this exact box. Every other
     // style keeps its pre-HDR measured box (`avMarkInkBox`) unchanged.
     const bareInk = avMarkGroupInkBox(iconPath, markRefWidth, avCapHeight)
+    // Text styles: Dolby marks show the Dolby logo in the style's own frame/ink.
+    const dolby = (spec: BadgeSvgSpec): Promise<BadgeSvgSpec> =>
+      isDolbyIconPath(iconPath) ? withDolbyLogo(spec, iconPath, isEditorial ? DOLBY_LOGO_UNFRAMED_W : markRefWidth, markFs) : Promise.resolve(spec)
     if (isStripStyle) {
       // Placca scura singola condivisa: un marchio A/V per placca (nessun
       // artwork per formato, l'etichetta breve è il glifo).
-      return buildStripMark(novaLabel, markRefWidth)
+      return dolby(buildStripMark(novaLabel, markRefWidth))
     }
     if (isNova) {
       // Lastra dinamica condivisa: stessa ricetta di tier ed età, larghezza
       // pinnata alla colonna (`markRefWidth`) e font ridotto per stare dentro
       // (`fitBadgeGlyphFs` nel builder). Nessun asset per formato.
-      return buildAgeEmphasisSvg(novaLabel, markFs, "nova", topLightForMark, markFont, markRefWidth)
+      return dolby(buildAgeEmphasisSvg(novaLabel, markFs, "nova", topLightForMark, markFont, markRefWidth))
     }
     if (isGradient) {
       // Glifo nudo con gradiente orizzontale del formato, risolto dal path
@@ -901,15 +977,16 @@ export async function renderQualityBadgeGroup(
       // colonna e font ridotto per stare dentro, mai glifi stirati. Path non
       // registrato → inchiostro bianco (fail-safe: mai un gradiente di un
       // formato inventato).
-      return buildGradientMarkSvg(novaLabel, markFs, gradientMarkStops(iconPath) ?? GRADIENT_TIER_INK, markFont, markRefWidth)
+      return dolby(buildGradientMarkSvg(novaLabel, markFs, gradientMarkStops(iconPath) ?? GRADIENT_TIER_INK, markFont, markRefWidth))
     }
     if (isEditorial) {
-      return buildEditorialMarkSvg(novaLabel, markFs, !!topLightForMark, markRefWidth)
+      // Unframed: every label keeps the same font (no column fit, no shrink).
+      return dolby(buildEditorialMarkSvg(novaLabel, markFs, !!topLightForMark))
     }
     if (isOutline) {
       // Wireframe dinamico condiviso: l'etichetta breve del formato dentro la
       // stessa cornice di tier/età, larghezza pinnata alla colonna.
-      return buildAgeEmphasisSvg(novaLabel, markFs, "outline", topLightForMark, markFont, markRefWidth)
+      return dolby(buildAgeEmphasisSvg(novaLabel, markFs, "outline", topLightForMark, markFont, markRefWidth))
     }
     if (isPremium) {
       return buildPlatedAvBadgeSvg(iconPath, pw, markRefWidth, accentHex, PREMIUM_PLATE_BG, PREMIUM_PLATE_STROKE)
@@ -978,11 +1055,21 @@ export async function renderQualityBadgeGroup(
     }
     const painted = segments.filter((segment) => segment.label.trim() !== "")
     if (painted.length === 0) return null
+    // Dolby segments render as the logo (label → icon of the painted mark).
+    const dolbyLabels = new Map<string, string>()
+    if (stripCombo) dolbyLabels.set(AV_COMBO_SHORT_LABEL, "quality-badges/video/dolby-vision-atmos.svg")
+    for (const fmt of validFormats) {
+      const iconPath = qualityMarkIconPath(fmt)
+      if (iconPath && isDolbyIconPath(iconPath) && !(stripCombo && (fmt === "dv" || fmt === "atmos"))) {
+        dolbyLabels.set(qualityMarkLabel(fmt), iconPath)
+      }
+    }
     const strip = buildStripBadgeSvg(
       painted.map((segment) => segment.label),
       markFs,
       markFont,
       Math.min(pw - 20, Math.round(pw * 0.84)),
+      await stripDolbyGlyph(dolbyLabels),
     )
     const png = await renderSVG(strip.svg, strip.w)
     return {
@@ -1077,7 +1164,7 @@ export async function renderQualityBadgeGroup(
     if (effAgeStyle === "knockout") return buildAgeKnockoutSvg(ageText, markFs, markFont, columnW)
     // Editoriale: età esplicita `editoriale`, oppure età standard dentro un
     // gruppo qualità editoriale (stessa regola del `naked`).
-    if (effAgeStyle === "editoriale" || (isEditorial && effAgeStyle === "standard")) return buildEditorialMarkSvg(ageText, markFs, !!topLight, columnW)
+    if (effAgeStyle === "editoriale" || (isEditorial && effAgeStyle === "standard")) return buildEditorialMarkSvg(ageText, markFs, !!topLight, isEditorial ? undefined : columnW)
     if (effAgeStyle === "gradient") return buildGradientMarkSvg(ageText, markFs, GRADIENT_TIER_INK, markFont, columnW)
     if (effAgeStyle === "mono" || effAgeStyle === "color" || effAgeStyle === "premium" || effAgeStyle === "nova" || effAgeStyle === "outline") {
       return buildAgeEmphasisSvg(ageText, markFs, effAgeStyle, !!topLight, markFont, columnW)
@@ -1132,13 +1219,13 @@ export async function renderQualityBadgeGroup(
       // asset (anche SD: l'etichetta è un parametro).
       resBadge = buildGradientMarkSvg(qualityText, markFs, GRADIENT_TIER_INK, markFont, tierTargetW)
     } else if (isEditorial) {
-      resBadge = buildEditorialMarkSvg(qualityText, markFs, !!topLight, tierTargetW)
+      resBadge = buildEditorialMarkSvg(qualityText, markFs, !!topLight)
     } else if (isOutline) {
       // Wireframe condiviso (stessa ricetta di età e marchi A/V): l'etichetta
       // reale del tier dentro cornice+scrim, nessun asset.
       resBadge = buildAgeEmphasisSvg(qualityText, markFs, "outline", topLight, markFont, tierTargetW)
     } else if (qualityIconPath) {
-      resBadge = await buildQualityIconSvg(qualityIconPath, pw, topLight)
+      resBadge = await buildQualityIconSvg(qualityIconPath, pw, topLight, undefined, null, isPremium ? PREMIUM_TIER_RECOLOR : undefined)
     }
     if (!resBadge) {
       // Standard tier = the SAME neutral satin pill as the age standard
@@ -1308,7 +1395,7 @@ export async function renderQualityBadgeGroup(
   const nakedStack = isNaked && !isRowLayout
   // Text ink height: the shared optical cap of the tier text (~0.78 × fs:
   // 13px at pw=380, where the box is 31px tall → ~9px dead padding per side).
-  const nakedTextInkH = Math.max(1, Math.round(markFs * AV_MARK_CAP_HEIGHT_FACTOR))
+  const nakedTextInkH = avMarkCapHeight(markFs)
   const inkBands = allBadges.map((_, i) => {
     const visH = visHeights[i]
     const id = identified[i].id

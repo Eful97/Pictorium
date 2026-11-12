@@ -178,11 +178,15 @@ export function avPlateGlyphBox(
   fs: number,
   /** Inset orizzontale (em di `fs`): le pill full-round ne vogliono di più. */
   insetFactor: number = AV_PLATE_GLYPH_INSET_FACTOR,
+  /** Optical cap (px): the visible `4K` text height of the active style. */
+  capHeight: number = avMarkCapHeight(fs),
 ): AvPlateGlyphBox {
   const inset = Math.max(1, Math.round(fs * insetFactor))
   const targetW = Math.max(1, frameW - inset * 2)
   const naturalH = Math.max(1, Math.round(targetW * (ink.h / ink.w)))
-  const h = Math.min(naturalH, Math.round(boxH * AV_PLATE_GLYPH_HEIGHT_FACTOR))
+  // Optical cap: never taller than the tier `4K` text (same cap as the bare
+  // `naked` marks), so HDR/Dolby read the same size as the tier in a stack.
+  const h = Math.min(naturalH, Math.round(boxH * AV_PLATE_GLYPH_HEIGHT_FACTOR), capHeight)
   const w = h === naturalH ? targetW : Math.max(1, Math.round(h * (ink.w / ink.h)))
   return { x: Math.round((frameW - w) / 2), y: Math.round((boxH - h) / 2), w, h }
 }
@@ -202,6 +206,39 @@ export function avPlateGlyphBox(
 
 /** Aspect ratio (larghezza visibile / altezza box) dell'asset icone 4K. */
 export const QUALITY_TIER_ICON_ASPECT = 512 / 414.888
+
+/** Visible `4K` text height / box height inside the static tier asset
+ *  (measured on public/quality-badges/color/4k-label-color-icon.svg): the
+ *  optical cap of the A/V glyphs on the `color`/`premium` plates, whose tier
+ *  text is smaller than the dynamic text styles. */
+export const QUALITY_TIER_ICON_TEXT_RATIO = 0.345
+
+/** Frame of the static tier asset (same file, viewBox height 414.888): outer
+ *  corner radius and border thickness as fractions of the box height. The
+ *  `color`/`premium` A/V plates reuse them so every element of the stack
+ *  shares one frame. */
+export const QUALITY_TIER_ICON_RADIUS_RATIO = 80.056 / 414.888
+export const QUALITY_TIER_ICON_BORDER_RATIO = 33.341 / 414.888
+
+/** Fills of the static `color` tier assets (frame, inner plate, letters). */
+export const QUALITY_TIER_ICON_FILLS = { frame: "#FFCB00", plate: "#262626", letters: "#FD5" } as const
+
+/** Frame + glyph box of a `color`/`premium` A/V plate: the tier asset's
+ *  frame, glyph inset clear of the border, capped at the asset `4K` text. */
+export function tierAssetPlateGeometry(
+  ink: { readonly w: number; readonly h: number },
+  plateW: number,
+  boxH: number,
+  fs: number,
+): { strokeW: number; r: number; glyph: AvPlateGlyphBox } {
+  const strokeW = boxH * QUALITY_TIER_ICON_BORDER_RATIO
+  const insetFactor = Math.max(AV_PLATE_GLYPH_INSET_FACTOR, (strokeW + 1.5) / fs)
+  return {
+    strokeW,
+    r: Math.round(boxH * QUALITY_TIER_ICON_RADIUS_RATIO),
+    glyph: avPlateGlyphBox(ink, plateW, boxH, fs, insetFactor, Math.round(boxH * QUALITY_TIER_ICON_TEXT_RATIO)),
+  }
+}
 
 /** Larghezza d'inchiostro del badge 4K per una data altezza box: target A/V. */
 export function qualityIconReferenceWidth(boxHeight: number): number {
@@ -366,6 +403,11 @@ export const AV_MARK_CAP_TOLERANCE_PX = 0.5
  *  leaves raster headroom so the merged Dolby lockup (0.296 × interior ≈
  *  13.0) stays byte-identical at portrait size. */
 export const AV_MARK_CAP_HEIGHT_FACTOR = 0.78
+
+/** Shared optical cap (px) of every A/V glyph in a quality stack. */
+export function avMarkCapHeight(fs: number): number {
+  return Math.max(1, Math.round(fs * AV_MARK_CAP_HEIGHT_FACTOR))
+}
 
 /**
  * Palette dei marchi A/V `color`, campionata dall'asset 4K color shipped
