@@ -2,7 +2,7 @@
  * BadgeControls family grouping (UI-only reorganization, no renderer changes):
  * every control is still accessible exactly once, lives in its own family,
  * ranking (Nastro/Numero/Badge/Fresh/Card) and custom-extra controls are no
- * longer mixed, the seasonal frame family sits between ranking and extra,
+ * longer mixed, the seasonal frame family sits after common (Aspetto sub-tab),
  * and conditional details still follow their masters.
  *
  * Uses the existing harness (`renderWithCtx`, raw-key `t`) like the other
@@ -158,7 +158,7 @@ describe("BadgeControls families: six groups, each control exactly once", () => 
   })
 })
 
-describe("BadgeControls families: approved DOM order genre/ranking/seasonal/extra/quality/presets/common", () => {
+describe("BadgeControls families: approved DOM order genre/ranking/extra/quality/common/seasonal", () => {
   it("renders the families in the approved visual/DOM order", () => {
     renderEditor()
     const order = Array.from(document.querySelectorAll('[data-testid^="badge-family-"]')).map((el) =>
@@ -167,11 +167,37 @@ describe("BadgeControls families: approved DOM order genre/ranking/seasonal/extr
     expect(order).toEqual([
       "badge-family-genre",
       "badge-family-ranking",
-      "badge-family-seasonal",
       "badge-family-extra",
       "badge-family-quality",
       "badge-family-common",
+      "badge-family-seasonal",
     ])
+  })
+})
+
+describe("BadgeControls sub-tabs: one pane visible at a time, all mounted", () => {
+  const PANES: Record<string, string[]> = {
+    ratings: ["badge-family-genre"],
+    top: ["badge-family-ranking", "badge-family-extra"],
+    quality: ["badge-family-quality"],
+    look: ["badge-family-common", "badge-family-seasonal"],
+  }
+  it("each sub-tab shows only its families and keeps the others mounted", () => {
+    renderEditor()
+    expect(screen.getByTestId("badge-section-ratings")).toHaveAttribute("aria-selected", "true")
+    for (const [tab, own] of Object.entries(PANES)) {
+      fireEvent.click(screen.getByTestId(`badge-section-${tab}`))
+      expect(screen.getByTestId(`badge-section-${tab}`)).toHaveAttribute("aria-selected", "true")
+      for (const id of Object.values(PANES).flat()) {
+        expect(family(id).classList.contains("hidden")).toBe(!own.includes(id))
+      }
+    }
+  })
+  it("award style lives in the extra family, no longer inside quality", () => {
+    renderEditor()
+    const award = screen.getByTestId("badge-award-style")
+    expect(award.closest('[data-testid="badge-family-extra"]')).not.toBeNull()
+    expect(award.closest('[data-testid="badge-family-quality"]')).toBeNull()
   })
 })
 

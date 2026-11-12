@@ -871,26 +871,13 @@
   "ui.episodeMetadataSource": "מקור מטא-דאטה של פרקים",
   "ui.episodeMetadataSourceHint": "שימוש ב-TheTVDB או ב-TMDB עבור תמונות הפרקים (screencaps) והתקצירים שלהם.",
   "ui.episodeThumbnails": "Episode thumbnails",
-
   "ui.thumbnailsZoneSubtitle": "כותרים עם תמונות ממוזערות מותאמות לפרקים. עריכה כאן לא נוגעת בפוסטר.",
-
   "ui.thumbnailsZoneEmpty": "אין עדיין תמונות ממוזערות מותאמות. פתחו פוסטר והשתמשו בתמונות ממוזערות של פרקים.",
-
   "ui.thumbnailsZoneEdit": "עריכת תמונות ממוזערות",
-
-
   "ui.thumbnailsNav": "תמונות ממוזערות",
-
-
   "ui.thumbnailsZoneSearch": "חיפוש כותרות",
-
-
   "ui.thumbnailsZoneClear": "ניקוי החיפוש",
-
-
   "ui.thumbnailsZoneDeleteTitle": "למחוק את התמונות הממוזערות?",
-
-
   "ui.thumbnailsZoneDeleteMsg": "להסיר את התמונות הממוזערות המותאמות של הפרקים עבור הכותרים שנבחרו? הפוסטרים לא ייפגעו. לא ניתן לבטל.",
   "ui.episodeThumbnailsHint": "Show episode stills with rating badges on Stremio episode cards. When off, the original TMDB stills are used.",
   "ui.episodeStillPickerTitle": "Episode still",
@@ -1365,5 +1352,9 @@
   "duckdnsSunset.body3": "כדי להמשיך בלי הפסקות אפשר {vercel} או {elfhosted}:",
   "duckdnsSunset.dismiss": "סגירת ההודעה",
   "duckdnsSunset.vercelLabel": "ליצור בחינם מופע פרטי משלך ב-Vercel",
-  "duckdnsSunset.elfhostedLabel": "להשתמש ישירות במופע הציבורי של ElfHosted"
+  "duckdnsSunset.elfhostedLabel": "להשתמש ישירות במופע הציבורי של ElfHosted",
+  "ui.badgeTabRatings": "דירוגים",
+  "ui.badgeTabTop": "למעלה",
+  "ui.badgeTabQuality": "איכות",
+  "ui.badgeTabLook": "מראה"
 }

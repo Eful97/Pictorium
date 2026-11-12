@@ -828,26 +828,13 @@
   "ui.episodeMetadataSource": "Source des métadonnées d'épisodes",
   "ui.episodeMetadataSourceHint": "Utiliser TheTVDB ou TMDB pour les visuels (captures) et les résumés des épisodes.",
   "ui.episodeThumbnails": "Episode thumbnails",
-
   "ui.thumbnailsZoneSubtitle": "Titres avec des miniatures d’épisodes personnalisées. Modifier ici ne touche jamais l’affiche.",
-
   "ui.thumbnailsZoneEmpty": "Aucune miniature d’épisode personnalisée pour l’instant. Ouvrez une affiche et utilisez Miniatures d’épisodes pour les personnaliser.",
-
   "ui.thumbnailsZoneEdit": "Modifier les miniatures",
-
-
   "ui.thumbnailsNav": "Miniatures",
-
-
   "ui.thumbnailsZoneSearch": "Rechercher des titres",
-
-
   "ui.thumbnailsZoneClear": "Effacer la recherche",
-
-
   "ui.thumbnailsZoneDeleteTitle": "Supprimer les miniatures ?",
-
-
   "ui.thumbnailsZoneDeleteMsg": "Supprimer les miniatures d’épisodes personnalisées des titres sélectionnés ? Les affiches ne sont pas touchées. Action irréversible.",
   "ui.episodeThumbnailsHint": "Show episode stills with rating badges on Stremio episode cards. When off, the original TMDB stills are used.",
   "ui.episodeStillPickerTitle": "Episode still",
@@ -1365,5 +1352,9 @@
   "duckdnsSunset.body3": "Pour continuer sans interruption, vous pouvez {vercel} ou {elfhosted} :",
   "duckdnsSunset.dismiss": "Fermer l'annonce",
   "duckdnsSunset.vercelLabel": "créer gratuitement votre propre instance privée sur Vercel",
-  "duckdnsSunset.elfhostedLabel": "utiliser directement l'instance publique d'ElfHosted"
+  "duckdnsSunset.elfhostedLabel": "utiliser directement l'instance publique d'ElfHosted",
+  "ui.badgeTabRatings": "Notes",
+  "ui.badgeTabTop": "En haut",
+  "ui.badgeTabQuality": "Qualité",
+  "ui.badgeTabLook": "Apparence"
 }

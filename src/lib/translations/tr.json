@@ -871,26 +871,13 @@
   "ui.episodeMetadataSource": "Bölüm Meta Veri Kaynağı",
   "ui.episodeMetadataSourceHint": "Bölüm kapakları ve özetleri için TheTVDB veya TMDB kullanın.",
   "ui.episodeThumbnails": "Episode thumbnails",
-
   "ui.thumbnailsZoneSubtitle": "Özel bölüm küçük resimleri olan başlıklar. Burada düzenlemek postere asla dokunmaz.",
-
   "ui.thumbnailsZoneEmpty": "Henüz özel bölüm küçük resmi yok. Bir poster açın ve Bölüm küçük resimlerini kullanın.",
-
   "ui.thumbnailsZoneEdit": "Küçük resimleri düzenle",
-
-
   "ui.thumbnailsNav": "Küçük resimler",
-
-
   "ui.thumbnailsZoneSearch": "Başlık ara",
-
-
   "ui.thumbnailsZoneClear": "Aramayı temizle",
-
-
   "ui.thumbnailsZoneDeleteTitle": "Küçük resimler silinsin mi?",
-
-
   "ui.thumbnailsZoneDeleteMsg": "Seçilen başlıkların özel bölüm küçük resimleri kaldırılsın mı? Posterler etkilenmez. Bu işlem geri alınamaz.",
   "ui.episodeThumbnailsHint": "Show episode stills with rating badges on Stremio episode cards. When off, the original TMDB stills are used.",
   "ui.episodeStillPickerTitle": "Episode still",
@@ -1365,5 +1352,9 @@
   "duckdnsSunset.body3": "Kesintisiz devam etmek için {vercel} ya da {elfhosted}:",
   "duckdnsSunset.dismiss": "Bildirimi kapat",
   "duckdnsSunset.vercelLabel": "Vercel'de ücretsiz kendi özel örneğini oluşturabilirsin",
-  "duckdnsSunset.elfhostedLabel": "doğrudan ElfHosted'ın genel örneğini kullanabilirsin"
+  "duckdnsSunset.elfhostedLabel": "doğrudan ElfHosted'ın genel örneğini kullanabilirsin",
+  "ui.badgeTabRatings": "Puanlar",
+  "ui.badgeTabTop": "Üst",
+  "ui.badgeTabQuality": "Kalite",
+  "ui.badgeTabLook": "Görünüm"
 }
