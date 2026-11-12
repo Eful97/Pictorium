@@ -98,7 +98,7 @@ describe("PosterOptions", () => {
   it("hides the Fanart.tv tab without a selected title", () => {
     renderWithCtx(<PosterOptions posters={mockPosters} posterActivePath={null} lang="it" selectPoster={() => {}} />)
     expect(screen.queryByTestId("fanart-tab-panel")).toBeNull()
-    expect(screen.queryByRole("button", { name: "ui.fanartTitle" })).toBeNull()
+    expect(screen.queryByRole("button", { name: /^ui\.fanartTitle\s*\d*$/ })).toBeNull()
   })
 
   it("shows the Fanart.tv tab next to the language tabs when selected", () => {
@@ -106,7 +106,7 @@ describe("PosterOptions", () => {
       <PosterOptions posters={mockPosters} posterActivePath={null} lang="it" selectPoster={() => {}} />,
       { selected: { ...SELECTED, media_type: "movie" } },
     )
-    expect(screen.getByRole("button", { name: "ui.fanartTitle" })).toBeInTheDocument()
+    expect(screen.getByRole("button", { name: /^ui\.fanartTitle\s*\d*$/ })).toBeInTheDocument()
     // Le tab esistenti restano invariate
     expect(screen.getByText(/Clean/)).toBeInTheDocument()
     expect(screen.getByText(/Italiano/)).toBeInTheDocument()
@@ -138,7 +138,7 @@ describe("PosterOptions", () => {
     )
     // Nessuna chiamata Fanart prima dell'apertura (lazy)
     expect(fetchSpy.mock.calls.map((c) => String(c[0])).filter((u) => u.includes("/api/fanart/"))).toHaveLength(0)
-    await u.click(screen.getByRole("button", { name: "ui.fanartTitle" }))
+    await u.click(screen.getByRole("button", { name: /^ui\.fanartTitle\s*\d*$/ }))
 
     await waitFor(() => {
       const imgs = Array.from(container.querySelectorAll("[data-testid='fanart-tab-panel'] img"))
@@ -169,7 +169,7 @@ describe("PosterOptions", () => {
       <PosterOptions posters={mockPosters} posterActivePath={null} lang="it" selectPoster={() => {}} />,
       { selected: { ...SELECTED, media_type: "movie" } },
     )
-    await u.click(screen.getByRole("button", { name: "ui.fanartTitle" }))
+    await u.click(screen.getByRole("button", { name: /^ui\.fanartTitle\s*\d*$/ }))
     await waitFor(() => {
       expect(screen.getByTestId("fanart-tab-panel").textContent).toContain("ui.fanartNotConfigured")
     })
