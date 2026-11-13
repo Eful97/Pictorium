@@ -564,6 +564,8 @@
   "ui.saveStatelessUnavailable": "Salvare indisponibilă: profil fără stare și fără stocare. Configurația circulă în link.",
   "ui.saving": "Se salvează...",
   "ui.viewGrid": "Grilă",
+  "ui.viewCoverflow": "Coverflow",
+  "ui.moreActions": "Mai multe acțiuni",
   "ui.viewMoodboard": "Mood Board",
   "ui.quickView": "Vizualizare rapidă",
   "ui.homeTagline": "Postere personalizate pentru biblioteca ta Stremio",

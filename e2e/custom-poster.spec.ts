@@ -49,6 +49,15 @@ async function gotoMyPosters(page: Page) {
   await expect(page.getByPlaceholder(/cerca/i)).toBeVisible({ timeout: 30_000 })
   await page.getByRole("button", { name: /I miei poster/i }).click()
   await expect(page.getByRole("heading", { name: /I miei poster/i })).toBeVisible()
+  // Le tile con il menu azioni vivono nella vista griglia (default: coverflow).
+  await page.getByRole("button", { name: "Griglia", exact: true }).click()
+}
+
+// Azione dal menu ⋯ della tile che contiene il poster con questo alt.
+async function tileAction(page: Page, alt: string, item: string) {
+  const tile = page.locator("[data-poster-tile]", { has: page.locator(`img[alt="${alt}"]`) })
+  await tile.getByRole("button", { name: "Altre azioni" }).click()
+  await tile.getByRole("menuitem", { name: item }).click()
 }
 
 async function putCustom(page: Page, id: string, url: string) {
@@ -125,13 +134,11 @@ test.describe("customPosterUrl in Miei poster", () => {
     // (chiave stabile, resta nella sezione verticale) — riceve le nuove
     // props; il reset dello stato d'errore fa caricare la nuova immagine.
     await putCustom(page, "movie:9002", CUSTOM_NEW)
-    const cardOk = page.locator(".surface-card", { has: tileOk })
-    await cardOk.getByRole("button", { name: "Imposta come orizzontale" }).click()
+    await tileAction(page, "Custom Valido", "Imposta come orizzontale")
     await expect(tileBroken).toHaveAttribute("src", CUSTOM_NEW, { timeout: 15_000 })
     await expect.poll(() => widthOf(tileBroken), { timeout: 15_000 }).toBeGreaterThan(0)
     // Ripristino stato seed per indipendenza tra test
-    const cardOkLand = page.locator(".surface-card", { has: page.locator('img[alt="Custom Valido"]') })
-    await cardOkLand.getByRole("button", { name: "Imposta come verticale" }).click()
+    await tileAction(page, "Custom Valido", "Imposta come verticale")
   })
 
   test("ingrandimento: custom valido, fallback su rotto, landscape, nuovo URL dopo errore", async ({ page }) => {
@@ -143,8 +150,7 @@ test.describe("customPosterUrl in Miei poster", () => {
     const dialog = page.getByRole("dialog")
 
     // Ingrandimento custom valido
-    await page.locator(".surface-card", { has: page.locator('img[alt="Custom Valido"]') })
-      .getByRole("button", { name: "Anteprima rapida" }).click()
+    await tileAction(page, "Custom Valido", "Anteprima rapida")
     await expect(dialog).toBeVisible()
     const lightOk = dialog.locator('img[alt="Custom Valido"]')
     await expect(lightOk).toHaveAttribute("src", CUSTOM_OK)
@@ -153,8 +159,7 @@ test.describe("customPosterUrl in Miei poster", () => {
     await expect(dialog).not.toBeVisible()
 
     // Ingrandimento custom rotto: stesso fallback della miniatura (a w500)
-    await page.locator(".surface-card", { has: page.locator('img[alt="Custom Rotto"]') })
-      .getByRole("button", { name: "Anteprima rapida" }).click()
+    await tileAction(page, "Custom Rotto", "Anteprima rapida")
     await expect(dialog).toBeVisible()
     const lightBroken = dialog.locator('img[alt="Custom Rotto"]')
     await expect(lightBroken).toHaveAttribute("src", FALLBACK_B_LB)
@@ -163,8 +168,7 @@ test.describe("customPosterUrl in Miei poster", () => {
     await expect(dialog).not.toBeVisible()
 
     // Ingrandimento landscape: backdrop, custom ignorato
-    await page.locator(".surface-card", { has: page.locator('img[alt="Orizzontale Custom"]') })
-      .getByRole("button", { name: "Anteprima rapida" }).click()
+    await tileAction(page, "Orizzontale Custom", "Anteprima rapida")
     await expect(dialog).toBeVisible()
     const lightLand = dialog.locator('img[alt="Orizzontale Custom"]')
     await expect(lightLand).toHaveAttribute("src", BACKDROP)
@@ -176,8 +180,7 @@ test.describe("customPosterUrl in Miei poster", () => {
     await putCustom(page, "movie:9002", CUSTOM_NEW)
     await page.reload()
     await gotoMyPosters(page)
-    await page.locator(".surface-card", { has: page.locator('img[alt="Custom Rotto"]') })
-      .getByRole("button", { name: "Anteprima rapida" }).click()
+    await tileAction(page, "Custom Rotto", "Anteprima rapida")
     await expect(dialog).toBeVisible()
     const lightFixed = dialog.locator('img[alt="Custom Rotto"]')
     await expect(lightFixed).toHaveAttribute("src", CUSTOM_NEW)

@@ -564,6 +564,8 @@
   "ui.saveStatelessUnavailable": "Opslaan niet beschikbaar: staatloos profiel zonder opslag. De configuratie reist mee in de link.",
   "ui.saving": "Opslaan...",
   "ui.viewGrid": "Raster",
+  "ui.viewCoverflow": "Coverflow",
+  "ui.moreActions": "Meer acties",
   "ui.viewMoodboard": "Moodboard",
   "ui.quickView": "Snelle weergave",
   "ui.homeTagline": "Aangepaste posters voor je Stremio-bibliotheek",

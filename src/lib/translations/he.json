@@ -564,6 +564,8 @@
   "ui.saveStatelessUnavailable": "השמירה אינה זמינה: פרופיל ללא מצב וללא אחסון. התצורה נשמרת בתוך הקישור.",
   "ui.saving": "שומר...",
   "ui.viewGrid": "רשת",
+  "ui.viewCoverflow": "Coverflow",
+  "ui.moreActions": "פעולות נוספות",
   "ui.viewMoodboard": "לוח השראה",
   "ui.quickView": "תצוגה מהירה",
   "ui.homeTagline": "פוסטרים מותאמים אישית לספריית ה-Stremio שלך",

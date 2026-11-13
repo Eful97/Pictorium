@@ -564,6 +564,8 @@
   "ui.saveStatelessUnavailable": "Zapisywanie niedostępne: profil bezstanowy bez magazynu. Konfiguracja jest zawarta w linku.",
   "ui.saving": "Zapisywanie...",
   "ui.viewGrid": "Siatka",
+  "ui.viewCoverflow": "Coverflow",
+  "ui.moreActions": "Więcej akcji",
   "ui.viewMoodboard": "Moodboard",
   "ui.quickView": "Szybki podgląd",
   "ui.homeTagline": "Własne plakaty do Twojej biblioteki Stremio",

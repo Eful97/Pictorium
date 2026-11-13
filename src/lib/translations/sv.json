@@ -564,6 +564,8 @@
   "ui.saveStatelessUnavailable": "Sparande inte tillgängligt: tillståndslös profil utan lagring. Konfigurationen reser i länken.",
   "ui.saving": "Sparar...",
   "ui.viewGrid": "Rutnät",
+  "ui.viewCoverflow": "Coverflow",
+  "ui.moreActions": "Fler åtgärder",
   "ui.viewMoodboard": "Moodboard",
   "ui.quickView": "Snabbvy",
   "ui.homeTagline": "Anpassade posters för ditt Stremio-bibliotek",

@@ -564,6 +564,8 @@
   "ui.saveStatelessUnavailable": "Ukládání nedostupné: bezstavový profil bez úložiště. Konfigurace cestuje v odkazu.",
   "ui.saving": "Ukládám...",
   "ui.viewGrid": "Mřížka",
+  "ui.viewCoverflow": "Coverflow",
+  "ui.moreActions": "Další akce",
   "ui.viewMoodboard": "Nástěnka",
   "ui.quickView": "Rychlý náhled",
   "ui.homeTagline": "Vlastní plakáty pro tvou knihovnu Stremio",

@@ -570,6 +570,8 @@
   "ui.saveStatelessUnavailable": "Không thể lưu: hồ sơ stateless không có lưu trữ. Cấu hình nằm trong liên kết.",
   "ui.saving": "Đang lưu...",
   "ui.viewGrid": "Lưới",
+  "ui.viewCoverflow": "Coverflow",
+  "ui.moreActions": "Thao tác khác",
   "ui.viewMoodboard": "Bảng tâm trạng",
   "ui.quickView": "Xem nhanh",
   "ui.homeTagline": "Poster tùy chỉnh cho thư viện Stremio của bạn",

@@ -564,6 +564,8 @@
   "ui.saveStatelessUnavailable": "保存不可: ストレージなしのステートレスプロフィールです。設定はリンクに含まれます。",
   "ui.saving": "保存中...",
   "ui.viewGrid": "グリッド",
+  "ui.viewCoverflow": "Coverflow",
+  "ui.moreActions": "その他の操作",
   "ui.viewMoodboard": "ムードボード",
   "ui.quickView": "クイックビュー",
   "ui.homeTagline": "Stremioライブラリ用のカスタムポスター",

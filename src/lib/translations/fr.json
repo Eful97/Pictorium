@@ -534,6 +534,8 @@
   "ui.saveStatelessUnavailable": "Enregistrement indisponible : profil stateless sans stockage. La config voyage dans le lien.",
   "ui.saving": "Enregistrement...",
   "ui.viewGrid": "Grille",
+  "ui.viewCoverflow": "Coverflow",
+  "ui.moreActions": "Plus d'actions",
   "ui.viewMoodboard": "Mood Board",
   "ui.quickView": "Aperçu rapide",
   "ui.rotationScopeDefaultHint": "Par défaut pour les nouveaux titres : les titres enregistrés conservent leur propre choix.",

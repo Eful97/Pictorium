@@ -570,6 +570,8 @@
   "ui.saveStatelessUnavailable": "Salvataggio non disponibile: profilo stateless senza storage. La config viaggia nel link.",
   "ui.saving": "Salvataggio...",
   "ui.viewGrid": "Griglia",
+  "ui.viewCoverflow": "Coverflow",
+  "ui.moreActions": "Altre azioni",
   "ui.viewMoodboard": "Mood Board",
   "ui.quickView": "Anteprima rapida",
   "ui.homeTagline": "Poster personalizzati per la tua libreria Stremio",

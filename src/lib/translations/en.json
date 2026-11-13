@@ -570,6 +570,8 @@
   "ui.saveStatelessUnavailable": "Saving unavailable: stateless profile without storage. The config travels in the link.",
   "ui.saving": "Saving...",
   "ui.viewGrid": "Grid",
+  "ui.viewCoverflow": "Coverflow",
+  "ui.moreActions": "More actions",
   "ui.viewMoodboard": "Mood Board",
   "ui.quickView": "Quick view",
   "ui.homeTagline": "Custom posters for your Stremio library",

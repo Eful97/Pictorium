@@ -6,9 +6,10 @@ import { useT } from "@/lib/contexts/TranslationContext"
 import { toSearchResult } from "@/lib/types"
 import { posterUrl } from "@/lib/utils"
 import { ConfirmDialog } from "@/components/ConfirmDialog"
-import { Search, X, Square, CheckSquare, Trash2, Calendar, ArrowUpAZ, ChevronDown, Clapperboard, Tv, Sparkles, LayoutGrid, ListOrdered, RectangleHorizontal, RectangleVertical } from "lucide-react"
+import { Search, X, Square, CheckSquare, Trash2, Calendar, ArrowUpAZ, ChevronDown, Clapperboard, Tv, Sparkles, LayoutGrid, ListOrdered, RectangleHorizontal, RectangleVertical, Grid2x2, GalleryHorizontalEnd } from "lucide-react"
 import { http } from "@/lib/http"
 import { MoodBoardTile, type TileHandlers } from "@/components/MoodBoardTile"
+import { PosterCoverflow } from "@/components/PosterCoverflow"
 import { PosterLightbox } from "@/components/PosterLightbox"
 import { withViewTransition, setTransitionName, QUICK_VIEW_VT } from "@/lib/motion"
 import { CollectionBar } from "@/components/CollectionBar"
@@ -57,6 +58,15 @@ export function MyPostersView() {
   const [lightbox, setLightbox] = useState<{ mapping: Mapping } | null>(null)
   const lightboxTileRef = useRef<HTMLElement | null>(null)
   const [activeCollection, setActiveCollection] = useState<string | null>(null)
+  // Vista (preferenza per-browser): coverflow per sfogliare, griglia per gestire.
+  const [browseView, setBrowseView] = useState<"coverflow" | "grid">("coverflow")
+  useEffect(() => {
+    try { if (localStorage.getItem("pictorium:myposters-view") === "grid") setBrowseView("grid") } catch {}
+  }, [])
+  const changeBrowseView = (v: "coverflow" | "grid") => {
+    setBrowseView(v)
+    try { localStorage.setItem("pictorium:myposters-view", v) } catch {}
+  }
   const {
     collections,
     createCollection,
@@ -306,7 +316,7 @@ export function MyPostersView() {
 
   return (
     <div className="pt-4 animate-fade-scale-in">
-      {/* Header libreria (da prototipo Open Design): kicker + titolo + conteggio + CTA */}
+      {/* Header libreria: kicker + titolo + conteggio */}
       <section className="max-w-7xl mx-auto px-4 mb-6">
         <div className="flex flex-col md:flex-row md:items-end gap-4">
           <div className="text-center md:text-left">
@@ -409,6 +419,7 @@ export function MyPostersView() {
             </button>
           </div>
 
+          <div className="flex items-center gap-2">
           {/* Segmented Formato Canvas (dual-format) */}
           <div className="flex items-center p-1 bg-surface rounded-xl border border-surface2/60 gap-1 overflow-x-auto" role="group" aria-label={t("ui.posterShape")}>
             <button
@@ -437,6 +448,28 @@ export function MyPostersView() {
             >
               <RectangleHorizontal className="w-3.5 h-3.5" />
             </button>
+          </div>
+
+          {/* Vista: coverflow (sfoglia) / griglia (gestisci) */}
+          <div className="flex items-center p-1 bg-surface rounded-xl border border-surface2/60 gap-1 shrink-0" role="group">
+            {([["coverflow", GalleryHorizontalEnd, "ui.viewCoverflow"], ["grid", Grid2x2, "ui.viewGrid"]] as const).map(([v, Icon, label]) => (
+              <button
+                key={v}
+                type="button"
+                onClick={() => changeBrowseView(v)}
+                title={t(label)}
+                aria-label={t(label)}
+                aria-pressed={browseView === v}
+                className={`px-2.5 py-1.5 rounded-lg text-xs font-medium transition duration-150 flex items-center gap-1.5 ${
+                  browseView === v
+                    ? "bg-accent-orange/8 text-accent-orange border border-accent-orange/30 font-semibold shadow-sm"
+                    : "text-muted hover:text-zinc-200 hover:bg-white/5 border border-transparent"
+                }`}
+              >
+                <Icon className="w-3.5 h-3.5" />
+              </button>
+            ))}
+          </div>
           </div>
         </div>
 
@@ -666,8 +699,15 @@ export function MyPostersView() {
       {/* Sezioni separate per formato (mai mischiati): con un filtro formato
           attivo si mostra la sola sezione, altrimenti prima i verticali 2:3
           poi gli orizzontali 16:9 con colonne più larghe. */}
-      {formatFilter !== "all" ? (
-        <div className={`mx-auto grid gap-3 md:gap-4 max-w-7xl ${formatFilter === "landscape" ? "grid-cols-1 sm:grid-cols-2 lg:grid-cols-3" : "grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 xl:grid-cols-6"}`}>
+      {/* Coverflow: sfoglia. La selezione multipla passa sempre dalla griglia. */}
+      {browseView === "coverflow" && !selectMode ? (
+        <PosterCoverflow
+          items={filtered}
+          onOpen={tileHandlers.open}
+          t={t}
+        />
+      ) : formatFilter !== "all" ? (
+        <div className={`mx-auto grid gap-x-3 gap-y-6 md:gap-x-5 md:gap-y-8 max-w-7xl px-4 ${formatFilter === "landscape" ? "grid-cols-1 sm:grid-cols-2 lg:grid-cols-3" : "grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 xl:grid-cols-6"}`}>
           {renderTiles(filtered)}
         </div>
       ) : (
@@ -678,7 +718,7 @@ export function MyPostersView() {
                 <h2 className="text-sm font-semibold text-zinc-200">{t("ui.posterShapePortrait")}</h2>
                 <span className="text-xs font-mono px-2 py-0.5 rounded-full bg-white/[0.06] border border-white/10 text-muted tabular-nums">{portraitItems.length}</span>
               </div>
-              <div className="mx-auto grid gap-3 md:gap-4 max-w-7xl grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 xl:grid-cols-6">
+              <div className="mx-auto grid gap-x-3 gap-y-6 md:gap-x-5 md:gap-y-8 max-w-7xl px-4 grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 xl:grid-cols-6">
                 {renderTiles(portraitItems)}
               </div>
             </section>
@@ -689,7 +729,7 @@ export function MyPostersView() {
                 <h2 className="text-sm font-semibold text-zinc-200">{t("ui.posterShapeLandscape")}</h2>
                 <span className="text-xs font-mono px-2 py-0.5 rounded-full bg-white/[0.06] border border-white/10 text-muted tabular-nums">{landscapeItems.length}</span>
               </div>
-              <div className="mx-auto grid gap-3 md:gap-4 max-w-7xl grid-cols-1 sm:grid-cols-2 lg:grid-cols-3">
+              <div className="mx-auto grid gap-x-3 gap-y-6 md:gap-x-5 md:gap-y-8 max-w-7xl px-4 grid-cols-1 sm:grid-cols-2 lg:grid-cols-3">
                 {renderTiles(landscapeItems)}
               </div>
             </section>

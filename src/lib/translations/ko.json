@@ -564,6 +564,8 @@
   "ui.saveStatelessUnavailable": "저장 불가: 저장소가 없는 스테이틀리스 프로필입니다. 설정은 링크에 포함됩니다.",
   "ui.saving": "저장 중...",
   "ui.viewGrid": "그리드",
+  "ui.viewCoverflow": "Coverflow",
+  "ui.moreActions": "추가 작업",
   "ui.viewMoodboard": "무드보드",
   "ui.quickView": "빠른 보기",
   "ui.homeTagline": "Stremio 라이브러리용 사용자 포스터",

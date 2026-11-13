@@ -564,6 +564,8 @@
   "ui.saveStatelessUnavailable": "الحفظ غير متاح: ملف عديم الحالة بدون تخزين. يسافر الإعداد في الرابط.",
   "ui.saving": "جار الحفظ...",
   "ui.viewGrid": "شبكة",
+  "ui.viewCoverflow": "Coverflow",
+  "ui.moreActions": "إجراءات أخرى",
   "ui.viewMoodboard": "لوحة مزاج",
   "ui.quickView": "عرض سريع",
   "ui.homeTagline": "ملصقات مخصصة لمكتبة Stremio",

@@ -564,6 +564,8 @@
   "ui.saveStatelessUnavailable": "Kaydetme kullanılamıyor: depolamasız durumsuz profil. Yapılandırma bağlantıda taşınır.",
   "ui.saving": "Kaydediliyor...",
   "ui.viewGrid": "Izgara",
+  "ui.viewCoverflow": "Coverflow",
+  "ui.moreActions": "Diğer işlemler",
   "ui.viewMoodboard": "Duygu Panosu",
   "ui.quickView": "Hızlı görünüm",
   "ui.homeTagline": "Stremio kitaplığınız için özel posterler",

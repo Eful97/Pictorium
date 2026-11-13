@@ -538,6 +538,8 @@
   "ui.saveStatelessUnavailable": "Guardado no disponible: perfil stateless sin almacenamiento. La config viaja en el enlace.",
   "ui.saving": "Guardando...",
   "ui.viewGrid": "Cuadrícula",
+  "ui.viewCoverflow": "Coverflow",
+  "ui.moreActions": "Más acciones",
   "ui.viewMoodboard": "Mood Board",
   "ui.quickView": "Vista rápida",
   "ui.rotationScopeDefaultHint": "Valor predeterminado para títulos nuevos: los títulos guardados conservan su propia elección.",
