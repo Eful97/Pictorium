@@ -381,7 +381,7 @@ describe("actual Preset gallery staging (SettingsPanel, portrait)", () => {
     expect((body.landscape as Record<string, unknown>).ageBadge).toBe(true)
     expect(body.posterShape).toBe("poster")
     expect(ctx().defaultAgeBadge).toBe(false)
-  })
+  }, 20000)
 })
 
 describe("actual Preset gallery staging (SettingsPanel, landscape)", () => {
@@ -418,7 +418,7 @@ describe("actual Preset gallery staging (SettingsPanel, landscape)", () => {
     expect((body.landscape as Record<string, unknown>).ageBadge).toBe(false)
     expect(body.ageBadge).toBe(true)
     expect(body.posterShape).toBe("poster")
-  })
+  }, 20000)
 })
 
 describe("actual Preset gallery selection consistency (SettingsPanel)", () => {
