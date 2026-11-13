@@ -53,7 +53,7 @@ export function SliderRow({ icon, label, value, min, max, boundsMin, boundsMax, 
         aria-label={`Reset ${label}`}
         title={`Reset ${label}`}
         onClick={onDoubleClick}
-        className="w-9 h-9 min-w-[36px] min-h-[36px] shrink-0 flex items-center justify-center rounded-lg text-zinc-500 hover:text-accent-orange hover:bg-white/[0.08] active:scale-90 transition-all cursor-pointer focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-accent-orange"
+        className="w-9 h-9 min-w-[36px] min-h-[36px] shrink-0 flex items-center justify-center rounded-lg text-zinc-500 hover:text-accent-orange hover:bg-white/[0.08] active:scale-90 transition cursor-pointer focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-accent-orange"
       >
         <RotateCcw className="w-3.5 h-3.5" />
       </button>

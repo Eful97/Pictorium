@@ -266,7 +266,7 @@ export function OnboardingTour({ onOpenInstall, replayRequest, onReplayClosed }:
           data-testid="onboarding-reopen"
           onClick={reopen}
           aria-label={t("ui.onboardingResume")}
-          className="fixed bottom-20 left-4 z-[290] flex items-center gap-2 rounded-full border border-white/10 bg-zinc-950/85 px-3.5 py-2 text-xs font-medium text-zinc-200 shadow-xl shadow-black/40 backdrop-blur-md transition-all duration-150 hover:bg-zinc-900 active:scale-95 md:bottom-6"
+          className="fixed bottom-20 left-4 z-[290] flex items-center gap-2 rounded-full border border-white/10 bg-zinc-950/85 px-3.5 py-2 text-xs font-medium text-zinc-200 shadow-xl shadow-black/40 backdrop-blur-md transition duration-150 hover:bg-zinc-900 active:scale-95 md:bottom-6"
         >
           <span aria-hidden="true" className="h-1.5 w-1.5 rounded-full bg-accent-orange" />
           {t("ui.onboardingResume")}
@@ -289,7 +289,7 @@ export function OnboardingTour({ onOpenInstall, replayRequest, onReplayClosed }:
           onClick={dismiss}
           aria-label={t("ui.close")}
           data-testid="onboarding-close"
-          className="flex h-8 w-8 shrink-0 items-center justify-center rounded-full bg-white/5 text-zinc-500 transition-all duration-200 hover:bg-white/10 hover:text-zinc-300 active:scale-90"
+          className="flex h-8 w-8 shrink-0 items-center justify-center rounded-full bg-white/5 text-zinc-500 transition duration-200 hover:bg-white/10 hover:text-zinc-300 active:scale-90"
         >
           <X className="h-4 w-4" />
         </button>
@@ -304,7 +304,7 @@ export function OnboardingTour({ onOpenInstall, replayRequest, onReplayClosed }:
           type="button"
           data-testid="onboarding-path-install"
           onClick={openInstall}
-          className="flex items-center gap-3 rounded-xl border border-accent-orange/30 bg-accent-orange/10 px-4 py-3 text-left transition-all duration-150 hover:bg-accent-orange/20 active:scale-[0.98]"
+          className="flex items-center gap-3 rounded-xl border border-accent-orange/30 bg-accent-orange/10 px-4 py-3 text-left transition duration-150 hover:bg-accent-orange/20 active:scale-[0.98]"
         >
           <span className="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl bg-accent-orange/20 text-accent-orange">
             <QrCode className="h-5 w-5" />
@@ -323,7 +323,7 @@ export function OnboardingTour({ onOpenInstall, replayRequest, onReplayClosed }:
           type="button"
           data-testid="onboarding-path-customize"
           onClick={customize}
-          className="flex items-center gap-3 rounded-xl border border-white/10 bg-white/[0.04] px-4 py-3 text-left transition-all duration-150 hover:bg-white/[0.08] active:scale-[0.98]"
+          className="flex items-center gap-3 rounded-xl border border-white/10 bg-white/[0.04] px-4 py-3 text-left transition duration-150 hover:bg-white/[0.08] active:scale-[0.98]"
         >
           <span className="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl bg-white/5 text-zinc-300">
             <Search className="h-5 w-5" />

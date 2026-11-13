@@ -132,7 +132,7 @@ export function CollectionBar({
         {/* "Tutti" chip */}
         <button type="button"
           onClick={() => onSelect(null)}
-          className={`shrink-0 flex items-center gap-1.5 px-3 py-1.5 rounded-xl text-xs font-medium transition-all duration-150 active:scale-95 ${
+          className={`shrink-0 flex items-center gap-1.5 px-3 py-1.5 rounded-xl text-xs font-medium transition duration-150 active:scale-95 ${
             activeId === null
               ? "bg-accent-orange/15 text-foreground border border-accent-orange/25 shadow-[0_0_10px_rgba(232,93,42,0.12)]"
               : "collection-chip-glass text-muted hover:text-zinc-300"
@@ -169,7 +169,7 @@ export function CollectionBar({
                 </div>
               ) : (
                 <div
-                  className={`flex items-stretch rounded-xl border transition-all duration-150 overflow-hidden ${
+                  className={`flex items-stretch rounded-xl border transition duration-150 overflow-hidden ${
                     isActive
                       ? "bg-accent-orange/15 text-foreground border-accent-orange/25 shadow-[0_0_10px_rgba(232,93,42,0.12)]"
                       : "collection-chip-glass text-muted"
@@ -236,7 +236,7 @@ export function CollectionBar({
         ) : (
           <button type="button"
             onClick={() => setCreating(true)}
-            className="shrink-0 flex items-center gap-1 px-2.5 py-1.5 rounded-xl text-xs font-medium text-zinc-500 hover:text-zinc-300 hover:bg-white/[0.06] transition-all duration-150 active:scale-95"
+            className="shrink-0 flex items-center gap-1 px-2.5 py-1.5 rounded-xl text-xs font-medium text-zinc-500 hover:text-zinc-300 hover:bg-white/[0.06] transition duration-150 active:scale-95"
           >
             <Plus className="w-3.5 h-3.5" />
           </button>

@@ -965,12 +965,27 @@ async function probePublishedToken(
   family: string,
 ): Promise<string | null | undefined> {
   if (!persist.loadPublishedToken) return undefined
-  try {
-    return await persist.loadPublishedToken(group, family)
-  } catch {
-    return undefined
+  // Probe memo (perf audit 2026-11): every poster request pins up to 3
+  // families BEFORE its cache key, so without this a 100-poster catalog paid
+  // 100-300 KV GETs even on 304s. Concurrent probes share one read and the
+  // answer is reused for PROBE_MEMO_TTL_MS: cross-instance cutover lags by at
+  // most that window (publishes are hours apart). A local publish still cuts
+  // over at once (its mem token is reset to null → never matches the memo).
+  const memoKey = `${group}\0${family}`
+  const hit = probeMemo.get(memoKey)
+  const now = Date.now()
+  if (hit && hit.persist === persist && now - hit.at < PROBE_MEMO_TTL_MS) return hit.p
+  const p = persist.loadPublishedToken(group, family).catch(() => undefined)
+  if (PROBE_MEMO_TTL_MS > 0) {
+    probeMemo.set(memoKey, { at: now, p, persist })
+    if (probeMemo.size > 512) probeMemo.delete(probeMemo.keys().next().value!)
   }
+  return p
 }
+
+// 0 in tests: suites pin strict per-request revalidation.
+const PROBE_MEMO_TTL_MS = process.env.NODE_ENV === "test" ? 0 : 1000
+const probeMemo = new Map<string, { at: number; p: Promise<string | null | undefined>; persist: ChartFamilyPersist }>()
 
 // --- Public API ------------------------------------------------------------------
 
@@ -1203,6 +1218,7 @@ export function __setChartGenerationDirForTest(dir: string | null): void {
 /** Test-only: drop all in-memory family state (isolation, not weakening). */
 export function __resetChartGenerationForTest(): void {
   publishedByFamily.clear()
+  probeMemo.clear()
   metaByFamily.clear()
   leaseByFamily.clear()
   commitLocks.clear()

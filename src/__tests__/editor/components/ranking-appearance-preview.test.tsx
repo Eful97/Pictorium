@@ -60,6 +60,9 @@ describe("ranking variant mini previews (shared builder only)", () => {
       "ui.corner": { style: "corner", ribbon: true },
       "ui.qbsStandard": { style: "default", ribbon: false },
       "ui.split": { style: "split", ribbon: true },
+      "ui.tinta": { style: "tinta", ribbon: true },
+      "ui.sfumato": { style: "sfumato", ribbon: true },
+      "ui.editoriale": { style: "editoriale", ribbon: true },
     }
     expect(radios(group)).toHaveLength(Object.keys(expected).length)
     for (const [name, recipe] of Object.entries(expected)) {

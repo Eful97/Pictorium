@@ -871,26 +871,13 @@
   "ui.episodeMetadataSource": "Bron van afleveringsmetadata",
   "ui.episodeMetadataSourceHint": "Gebruik TheTVDB of TMDB voor afleveringscovers en -overzichten.",
   "ui.episodeThumbnails": "Episode thumbnails",
-
   "ui.thumbnailsZoneSubtitle": "Titels met aangepaste afleveringminiaturen. Bewerken hier raakt de poster nooit aan.",
-
   "ui.thumbnailsZoneEmpty": "Nog geen aangepaste afleveringminiaturen. Open een poster en gebruik Afleveringminiaturen om ze aan te passen.",
-
   "ui.thumbnailsZoneEdit": "Miniaturen bewerken",
-
-
   "ui.thumbnailsNav": "Miniaturen",
-
-
   "ui.thumbnailsZoneSearch": "Titels zoeken",
-
-
   "ui.thumbnailsZoneClear": "Zoekopdracht wissen",
-
-
   "ui.thumbnailsZoneDeleteTitle": "Miniaturen verwijderen?",
-
-
   "ui.thumbnailsZoneDeleteMsg": "De aangepaste afleveringminiaturen van de geselecteerde titels verwijderen? De posters blijven ongewijzigd. Dit kan niet ongedaan worden gemaakt.",
   "ui.episodeThumbnailsHint": "Show episode stills with rating badges on Stremio episode cards. When off, the original TMDB stills are used.",
   "ui.episodeStillPickerTitle": "Episode still",
@@ -988,6 +975,10 @@
   "ui.pinSaveError": "Fout bij opslaan",
   "ui.ink": "Inkt",
   "ui.split": "Gesplitst",
+  "ui.tinta": "Tint",
+  "ui.sfumato": "Verlooprand",
+  "ui.editoriale": "Redactioneel",
+  "ui.sepRings": "Ringen",
   "ui.minimal": "Minimaal",
   "ui.tintStrength": "Tintsterkte",
   "ui.topShade": "Bovenschaduw",
@@ -1361,5 +1352,9 @@
   "duckdnsSunset.body3": "Om zonder onderbrekingen verder te gaan kun je {vercel} of {elfhosted}:",
   "duckdnsSunset.dismiss": "Melding sluiten",
   "duckdnsSunset.vercelLabel": "gratis je eigen privé-instantie op Vercel aanmaken",
-  "duckdnsSunset.elfhostedLabel": "meteen de publieke instantie van ElfHosted gebruiken"
+  "duckdnsSunset.elfhostedLabel": "meteen de publieke instantie van ElfHosted gebruiken",
+  "ui.badgeTabRatings": "Beoordelingen",
+  "ui.badgeTabTop": "Boven",
+  "ui.badgeTabQuality": "Kwaliteit",
+  "ui.badgeTabLook": "Uiterlijk"
 }

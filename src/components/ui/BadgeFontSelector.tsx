@@ -34,7 +34,7 @@ export function BadgeFontSelector({
             role="radio"
             aria-checked={isActive}
             onClick={() => onChange(f)}
-            className={`flex flex-col items-center justify-center gap-0.5 w-full py-1.5 px-1 rounded-lg border transition-all duration-150 cursor-pointer ${
+            className={`flex flex-col items-center justify-center gap-0.5 w-full py-1.5 px-1 rounded-lg border transition duration-150 cursor-pointer ${
               isActive
                 ? "bg-accent-orange/15 text-accent-orange border-accent-orange/25"
                 : "bg-white/5 text-muted hover:bg-white/10 hover:text-zinc-200 border-transparent"

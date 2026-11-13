@@ -219,7 +219,7 @@ export function EpisodeGroupControls({
           <button
             type="button"
             onClick={() => ed.setEpisodeGroupId(null)}
-            className={`w-full text-left px-2.5 py-2 rounded-lg text-[11px] border transition-all flex items-center justify-between cursor-pointer ${
+            className={`w-full text-left px-2.5 py-2 rounded-lg text-[11px] border transition flex items-center justify-between cursor-pointer ${
               !ed.episodeGroupId
                 ? "bg-accent-orange/15 text-foreground border-accent-orange/40 font-semibold"
                 : "bg-surface2/40 text-zinc-300 border-surface2 hover:bg-surface2 hover:text-white"
@@ -235,7 +235,7 @@ export function EpisodeGroupControls({
           <button
             type="button"
             onClick={() => ed.setEpisodeGroupId("standard")}
-            className={`w-full text-left px-2.5 py-2 rounded-lg text-[11px] border transition-all flex items-center justify-between cursor-pointer ${
+            className={`w-full text-left px-2.5 py-2 rounded-lg text-[11px] border transition flex items-center justify-between cursor-pointer ${
               ed.episodeGroupId === "standard"
                 ? "bg-accent-orange/15 text-foreground border-accent-orange/40 font-semibold"
                 : "bg-surface2/40 text-zinc-300 border-surface2 hover:bg-surface2 hover:text-white"
@@ -295,7 +295,7 @@ export function EpisodeGroupControls({
                   type="button"
                   key={st.type}
                   onClick={() => ed.setEpisodeGroupId(sentinel)}
-                  className={`w-full text-left px-2.5 py-2 rounded-lg text-[11px] border transition-all flex items-center justify-between cursor-pointer ${
+                  className={`w-full text-left px-2.5 py-2 rounded-lg text-[11px] border transition flex items-center justify-between cursor-pointer ${
                     isSelected ? "bg-accent-orange/15 text-foreground border-accent-orange/40 font-semibold" : "bg-surface2/40 text-zinc-300 border-surface2 hover:bg-surface2 hover:text-white"
                   }`}
                 >
@@ -312,7 +312,7 @@ export function EpisodeGroupControls({
           <button
             type="button"
             onClick={() => ed.setEpisodeGroupId("anizip")}
-            className={`w-full text-left px-2.5 py-2 rounded-lg text-[11px] border transition-all flex items-center justify-between cursor-pointer ${
+            className={`w-full text-left px-2.5 py-2 rounded-lg text-[11px] border transition flex items-center justify-between cursor-pointer ${
               ed.episodeGroupId === "anizip"
                 ? "bg-accent-orange/15 text-foreground border-accent-orange/40 font-semibold"
                 : "bg-surface2/40 text-zinc-300 border-surface2 hover:bg-surface2 hover:text-white"
@@ -332,7 +332,7 @@ export function EpisodeGroupControls({
                 type="button"
                 key={g.id}
                 onClick={() => ed.setEpisodeGroupId(g.id)}
-                className={`w-full text-left px-2.5 py-2 rounded-lg text-[11px] border transition-all flex items-center justify-between cursor-pointer ${
+                className={`w-full text-left px-2.5 py-2 rounded-lg text-[11px] border transition flex items-center justify-between cursor-pointer ${
                   isSelected
                     ? "bg-accent-orange/15 text-foreground border-accent-orange/40 font-semibold"
                     : "bg-surface2/40 text-zinc-300 border-surface2 hover:bg-surface2 hover:text-white"
@@ -359,7 +359,7 @@ export function EpisodeGroupControls({
           type="button"
           onClick={handleSaveEpisodeGroup}
           disabled={saving}
-          className={`w-full mt-1 py-2 px-3 text-xs font-semibold rounded-lg transition-all duration-150 flex items-center justify-center gap-1.5 ${
+          className={`w-full mt-1 py-2 px-3 text-xs font-semibold rounded-lg transition duration-150 flex items-center justify-center gap-1.5 ${
             saved
               ? "bg-emerald-500/20 text-emerald-300 border border-emerald-500/40"
               : "btn-primary"

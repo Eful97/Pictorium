@@ -94,7 +94,7 @@ export function PosterPreview({
             <p className="text-sm text-muted font-medium">{t("ui.imageNotAvailable")}</p>
             <p className="text-xs text-zinc-500 mt-1">{t("ui.posterLoadError")}</p>
             <button type="button" aria-label={t("ui.retry")} onClick={() => { setImageError(false); onRetry?.() }}
-                    className="mt-3 px-3 py-1.5 text-xs text-muted hover:text-white border border-border hover:border-zinc-500 rounded-lg transition-all duration-150">
+                    className="mt-3 px-3 py-1.5 text-xs text-muted hover:text-white border border-border hover:border-zinc-500 rounded-lg transition duration-150">
               <span className="flex items-center gap-1.5"><RefreshCw className="w-3.5 h-3.5" />{t("ui.retry")}</span>
             </button>
           </div>

@@ -58,7 +58,7 @@ export function SearchBar({
       role="search"
       className={`search-shell flex items-center ${h} ${
         focused ? "search-shell-active" : ""
-      } rounded-2xl transition-all duration-300 group ${error ? "ring-1 ring-red-500/50" : ""}`}
+      } rounded-2xl transition duration-300 group ${error ? "ring-1 ring-red-500/50" : ""}`}
     >
       <span
         className="shrink-0 pl-3.5 transition-colors text-zinc-500 group-focus-within:text-zinc-300"
@@ -113,7 +113,7 @@ export function SearchBar({
             }
           }}
           disabled={!canSearch || text.trim().length < 2}
-          className="shrink-0 w-8 sm:w-10 h-8 sm:h-10 mr-1.5 flex items-center justify-center text-white rounded-full active:scale-90 disabled:opacity-40 disabled:cursor-not-allowed disabled:active:scale-100 transition-all duration-200 bg-accent-orange hover:shadow-lg hover:shadow-accent-orange/30 cursor-pointer"
+          className="shrink-0 w-8 sm:w-10 h-8 sm:h-10 mr-1.5 flex items-center justify-center text-white rounded-full active:scale-90 disabled:opacity-40 disabled:cursor-not-allowed disabled:active:scale-100 transition duration-200 bg-accent-orange hover:shadow-lg hover:shadow-accent-orange/30 cursor-pointer"
         >
           <ArrowRight className="w-4 h-4" />
         </button>

@@ -1,6 +1,7 @@
 import type { NextRequest } from "next/server"
 import os from "node:os"
 import { cacheGet, cacheGetStale, cacheRemainingMs, cacheSet } from "@/lib/cache"
+import { persistPosterToDisk } from "@/lib/poster-disk-cache"
 import { createLogger } from "@/lib/logger"
 import { envWithFallback } from "@/lib/env-compat"
 import {
@@ -938,6 +939,7 @@ export function writeCachedPoster(cacheKey: string, payload: PosterCachePayload,
   }
   cacheSet(cacheKey, payload.buffer, tags, ttl)
   cacheSet(`${cacheKey}:headers`, record, tags, ttl)
+  persistPosterToDisk(cacheKey, payload.buffer, record, tags, ttl, nowMs)
 }
 
 // ---------------------------------------------------------------------------

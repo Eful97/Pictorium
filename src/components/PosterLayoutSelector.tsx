@@ -116,7 +116,7 @@ export function PosterLayoutSelector({
         role="radio"
         aria-checked={primary === p}
         onClick={() => pickPrimary(p)}
-        className={`flex flex-col gap-1 p-1.5 rounded-lg transition-all duration-150 cursor-pointer min-w-0 ${
+        className={`flex flex-col gap-1 p-1.5 rounded-lg transition duration-150 cursor-pointer min-w-0 ${
           primary === p
             ? "bg-white/20 text-white shadow-sm ring-1 ring-white/30"
             : "bg-white/5 text-muted hover:bg-white/10 hover:text-zinc-200"
@@ -160,7 +160,7 @@ export function PosterLayoutSelector({
                 role="radio"
                 aria-checked={effective === skin}
                 onClick={() => { setRememberedSkin(skin); onChange(skin) }}
-                className={`flex flex-col gap-1 p-1.5 rounded-lg transition-all duration-150 cursor-pointer min-w-0 ${
+                className={`flex flex-col gap-1 p-1.5 rounded-lg transition duration-150 cursor-pointer min-w-0 ${
                   effective === skin
                     ? "bg-white/20 text-white shadow-sm ring-1 ring-white/30"
                     : "bg-white/5 text-muted hover:bg-white/10 hover:text-zinc-200"
@@ -201,7 +201,7 @@ export function PosterLayoutSelector({
             role="radio"
             aria-checked={effective === l}
             onClick={() => onChange(l)}
-            className={`flex flex-col gap-1 p-1.5 rounded-lg transition-all duration-150 cursor-pointer min-w-0 ${
+            className={`flex flex-col gap-1 p-1.5 rounded-lg transition duration-150 cursor-pointer min-w-0 ${
               effective === l
                 ? "bg-white/20 text-white shadow-sm ring-1 ring-white/30"
                 : "bg-white/5 text-muted hover:bg-white/10 hover:text-zinc-200"

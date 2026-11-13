@@ -42,7 +42,7 @@ export function ThumbnailRotationSelector({ value, onChange }: ThumbnailRotation
             data-testid={`episode-rotation-${option.id}`}
             aria-pressed={selected}
             onClick={() => onChange(option.value)}
-            className={`min-h-[28px] px-2 rounded-md text-[11px] font-semibold transition-all cursor-pointer active:scale-95 ${FOCUS_RING} ${
+            className={`min-h-[28px] px-2 rounded-md text-[11px] font-semibold transition cursor-pointer active:scale-95 ${FOCUS_RING} ${
               selected
                 ? "bg-accent-orange/20 border border-accent-orange/50 text-accent-orange"
                 : "border border-transparent text-zinc-300 hover:bg-white/10"

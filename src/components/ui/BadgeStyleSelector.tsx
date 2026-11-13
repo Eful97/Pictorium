@@ -3,7 +3,7 @@
 import { useId } from "react"
 import { textColorForBg } from "@/lib/accent-color"
 import { PREMIUM_PLATE_BG, PREMIUM_PLATE_STROKE, GRADIENT_MARK_STOPS, GRADIENT_TIER_INK, premiumAccentHex } from "@/lib/quality-badge-styles"
-import { buildAgeEmphasisSvg, buildAgeKnockoutSvg, buildGenreInkSvg, buildGradientMarkSvg, buildQualityBadgeSvg, buildQualityNakedSvg, buildStripBadgeSvg } from "@/lib/badge-svg-shared"
+import { buildAgeEmphasisSvg, buildAgeKnockoutSvg, buildEditorialMarkSvg, buildGenreEditorialSvg, buildGenreGradientBorderSvg, buildGenreInkSvg, buildGenreSplitSvg, buildGenreTintSvg, buildGradientMarkSvg, buildQualityBadgeSvg, buildQualityNakedSvg, buildStripBadgeSvg } from "@/lib/badge-svg-shared"
 import type { AgeEmphasisStyle } from "@/lib/badge-svg-shared"
 
 /**
@@ -15,6 +15,8 @@ import type { AgeEmphasisStyle } from "@/lib/badge-svg-shared"
  * quality `4K` numeric asset.
  */
 export type BadgeSwatchFamily = "quality" | "age"
+/** Swatch family resolved by the selector: the genre list is the one offering `shadow`. */
+type SwatchFamily = BadgeSwatchFamily | "genre"
 
 const AGE_SWATCH_LABEL = "Aa"
 const AGE_SWATCH_FS = 12
@@ -53,7 +55,7 @@ function AgeStylePreview({ style, base }: { style: AgeEmphasisStyle | "knockout"
   return <BuilderStylePreview base={base} svg={built.svg} />
 }
 
-function BadgePreview({ style, accentColor, family = "quality" }: { style: string; accentColor?: string | null; family?: BadgeSwatchFamily }) {
+function BadgePreview({ style, accentColor, family = "quality" }: { style: string; accentColor?: string | null; family?: SwatchFamily }) {
   const maskId = useId().replace(/:/g, "")
   const base = "inline-flex items-center justify-center text-[10px] font-black leading-none w-7 h-4 rounded select-none"
   const ac = accentColor || "#fb923c"
@@ -61,7 +63,7 @@ function BadgePreview({ style, accentColor, family = "quality" }: { style: strin
     case "shadow":
       return <span className={`${base} bg-transparent text-white`} style={{ textShadow: "0 1px 3px rgba(0,0,0,0.7), 0 0 6px rgba(0,0,0,0.4)" }}>Aa</span>
     case "pill":
-      return <span className={`${base} text-black`} style={{ background: "linear-gradient(180deg, rgba(255,255,255,0.95) 0%, rgba(255,255,255,0.66) 62%, rgba(255,255,255,0.50) 100%)", padding: "0 3px", boxShadow: "inset 0 1px 0 rgba(255,255,255,0.35), 0 2px 3px rgba(0,0,0,0.6), 0 4px 8px rgba(0,0,0,0.35)" }}>Aa</span>
+      return <span className={`${base} text-black`} style={{ background: "linear-gradient(180deg, rgba(255,255,255,0.96) 0%, rgba(255,255,255,0.86) 100%)", padding: "0 3px", boxShadow: "inset 0 1px 0 rgba(255,255,255,0.35), 0 2px 3px rgba(0,0,0,0.6), 0 4px 8px rgba(0,0,0,0.35)" }}>Aa</span>
     case "bar":
       return <span className={`${base} text-white w-7`} style={{ background: "rgba(255,255,255,0.12)", borderRadius: 1 }}>Aa</span>
     case "colored":
@@ -77,6 +79,19 @@ function BadgePreview({ style, accentColor, family = "quality" }: { style: strin
       // with (accent gradient + 1px dark halo), neutral letters as the age
       // swatch. No plate/border, matches the `shadow` geometry.
       return <BuilderStylePreview base={base} svg={buildGenreInkSvg(AGE_SWATCH_LABEL, "", "", AGE_SWATCH_FS, ac, "#e5e7eb").svg} />
+    // New genre materials: the SAME shared builders the poster renders with,
+    // neutral letters as the ink swatch.
+    case "tinta":
+      return <BuilderStylePreview base={base} svg={buildGenreTintSvg(AGE_SWATCH_LABEL, "", "", AGE_SWATCH_FS, ac, false).svg} />
+    case "sfumato":
+      return <BuilderStylePreview base={base} svg={buildGenreGradientBorderSvg(AGE_SWATCH_LABEL, "", "", AGE_SWATCH_FS, ac, false).svg} />
+    case "split":
+      return <BuilderStylePreview base={base} svg={buildGenreSplitSvg(AGE_SWATCH_LABEL, "8", "", AGE_SWATCH_FS, ac, false, { showGenre: true, showYear: false, showRating: true }).svg} />
+    case "editoriale":
+      if (family === "age" || family === "quality") {
+        return <BuilderStylePreview base={base} svg={buildEditorialMarkSvg(family === "quality" ? QUALITY_SWATCH_LABEL : AGE_SWATCH_LABEL, AGE_SWATCH_FS, false).svg} />
+      }
+      return <BuilderStylePreview base={base} svg={buildGenreEditorialSvg(AGE_SWATCH_LABEL, "", "", AGE_SWATCH_FS, false).svg} />
     case "netflix":
       return <span className={`${base} text-white font-black`} style={{ background: "rgba(255,255,255,0.25)", borderRadius: "2px 2px 0 0" }}>TOP</span>
     case "corner":
@@ -84,7 +99,7 @@ function BadgePreview({ style, accentColor, family = "quality" }: { style: strin
     case "number":
       // Big standalone numeral like the poster rank (white-to-silver
       // gradient ink with a soft shadow, no plate): gradient-clipped text.
-      return <span className={`${base} font-black`} style={{ background: "linear-gradient(180deg, #ffffff 0%, #A8ACB4 100%)", WebkitBackgroundClip: "text", backgroundClip: "text", color: "transparent", filter: "drop-shadow(0 1px 1px rgba(0,0,0,0.6))", fontSize: 13 }}>1</span>
+      return <span className={`${base} font-black`} style={{ background: "linear-gradient(180deg, #ffffff 0%, #E5E7EB 100%)", WebkitBackgroundClip: "text", backgroundClip: "text", color: "transparent", filter: "drop-shadow(0 1px 1px rgba(0,0,0,0.6))", fontSize: 13 }}>1</span>
     case "default":
       return <span className={`${base} text-white/70`}>Aa</span>
     case "standard":
@@ -222,6 +237,7 @@ export function BadgeStyleSelector<S extends string>({
   // 10 quality styles (the naked tier added last) fill two even rows of five
   // instead of the 8-column branch that would leave a 8+2 gap; 8 or fewer
   // keeps the historical layout byte-identically.
+  const swatchFamily: SwatchFamily = (options as readonly string[]).includes("shadow") ? "genre" : family
   const gridCols = options.length <= 3 ? "grid-cols-3" : options.length <= 5 ? "grid-cols-3 sm:grid-cols-5" : options.length <= 6 ? "grid-cols-3 sm:grid-cols-6" : options.length <= 7 ? "grid-cols-3 sm:grid-cols-4 md:grid-cols-7" : options.length <= 8 ? "grid-cols-4 sm:grid-cols-4 md:grid-cols-8" : "grid-cols-4 sm:grid-cols-5"
   return (
     <div className={`grid ${gridCols} gap-1.5 w-full`}>
@@ -233,7 +249,7 @@ export function BadgeStyleSelector<S extends string>({
             key={s}
             type="button"
             onClick={() => !isDisabled && onChange(s)}
-            className={`flex flex-col items-center justify-center gap-0.5 w-full py-1.5 px-1 rounded-lg border transition-all duration-150 ${
+            className={`flex flex-col items-center justify-center gap-0.5 w-full py-1.5 px-1 rounded-lg border transition duration-150 ${
               isDisabled
                 ? "bg-white/5 text-zinc-600 cursor-not-allowed opacity-50 border-transparent"
                 : isActive
@@ -242,10 +258,10 @@ export function BadgeStyleSelector<S extends string>({
             }`}
           >
             <span className="badge-style-preview inline-flex items-center justify-center rounded-md">
-              <BadgePreview style={s} accentColor={accentColor} family={family} />
+              <BadgePreview style={s} accentColor={accentColor} family={swatchFamily} />
             </span>
             <span className="text-[10px] font-semibold leading-tight truncate max-w-full">
-              {s === "shadow" ? t("ui.shadow") : s === "pill" ? t("ui.pill") : s === "bar" ? t("ui.bar") : s === "default" ? t("ui.bsDefault") : s === "colored" ? t("ui.colored") : s === "bordo" ? t("ui.bordo") : s === "vetro" ? t("ui.vetro") : s === "minimal" ? t("ui.minimal") : s === "ink" ? t("ui.ink") : s === "netflix" ? t("ui.netflix") : s === "corner" ? t("ui.corner") : s === "number" ? t("ui.number") : s === "standard" ? t("ui.qbsStandard") : s === "mono" ? t("ui.qbsMono") : s === "color" ? t("ui.qbsColor") : s === "knockout" ? t("ui.qbsKnockout") : s === "premium" ? t("ui.qbsPremium") : s === "nova" ? t("ui.qbsNova") : s === "gradient" ? t("ui.qbsGradient") : s === "outline" ? t("ui.qbsOutline") : s === "strip" ? t("ui.qbsStrip") : s === "naked" ? t("ui.qbsNaked") : s}
+              {s === "shadow" ? t("ui.shadow") : s === "pill" ? t("ui.pill") : s === "bar" ? t("ui.bar") : s === "default" ? t("ui.bsDefault") : s === "colored" ? t("ui.colored") : s === "bordo" ? t("ui.bordo") : s === "vetro" ? t("ui.vetro") : s === "minimal" ? t("ui.minimal") : s === "ink" ? t("ui.ink") : s === "tinta" ? t("ui.tinta") : s === "sfumato" ? t("ui.sfumato") : s === "split" ? t("ui.split") : s === "editoriale" ? t("ui.editoriale") : s === "netflix" ? t("ui.netflix") : s === "corner" ? t("ui.corner") : s === "number" ? t("ui.number") : s === "standard" ? t("ui.qbsStandard") : s === "mono" ? t("ui.qbsMono") : s === "color" ? t("ui.qbsColor") : s === "knockout" ? t("ui.qbsKnockout") : s === "premium" ? t("ui.qbsPremium") : s === "nova" ? t("ui.qbsNova") : s === "gradient" ? t("ui.qbsGradient") : s === "outline" ? t("ui.qbsOutline") : s === "strip" ? t("ui.qbsStrip") : s === "naked" ? t("ui.qbsNaked") : s}
             </span>
           </button>
         )

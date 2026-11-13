@@ -61,7 +61,7 @@ import {
   FRESH_NUMERAL_CONDENSE_X_PORTRAIT_SINGLE,
   FRESH_NUMERAL_CONDENSE_X_LANDSCAPE,
   freshBoxCondenseX,
-  FRESH_LEFT_BLUR_FEATHER,
+  freshLeftBlurFeather,
   type FreshMetaInput,
   type FreshNumeralBox,
 } from "@/lib/fresh-layout"
@@ -486,7 +486,7 @@ describe("task12 compositor: transforms once, blur follows condensed ink", () =>
         const inkRight = box.left - rim + ink!.maxX
         const region = freshLeftBlurRegion(CW, CH, inkRight)!
         expect(strip!.w).toBe(region.width)
-        expect(strip!.w).toBe(Math.min(CW, Math.round(inkRight + FRESH_LEFT_BLUR_FEATHER)))
+        expect(strip!.w).toBe(Math.min(CW, Math.round(inkRight + freshLeftBlurFeather(CW))))
         expect(strip!.h).toBe(CH)
         // Condensed ink ends well left of the old uncondensed estimate edge.
         expect(inkRight).toBeLessThan(box.left + box.estW / freshBoxCondenseX(box))

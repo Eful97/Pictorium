@@ -54,7 +54,7 @@ export function EmojiPicker({ currentName, onSelectEmoji }: EmojiPickerProps) {
                 key={em}
                 type="button"
                 onClick={() => onSelectEmoji(em)}
-                className={`shrink-0 w-6 h-6 flex items-center justify-center text-xs rounded-lg transition-all ${
+                className={`shrink-0 w-6 h-6 flex items-center justify-center text-xs rounded-lg transition ${
                   isSelected
                     ? "bg-accent-orange/20 border border-accent-orange/40 scale-110 shadow-sm"
                     : "hover:bg-white/10 hover:scale-110 opacity-80 hover:opacity-100"
@@ -70,7 +70,7 @@ export function EmojiPicker({ currentName, onSelectEmoji }: EmojiPickerProps) {
         <button
           type="button"
           onClick={() => setIsOpen((prev) => !prev)}
-          className={`shrink-0 flex items-center gap-1 px-2 py-1 rounded-lg text-[10px] font-medium border transition-all ${
+          className={`shrink-0 flex items-center gap-1 px-2 py-1 rounded-lg text-[10px] font-medium border transition ${
             isOpen
               ? "bg-accent-orange/20 text-accent-orange border-accent-orange/40 shadow-sm"
               : "bg-surface2/80 hover:bg-surface2 text-zinc-400 hover:text-zinc-200 border-white/5"

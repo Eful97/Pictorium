@@ -362,7 +362,7 @@ export function resolveSeparateDisplayState(input: {
   const useSeparate = !!input.badgesEnabled
     && !!input.badgeRating
     && !!input.separateRatings
-    && input.separateRatingsStyle === "column"
+    && (input.separateRatingsStyle === "column" || input.separateRatingsStyle === "rings")
     && input.sepItemCount > 0
   return {
     useSeparate,

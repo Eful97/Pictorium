@@ -320,7 +320,7 @@ describe("buildGenreBadgeSVG", () => {
   it("renders genre bar with satin gradient, 3D shadow, adaptive 1.5px stroke", async () => {
     const { svg } = buildGenreBarSvg("Dramma", "8.5", "2023", 380, 28, "rgba(0,0,0,0.88)", false)
     expect(svg).toContain('fill="url(#gbg)"')
-    expect(svg).toContain('stop-color="rgba(255,255,255,0.95)"')
+    expect(svg).toContain('stop-color="rgba(255,255,255,0.96)"')
     expect(svg).toContain('stroke="rgba(255,255,255,0.22)"')
     expect(svg).toContain('stroke-width="1.5"')
     expect(svg).toContain('filter="url(#tds)"')
@@ -504,7 +504,7 @@ describe("buildRankingBadgeSVG", () => {
   it("uses satin gradient ribbon + adaptive text when top is dark", () => {
     const { svg } = buildNetflixRankBadgeSVG(4, 1000, false)
     expect(svg).toContain('fill="url(#nrg)"')
-    expect(svg).toContain('stop-color="rgba(255,255,255,0.95)"')
+    expect(svg).toContain('stop-color="rgba(255,255,255,0.96)"')
     expect(svg).toContain('fill="rgba(0,0,0,0.80)"')
     expect(svg).not.toContain('fill="rgba(255,255,255,0.80)"')
   })
@@ -526,8 +526,8 @@ describe("buildRankingBadgeSVG", () => {
     expect(pathR).toMatch(new RegExp(`^M ${totalW} 0 L`))
     expect(pathL).not.toBe(pathR)
     // Ombra invertita: cade verso sinistra (verso il centro del poster)
-    expect(right.svg).toContain('dx="-3" dy="3"')
-    expect(left.svg).toContain('dx="3" dy="3"')
+    expect(right.svg).toContain('dx="-1" dy="2"')
+    expect(left.svg).toContain('dx="1" dy="2"')
     // Testo non specchiato: "TOP" e rank restano leggibili
     expect(right.svg).toContain(">TOP</text>")
     expect(right.svg).toContain(">4</text>")
@@ -732,8 +732,8 @@ describe("buildRankingDefaultSvg", () => {
   })
 
   it("shares the vetro satin stops (no opaque silver)", () => {
-    expect(glassStops(false)).toContain('stop-color="rgba(255,255,255,0.45)"')
-    expect(glassStops(false)).toContain('stop-color="rgba(0,0,0,0.45)"')
+    expect(glassStops(false)).toContain('stop-color="rgba(255,255,255,0.34)"')
+    expect(glassStops(false)).toContain('stop-color="rgba(0,0,0,0.30)"')
     expect(glassStops(true)).toContain('stop-color="rgba(255,255,255,0.92)"')
     expect(glassStops(true)).not.toContain("#FFFFFF")
     expect(glassStops(true)).not.toContain("#E2E8F0")
@@ -743,9 +743,10 @@ describe("buildRankingDefaultSvg", () => {
     // Bright tops: light milky body behind near-black text, top sheen kept.
     expect(glassStops(true)).toContain('stop-color="rgba(255,255,255,0.55)"')
     expect(glassStops(true)).toContain('stop-color="rgba(255,255,255,0.38)"')
-    // Dark tops: top sheen kept, smoky protective center/base behind near-white text.
-    expect(glassStops(false)).toContain('stop-color="rgba(0,0,0,0.22)"')
-    expect(glassStops(false)).toContain('stop-color="rgba(0,0,0,0.45)"')
+    // Dark tops: top sheen kept, light smoky center/base over the real
+    // frosted underlay (`insertFrostedGlassUnderlays`) behind near-white text.
+    expect(glassStops(false)).toContain('stop-color="rgba(0,0,0,0.12)"')
+    expect(glassStops(false)).toContain('stop-color="rgba(0,0,0,0.30)"')
   })
 
   it("gives bordo a flat readable backing on both polarities (all three families)", () => {
@@ -767,7 +768,7 @@ describe("buildRankingDefaultSvg", () => {
   it("renders ranking-default with satin gradient (dark top → light pill)", () => {
     const { svg } = buildRankingDefaultSvg("#1 Oggi", 60, "rgba(0,0,0,0.80)", "rgba(255,255,255,0.80)", false)
     expect(svg).toContain('fill="url(#rdg)"')
-    expect(svg).toContain('stop-color="rgba(255,255,255,0.95)"')
+    expect(svg).toContain('stop-color="rgba(255,255,255,0.96)"')
   })
 
   it("has a single 3D box shadow and exact box geometry (ribbon-style finish)", () => {
@@ -802,13 +803,13 @@ describe("buildRankingDefaultSvg", () => {
   it("renders quality badge with satin gradient (geometry unchanged)", () => {
     const dark = buildQualityBadgeSvg("4K", 20, "", "", false)
     expect(dark.svg).toContain('fill="url(#qg)"')
-    expect(dark.svg).toContain('stop-color="rgba(255,255,255,0.95)"')
+    expect(dark.svg).toContain('stop-color="rgba(255,255,255,0.96)"')
     const light = buildQualityBadgeSvg("4K", 20, "", "", true)
     expect(light.svg).toContain('stop-color="rgba(0,0,0,0.88)"')
   })
 
   it("keeps pill-polarity stops bright on dark tops (rank must pop)", () => {
-    expect(satinPillStops(false)).toContain('stop-color="rgba(255,255,255,0.95)"')
+    expect(satinPillStops(false)).toContain('stop-color="rgba(255,255,255,0.96)"')
     expect(satinPillStops(true)).toContain('stop-color="rgba(0,0,0,0.88)"')
   })
 })

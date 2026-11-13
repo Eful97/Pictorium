@@ -51,8 +51,9 @@ import { resolveSeparateDisplayState } from "./poster-config"
 //   apply here: the fresh numeral keeps its own padX/numeralTop anchor.
 // - genre/rating column: `genreBadgeScale/OffsetX/Y` (`gscale`/`gox`/`goy`).
 //   The scale sizes the column fonts; the offsets move the placed block.
-//   Positioning is independent of the numeral, but the default chain follows
-//   it: ranked `metaTop` derives from the transformed numeral box.
+//   The default chain follows the numeral: ranked `metaTop` derives from the
+//   transformed numeral box and the ranked column (meta rows left-aligned,
+//   provider mark) shares the numeral's measured left ink edge.
 // - provider/network: `networkLogoScale` rides the caller bitmap (already
 //   scaled by the single renderer — never re-applied here, no double
 //   scaling) AND enlarges the column slot cap by the same % (`providerScale`
@@ -1191,8 +1192,16 @@ export async function renderFreshGlassNumeral(
  * numeral (unranked `all` or ranked-fallback-Standard are byte-identical).
  */
 export const FRESH_LEFT_BLUR_SIGMA = 9
-/** Pixels past the numeral ink right edge where the band alpha lands on 0. */
+/** Minimum pixels past the numeral ink right edge where the band alpha lands on 0. */
 export const FRESH_LEFT_BLUR_FEATHER = 32
+/** Feather share of the canvas width: a fixed 32px fade read as a seam on
+ *  horizons/straight edges right at the numeral (worst on landscape). */
+export const FRESH_LEFT_BLUR_FEATHER_SHARE = 0.12
+
+/** Effective band feather for a canvas width (never below the historic 32px). */
+export function freshLeftBlurFeather(CW: number): number {
+  return Math.max(FRESH_LEFT_BLUR_FEATHER, Math.round(CW * FRESH_LEFT_BLUR_FEATHER_SHARE))
+}
 
 export interface FreshLeftBlurRegion {
   readonly left: 0
@@ -1214,7 +1223,7 @@ export function freshLeftBlurRegion(
 ): FreshLeftBlurRegion | null {
   if (!Number.isFinite(CW) || !Number.isFinite(CH) || CW < 1 || CH < 1) return null
   if (typeof inkRightCanvas !== "number" || !Number.isFinite(inkRightCanvas)) return null
-  const width = Math.min(Math.round(CW), Math.max(1, Math.round(inkRightCanvas + FRESH_LEFT_BLUR_FEATHER)))
+  const width = Math.min(Math.round(CW), Math.max(1, Math.round(inkRightCanvas + freshLeftBlurFeather(CW))))
   if (width < 1) return null
   return { left: 0, top: 0, width, height: Math.round(CH), inkRight: inkRightCanvas }
 }
@@ -1524,6 +1533,9 @@ export async function renderFreshMetaColumn(
   geo: FreshLayoutGeometry,
   font: BadgeFont = "inter",
   maxH?: number,
+  /** "start": rows left-aligned at the shadow pad (ranked column, flush with
+   *  the numeral ink); "center": historic centered rows. */
+  align: "center" | "start" = "center",
 ): Promise<{ png: Buffer; w: number; h: number; svg: string } | null> {
   if (rows.length === 0) return null
   const f = normalizeBadgeFont(font)
@@ -1778,7 +1790,7 @@ export async function renderFreshMetaColumn(
         // whole unit centered on the column. No provider label anywhere.
         const scoreW = lockW(p.text, p.size, 0, p.scoreLock)
         const unitW = iconSlotW + p.gap + scoreW
-        const x0 = w / 2 - unitW / 2
+        const x0 = align === "start" ? FRESH_META_SHADOW_PAD : w / 2 - unitW / 2
         const iconX = x0 + (iconSlotW - p.icon.w) / 2
         return `<image href="data:image/png;base64,${p.icon.png.toString("base64")}" x="${iconX.toFixed(1)}" y="${p.iconY.toFixed(1)}" width="${p.icon.w}" height="${p.icon.h}"/>` +
           `<text x="${(x0 + iconSlotW + p.gap).toFixed(1)}" y="${p.y}" font-family="${family}" font-size="${p.size}" font-weight="${p.weight}" fill="${p.fill}" fill-opacity="${p.opacity}"${textFitAttrs(scoreW)}>${escSvg(p.text)}</text>`
@@ -1788,7 +1800,7 @@ export async function renderFreshMetaColumn(
         const gap = Math.round(p.size * 0.25)
         const digitsW = lockW(p.text, p.size, 0, Math.max(8, fitW - (starR * 2 + gap)))
         const total = starR * 2 + gap + digitsW
-        const x0 = w / 2 - total / 2
+        const x0 = align === "start" ? FRESH_META_SHADOW_PAD : w / 2 - total / 2
         const cy = p.y - (p.size * 0.73) / 2
         const outer = starR
         const inner = starR * 0.46
@@ -1808,7 +1820,8 @@ export async function renderFreshMetaColumn(
       // let the textLength lock compress the glyphs into the remainder.
       const capped = Math.min(spacing, fitW / Math.max(1, 2 * p.text.length))
       const rowW = lockW(p.text, p.size, capped * p.text.length, fitW)
-      return `<text x="${(w / 2).toFixed(1)}" y="${p.y}" text-anchor="middle" font-family="${family}" font-size="${p.size}" font-weight="${p.weight}" letter-spacing="${capped.toFixed(2)}" fill="${p.fill}" fill-opacity="${p.opacity}"${textFitAttrs(rowW)}>${escSvg(p.text)}</text>`
+      const tx = align === "start" ? FRESH_META_SHADOW_PAD : w / 2
+      return `<text x="${tx.toFixed(1)}" y="${p.y}" text-anchor="${align === "start" ? "start" : "middle"}" font-family="${family}" font-size="${p.size}" font-weight="${p.weight}" letter-spacing="${capped.toFixed(2)}" fill="${p.fill}" fill-opacity="${p.opacity}"${textFitAttrs(rowW)}>${escSvg(p.text)}</text>`
     })
     .join("")
   const svg =
@@ -2234,12 +2247,18 @@ async function composeFreshInner(
   // = historic value) + bottom margin. The column shrinks into the rest.
   const reservedBelow = (input.provider ? effProvMaxH + providerGap : 0) + bottomMargin
   const metaMaxH = Math.max(24, input.CH - Math.round(geo.metaTop) - reservedBelow)
-  const meta = await renderFreshMetaColumn(rows, geo, input.badgeFont ?? "inter", metaMaxH)
+  const meta = await renderFreshMetaColumn(rows, geo, input.badgeFont ?? "inter", metaMaxH, "start")
+  // Ranked column axis: the numeral's real left ink edge (follows the user
+  // numeral X/scale), so numeral, meta rows and provider share one left
+  // edge. Falls back to the numeral pad when the ink is unmeasurable.
+  const num = geo.numeral as FreshNumeralBox
+  const columnX = numeralPrep?.ink
+    ? Math.round(num.left - freshNumeralSvg(num).rim + numeralPrep.ink.minX)
+    : num.left
+  const META_PAD = 8 // renderFreshMetaColumn shadow pad: rows start at x = 8.
   let columnBottom = Math.round(geo.metaTop)
   if (meta) {
-    // Center the text block on the column (zone center, like the numeral).
-    const centerX = Math.round(geo.zoneW / 2)
-    const left = clampLayerX(meta.w, Math.round(centerX - meta.w / 2) + mox)
+    const left = clampLayerX(meta.w, columnX - META_PAD + mox)
     // Clamped fully inside the canvas: when the block fits, even a +2000
     // offset lands at CH - h (fully visible), never hanging off the bottom
     // edge by 1px. Only a block taller than the whole canvas still crops
@@ -2261,8 +2280,7 @@ async function composeFreshInner(
       layers.push({ input: fitted.png, top: fixedTop, left: fixedLeft })
       overlayGeo.provider = { top: fixedTop, left: fixedLeft, w: fitted.w, h: fitted.h }
     } else {
-      const centerX = Math.round(geo.zoneW / 2)
-      const left = clampLayerX(fitted.w, Math.round(centerX - fitted.w / 2) + pox)
+      const left = clampLayerX(fitted.w, columnX + pox)
       const top = clampLayerY(
         fitted.h,
         Math.min(columnBottom + providerGap, Math.max(0, input.CH - fitted.h - bottomMargin)) + poy,

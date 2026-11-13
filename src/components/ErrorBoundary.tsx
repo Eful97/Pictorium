@@ -51,7 +51,7 @@ export class ErrorBoundary extends React.Component<Props, State> {
           <p className="text-xs text-zinc-500 mb-6 max-w-sm leading-relaxed">{message}</p>
           <button type="button"
             onClick={() => this.setState({ hasError: false, error: null })}
-            className="px-5 py-2.5 rounded-xl text-xs font-semibold bg-surface2 border border-border text-zinc-300 hover:bg-zinc-700 hover:text-white hover:border-zinc-500 active:scale-95 transition-all duration-200 press-scale"
+            className="px-5 py-2.5 rounded-xl text-xs font-semibold bg-surface2 border border-border text-zinc-300 hover:bg-zinc-700 hover:text-white hover:border-zinc-500 active:scale-95 transition duration-200 press-scale"
           >
             <span className="flex items-center gap-1.5">
               <svg className="w-3.5 h-3.5" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">

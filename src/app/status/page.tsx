@@ -328,7 +328,7 @@ export default function StatusPage() {
             disabled={refreshing}
             aria-label={t("ui.statusRefresh")}
             title={t("ui.statusRefresh")}
-            className="shrink-0 w-9 h-9 rounded-xl bg-surface/80 border border-white/10 text-zinc-300 hover:text-white hover:border-accent-orange/40 flex items-center justify-center active:scale-95 transition-all disabled:opacity-50"
+            className="shrink-0 w-9 h-9 rounded-xl bg-surface/80 border border-white/10 text-zinc-300 hover:text-white hover:border-accent-orange/40 flex items-center justify-center active:scale-95 transition disabled:opacity-50"
           >
             <RefreshCw className={`w-4 h-4 ${refreshing ? "animate-spin" : ""}`} />
           </button>
@@ -350,7 +350,7 @@ export default function StatusPage() {
             className="flex items-center gap-1.5 text-[11px] text-zinc-400 hover:text-zinc-200 transition-colors cursor-pointer"
           >
             <span aria-hidden="true" className={`relative w-8 h-[18px] rounded-full transition-colors ${autoRefresh ? "bg-accent-orange" : "bg-zinc-700"}`}>
-              <span className={`absolute top-[2px] h-[14px] w-[14px] rounded-full bg-white shadow transition-all ${autoRefresh ? "left-[16px]" : "left-[2px]"}`} />
+              <span className={`absolute top-[2px] left-[2px] h-[14px] w-[14px] rounded-full bg-white shadow transition-transform ${autoRefresh ? "translate-x-[14px]" : "translate-x-0"}`} />
             </span>
             {t("ui.statusAutoRefresh")}
           </button>
@@ -386,7 +386,7 @@ export default function StatusPage() {
               <button
                 type="submit"
                 disabled={!keyInput.trim()}
-                className="shrink-0 px-3 py-1.5 rounded-lg bg-accent-orange text-white text-xs font-semibold hover:bg-accent-orange/90 active:scale-95 transition-all disabled:opacity-50"
+                className="shrink-0 px-3 py-1.5 rounded-lg bg-accent-orange text-white text-xs font-semibold hover:bg-accent-orange/90 active:scale-95 transition disabled:opacity-50"
               >
                 {t("ui.save")}
               </button>

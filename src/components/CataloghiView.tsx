@@ -386,7 +386,7 @@ function CustomCatalogEntry({
   const tv = items.filter((it) => (it.media_type || it.mediaType) !== "movie")
 
   return (
-    <div className={`relative p-4 rounded-2xl border transition-all duration-200 ${
+    <div className={`relative p-4 rounded-2xl border transition duration-200 ${
       isEnabled ? "bg-surface border-white/10 shadow-sm" : "bg-surface/40 border-white/5 opacity-60"
     }`}>
       <div className="flex items-center justify-between mb-3">
@@ -956,7 +956,7 @@ export function CataloghiView() {
               title={t("ui.refreshLists")}
               onClick={refreshCatalogs}
               disabled={refreshing}
-              className="flex items-center justify-center w-9 h-9 rounded-xl bg-surface2 border border-white/10 hover:border-white/20 text-zinc-200 hover:text-white active:scale-95 transition-all shadow-sm disabled:opacity-60"
+              className="flex items-center justify-center w-9 h-9 rounded-xl bg-surface2 border border-white/10 hover:border-white/20 text-zinc-200 hover:text-white active:scale-95 transition shadow-sm disabled:opacity-60"
             >
               <RefreshCw className={`w-3.5 h-3.5 text-accent-orange ${refreshing ? "animate-spin" : ""}`} />
             </button>
@@ -967,7 +967,7 @@ export function CataloghiView() {
                   e.stopPropagation()
                   setIsManagerOpen((prev) => !prev)
                 }}
-                className="flex items-center gap-2 px-3.5 py-2 rounded-xl bg-surface2 border border-white/10 hover:border-white/20 text-zinc-200 text-xs font-semibold hover:text-white active:scale-95 transition-all shadow-sm"
+                className="flex items-center gap-2 px-3.5 py-2 rounded-xl bg-surface2 border border-white/10 hover:border-white/20 text-zinc-200 text-xs font-semibold hover:text-white active:scale-95 transition shadow-sm"
               >
                 <SlidersHorizontal className="w-3.5 h-3.5 text-accent-orange" />
                 <span>{t("ui.priorityNames")}</span>
@@ -982,7 +982,7 @@ export function CataloghiView() {
                   setIsAddAddonOpen((prev) => !prev)
                   setIsAddCustomOpen(false)
                 }}
-                className="flex items-center gap-2 px-3.5 py-2 rounded-xl bg-surface2 border border-white/10 hover:border-white/20 text-zinc-200 text-xs font-semibold hover:text-white active:scale-95 transition-all shadow-sm"
+                className="flex items-center gap-2 px-3.5 py-2 rounded-xl bg-surface2 border border-white/10 hover:border-white/20 text-zinc-200 text-xs font-semibold hover:text-white active:scale-95 transition shadow-sm"
               >
                 <ListPlus className="w-4 h-4" />
                 <span>{t("ui.addonMode")}</span>
@@ -996,7 +996,7 @@ export function CataloghiView() {
                   e.stopPropagation()
                   setIsStreamDialogOpen((prev) => !prev)
                 }}
-                className="flex items-center gap-2 px-3.5 py-2 rounded-xl bg-surface2 border border-white/10 hover:border-white/20 text-zinc-200 text-xs font-semibold hover:text-white active:scale-95 transition-all shadow-sm"
+                className="flex items-center gap-2 px-3.5 py-2 rounded-xl bg-surface2 border border-white/10 hover:border-white/20 text-zinc-200 text-xs font-semibold hover:text-white active:scale-95 transition shadow-sm"
               >
                 <Plus className="w-4 h-4" />
                 <span>{t("ui.streamAddTop10")}</span>
@@ -1017,7 +1017,7 @@ export function CataloghiView() {
                   setIsAddCustomOpen((prev) => !prev)
                   setIsAddAddonOpen(false)
                 }}
-                className="flex items-center gap-2 px-4 py-2 rounded-xl bg-accent-orange-strong text-white text-xs font-semibold hover:bg-accent-orange-strong/90 active:scale-95 transition-all shadow-md"
+                className="flex items-center gap-2 px-4 py-2 rounded-xl bg-accent-orange-strong text-white text-xs font-semibold hover:bg-accent-orange-strong/90 active:scale-95 transition shadow-md"
               >
                 <ListPlus className="w-4 h-4" />
                 <span>{t("ui.addCatalog")}</span>
@@ -1035,7 +1035,7 @@ export function CataloghiView() {
             key={f.id}
             onClick={() => setPlatformFilter(f.id)}
             aria-pressed={platformFilter === f.id}
-            className={`shrink-0 px-3 py-1.5 rounded-xl text-xs font-medium transition-all duration-150 active:scale-95 ${
+            className={`shrink-0 px-3 py-1.5 rounded-xl text-xs font-medium transition duration-150 active:scale-95 ${
               platformFilter === f.id
                 ? "bg-accent-orange/15 text-foreground border border-accent-orange/30 shadow-sm font-semibold"
                 : "bg-surface/80 text-muted hover:text-zinc-200 border border-white/5 hover:border-white/10"
@@ -1228,7 +1228,7 @@ export function CataloghiView() {
           <button
             type="button"
             onClick={() => setIsStreamDialogOpen(true)}
-            className="inline-flex items-center gap-2 px-4 py-2 rounded-xl bg-accent-orange text-white text-xs font-semibold hover:bg-accent-orange/90 active:scale-95 transition-all shadow-md"
+            className="inline-flex items-center gap-2 px-4 py-2 rounded-xl bg-accent-orange text-white text-xs font-semibold hover:bg-accent-orange/90 active:scale-95 transition shadow-md"
           >
             <Plus className="w-4 h-4" />
             <span>{t("ui.streamAddTop10")}</span>
@@ -1348,7 +1348,7 @@ export function CataloghiView() {
               <h2 id="catalog-grid-title" className="text-xl font-bold text-zinc-50">{gridTitle}</h2>
               <button type="button"
                 onClick={closeGrid}
-                className="w-9 h-9 flex items-center justify-center rounded-xl bg-surface2 hover:bg-zinc-700 text-muted hover:text-zinc-200 transition-all"
+                className="w-9 h-9 flex items-center justify-center rounded-xl bg-surface2 hover:bg-zinc-700 text-muted hover:text-zinc-200 transition"
                 aria-label={t("ui.close")}
               >
                 <X className="w-5 h-5" />
@@ -1395,7 +1395,7 @@ export function CataloghiView() {
                         }), "cataloghi", gridListName, seasonalKeywords)
                       }
                     }}
-                    className={`group relative aspect-[2/3] rounded-xl overflow-hidden bg-surface2 transition-all focus:outline-none focus:ring-2 focus:ring-accent ${
+                    className={`group relative aspect-[2/3] rounded-xl overflow-hidden bg-surface2 transition focus:outline-none focus:ring-2 focus:ring-accent ${
                       isSaved
                         ? "ring-2 ring-emerald-500/80 border-emerald-500/80"
                         : "hover:ring-2 hover:ring-accent/50"

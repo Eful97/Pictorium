@@ -871,26 +871,13 @@
   "ui.episodeMetadataSource": "Źródło metadanych odcinków",
   "ui.episodeMetadataSourceHint": "Użyj TheTVDB lub TMDB dla okładek odcinków (screeny) i opisów odcinków.",
   "ui.episodeThumbnails": "Episode thumbnails",
-
   "ui.thumbnailsZoneSubtitle": "Tytuły z niestandardowymi miniaturami odcinków. Edycja tutaj nigdy nie zmienia plakatu.",
-
   "ui.thumbnailsZoneEmpty": "Brak niestandardowych miniatur odcinków. Otwórz plakat i użyj Miniatur odcinków, aby je dostosować.",
-
   "ui.thumbnailsZoneEdit": "Edytuj miniatury",
-
-
   "ui.thumbnailsNav": "Miniatury",
-
-
   "ui.thumbnailsZoneSearch": "Szukaj tytułów",
-
-
   "ui.thumbnailsZoneClear": "Wyczyść wyszukiwanie",
-
-
   "ui.thumbnailsZoneDeleteTitle": "Usunąć miniatury?",
-
-
   "ui.thumbnailsZoneDeleteMsg": "Usunąć niestandardowe miniatury odcinków dla wybranych tytułów? Plakaty pozostaną nietknięte. Tej operacji nie można cofnąć.",
   "ui.episodeThumbnailsHint": "Show episode stills with rating badges on Stremio episode cards. When off, the original TMDB stills are used.",
   "ui.episodeStillPickerTitle": "Episode still",
@@ -988,6 +975,10 @@
   "ui.pinSaveError": "Błąd podczas zapisywania",
   "ui.ink": "Tusz",
   "ui.split": "Dzielony",
+  "ui.tinta": "Odcień",
+  "ui.sfumato": "Gradientowa ramka",
+  "ui.editoriale": "Redakcyjny",
+  "ui.sepRings": "Pierścienie",
   "ui.minimal": "Minimalny",
   "ui.tintStrength": "Siła barwienia",
   "ui.topShade": "Cień u góry",
@@ -1361,5 +1352,9 @@
   "duckdnsSunset.body3": "Aby kontynuować bez przerw, możesz {vercel} lub {elfhosted}:",
   "duckdnsSunset.dismiss": "Zamknij komunikat",
   "duckdnsSunset.vercelLabel": "bezpłatnie utworzyć własną prywatną instancję na Vercel",
-  "duckdnsSunset.elfhostedLabel": "od razu skorzystać z publicznej instancji ElfHosted"
+  "duckdnsSunset.elfhostedLabel": "od razu skorzystać z publicznej instancji ElfHosted",
+  "ui.badgeTabRatings": "Oceny",
+  "ui.badgeTabTop": "Na górze",
+  "ui.badgeTabQuality": "Jakość",
+  "ui.badgeTabLook": "Wygląd"
 }

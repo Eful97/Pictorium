@@ -288,7 +288,7 @@ export function BackdropOptions({ backdrops, backdropActivePath, selectBackdrop,
                     aria-label={t("ui.remove")}
                     title={t("ui.remove")}
                     onClick={(e) => { e.stopPropagation(); onRemoveCustomBackdrop(img.file_path) }}
-                    className="poster-image-action w-6 h-6 rounded-lg flex items-center justify-center backdrop-blur-md border transition-all duration-150 bg-black/55 border-white/10 text-zinc-300 hover:bg-red-500/90 hover:text-white hover:border-red-400/60"
+                    className="poster-image-action w-6 h-6 rounded-lg flex items-center justify-center backdrop-blur-md border transition duration-150 bg-black/55 border-white/10 text-zinc-300 hover:bg-red-500/90 hover:text-white hover:border-red-400/60"
                   >
                     <X className="w-3.5 h-3.5" />
                   </button>
@@ -315,21 +315,21 @@ export function BackdropOptions({ backdrops, backdropActivePath, selectBackdrop,
         <div className="flex gap-1 mb-3 overflow-x-auto scrollbar-none">
           <button type="button"
             onClick={() => setSource("tmdb")}
-            className={`tab-chip h-7 px-2.5 rounded-lg text-[11px] font-semibold border transition-all shrink-0 ${source === "tmdb" ? "tab-chip-active bg-accent-orange/15 text-accent-orange border-accent-orange/35" : "bg-white/5 text-muted border-white/10 hover:text-zinc-200 hover:bg-white/10"}`}
+            className={`tab-chip h-7 px-2.5 rounded-lg text-[11px] font-semibold border transition shrink-0 ${source === "tmdb" ? "tab-chip-active bg-accent-orange/15 text-accent-orange border-accent-orange/35" : "bg-white/5 text-muted border-white/10 hover:text-zinc-200 hover:bg-white/10"}`}
           >
             {t("ui.tmdb")}
             <span className="ml-1 text-[10px] opacity-60">{backdrops.length}</span>
           </button>
           <button type="button"
             onClick={() => setSource("tvdb")}
-            className={`tab-chip h-7 px-2.5 rounded-lg text-[11px] font-semibold border transition-all shrink-0 ${source === "tvdb" ? "tab-chip-active bg-accent-orange/15 text-accent-orange border-accent-orange/35" : "bg-white/5 text-muted border-white/10 hover:text-zinc-200 hover:bg-white/10"}`}
+            className={`tab-chip h-7 px-2.5 rounded-lg text-[11px] font-semibold border transition shrink-0 ${source === "tvdb" ? "tab-chip-active bg-accent-orange/15 text-accent-orange border-accent-orange/35" : "bg-white/5 text-muted border-white/10 hover:text-zinc-200 hover:bg-white/10"}`}
           >
             {t("ui.tvdbTitle")}
             <span className="ml-1 text-[10px] opacity-60">{tvdb.items.length}</span>
           </button>
           <button type="button"
             onClick={() => setSource("fanart")}
-            className={`tab-chip h-7 px-2.5 rounded-lg text-[11px] font-semibold border transition-all shrink-0 ${source === "fanart" ? "tab-chip-active bg-accent-orange/15 text-accent-orange border-accent-orange/35" : "bg-white/5 text-muted border-white/10 hover:text-zinc-200 hover:bg-white/10"}`}
+            className={`tab-chip h-7 px-2.5 rounded-lg text-[11px] font-semibold border transition shrink-0 ${source === "fanart" ? "tab-chip-active bg-accent-orange/15 text-accent-orange border-accent-orange/35" : "bg-white/5 text-muted border-white/10 hover:text-zinc-200 hover:bg-white/10"}`}
           >
             {t("ui.fanartTitle")}
             <span className="ml-1 text-[10px] opacity-60">{fanartBackdrops.length}</span>
@@ -356,7 +356,7 @@ export function BackdropOptions({ backdrops, backdropActivePath, selectBackdrop,
               <button
                 type="button"
                 onClick={() => fanart.reload()}
-                className="mt-2 px-3 py-1.5 rounded-lg bg-white/5 border border-white/10 text-[11px] font-semibold text-zinc-300 hover:text-white hover:bg-white/10 transition-all"
+                className="mt-2 px-3 py-1.5 rounded-lg bg-white/5 border border-white/10 text-[11px] font-semibold text-zinc-300 hover:text-white hover:bg-white/10 transition"
               >
                 {t("ui.retry")}
               </button>
@@ -406,7 +406,7 @@ export function BackdropOptions({ backdrops, backdropActivePath, selectBackdrop,
               <button
                 type="button"
                 onClick={() => tvdb.reload()}
-                className="mt-2 px-3 py-1.5 rounded-lg bg-white/5 border border-white/10 text-[11px] font-semibold text-zinc-300 hover:text-white hover:bg-white/10 transition-all"
+                className="mt-2 px-3 py-1.5 rounded-lg bg-white/5 border border-white/10 text-[11px] font-semibold text-zinc-300 hover:text-white hover:bg-white/10 transition"
               >
                 {t("ui.retry")}
               </button>
@@ -457,7 +457,7 @@ export function BackdropOptions({ backdrops, backdropActivePath, selectBackdrop,
             <button type="button"
               aria-label={ed.autoRotateBackdrop ? t("ui.removeFromRotation") : t("ui.autoRotate")}
               onClick={toggleAutoRotateBackdrop}
-              className={`px-2 py-1 text-[11px] font-semibold rounded-lg border transition-all ${ed.autoRotateBackdrop ? "bg-accent-orange/20 text-accent-orange border-accent-orange/25 animate-pulse-ring" : "bg-white/5 text-muted border-white/10"}`}
+              className={`px-2 py-1 text-[11px] font-semibold rounded-lg border transition ${ed.autoRotateBackdrop ? "bg-accent-orange/20 text-accent-orange border-accent-orange/25 animate-pulse-ring" : "bg-white/5 text-muted border-white/10"}`}
             >
               {ed.autoRotateBackdrop ? <><Check className="w-3 h-3 inline mr-1" />ON</> : "OFF"}
             </button>
@@ -488,7 +488,7 @@ export function BackdropOptions({ backdrops, backdropActivePath, selectBackdrop,
           <button type="button"
             aria-label={t("ui.chooseBestBackdropAria")}
             onClick={() => { markUserPicked(); selectBackdrop(bestBackdrop) }}
-            className="w-full flex items-center justify-center gap-1.5 px-3 py-1.5 text-[11px] font-semibold rounded-lg transition-all duration-150 bg-accent-orange/15 text-accent-orange hover:bg-accent-orange/25 active:scale-[0.98]"
+            className="w-full flex items-center justify-center gap-1.5 px-3 py-1.5 text-[11px] font-semibold rounded-lg transition duration-150 bg-accent-orange/15 text-accent-orange hover:bg-accent-orange/25 active:scale-[0.98]"
           >
             <Sparkles className="w-3 h-3" />{t("ui.chooseBestBackdrop")}
           </button>
@@ -531,7 +531,7 @@ export function BackdropOptions({ backdrops, backdropActivePath, selectBackdrop,
                 <button type="button"
                   aria-label={inRotation ? t("ui.removeFromRotation") : t("ui.addToRotation")}
                   onClick={(e) => { e.stopPropagation(); toggleRotation(img.file_path) }}
-                  className={`poster-image-action w-6 h-6 rounded-lg flex items-center justify-center backdrop-blur-md border transition-all duration-150 ${inRotation ? "bg-accent-orange text-white border-accent-orange shadow-sm shadow-accent-orange/40" : "bg-black/55 border-white/10 text-zinc-200 hover:bg-accent-orange/90 hover:text-white hover:border-accent-orange/60"}`}
+                  className={`poster-image-action w-6 h-6 rounded-lg flex items-center justify-center backdrop-blur-md border transition duration-150 ${inRotation ? "bg-accent-orange text-white border-accent-orange shadow-sm shadow-accent-orange/40" : "bg-black/55 border-white/10 text-zinc-200 hover:bg-accent-orange/90 hover:text-white hover:border-accent-orange/60"}`}
                   title={inRotation ? t("ui.removeFromRotation") : t("ui.addToRotation")}
                 >
                   {inRotation ? <Check className="w-3.5 h-3.5" /> : <RotateCcw className="w-3.5 h-3.5" />}
@@ -539,7 +539,7 @@ export function BackdropOptions({ backdrops, backdropActivePath, selectBackdrop,
                 <button type="button"
                   aria-label={t("ui.excludeBackdrop")}
                   onClick={(e) => { e.stopPropagation(); excludeBackdrop(img.file_path) }}
-                  className="poster-image-action w-6 h-6 rounded-lg flex items-center justify-center backdrop-blur-md border transition-all duration-150 bg-black/55 border-white/10 text-zinc-300 hover:bg-red-500/90 hover:text-white hover:border-red-400/60"
+                  className="poster-image-action w-6 h-6 rounded-lg flex items-center justify-center backdrop-blur-md border transition duration-150 bg-black/55 border-white/10 text-zinc-300 hover:bg-red-500/90 hover:text-white hover:border-red-400/60"
                   title={t("ui.excludeBackdrop")}
                 >
                   <EyeOff className="w-3.5 h-3.5" />

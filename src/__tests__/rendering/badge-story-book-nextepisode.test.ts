@@ -14,8 +14,15 @@ import {
 import { createT } from "@/lib/i18n"
 
 const t = createT("it")
-const daysAgo = (n: number) => new Date(Date.now() - n * 24 * 60 * 60 * 1000).toISOString().slice(0, 10)
-const inDays = (n: number) => new Date(Date.now() + n * 24 * 60 * 60 * 1000).toISOString().slice(0, 10)
+// LOCAL calendar dates, like getNextEpisodeLabel: toISOString() (UTC) was a
+// day off between local and UTC midnight, flaking the day-1/day-14 bounds.
+const localDay = (offset: number) => {
+  const d = new Date()
+  d.setDate(d.getDate() + offset)
+  return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}-${String(d.getDate()).padStart(2, "0")}`
+}
+const daysAgo = (n: number) => localDay(-n)
+const inDays = (n: number) => localDay(n)
 
 const baseInput = {
   mediaType: "tv" as const,

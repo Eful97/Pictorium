@@ -17,7 +17,7 @@
  * shared 3D shadow filter (`TOP_SHADOW_FILTER`). Appended last so no existing
  * style order/identifier changes (client selects hardcode their own lists).
  */
-export const BADGE_STYLES = ["shadow", "pill", "bar", "colored", "bordo", "vetro", "minimal", "ink"] as const
+export const BADGE_STYLES = ["shadow", "pill", "bar", "colored", "bordo", "vetro", "minimal", "ink", "tinta", "sfumato", "split", "editoriale"] as const
 export type BadgeStyle = (typeof BADGE_STYLES)[number]
 
 /**
@@ -30,7 +30,7 @@ export type BadgeStyle = (typeof BADGE_STYLES)[number]
  * ribbon (squeezes it). Single builder (`buildSplitChipSvg` in
  * badge-svg-shared.ts) behind the existing dispatcher, no second renderer.
  */
-export const RANKING_BADGE_STYLES = ["default", "colored", "pill", "bordo", "vetro", "netflix", "netflix-color", "corner", "number", "split"] as const
+export const RANKING_BADGE_STYLES = ["default", "colored", "pill", "bordo", "vetro", "netflix", "netflix-color", "corner", "number", "split", "tinta", "sfumato", "editoriale"] as const
 export type RankingBadgeStyle = (typeof RANKING_BADGE_STYLES)[number]
 /**
  * Standalone extra-badge style (`xbs` query): subset of the existing names —
@@ -43,7 +43,7 @@ export type RankingBadgeStyle = (typeof RANKING_BADGE_STYLES)[number]
  * like any invalid input; a legacy `rs=split` fallback degrades the extra to
  * the historic default plate in `buildHouseExtraSvg`, never a migration).
  */
-export const EXTRA_BADGE_STYLES = ["default", "pill", "colored", "bordo", "vetro", "corner"] as const
+export const EXTRA_BADGE_STYLES = ["default", "pill", "colored", "bordo", "vetro", "corner", "tinta", "sfumato", "editoriale"] as const
 export type ExtraBadgeStyle = (typeof EXTRA_BADGE_STYLES)[number]
 
 /**
@@ -98,7 +98,7 @@ export const DEFAULT_RANKING_BADGE_STYLE: RankingBadgeStyle = "default"
  * Chain like the other styles: `qbs` query > per-title mapping >
  * config token > server defaults.
  */
-export const QUALITY_BADGE_STYLES = ["standard", "mono", "color", "knockout", "premium", "nova", "gradient", "outline", "strip", "naked"] as const
+export const QUALITY_BADGE_STYLES = ["standard", "mono", "color", "knockout", "premium", "nova", "gradient", "outline", "strip", "naked", "editoriale"] as const
 export type QualityBadgeStyle = (typeof QUALITY_BADGE_STYLES)[number]
 
 export const DEFAULT_QUALITY_BADGE_STYLE: QualityBadgeStyle = "standard"
@@ -171,7 +171,7 @@ export function isMergedQualityStrip(
  * Per-shape chain like the age toggle itself: `agebs` query > config
  * token > effective per-shape server defaults > flat > "standard".
  */
-export const AGE_BADGE_STYLES = ["standard", "mono", "color", "knockout", "premium", "nova", "gradient", "outline"] as const
+export const AGE_BADGE_STYLES = ["standard", "mono", "color", "knockout", "premium", "nova", "gradient", "outline", "editoriale"] as const
 export type AgeBadgeStyle = (typeof AGE_BADGE_STYLES)[number]
 
 export const DEFAULT_AGE_BADGE_STYLE: AgeBadgeStyle = "standard"
@@ -279,7 +279,7 @@ export function isBadgeFont(v: string | null | undefined): v is BadgeFont {
  * query `sepstyle` > mapping per-titolo > config token > server defaults >
  * "column". Assente o non valido → column (URL e mapping esistenti invariati).
  */
-export const SEPARATE_RATINGS_STYLES = ["column", "bottom-bar", "bottom-pills", "bottom-mono", "bottom-color"] as const
+export const SEPARATE_RATINGS_STYLES = ["column", "bottom-bar", "bottom-pills", "bottom-mono", "bottom-color", "rings"] as const
 export type SeparateRatingsStyle = (typeof SEPARATE_RATINGS_STYLES)[number]
 
 export const DEFAULT_SEPARATE_RATINGS_STYLE: SeparateRatingsStyle = "column"
@@ -346,9 +346,9 @@ export function resolveSeparateBadgeScaleFallback(args: {
   return getSeparateBadgeDefaultScale(args.style)
 }
 
-/** True per le modalità bottom (esclude la colonna storica). */
+/** True per le modalità bottom (esclude la colonna storica e la colonna ad anelli). */
 export function isBottomSeparateRatingsStyle(v: string | null | undefined): v is SeparateBottomVariant {
-  return isSeparateRatingsStyle(v) && v !== "column"
+  return isSeparateRatingsStyle(v) && v !== "column" && v !== "rings"
 }
 
 /**
@@ -370,7 +370,7 @@ export function getSeparateRatingsStyleForShape(
 }
 
 /** Variante bottom per il renderer riga: colonna esclusa per tipo. */
-export type SeparateBottomVariant = Exclude<SeparateRatingsStyle, "column">
+export type SeparateBottomVariant = Exclude<SeparateRatingsStyle, "column" | "rings">
 export function isRibbonRankingStyle(v: string | null | undefined): boolean {
   return v === "netflix" || v === "netflix-color" || v === "colored"
 }

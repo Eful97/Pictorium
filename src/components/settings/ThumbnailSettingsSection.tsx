@@ -49,7 +49,7 @@ const LABEL_CLASS = "text-zinc-200 text-xs sm:text-sm font-medium"
 const HINT_CLASS = "text-[11px] text-muted leading-relaxed"
 const FOCUS_RING =
   "focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-accent-orange/60 focus-visible:ring-offset-2 focus-visible:ring-offset-zinc-950"
-const CHOICE_CLASS = `min-h-[40px] rounded-lg border text-[11px] font-semibold transition-all cursor-pointer ${FOCUS_RING}`
+const CHOICE_CLASS = `min-h-[40px] rounded-lg border text-[11px] font-semibold transition cursor-pointer ${FOCUS_RING}`
 const CHOICE_ON = "bg-accent-orange/20 border-accent-orange/50 text-accent-orange"
 const CHOICE_OFF = "bg-white/[0.03] border-white/10 text-zinc-300 hover:bg-white/10"
 

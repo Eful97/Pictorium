@@ -96,7 +96,7 @@ export function ProxyModal({ isOpen, onClose }: Props) {
                 key={preset.name}
                 type="button"
                 onClick={() => setTargetUrl(preset.url)}
-                className="px-2.5 py-1 text-[11px] font-semibold rounded-lg bg-white/5 border border-white/10 text-zinc-300 hover:bg-accent-orange/15 hover:text-accent-orange hover:border-accent-orange/30 transition-all"
+                className="px-2.5 py-1 text-[11px] font-semibold rounded-lg bg-white/5 border border-white/10 text-zinc-300 hover:bg-accent-orange/15 hover:text-accent-orange hover:border-accent-orange/30 transition"
               >
                 {preset.name}
               </button>
@@ -128,7 +128,7 @@ export function ProxyModal({ isOpen, onClose }: Props) {
               <button
                 type="button"
                 onClick={handleOpenStremio}
-                className="h-9 px-3 text-xs font-semibold rounded-xl bg-white/[0.08] border border-white/15 text-zinc-200 hover:bg-white/[0.15] hover:text-white flex items-center justify-center gap-2 active:scale-[0.98] transition-all"
+                className="h-9 px-3 text-xs font-semibold rounded-xl bg-white/[0.08] border border-white/15 text-zinc-200 hover:bg-white/[0.15] hover:text-white flex items-center justify-center gap-2 active:scale-[0.98] transition"
               >
                 <ExternalLink className="w-4 h-4 text-accent-orange" />
                 {t("ui.proxyOpenStremio")}

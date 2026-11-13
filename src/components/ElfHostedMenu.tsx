@@ -78,7 +78,7 @@ function MenuLink({ href, children }: { href: string; children: ReactNode }) {
         href={href}
         target="_blank"
         rel="noopener noreferrer"
-        className="group flex min-h-8 items-center justify-between gap-2.5 rounded-xl px-2.5 py-1.5 text-xs text-zinc-300 transition-all duration-150 hover:bg-white/[0.08] hover:text-white focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-amber-400/70 active:scale-[0.98]"
+        className="group flex min-h-8 items-center justify-between gap-2.5 rounded-xl px-2.5 py-1.5 text-xs text-zinc-300 transition duration-150 hover:bg-white/[0.08] hover:text-white focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-amber-400/70 active:scale-[0.98]"
       >
         <span className="min-w-0 flex-1 leading-snug">{children}</span>
         <ArrowUpRight className="h-3.5 w-3.5 shrink-0 self-center text-zinc-500 transition-colors group-hover:text-amber-300" aria-hidden="true" />
@@ -115,7 +115,7 @@ export function ElfHostedMenuPanel({ onMinimize }: { onMinimize: () => void }) {
           onClick={onMinimize}
           aria-label={t("ui.hostedByMinimize")}
           title={t("ui.hostedByMinimize")}
-          className="-mr-1 -mt-1 flex h-8 w-8 shrink-0 cursor-pointer items-center justify-center rounded-lg text-zinc-500 transition-all hover:bg-white/[0.08] hover:text-zinc-200 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-amber-400/70 active:scale-90"
+          className="-mr-1 -mt-1 flex h-8 w-8 shrink-0 cursor-pointer items-center justify-center rounded-lg text-zinc-500 transition hover:bg-white/[0.08] hover:text-zinc-200 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-amber-400/70 active:scale-90"
         >
           <Minus className="h-4 w-4" aria-hidden="true" />
         </button>

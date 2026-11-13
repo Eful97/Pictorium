@@ -306,8 +306,10 @@ export function buildUrlPattern(bp: BadgeParams & {
   /** Placeholder id nel path: `{tmdb_id}` (primario, esatto: niente /find),
    *  `{imdb_id}` (fallback universale) o `{tmdb_id|imdb_id}` (auto: il
    *  consumer — es. Nuvio — sostituisce quello disponibile per la vista,
-   *  altrimenti tiene il poster originale). Default `{imdb_id}` (invariato). */
-  idPlaceholder?: "{imdb_id}" | "{tmdb_id}" | "{tmdb_id|imdb_id}"
+   *  altrimenti tiene il poster originale). `{tmdb_id|imdb_id|id}` (auto
+   *  Nuvio): come l'auto, poi l'id completo (`kitsu:N`, `tvdb:N`…) che la
+   *  route risolve via snapshot anime / TMDB find. Default `{imdb_id}`. */
+  idPlaceholder?: "{imdb_id}" | "{tmdb_id}" | "{tmdb_id|imdb_id}" | "{tmdb_id|imdb_id|id}"
   /** Placeholder formato Nuvio in query: con `"{shape}"` il `shape` fisso
    *  viene sostituito da `shape={shape}` letterale (Nuvio lo sostituisce con
    *  `poster`/`landscape`/`square` per vista e abilita gli override

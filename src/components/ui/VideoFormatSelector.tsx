@@ -96,7 +96,7 @@ export function VideoFormatSelector({
               type="button"
               onClick={() => toggleFormat(opt.id)}
               title={opt.fullName}
-              className={`flex flex-col items-center justify-center gap-1 py-1.5 px-0.5 rounded-lg border transition-all duration-150 cursor-pointer ${
+              className={`flex flex-col items-center justify-center gap-1 py-1.5 px-0.5 rounded-lg border transition duration-150 cursor-pointer ${
                 isSelected
                   ? "bg-accent-orange/15 text-zinc-100 border-accent-orange/30 font-semibold shadow-sm"
                   : "bg-white/[0.03] text-zinc-500 hover:bg-white/[0.06] hover:text-zinc-300 border-white/[0.05] opacity-60 hover:opacity-100"

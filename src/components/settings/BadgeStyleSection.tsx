@@ -38,7 +38,7 @@ export function GenreStyleSection({ shape, onPreviewFamilyChange, styleDisabled,
         <fieldset disabled={styleDisabled} className="contents">
         <BadgeStyleSelector
           value={badgeStyle}
-          options={["shadow", "pill", "bar", "colored", "bordo", "vetro", "minimal", "ink"]}
+          options={["shadow", "pill", "bar", "colored", "bordo", "vetro", "minimal", "ink", "tinta", "sfumato", "split", "editoriale"]}
           onChange={(v) => {
             setBadgeStyle(v)
           }}

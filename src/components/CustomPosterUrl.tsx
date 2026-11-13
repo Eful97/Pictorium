@@ -126,7 +126,7 @@ export function CustomPosterUrl({ onAdd, onRemove, collapsible = false, defaultO
           type="button"
           onClick={() => setIsOpen(true)}
           aria-label={t("ui.customPosterTitle")}
-          className="w-full flex items-center justify-between px-3 py-2 rounded-xl border border-white/10 bg-white/[0.03] hover:bg-white/[0.06] text-xs font-medium text-zinc-300 hover:text-white transition-all cursor-pointer group"
+          className="w-full flex items-center justify-between px-3 py-2 rounded-xl border border-white/10 bg-white/[0.03] hover:bg-white/[0.06] text-xs font-medium text-zinc-300 hover:text-white transition cursor-pointer group"
         >
           <div className="flex items-center gap-2">
             <Link2 className="w-3.5 h-3.5 text-accent-orange group-hover:scale-110 transition-transform" aria-hidden="true" />
@@ -189,7 +189,7 @@ export function CustomPosterUrl({ onAdd, onRemove, collapsible = false, defaultO
           type="button"
           onClick={() => { void handleAdd() }}
           disabled={!input.trim() || resolving}
-          className="shrink-0 flex items-center gap-1.5 px-3 py-2 rounded-lg bg-accent-orange text-white text-xs font-semibold hover:brightness-110 active:scale-95 transition-all disabled:opacity-40 disabled:cursor-not-allowed"
+          className="shrink-0 flex items-center gap-1.5 px-3 py-2 rounded-lg bg-accent-orange text-white text-xs font-semibold hover:brightness-110 active:scale-95 transition disabled:opacity-40 disabled:cursor-not-allowed"
         >
           {resolving
             ? <Loader2 className="w-3.5 h-3.5 animate-spin" aria-hidden="true" />

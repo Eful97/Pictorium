@@ -47,6 +47,9 @@ describe("split style enum", () => {
       "corner",
       "number",
       "split",
+      "tinta",
+      "sfumato",
+      "editoriale",
     ])
   })
 })

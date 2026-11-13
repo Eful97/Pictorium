@@ -27,6 +27,7 @@ import {
   AV_PLATE_RADIUS_FACTOR,
   AV_PLATE_STROKE_WIDTH,
   gradientMarkStops,
+  tierAssetPlateGeometry,
 } from "@/lib/quality-badge-styles"
 import { buildQualityKnockoutSvg, buildQualityBadgeSvg, buildAgeEmphasisSvg, buildGradientMarkSvg, badgeBoxHeight, TOP_SHADOW_PAD, AGE_NOVA_BODY_BOTTOM, AGE_NOVA_BODY_TOP, AGE_NOVA_BORDER_BOTTOM, AGE_NOVA_BORDER_TOP, AGE_NOVA_INK, AGE_NOVA_SKEW_X, GRADIENT_MARK_FONT_WEIGHT } from "@/lib/badge-svg-shared"
 import { KNOWN_VIDEO_FORMATS, FORMAT_ICON_PATHS, type VideoFormat } from "@/lib/av-specs"
@@ -43,8 +44,8 @@ import type { ServerDefaults } from "@/lib/server-defaults"
 const ROOT = path.resolve(__dirname, "../../..")
 
 describe("quality badge styles", () => {
-  it("exposes the standard/mono/color/knockout/premium/nova/gradient/outline/strip/naked union with standard default", () => {
-    expect([...QUALITY_BADGE_STYLES]).toEqual(["standard", "mono", "color", "knockout", "premium", "nova", "gradient", "outline", "strip", "naked"])
+  it("exposes the standard/mono/color/knockout/premium/nova/gradient/outline/strip/naked/editoriale union with standard default", () => {
+    expect([...QUALITY_BADGE_STYLES]).toEqual(["standard", "mono", "color", "knockout", "premium", "nova", "gradient", "outline", "strip", "naked", "editoriale"])
     expect(DEFAULT_QUALITY_BADGE_STYLE).toBe("standard")
     expect(isQualityBadgeStyle("mono")).toBe(true)
     expect(isQualityBadgeStyle("color")).toBe(true)
@@ -529,7 +530,6 @@ describe("quality A/V mark width normalization", () => {
     // Il glifo vive DENTRO la placca: inset uniforme piccolo per lato.
     const inset = Math.max(1, Math.round(fs * AV_PLATE_GLYPH_INSET_FACTOR))
     const glyphTarget = ref - inset * 2
-    const widths: number[] = []
     for (const mark of AV_MARKS) {
       // Il glifo premium è l'unica cosa che cambia con l'accento: il diff
       // misura l'inchiostro del glifo (larghezza + altezza naturali).
@@ -539,14 +539,16 @@ describe("quality A/V mark width normalization", () => {
       expect(dolby, mark.key).not.toBeNull()
       const glyph = await diffBbox(gold!.png, dolby!.png)
       expect(glyph, mark.key).not.toBeNull()
-      expect(Math.abs(glyph!.w - glyphTarget), `${mark.key} glyph width`).toBeLessThanOrEqual(2)
+      // Width-bound up to the optical cap (the asset tier's own 4K text height).
+      const expected = tierAssetPlateGeometry(avMarkInkBox(mark.icon)!, ref, boxH, fs).glyph
+      expect(Math.abs(glyph!.w - expected.w), `${mark.key} glyph width`).toBeLessThanOrEqual(2)
+      expect(glyph!.w, `${mark.key} inside plate`).toBeLessThanOrEqual(glyphTarget)
       const box = avMarkInkBox(mark.icon)!
       expect(Math.abs(glyph!.h - Math.round(glyph!.w * (box.h / box.w))), `${mark.key} aspect`).toBeLessThanOrEqual(1)
       // NIENTE clipping/spill: il glifo sta dentro la placca, non sopra la
       // cornice (la placca occupa [TOP_SHADOW_PAD, +ref) nel bitmap).
       expect(glyph!.x0, `${mark.key} left inset`).toBeGreaterThanOrEqual(TOP_SHADOW_PAD + 1)
       expect(glyph!.x0 + glyph!.w, `${mark.key} right inset`).toBeLessThanOrEqual(TOP_SHADOW_PAD + ref - 1)
-      widths.push(glyph!.w)
       // Placca identica per ogni marchio e LARGA QUANTO IL TIER 4K.
       expect(gold!.w, `${mark.key} plate w`).toBe(ref + TOP_SHADOW_PAD * 2)
       expect(gold!.h, `${mark.key} plate h`).toBe(boxH + TOP_SHADOW_PAD * 2)
@@ -555,7 +557,7 @@ describe("quality A/V mark width normalization", () => {
       expect(color, `color/${mark.key}`).not.toBeNull()
       expect([color!.w, color!.h], `color/${mark.key}`).toEqual([gold!.w, gold!.h])
     }
-    expect(Math.max(...widths) - Math.min(...widths), "uniform").toBeLessThanOrEqual(2)
+    // Glyph widths differ by design now: each mark is capped to the 4K text height.
   }, 60000)
 
   it("matches the 4K color-tier palette in `color` and stays visibly distinct in `premium`", async () => {

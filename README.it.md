@@ -165,7 +165,7 @@ La strada più veloce usa un'istanza pubblica — nessuna installazione:
 
 * **Gestione massiva ne "I Miei Poster"**: selezione multipla dei poster salvati con eliminazione di gruppo.
 * **Backup completo & ripristino**: esporta e ripristina con un click l'intera configurazione dello spazio (poster salvati, preset personalizzati, stili e preferenze).
-* **Template URL per Nuvio & AIOMetadata**: template dedicati per gestori di cataloghi esterni con risoluzione automatica degli ID TMDB. Gli spazi utente usano di default **Segui il mio spazio**: copia il template una volta sola e le modifiche salvate si applicano senza sostituire il link. **Impostazioni fisse nel link** resta disponibile nelle opzioni avanzate e i template esistenti mantengono i loro override espliciti. La variante automatica Nuvio lascia comunque al client la scelta del formato immagine.
+* **Template URL per Nuvio & AIOMetadata**: template dedicati per gestori di cataloghi esterni con risoluzione automatica degli ID TMDB. Gli spazi utente usano di default **Segui il mio spazio**: copia il template una volta sola e le modifiche salvate si applicano senza sostituire il link. **Impostazioni fisse nel link** resta disponibile nelle opzioni avanzate e i template esistenti mantengono i loro override espliciti. La variante automatica Nuvio lascia comunque al client la scelta del formato immagine e copre anche i cataloghi anime (ID `kitsu:`, `anilist:`, `mal:`, `anidb:`, `tvdb:` mappati su TMDB).
   I link Segui (`live=1`) richiedono rivalidazione HTTP e riusano i render interni aggiornati. AIOMetadata e gli altri proxy di immagini devono rispettare questa policy; aggiorna le immagini già in cache usando i controlli disponibili nella versione installata. I nuovi header non possono eliminare le copie esterne esistenti e un poster già mostrato si aggiorna solo quando il client lo richiede di nuovo. Ranking live e altri dati upstream mantengono i loro tempi di aggiornamento interni. Dettagli dell'endpoint: [docs/INTEGRAZIONE.md](docs/INTEGRAZIONE.md).
 
 </details>
@@ -402,8 +402,10 @@ Tutte le variabili usano il prefisso `PICTORIUM_*`. I vecchi nomi `POSTERIUM_*` 
 | `PICTORIUM_NEGATIVE_CACHE_TTL_MS` | `5000` | Per quanto un render fallito (500/503/404) viene ricordato, per non martellare un upstream rotto (1000–60000 ms). |
 | `PICTORIUM_DYNAMIC_POSTER_TTL_MS` | `21600000` (6 h) | TTL di storage per i poster on-demand (non mappati), che guida anche gli header `Cache-Control`/Surrogate (clamp 5 min–24 h, jitter deterministico ±10% per cache key). I poster mappati seguono il refresh giornaliero. |
 | `PICTORIUM_IMG_CACHE_MB` | `32` | Budget RAM per la cache byte delle immagini scaricate in-process (0–512 MB, `0` la disattiva). |
-| `PICTORIUM_CACHE_MAX` | `2000` | Voci massime nella cache metadati in memoria (deve essere > 100, altrimenti `2000`). È il knob del numero di entry: `PICTORIUM_CACHE_MAX_ENTRIES` non viene letto. |
+| `PICTORIUM_CACHE_MAX` | `4000` | Voci massime nella cache metadati in memoria (deve essere > 100, altrimenti `4000`). Un poster renderizzato occupa 2 voci (~60-110KB webp + header): con 4000 a limitare per primo è il tetto in byte `PICTORIUM_CACHE_MAX_MB`. È il knob del numero di entry: `PICTORIUM_CACHE_MAX_ENTRIES` non viene letto. |
 | `PICTORIUM_CACHE_MAX_MB` | `150` | RAM massima per la cache metadati in memoria (deve essere > 10 MB, altrimenti `150`). |
+| `PICTORIUM_POSTER_DISK_CACHE` | attivo (spento su Vercel) | Salva i poster renderizzati in `DATA_DIR/poster-cache`: dopo un riavvio/deploy tornano dal disco (~0,4 ms) invece di essere ri-renderizzati a freddo. Stessi TTL/SWR della memoria; svuotato con il clear della cache o il salvataggio dei default globali. `0`/`false`/`off`/`no` lo disattiva. |
+| `PICTORIUM_POSTER_DISK_CACHE_MB` | `512` | Tetto della cache poster su disco (16–10240 MB); si eliminano prima i file usati meno di recente. |
 
 </details>
 

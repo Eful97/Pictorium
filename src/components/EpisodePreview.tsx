@@ -1046,7 +1046,7 @@ function EpisodeStillStudio({
             onClick={close}
             aria-label={t("ui.close")}
             title={t("ui.close")}
-            className="inline-flex items-center justify-center w-8 h-8 shrink-0 rounded-lg border border-white/10 bg-white/5 text-zinc-300 hover:bg-white/10 hover:text-zinc-100 transition-all cursor-pointer active:scale-95 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-accent-orange/60 focus-visible:ring-offset-2 focus-visible:ring-offset-zinc-950"
+            className="inline-flex items-center justify-center w-8 h-8 shrink-0 rounded-lg border border-white/10 bg-white/5 text-zinc-300 hover:bg-white/10 hover:text-zinc-100 transition cursor-pointer active:scale-95 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-accent-orange/60 focus-visible:ring-offset-2 focus-visible:ring-offset-zinc-950"
           >
             <X className="w-4 h-4" aria-hidden="true" />
           </button>
@@ -1097,7 +1097,7 @@ function EpisodeStillStudio({
                   type="button"
                   data-testid="episode-select-all-visible"
                   onClick={selectAllVisibleCorrections}
-                  className="min-h-[26px] px-2 rounded-md border border-white/10 bg-white/5 text-[10px] font-semibold text-zinc-300 hover:bg-white/10 transition-all cursor-pointer active:scale-95 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-accent-orange/60 focus-visible:ring-offset-2 focus-visible:ring-offset-zinc-950"
+                  className="min-h-[26px] px-2 rounded-md border border-white/10 bg-white/5 text-[10px] font-semibold text-zinc-300 hover:bg-white/10 transition cursor-pointer active:scale-95 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-accent-orange/60 focus-visible:ring-offset-2 focus-visible:ring-offset-zinc-950"
                 >
                   Select all visible
                 </button>
@@ -1106,7 +1106,7 @@ function EpisodeStillStudio({
                   data-testid="episode-select-clear"
                   disabled={selectedCorrectionKeys.size === 0}
                   onClick={clearCorrectionSelection}
-                  className="min-h-[26px] px-2 rounded-md border border-white/10 bg-white/5 text-[10px] font-semibold text-zinc-300 hover:bg-white/10 disabled:opacity-40 disabled:cursor-not-allowed transition-all cursor-pointer active:scale-95 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-accent-orange/60 focus-visible:ring-offset-2 focus-visible:ring-offset-zinc-950"
+                  className="min-h-[26px] px-2 rounded-md border border-white/10 bg-white/5 text-[10px] font-semibold text-zinc-300 hover:bg-white/10 disabled:opacity-40 disabled:cursor-not-allowed transition cursor-pointer active:scale-95 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-accent-orange/60 focus-visible:ring-offset-2 focus-visible:ring-offset-zinc-950"
                 >
                   Clear
                 </button>
@@ -1130,7 +1130,7 @@ function EpisodeStillStudio({
                       data-testid="episode-browser-season"
                       aria-expanded={open}
                       onClick={() => toggleSeason(s.season)}
-                      className="w-full min-h-[32px] flex items-center gap-1.5 px-1.5 py-1 rounded-lg text-left hover:bg-white/[0.06] transition-all cursor-pointer focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-accent-orange/60 focus-visible:ring-offset-2 focus-visible:ring-offset-zinc-950"
+                      className="w-full min-h-[32px] flex items-center gap-1.5 px-1.5 py-1 rounded-lg text-left hover:bg-white/[0.06] transition cursor-pointer focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-accent-orange/60 focus-visible:ring-offset-2 focus-visible:ring-offset-zinc-950"
                     >
                       {open ? (
                         <ChevronDown className="w-3.5 h-3.5 shrink-0 text-zinc-400" aria-hidden="true" />
@@ -1193,7 +1193,7 @@ function EpisodeStillStudio({
                                 data-testid="episode-browser-episode"
                                 aria-pressed={active}
                                 onClick={() => setSelectedKey(key)}
-                                className={`min-w-0 flex-1 min-h-[40px] flex items-center gap-2 px-1.5 py-1.5 rounded-lg border text-left transition-all cursor-pointer focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-accent-orange/60 focus-visible:ring-offset-2 focus-visible:ring-offset-zinc-950 ${
+                                className={`min-w-0 flex-1 min-h-[40px] flex items-center gap-2 px-1.5 py-1.5 rounded-lg border text-left transition cursor-pointer focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-accent-orange/60 focus-visible:ring-offset-2 focus-visible:ring-offset-zinc-950 ${
                                   active
                                     ? "border-accent-orange/70 bg-accent-orange/15"
                                     : "border-transparent hover:bg-white/[0.06]"
@@ -1565,7 +1565,7 @@ function EpisodeStillStudio({
                       data-testid="filler-correction-open"
                       disabled={!correctionUrl}
                       onClick={openCorrectionIssue}
-                      className="w-full min-h-[32px] rounded-lg border border-accent-orange/60 bg-accent-orange/20 px-3 text-[11px] font-semibold text-zinc-50 hover:bg-accent-orange/30 disabled:opacity-40 disabled:cursor-not-allowed transition-all cursor-pointer active:scale-95 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-accent-orange/60 focus-visible:ring-offset-2 focus-visible:ring-offset-zinc-950"
+                      className="w-full min-h-[32px] rounded-lg border border-accent-orange/60 bg-accent-orange/20 px-3 text-[11px] font-semibold text-zinc-50 hover:bg-accent-orange/30 disabled:opacity-40 disabled:cursor-not-allowed transition cursor-pointer active:scale-95 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-accent-orange/60 focus-visible:ring-offset-2 focus-visible:ring-offset-zinc-950"
                     >
                       {bulkMode
                         ? `Open prefilled GitHub issue (${selectedCorrectionRows.length} episodes)`
@@ -1616,7 +1616,7 @@ function EpisodeStillStudio({
                 aria-controls="episode-still-panel-tmdb"
                 data-testid="episode-still-source-tmdb"
                 onClick={() => setSourceTab("tmdb")}
-                className={`min-h-[30px] rounded-md text-[10px] font-semibold transition-all cursor-pointer focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-accent-orange/60 focus-visible:ring-offset-2 focus-visible:ring-offset-zinc-950 ${
+                className={`min-h-[30px] rounded-md text-[10px] font-semibold transition cursor-pointer focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-accent-orange/60 focus-visible:ring-offset-2 focus-visible:ring-offset-zinc-950 ${
                   sourceTab === "tmdb"
                     ? "bg-accent-orange/20 text-zinc-50 border border-accent-orange/50"
                     : "text-zinc-400 hover:text-zinc-100 border border-transparent"
@@ -1632,7 +1632,7 @@ function EpisodeStillStudio({
                 aria-controls="episode-still-panel-tvdb"
                 data-testid="episode-still-source-tvdb"
                 onClick={() => setSourceTab("tvdb")}
-                className={`min-h-[30px] rounded-md text-[10px] font-semibold transition-all cursor-pointer focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-accent-orange/60 focus-visible:ring-offset-2 focus-visible:ring-offset-zinc-950 ${
+                className={`min-h-[30px] rounded-md text-[10px] font-semibold transition cursor-pointer focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-accent-orange/60 focus-visible:ring-offset-2 focus-visible:ring-offset-zinc-950 ${
                   sourceTab === "tvdb"
                     ? "bg-accent-orange/20 text-zinc-50 border border-accent-orange/50"
                     : "text-zinc-400 hover:text-zinc-100 border border-transparent"
@@ -1681,7 +1681,7 @@ function EpisodeStillStudio({
                             ep: `S${current.season}:E${current.episode}`,
                           })}
                           onClick={() => stageStill(still.file_path)}
-                          className={`relative aspect-video overflow-hidden rounded-lg border transition-all cursor-pointer focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-accent-orange/60 focus-visible:ring-offset-2 focus-visible:ring-offset-zinc-950 ${
+                          className={`relative aspect-video overflow-hidden rounded-lg border transition cursor-pointer focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-accent-orange/60 focus-visible:ring-offset-2 focus-visible:ring-offset-zinc-950 ${
                             active
                               ? "border-accent-orange ring-2 ring-accent-orange/40"
                               : "border-white/10 hover:border-white/30"
@@ -1722,7 +1722,7 @@ function EpisodeStillStudio({
                         ep: `S${current.season}:E${current.episode}`,
                       })}
                       onClick={stageTvdb}
-                      className={`relative aspect-video overflow-hidden rounded-lg border transition-all cursor-pointer focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-accent-orange/60 focus-visible:ring-offset-2 focus-visible:ring-offset-zinc-950 ${
+                      className={`relative aspect-video overflow-hidden rounded-lg border transition cursor-pointer focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-accent-orange/60 focus-visible:ring-offset-2 focus-visible:ring-offset-zinc-950 ${
                         effectiveProvider === "tvdb"
                           ? "border-accent-orange ring-2 ring-accent-orange/40"
                           : "border-white/10 hover:border-white/30"
@@ -1779,7 +1779,7 @@ function EpisodeStillStudio({
               data-testid="episode-studio-reset-all"
               disabled={saving}
               onClick={handleResetAll}
-              className="min-h-[34px] px-3 rounded-lg border border-white/15 bg-white/5 text-[11px] font-semibold text-zinc-200 hover:bg-white/10 disabled:opacity-40 disabled:cursor-not-allowed transition-all cursor-pointer active:scale-95 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-accent-orange/60 focus-visible:ring-offset-2 focus-visible:ring-offset-zinc-950"
+              className="min-h-[34px] px-3 rounded-lg border border-white/15 bg-white/5 text-[11px] font-semibold text-zinc-200 hover:bg-white/10 disabled:opacity-40 disabled:cursor-not-allowed transition cursor-pointer active:scale-95 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-accent-orange/60 focus-visible:ring-offset-2 focus-visible:ring-offset-zinc-950"
             >
               {t("ui.episodeStillsResetSaved")}
             </button>
@@ -1787,7 +1787,7 @@ function EpisodeStillStudio({
               type="button"
               data-testid="episode-studio-cancel"
               onClick={() => setStaged({})}
-              className="min-h-[34px] px-3 rounded-lg border border-white/15 bg-white/5 text-[11px] font-semibold text-zinc-200 hover:bg-white/10 transition-all cursor-pointer active:scale-95 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-accent-orange/60 focus-visible:ring-offset-2 focus-visible:ring-offset-zinc-950"
+              className="min-h-[34px] px-3 rounded-lg border border-white/15 bg-white/5 text-[11px] font-semibold text-zinc-200 hover:bg-white/10 transition cursor-pointer active:scale-95 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-accent-orange/60 focus-visible:ring-offset-2 focus-visible:ring-offset-zinc-950"
             >
               {t("ui.episodeStillsCancelDraft")}
             </button>
@@ -1796,7 +1796,7 @@ function EpisodeStillStudio({
               data-testid="episode-studio-save"
               disabled={(stagedCount === 0 && !rotationChanged) || saving}
               onClick={handleSaveAll}
-              className="min-h-[34px] px-3 rounded-lg border border-accent-orange/60 bg-accent-orange/20 text-[11px] font-semibold text-zinc-50 hover:bg-accent-orange/30 disabled:opacity-40 disabled:cursor-not-allowed transition-all cursor-pointer active:scale-95 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-accent-orange/60 focus-visible:ring-offset-2 focus-visible:ring-offset-zinc-950"
+              className="min-h-[34px] px-3 rounded-lg border border-accent-orange/60 bg-accent-orange/20 text-[11px] font-semibold text-zinc-50 hover:bg-accent-orange/30 disabled:opacity-40 disabled:cursor-not-allowed transition cursor-pointer active:scale-95 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-accent-orange/60 focus-visible:ring-offset-2 focus-visible:ring-offset-zinc-950"
             >
               {t("ui.save")} {t("ui.episodeThumbnails")}
             </button>
@@ -2081,7 +2081,7 @@ export function EpisodePreview({
             onClick={() => {
               if (entryEpisode) setStudioEpisode(entryEpisode)
             }}
-            className="inline-flex items-center gap-1 min-h-[32px] px-2.5 rounded-lg border border-white/15 bg-white/5 text-[10px] font-semibold text-zinc-100 hover:bg-white/10 disabled:opacity-40 disabled:cursor-not-allowed transition-all cursor-pointer active:scale-95 shrink-0 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-accent-orange/60 focus-visible:ring-offset-2 focus-visible:ring-offset-zinc-950"
+            className="inline-flex items-center gap-1 min-h-[32px] px-2.5 rounded-lg border border-white/15 bg-white/5 text-[10px] font-semibold text-zinc-100 hover:bg-white/10 disabled:opacity-40 disabled:cursor-not-allowed transition cursor-pointer active:scale-95 shrink-0 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-accent-orange/60 focus-visible:ring-offset-2 focus-visible:ring-offset-zinc-950"
           >
             <Maximize2 className="w-3 h-3" aria-hidden="true" />
             {t("ui.viewAll")}

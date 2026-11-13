@@ -117,7 +117,7 @@ export function DuckDnsSunsetBanner() {
         <section
           role="region"
           aria-label={t("duckdnsSunset.title")}
-          className="border-b border-accent-orange/35 bg-accent-orange/10 px-4 py-3 text-foreground backdrop-blur-sm"
+          className="relative z-10 border-b border-accent-orange/35 bg-accent-orange/10 px-4 py-3 text-foreground backdrop-blur-sm"
         >
           <div className="mx-auto flex w-full max-w-5xl items-start gap-3">
             <div className="min-w-0 flex-1">

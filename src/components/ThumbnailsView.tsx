@@ -247,7 +247,7 @@ export function ThumbnailsView() {
                   type="button"
                   aria-label={t("ui.thumbnailsZoneClear")}
                   onClick={() => setFilter("")}
-                  className="shrink-0 w-6 h-6 mr-1.5 flex items-center justify-center bg-zinc-700/60 text-zinc-300 rounded-full hover:bg-zinc-600 active:scale-90 transition-all duration-200"
+                  className="shrink-0 w-6 h-6 mr-1.5 flex items-center justify-center bg-zinc-700/60 text-zinc-300 rounded-full hover:bg-zinc-600 active:scale-90 transition duration-200"
                 >
                   <X className="w-3.5 h-3.5" />
                 </button>

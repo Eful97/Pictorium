@@ -534,7 +534,6 @@ export function usePictorium(): PictoriumCtx {
   const [tmdbKey, setTmdbKeyState] = useState("")
   // True se l'istanza ha una chiave TMDB env (booleano pubblico da
   // /api/defaults): la home funziona anche senza chiave nel browser.
-  const [serverHasTmdbKey, setServerHasTmdbKey] = useState(false)
   // Chiave TMDB env d'istanza (booleano pubblico da /api/defaults), separata
   // da quella del namespace: l'effettivo è l'OR dei due (vedi sotto) così la
   // rimozione della chiave profilo riazzera il flag invece di restare latchato.
@@ -597,9 +596,7 @@ export function usePictorium(): PictoriumCtx {
   // chiave profilo salvata, ricerca/trending/hero partono anche senza chiave
   // nel browser (il server la risolve da `?u=`). Derivato (non latchato) così
   // rimozione chiave / forget dello spazio spengono davvero i gate.
-  useEffect(() => {
-    setServerHasTmdbKey(instanceHasTmdbKey || serverKeyStatus?.tmdb === true)
-  }, [instanceHasTmdbKey, serverKeyStatus])
+  const serverHasTmdbKey = instanceHasTmdbKey || serverKeyStatus?.tmdb === true
   const [mdblistApiKey, setMdblistApiKey] = useState("")
   const [tvdbApiKey, setTvdbApiKey] = useState("")
   const [tmdbKeyInput, setTmdbKeyInput] = useState("")
@@ -899,12 +896,6 @@ export function usePictorium(): PictoriumCtx {
     thumbnailRotationOverride, setThumbnailRotationOverride,
   } = editorCtx
 
-  const [urlPattern, setUrlPattern] = useState("")
-  const [urlPatternImdb, setUrlPatternImdb] = useState("")
-  const [urlPatternAuto, setUrlPatternAuto] = useState("")
-  const [urlPatternNuvio, setUrlPatternNuvio] = useState("")
-  const [urlPatternNuvioImdb, setUrlPatternNuvioImdb] = useState("")
-  const [urlPatternNuvioAuto, setUrlPatternNuvioAuto] = useState("")
   // Modalità template AIO/Custom: per gli spazi utente default "follow"
   // (Segui il mio spazio), altrove "fixed" (comportamento attuale). Se lo
   // spazio compare dopo (unlock/query) e l'utente non ha scelto, passa a follow.
@@ -1335,7 +1326,7 @@ export function usePictorium(): PictoriumCtx {
   // copiabile in InstallModal deve seguire i default live, non l'ultimo stato
   // per-titolo (stale). Con titolo aperto resta lo stato corrente (tweak
   // per-titolo inclusi).
-  useEffect(() => {
+  const urlPatterns = useMemo(() => {
     const noPreview = !navigation.previewId
     // Template WYSIWYG: a titolo aperto la sfumatura segue il profilo del
     // formato in editing (landscapeBlur in orizzontale), come la preview.
@@ -1475,13 +1466,16 @@ export function usePictorium(): PictoriumCtx {
       // Segui-spazio: omette i visuali (il server li risolve dallo spazio).
       followSpace: linkMode === "follow",
     }
-    setUrlPattern(buildUrlPattern({ ...base, idPlaceholder: "{tmdb_id}" }))
-    setUrlPatternImdb(buildUrlPattern({ ...base, idPlaceholder: "{imdb_id}" }))
-    setUrlPatternAuto(buildUrlPattern({ ...base, idPlaceholder: "{tmdb_id|imdb_id}" }))
-    setUrlPatternNuvio(buildUrlPattern({ ...base, idPlaceholder: "{tmdb_id}", shapePlaceholder: "{shape}" }))
-    setUrlPatternNuvioImdb(buildUrlPattern({ ...base, idPlaceholder: "{imdb_id}", shapePlaceholder: "{shape}" }))
-    setUrlPatternNuvioAuto(buildUrlPattern({ ...base, idPlaceholder: "{tmdb_id|imdb_id}", shapePlaceholder: "{shape}" }))
-    }, [globalBadges, rankingBadges, badgeGenre, badgeYear, badgeRating, badgeQuality, qualityBadgeStyle, qualityGroupLayout, awardBadgeStyle, defaultAwardBadgeStyle, customRatings, ratingSources, separateRatings, separateRatingsStyle, posterLayout, posterFreshScope, defaultPosterLayout, defaultPosterFreshScope, networkLogo, networkLogoPosition, networkLogoFollowTitle, preRelease, ribbonSide, ribbonEnabled, posterShape, logoAlign, gradientHeight, blurIntensity, blurFade, blurDarkness, blurEnabled, landscapeBlur, landscapeDefaults, tintStrength, topShade, topShadeHeight, badgeStyle, rankingBadgeStyle, extraBadgeStyle, badgeFont, topBadgeScale, topBadgeOffsetX, topBadgeOffsetY, extraBadgeScale, extraBadgeOffsetX, extraBadgeOffsetY, genreBadgeScale, qualityBadgeScale, networkLogoScale, separateBadgeScale, separateBadgeOffsetX, separateBadgeOffsetY, genreBadgeOffsetX, genreBadgeOffsetY, qualityBadgeOffsetX, qualityBadgeOffsetY, networkLogoOffsetX, networkLogoOffsetY, tmdbKey, lang, mdblistApiKey, currentUserId, localConfigToken, serverKeyStatus, instanceHasTmdbKey, instanceHasMdblistKey, linkMode, navigation.previewId, defaultGlobalBadges, defaultRankingBadges, defaultBadgeStyle, defaultRankingBadgeStyle, defaultExtraBadgeStyle, defaultBadgeFont, defaultQualityBadgeStyle, defaultQualityGroupLayout, defaultBadgeGenre, defaultBadgeYear, defaultBadgeRating, defaultBadgeQuality, defaultAgeBadge, defaultAgeCountry, defaultAgeBadgeStyle, defaultCustomRatings, defaultRatingSources, defaultSeparateRatings, defaultSeparateRatingsStyle, defaultGradientHeight, defaultBlurIntensity, defaultBlurFade, defaultBlurDarkness, defaultBlurEnabled, defaultTintStrength, defaultTopShade, defaultTopShadeHeight, defaultNetworkLogo, defaultNetworkLogoPosition, defaultNetworkLogoFollowTitle, defaultPreRelease, defaultDateFormat, defaultRibbonSide, defaultRibbonEnabled, defaultPosterShape, defaultLogoAlign, defaultTopBadgeScale, defaultTopBadgeOffsetX, defaultTopBadgeOffsetY, defaultExtraBadgeScale, defaultExtraBadgeOffsetX, defaultExtraBadgeOffsetY, defaultGenreBadgeScale, defaultQualityBadgeScale, defaultNetworkLogoScale, defaultSeparateBadgeScale, defaultSeparateBadgeOffsetX, defaultSeparateBadgeOffsetY, defaultGenreBadgeOffsetX, defaultGenreBadgeOffsetY, defaultQualityBadgeOffsetX, defaultQualityBadgeOffsetY, defaultNetworkLogoOffsetX, defaultNetworkLogoOffsetY]) // eslint-disable-line react-hooks/exhaustive-deps -- customBadge intentionally excluded to avoid loop
+    return {
+      urlPattern: buildUrlPattern({ ...base, idPlaceholder: "{tmdb_id}" }),
+      urlPatternImdb: buildUrlPattern({ ...base, idPlaceholder: "{imdb_id}" }),
+      urlPatternAuto: buildUrlPattern({ ...base, idPlaceholder: "{tmdb_id|imdb_id}" }),
+      urlPatternNuvio: buildUrlPattern({ ...base, idPlaceholder: "{tmdb_id}", shapePlaceholder: "{shape}" }),
+      urlPatternNuvioImdb: buildUrlPattern({ ...base, idPlaceholder: "{imdb_id}", shapePlaceholder: "{shape}" }),
+      urlPatternNuvioAuto: buildUrlPattern({ ...base, idPlaceholder: "{tmdb_id|imdb_id|id}", shapePlaceholder: "{shape}" }),
+    }
+    }, [globalBadges,rankingBadges, badgeGenre, badgeYear, badgeRating, badgeQuality, qualityBadgeStyle, qualityGroupLayout, awardBadgeStyle, defaultAwardBadgeStyle, customRatings, ratingSources, separateRatings, separateRatingsStyle, posterLayout, posterFreshScope, defaultPosterLayout, defaultPosterFreshScope, networkLogo, networkLogoPosition, networkLogoFollowTitle, preRelease, ribbonSide, ribbonEnabled, posterShape, logoAlign, gradientHeight, blurIntensity, blurFade, blurDarkness, blurEnabled, landscapeBlur, landscapeDefaults, tintStrength, topShade, topShadeHeight, badgeStyle, rankingBadgeStyle, extraBadgeStyle, badgeFont, topBadgeScale, topBadgeOffsetX, topBadgeOffsetY, extraBadgeScale, extraBadgeOffsetX, extraBadgeOffsetY, genreBadgeScale, qualityBadgeScale, networkLogoScale, separateBadgeScale, separateBadgeOffsetX, separateBadgeOffsetY, genreBadgeOffsetX, genreBadgeOffsetY, qualityBadgeOffsetX, qualityBadgeOffsetY, networkLogoOffsetX, networkLogoOffsetY, tmdbKey, lang, mdblistApiKey, currentUserId, localConfigToken, serverKeyStatus, instanceHasTmdbKey, instanceHasMdblistKey, linkMode, navigation.previewId, defaultGlobalBadges, defaultRankingBadges, defaultBadgeStyle, defaultRankingBadgeStyle, defaultExtraBadgeStyle, defaultBadgeFont, defaultQualityBadgeStyle, defaultQualityGroupLayout, defaultBadgeGenre, defaultBadgeYear, defaultBadgeRating, defaultBadgeQuality, defaultAgeBadge, defaultAgeCountry, defaultAgeBadgeStyle, defaultCustomRatings, defaultRatingSources, defaultSeparateRatings, defaultSeparateRatingsStyle, defaultGradientHeight, defaultBlurIntensity, defaultBlurFade, defaultBlurDarkness, defaultBlurEnabled, defaultTintStrength, defaultTopShade, defaultTopShadeHeight, defaultNetworkLogo, defaultNetworkLogoPosition, defaultNetworkLogoFollowTitle, defaultPreRelease, defaultDateFormat, defaultRibbonSide, defaultRibbonEnabled, defaultPosterShape, defaultLogoAlign, defaultTopBadgeScale, defaultTopBadgeOffsetX, defaultTopBadgeOffsetY, defaultExtraBadgeScale, defaultExtraBadgeOffsetX, defaultExtraBadgeOffsetY, defaultGenreBadgeScale, defaultQualityBadgeScale, defaultNetworkLogoScale, defaultSeparateBadgeScale, defaultSeparateBadgeOffsetX, defaultSeparateBadgeOffsetY, defaultGenreBadgeOffsetX, defaultGenreBadgeOffsetY, defaultQualityBadgeOffsetX, defaultQualityBadgeOffsetY, defaultNetworkLogoOffsetX, defaultNetworkLogoOffsetY]) // eslint-disable-line react-hooks/exhaustive-deps -- customBadge intentionally excluded to avoid loop
+  const { urlPattern, urlPatternImdb, urlPatternAuto, urlPatternNuvio, urlPatternNuvioImdb, urlPatternNuvioAuto } = urlPatterns
 
   // --- Default live sul titolo corrente ---
   // Una modifica ai default (barra Impostazioni) si riflette subito sulla

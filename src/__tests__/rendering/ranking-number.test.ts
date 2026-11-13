@@ -63,10 +63,10 @@ describe("buildRankingNumberSvg", () => {
     expect(svg).toContain(">3<")
     expect(svg).not.toContain("#3")
     expect(svg).not.toContain("Oggi")
-    // Silver gradient (bright head, darker foot) + soft drop shadow.
+    // Soft white gradient (bright head, light-grey foot) + soft drop shadow.
     expect(svg).toContain("<linearGradient")
     expect(svg).toContain("#FFFFFF")
-    expect(svg).toContain("#A8ACB4")
+    expect(svg).toContain("#E5E7EB")
     expect(svg).toContain("<feDropShadow")
     // No plate: no filled rect background.
     expect(svg).not.toContain("<rect")
@@ -274,7 +274,7 @@ describe("oversized numerals use the existing canvas fit (no new shrink path)", 
     const kept = await fitBadgeToCanvas(sane!, 380, 570)
     expect(kept.png.equals(sane!.png)).toBe(true)
 
-    const absurd = await buildRankingBadgeSVG(88888888, 380, "", false, "number")
+    const absurd = await buildRankingBadgeSVG(888888888888, 380, "", false, "number")
     expect(absurd!.w).toBeGreaterThan(380)
     const fitted = await fitBadgeToCanvas(absurd!, 380, 570)
     expect(fitted.w).toBeLessThanOrEqual(380)

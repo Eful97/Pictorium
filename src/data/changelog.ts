@@ -30,6 +30,23 @@ export interface ChangelogRelease {
  *  (which bumps on every commit and would leave the dot permanently on). */
 export const CHANGELOG: ChangelogRelease[] = [
   {
+    version: "1.27.6",
+    date: "2026-11-13",
+    title: "Release 1.27.6",
+    items: [
+      { type: "feature", text: "Get Pictorium posters on anime catalogs in Nuvio: the Auto template now maps Kitsu, AniList, MyAnimeList, AniDB and TVDB IDs to TMDB (copy the template again to enable it)" },
+      { type: "feature", text: "Add the tinta, sfumato, split, editoriale and rings badge styles, with flatter materials and a vetro style that frosts the poster behind the badge" },
+      { type: "feature", text: "Organize the per-title badge panel into Ratings, Top, Quality and Look tabs" },
+      { type: "feature", text: "Smoother animations across the app, including view changes, opening posters and closing dialogs" },
+      { type: "fix", text: "Keep quality badges the same size and frame across styles, and show the Dolby logo instead of the DV+ATMOS text" },
+      { type: "fix", text: "Keep the genre badge from overlapping the title logo on landscape posters" },
+      { type: "fix", text: "Align the Fresh ranked layout to the rank number and soften the left blur edge" },
+      { type: "fix", text: "Stop slow rating providers from holding a poster past its render time limit" },
+      { type: "fix", text: "Keep the DuckDNS notice visible above the app background" },
+      { type: "perf", text: "Serve cached posters faster after a restart on self-hosted instances, with an on-disk poster cache and a larger memory cache" },
+    ],
+  },
+  {
     version: "1.27.5",
     date: "2026-11-11",
     title: "Release 1.27.5",

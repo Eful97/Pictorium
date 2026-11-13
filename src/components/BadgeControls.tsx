@@ -41,6 +41,14 @@ import { REGIONS } from "@/lib/regions"
 import { UI_RATING_SOURCES } from "@/lib/rating-weights"
 import { RatingSourceIcon } from "@/components/RatingSourceIcon"
 
+type BadgeSection = "ratings" | "top" | "quality" | "look"
+const BADGE_SECTIONS: { id: BadgeSection; labelKey: string }[] = [
+  { id: "ratings", labelKey: "ui.badgeTabRatings" },
+  { id: "top", labelKey: "ui.badgeTabTop" },
+  { id: "quality", labelKey: "ui.badgeTabQuality" },
+  { id: "look", labelKey: "ui.badgeTabLook" },
+]
+
 export function BadgeControls() {
   const selected = usePSelector((v) => v.selected)
   const metaInfo = usePSelector((v) => v.metaInfo)
@@ -55,6 +63,9 @@ export function BadgeControls() {
   const ed = usePosterEditor()
   const [now] = useState(() => Date.now())
   const [sourcesOpen, setSourcesOpen] = useState(false)
+  // Sub-tab of the badge panel (transient UI). Inactive panes stay mounted and
+  // hide via CSS (same pattern as BadgeDefaultsSection): no state loss.
+  const [section, setSection] = useState<BadgeSection>("ratings")
   const [editingValue, setEditingValue] = useState<string | null>(null)
   const [editText, setEditText] = useState("")
   // Accessible names for the label-less controls below (accent picker row,
@@ -243,7 +254,7 @@ export function BadgeControls() {
   // Extra style options: the full renderer-supported subset (same order as
   // the defaults panel — colored always offered, never gated on the current
   // value; the renderer already handles every entry).
-  const extraOptions: ExtraBadgeStyle[] = ["default", "pill", "corner", "vetro", "bordo", "colored"]
+  const extraOptions: ExtraBadgeStyle[] = ["default", "pill", "corner", "vetro", "bordo", "colored", "tinta", "sfumato", "editoriale"]
   const EXTRA_STYLE_LABELS: Record<ExtraBadgeStyle, string> = {
     default: "ui.bsDefault",
     pill: "ui.pill",
@@ -251,6 +262,19 @@ export function BadgeControls() {
     vetro: "ui.vetro",
     bordo: "ui.bordo",
     colored: "ui.colored",
+    tinta: "ui.tinta",
+    sfumato: "ui.sfumato",
+    editoriale: "ui.editoriale",
+  }
+
+  const pane = (s: BadgeSection) => (section === s ? "" : " hidden")
+  const blurOn = ed.posterShape === "landscape" ? ed.landscapeBlur.blurEnabled : ed.blurEnabled
+  // Dot on a sub-tab = something in that pane currently paints.
+  const sectionActive: Record<BadgeSection, boolean> = {
+    ratings: ed.globalBadges || ed.customRatings,
+    top: ed.rankingBadges,
+    quality: ed.badgeQuality || ed.ageBadge,
+    look: ed.networkLogo || blurOn || (ed.seasonalTheme != null && ed.seasonalTheme !== "none"),
   }
 
   return (
@@ -266,8 +290,27 @@ export function BadgeControls() {
         <p className="text-[10px] text-zinc-500 italic mt-0.5">{t("ui.badgePosterHint")}</p>
       </div>
 
+      <div role="tablist" aria-label={t("ui.badgeSectionPoster")} data-testid="badge-sections" className="grid grid-cols-4 gap-1 p-1 rounded-xl bg-surface/50 border border-surface2/60">
+        {BADGE_SECTIONS.map(({ id, labelKey }) => (
+          <button
+            key={id}
+            type="button"
+            role="tab"
+            data-testid={`badge-section-${id}`}
+            aria-selected={section === id}
+            onClick={() => setSection(id)}
+            className={`relative min-h-[36px] px-1 rounded-lg text-[11px] font-semibold truncate transition duration-150 cursor-pointer ${
+              section === id ? "bg-white/20 text-white shadow-sm" : "text-muted hover:bg-white/10 hover:text-zinc-200"
+            }`}
+          >
+            {t(labelKey)}
+            {sectionActive[id] && <span aria-hidden className="absolute top-1 right-1 w-1.5 h-1.5 rounded-full bg-accent-orange" />}
+          </button>
+        ))}
+      </div>
+
       {/* FAMILY 1: Genere/Anno/Voti — activation, style/font, rating sources */}
-      <div data-testid="badge-family-genre" className="bg-surface/50 border border-surface2/60 rounded-xl p-3 space-y-3 shadow-sm">
+      <div data-testid="badge-family-genre" className={`bg-surface/50 border border-surface2/60 rounded-xl p-3 space-y-3 shadow-sm${pane("ratings")}`}>
         {/* Master Toggle Genere / Rating */}
         <div className="space-y-2">
           <div className="flex items-center justify-between py-1">
@@ -309,6 +352,7 @@ export function BadgeControls() {
                       { id: "bottom-pills", labelKey: "ui.separateRatingsBottomPills" },
                       { id: "bottom-mono", labelKey: "ui.separateRatingsBottomMono" },
                       { id: "bottom-color", labelKey: "ui.separateRatingsBottomColor" },
+                      { id: "rings", labelKey: "ui.sepRings" },
                     ] as const).map((opt) => {
                       // Barra disattivata in landscape (il server normalizza
                       // a pills): bottone visibile ma disabilitato e mai
@@ -327,7 +371,7 @@ export function BadgeControls() {
                           aria-pressed={pressed}
                           disabled={barOff}
                           title={barOff ? t("ui.separateRatingsBarLandscapeHint") : undefined}
-                          className={`flex-1 py-1 px-1 rounded-lg text-[11px] font-semibold transition-all duration-150 ${
+                          className={`flex-1 py-1 px-1 rounded-lg text-[11px] font-semibold transition duration-150 ${
                             pressed
                               ? "bg-white/20 text-white shadow-sm"
                               : "bg-white/5 text-muted hover:bg-white/10 hover:text-zinc-200"
@@ -355,7 +399,7 @@ export function BadgeControls() {
                     onClick={() => setSourcesOpen((prev) => !prev)}
                     aria-expanded={sourcesOpen}
                     aria-controls={sourcesPanelId}
-                    className="w-full flex items-center justify-between px-2.5 py-1.5 rounded-lg bg-surface2/70 hover:bg-surface2 text-zinc-200 hover:text-white border border-surface2 transition-all group cursor-pointer"
+                    className="w-full flex items-center justify-between px-2.5 py-1.5 rounded-lg bg-surface2/70 hover:bg-surface2 text-zinc-200 hover:text-white border border-surface2 transition group cursor-pointer"
                   >
                     <span className="flex items-center gap-1.5 text-[11px] font-semibold">
                       <Star className="w-3 h-3 text-amber-400 fill-amber-400/30" />
@@ -365,7 +409,7 @@ export function BadgeControls() {
                       </span>
                     </span>
                     <span className="flex items-center gap-1 text-[10px] text-muted group-hover:text-zinc-200 font-medium">
-                      <span>{sourcesOpen ? "Chiudi" : "Configura"}</span>
+                      <span>{sourcesOpen ? t("ui.close") : t("ui.configure")}</span>
                       <ChevronDown className={`w-3.5 h-3.5 text-zinc-400 transition-transform duration-200 ${sourcesOpen ? "rotate-180" : ""}`} />
                     </span>
                   </button>
@@ -411,7 +455,7 @@ export function BadgeControls() {
                                   ed.setRatingSources([...current, s.id])
                                 }
                               }}
-                              className={`flex items-center justify-between px-2 py-1.5 rounded-lg text-[10.5px] transition-all duration-150 border ${
+                              className={`flex items-center justify-between px-2 py-1.5 rounded-lg text-[10.5px] transition duration-150 border ${
                                 isSelected
                                   ? "bg-accent-orange/[0.08] border-accent-orange/25 text-zinc-100 font-medium"
                                   : "bg-white/[0.03] border-white/[0.04] text-zinc-400 hover:bg-white/[0.06] hover:text-zinc-200 hover:border-white/[0.08]"
@@ -451,7 +495,7 @@ export function BadgeControls() {
           <span className="text-[11px] text-muted font-medium block">{t("ui.styleGenreBadge")}</span>
           <BadgeStyleSelector
             value={ed.badgeStyle}
-            options={["shadow", "pill", "bar", "colored", "bordo", "vetro", "minimal", "ink"]}
+            options={["shadow", "pill", "bar", "colored", "bordo", "vetro", "minimal", "ink", "tinta", "sfumato", "split", "editoriale"]}
             // Stile "bar" non disponibile in landscape: il server lo degrada
             // a shadow (stesso endpoint, preview WYSIWYG garantita).
             disabled={ed.posterShape === "landscape" ? ["bar"] : []}
@@ -478,7 +522,7 @@ export function BadgeControls() {
           together. Badge superiore (master top badge: rank + extra, single
           winner). No per-title sash: categories/priorities stay global in
           Settings. */}
-      <div data-testid="badge-family-ranking" className="bg-surface/50 border border-surface2/60 rounded-xl p-3 space-y-3 shadow-sm">
+      <div data-testid="badge-family-ranking" className={`bg-surface/50 border border-surface2/60 rounded-xl p-3 space-y-3 shadow-sm${pane("top")}`}>
         <div className="space-y-2">
           <div className="flex items-center justify-between">
             <span className="text-zinc-300 font-medium flex items-center gap-1.5">
@@ -528,40 +572,9 @@ export function BadgeControls() {
         </div>
       </div>
 
-      {/* Cornice stagionale per-titolo (flat unico, entrambe le forme):
-          Automatica = segue la lista di origine (contesto effimero `theme=`);
-          Nessuna = sopprime un tema ereditato; Halloween/Natale = scelta
-          esplicita che segue il titolo ovunque (cataloghi + meta). */}
-      <div data-testid="badge-family-seasonal" className="bg-surface/50 border border-surface2/60 rounded-xl p-3 space-y-2 shadow-sm">
-        <div className="flex items-center justify-between gap-2">
-          <label htmlFor="seasonal-frame-selector" className="text-zinc-300 font-medium flex items-center gap-1.5">
-            <Sparkles className="w-3.5 h-3.5 text-orange-400" />
-            {t("ui.seasonalFrame")}
-          </label>
-          <select
-            id="seasonal-frame-selector"
-            data-testid="seasonal-frame-selector"
-            value={ed.seasonalTheme ?? "__automatic__"}
-            onChange={(e) => {
-              const v = e.target.value
-              const next: SeasonalThemeChoice | null =
-                v === "halloween" ? "halloween" : v === "christmas" ? "christmas" : v === "none" ? "none" : null
-              ed.setSeasonalTheme(next)
-            }}
-            className="editor-input w-44 max-w-[55%] min-w-0 text-right px-2 py-1 cursor-pointer truncate font-medium"
-          >
-            <option value="__automatic__">{t("ui.seasonalFrameAutomatic")}</option>
-            <option value="none">{t("ui.seasonalFrameNone")}</option>
-            <option value="halloween">{t("ui.seasonalFrameHalloween")}</option>
-            <option value="christmas">{t("ui.seasonalFrameChristmas")}</option>
-          </select>
-        </div>
-        <p className="text-[10px] text-muted italic leading-tight">{t("ui.seasonalFrameHint")}</p>
-      </div>
-
       {/* FAMILY 3: Extra badges — automatic/custom choice + their style.
           Ranking lives in its own family above (never mixed here). */}
-      <div data-testid="badge-family-extra" className="bg-surface/50 border border-surface2/60 rounded-xl p-3 space-y-3 shadow-sm">
+      <div data-testid="badge-family-extra" className={`bg-surface/50 border border-surface2/60 rounded-xl p-3 space-y-3 shadow-sm${pane("top")}`}>
         <div className="flex items-center justify-between gap-2">
           <span className="font-semibold text-zinc-200 flex items-center gap-1.5 shrink-0">
             <Sparkles className="w-3.5 h-3.5 text-amber-400" />
@@ -709,10 +722,20 @@ export function BadgeControls() {
             accentColor={accentColor ?? display.topHex ?? display.bottomHex ?? null}
           />
         </div>
+        {/* Per-title award top-badge mode (independent per shape): the
+            historic text badge or the bundled award logo. Same URL-driven
+            renderer, so the WYSIWYG preview is the final poster. */}
+        <div data-testid="badge-award-style" className="pt-2 border-t border-surface2/50 space-y-2">
+          <div className="space-y-1.5">
+            <span className="text-zinc-300 font-medium block">{t("ui.awardBadgeStyle")}</span>
+            <AwardBadgeModeSelector value={ed.awardBadgeStyle} onChange={(v) => ed.setAwardBadgeStyle(v)} t={t} />
+          </div>
+          <p className="text-[11px] text-zinc-500 leading-relaxed">{t("ui.awardBadgeHint")}</p>
+        </div>
       </div>
 
       {/* FAMILY 4: Video quality — activation, style, detected formats */}
-      <div data-testid="badge-family-quality" className="bg-surface/50 border border-surface2/60 rounded-xl p-3 space-y-3 shadow-sm">
+      <div data-testid="badge-family-quality" className={`bg-surface/50 border border-surface2/60 rounded-xl p-3 space-y-3 shadow-sm${pane("quality")}`}>
         <div className="space-y-2">
           <div className="flex items-center justify-between">
             <span className="text-zinc-300 font-medium flex items-center gap-1.5">
@@ -829,22 +852,11 @@ export function BadgeControls() {
             )}
           </div>
 
-          {/* Per-title award top-badge mode (independent per shape): the
-              historic text badge or the bundled award logo. Same URL-driven
-              renderer, so the WYSIWYG preview is the final poster. */}
-          <div className="bg-surface/50 border border-surface2/60 rounded-xl p-3 space-y-2 shadow-sm" data-testid="badge-award-style">
-            <div className="space-y-1.5">
-              <span className="text-zinc-300 font-medium block">{t("ui.awardBadgeStyle")}</span>
-              <AwardBadgeModeSelector value={ed.awardBadgeStyle} onChange={(v) => ed.setAwardBadgeStyle(v)} t={t} />
-            </div>
-            <p className="text-[11px] text-zinc-500 leading-relaxed">{t("ui.awardBadgeHint")}</p>
-          </div>
-
         </div>
       </div>
 
       {/* FAMILY 5: Common appearance — accent color, network logo and blur. */}
-      <div data-testid="badge-family-common" className="bg-surface/50 border border-surface2/60 rounded-xl p-3 space-y-3 shadow-sm">
+      <div data-testid="badge-family-common" className={`bg-surface/50 border border-surface2/60 rounded-xl p-3 space-y-3 shadow-sm${pane("look")}`}>
         <div className="flex items-center justify-between">
           <span className="font-semibold text-zinc-200 flex items-center gap-1.5">
             <Palette className="w-3.5 h-3.5 text-accent-orange" />
@@ -985,7 +997,7 @@ export function BadgeControls() {
                     key={pos}
                     type="button"
                     onClick={() => ed.setNetworkLogoPosition(pos)}
-                    className={`flex-1 py-1 rounded-lg text-[11px] font-semibold transition-all duration-150 cursor-pointer ${
+                    className={`flex-1 py-1 rounded-lg text-[11px] font-semibold transition duration-150 cursor-pointer ${
                       ed.networkLogoPosition === pos
                         ? "bg-white/20 text-white shadow-sm"
                         : "bg-white/5 text-muted hover:bg-white/10 hover:text-zinc-200"
@@ -1005,9 +1017,40 @@ export function BadgeControls() {
               <Cloud className="w-3.5 h-3.5 text-cyan-400" />
               {t("ui.blurSection")}
             </span>
-            <Toggle value={ed.posterShape === "landscape" ? ed.landscapeBlur.blurEnabled : ed.blurEnabled} onChange={(v) => { if (ed.posterShape === "landscape") ed.setLandscapeBlur({ blurEnabled: v }); else ed.setBlurEnabled(v) }} label={t("ui.blurSection")} />
+            <Toggle value={blurOn} onChange={(v) => { if (ed.posterShape === "landscape") ed.setLandscapeBlur({ blurEnabled: v }); else ed.setBlurEnabled(v) }} label={t("ui.blurSection")} />
           </div>
         </div>
+      </div>
+
+      {/* Cornice stagionale per-titolo (flat unico, entrambe le forme):
+          Automatica = segue la lista di origine (contesto effimero `theme=`);
+          Nessuna = sopprime un tema ereditato; Halloween/Natale = scelta
+          esplicita che segue il titolo ovunque (cataloghi + meta). */}
+      <div data-testid="badge-family-seasonal" className={`bg-surface/50 border border-surface2/60 rounded-xl p-3 space-y-2 shadow-sm${pane("look")}`}>
+        <div className="flex items-center justify-between gap-2">
+          <label htmlFor="seasonal-frame-selector" className="text-zinc-300 font-medium flex items-center gap-1.5">
+            <Sparkles className="w-3.5 h-3.5 text-orange-400" />
+            {t("ui.seasonalFrame")}
+          </label>
+          <select
+            id="seasonal-frame-selector"
+            data-testid="seasonal-frame-selector"
+            value={ed.seasonalTheme ?? "__automatic__"}
+            onChange={(e) => {
+              const v = e.target.value
+              const next: SeasonalThemeChoice | null =
+                v === "halloween" ? "halloween" : v === "christmas" ? "christmas" : v === "none" ? "none" : null
+              ed.setSeasonalTheme(next)
+            }}
+            className="editor-input w-44 max-w-[55%] min-w-0 text-right px-2 py-1 cursor-pointer truncate font-medium"
+          >
+            <option value="__automatic__">{t("ui.seasonalFrameAutomatic")}</option>
+            <option value="none">{t("ui.seasonalFrameNone")}</option>
+            <option value="halloween">{t("ui.seasonalFrameHalloween")}</option>
+            <option value="christmas">{t("ui.seasonalFrameChristmas")}</option>
+          </select>
+        </div>
+        <p className="text-[10px] text-muted italic leading-tight">{t("ui.seasonalFrameHint")}</p>
       </div>
 
     </div>

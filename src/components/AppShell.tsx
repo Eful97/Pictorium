@@ -265,7 +265,7 @@ export function AppShell() {
             aria-disabled={toolbarLocked || undefined}
             aria-label={t("ui.installHub")}
             title={t("ui.installHub")}
-            className="top-action-button-primary flex items-center gap-2 px-3 py-1.5 rounded-xl font-semibold text-xs shadow-md shadow-accent-orange/20 hover:scale-[1.02] active:scale-[0.97] transition-all duration-150 border cursor-pointer disabled:opacity-40 disabled:cursor-not-allowed disabled:hover:scale-100"
+            className="top-action-button-primary flex items-center gap-2 px-3 py-1.5 rounded-xl font-semibold text-xs shadow-md shadow-accent-orange/20 hover:scale-[1.02] active:scale-[0.97] transition duration-150 border cursor-pointer disabled:opacity-40 disabled:cursor-not-allowed disabled:hover:scale-100"
           >
             <QrCode className="w-3.5 h-3.5 text-white" />
             <span>{t("ui.installHub")}</span>
@@ -281,7 +281,7 @@ export function AppShell() {
             aria-disabled={toolbarLocked || undefined}
             aria-label={t("ui.catalogs")}
             title={t("ui.catalogs")}
-            className={`flex items-center gap-1.5 px-2 py-1.5 rounded-xl text-xs font-medium transition-all duration-150 active:scale-[0.95] cursor-pointer disabled:opacity-40 disabled:cursor-not-allowed ${
+            className={`flex items-center gap-1.5 px-2 py-1.5 rounded-xl text-xs font-medium transition duration-150 active:scale-[0.95] cursor-pointer disabled:opacity-40 disabled:cursor-not-allowed ${
               view === "cataloghi"
                 ? "bg-white/15 text-foreground font-semibold border border-white/20"
                 : "text-zinc-300 hover:text-white hover:bg-white/[0.08]"
@@ -302,7 +302,7 @@ export function AppShell() {
             onClick={() => { if (toolbarLocked) return; if (view === "myposters") { router.push("edit") } else { router.push("myposters") } }}
             disabled={toolbarLocked}
             aria-disabled={toolbarLocked || undefined}
-            className={`flex items-center gap-1.5 px-2 py-1.5 rounded-xl text-xs font-medium transition-all duration-150 active:scale-[0.95] cursor-pointer disabled:opacity-40 disabled:cursor-not-allowed ${
+            className={`flex items-center gap-1.5 px-2 py-1.5 rounded-xl text-xs font-medium transition duration-150 active:scale-[0.95] cursor-pointer disabled:opacity-40 disabled:cursor-not-allowed ${
               view === "myposters"
                 ? "bg-white/15 text-foreground font-semibold border border-white/20"
                 : "text-zinc-300 hover:text-white hover:bg-white/[0.08]"
@@ -322,7 +322,7 @@ export function AppShell() {
             onClick={() => { if (toolbarLocked) return; if (view === "thumbnails") { router.push("edit") } else { router.push("thumbnails") } }}
             disabled={toolbarLocked}
             aria-disabled={toolbarLocked || undefined}
-            className={`flex items-center gap-1.5 px-2 py-1.5 rounded-xl text-xs font-medium transition-all duration-150 active:scale-[0.95] cursor-pointer disabled:opacity-40 disabled:cursor-not-allowed ${
+            className={`flex items-center gap-1.5 px-2 py-1.5 rounded-xl text-xs font-medium transition duration-150 active:scale-[0.95] cursor-pointer disabled:opacity-40 disabled:cursor-not-allowed ${
               view === "thumbnails"
                 ? "bg-white/15 text-foreground font-semibold border border-white/20"
                 : "text-zinc-300 hover:text-white hover:bg-white/[0.08]"
@@ -344,7 +344,7 @@ export function AppShell() {
             onClick={() => { if (toolbarLocked) return; setProxyOpen(true) }}
             disabled={toolbarLocked}
             aria-disabled={toolbarLocked || undefined}
-            className="p-1.5 rounded-xl text-zinc-400 hover:text-accent-orange hover:bg-white/[0.08] active:scale-90 transition-all duration-150 cursor-pointer disabled:opacity-40 disabled:cursor-not-allowed"
+            className="p-1.5 rounded-xl text-zinc-400 hover:text-accent-orange hover:bg-white/[0.08] active:scale-90 transition duration-150 cursor-pointer disabled:opacity-40 disabled:cursor-not-allowed"
           >
             <Plug className="w-4 h-4" />
           </button>
@@ -358,7 +358,7 @@ export function AppShell() {
               onClick={handleUuidShortcut}
               disabled={toolbarLocked}
               aria-disabled={toolbarLocked || undefined}
-              className="p-1.5 rounded-xl text-zinc-400 hover:text-accent-orange hover:bg-white/[0.08] active:scale-90 transition-all duration-150 cursor-pointer disabled:opacity-40 disabled:cursor-not-allowed"
+              className="p-1.5 rounded-xl text-zinc-400 hover:text-accent-orange hover:bg-white/[0.08] active:scale-90 transition duration-150 cursor-pointer disabled:opacity-40 disabled:cursor-not-allowed"
             >
               <KeyRound className="w-4 h-4" />
             </button>
@@ -377,7 +377,7 @@ export function AppShell() {
             onClick={(e) => { e.stopPropagation(); if (toolbarLocked) return; if (settingsOpen) requestSettingsClose(); else setSettingsOpen(true) }}
             disabled={toolbarLocked}
             aria-disabled={toolbarLocked || undefined}
-            className={`p-1.5 rounded-xl hover:text-white hover:bg-white/[0.08] active:scale-90 transition-all duration-150 cursor-pointer disabled:opacity-40 disabled:cursor-not-allowed ${
+            className={`p-1.5 rounded-xl hover:text-white hover:bg-white/[0.08] active:scale-90 transition duration-150 cursor-pointer disabled:opacity-40 disabled:cursor-not-allowed ${
               settingsOpen ? "bg-white/10 text-foreground" : "text-zinc-400"
             }`}
           >
@@ -401,7 +401,7 @@ export function AppShell() {
               onClick={handleUuidShortcut}
               disabled={toolbarLocked}
               aria-disabled={toolbarLocked || undefined}
-              className="md:hidden absolute top-0 right-1 p-2 rounded-xl bg-white/[0.06] border border-white/10 text-accent-orange hover:text-white transition-all active:scale-90 cursor-pointer min-w-[36px] min-h-[36px] flex items-center justify-center disabled:opacity-40"
+              className="md:hidden absolute top-0 right-1 p-2 rounded-xl bg-white/[0.06] border border-white/10 text-accent-orange hover:text-white transition active:scale-90 cursor-pointer min-w-[36px] min-h-[36px] flex items-center justify-center disabled:opacity-40"
             >
               <KeyRound className="w-4 h-4" />
             </button>
@@ -416,7 +416,7 @@ export function AppShell() {
             src="/pictorium.svg"
             alt="Pictorium"
             decoding="async"
-            className="header-logo header-logo-dark h-10 sm:h-14 md:h-24 w-auto cursor-pointer hover:brightness-110 active:scale-95 transition-all duration-150 mb-1.5 md:mb-2"
+            className="header-logo header-logo-dark h-10 sm:h-14 md:h-24 w-auto cursor-pointer hover:brightness-110 active:scale-95 transition duration-150 mb-1.5 md:mb-2"
           />
           {/* eslint-disable-next-line @next/next/no-img-element -- local SVG asset */}
           <img
@@ -428,7 +428,7 @@ export function AppShell() {
             src="/pictorium-light.svg"
             alt="Pictorium"
             decoding="async"
-            className="header-logo header-logo-light h-10 sm:h-14 md:h-24 w-auto cursor-pointer hover:brightness-110 active:scale-95 transition-all duration-150 mb-1.5 md:mb-2"
+            className="header-logo header-logo-light h-10 sm:h-14 md:h-24 w-auto cursor-pointer hover:brightness-110 active:scale-95 transition duration-150 mb-1.5 md:mb-2"
           />
           <p className="header-tagline text-center text-[10px] sm:text-xs md:text-sm mb-3.5 sm:mb-4 md:mb-4 max-w-xs sm:max-w-none">{t("ui.homeTagline")}</p>
           <MobileCommunityLinks />
@@ -447,7 +447,7 @@ export function AppShell() {
       {/* Mobile Bottom Navigation Bar (iOS / Android Style) */}
       <nav
         aria-label={t("ui.mainNav")}
-        className={`md:hidden fixed bottom-0 left-0 right-0 z-40 bg-zinc-950/90 backdrop-blur-2xl border-t border-white/[0.08] shadow-[0_-10px_30px_rgba(0,0,0,0.5)] px-2 pt-1.5 pb-[max(0.5rem,env(safe-area-inset-bottom))] transition-all duration-200 ${
+        className={`md:hidden fixed bottom-0 left-0 right-0 z-40 bg-zinc-950/90 backdrop-blur-2xl border-t border-white/[0.08] shadow-[0_-10px_30px_rgba(0,0,0,0.5)] px-2 pt-1.5 pb-[max(0.5rem,env(safe-area-inset-bottom))] transition duration-200 ${
           view === "edit" && selected ? "translate-y-full pointer-events-none opacity-0" : "translate-y-0 opacity-100"
         }`}
       >
@@ -458,7 +458,7 @@ export function AppShell() {
             onClick={() => { if (toolbarLocked) return; router.replace("cataloghi") }}
             disabled={toolbarLocked}
             aria-disabled={toolbarLocked || undefined}
-            className={`flex flex-col items-center justify-center gap-1 py-1 px-1 rounded-xl transition-all duration-150 active:scale-90 cursor-pointer disabled:opacity-40 disabled:cursor-not-allowed ${
+            className={`flex flex-col items-center justify-center gap-1 py-1 px-1 rounded-xl transition duration-150 active:scale-90 cursor-pointer disabled:opacity-40 disabled:cursor-not-allowed ${
               view === "cataloghi"
                 ? "text-accent-orange font-semibold"
                 : "text-zinc-400 hover:text-zinc-200"
@@ -478,7 +478,7 @@ export function AppShell() {
             aria-disabled={toolbarLocked || undefined}
             aria-label={t("ui.addonProxy")}
             title={t("ui.addonProxy")}
-            className="flex flex-col items-center justify-center gap-1 py-1 px-1 rounded-xl transition-all duration-150 active:scale-90 cursor-pointer text-zinc-400 hover:text-zinc-200 disabled:opacity-40 disabled:cursor-not-allowed"
+            className="flex flex-col items-center justify-center gap-1 py-1 px-1 rounded-xl transition duration-150 active:scale-90 cursor-pointer text-zinc-400 hover:text-zinc-200 disabled:opacity-40 disabled:cursor-not-allowed"
           >
             <span className="h-8 flex items-center justify-center">
               <Plug className="w-5 h-5 text-accent-orange" />
@@ -492,7 +492,7 @@ export function AppShell() {
             onClick={handleInstallCatalog}
             disabled={toolbarLocked}
             aria-disabled={toolbarLocked || undefined}
-            className="flex flex-col items-center justify-center gap-1 py-1 px-1 rounded-xl transition-all duration-150 active:scale-90 cursor-pointer text-zinc-300 hover:text-white disabled:opacity-40 disabled:cursor-not-allowed"
+            className="flex flex-col items-center justify-center gap-1 py-1 px-1 rounded-xl transition duration-150 active:scale-90 cursor-pointer text-zinc-300 hover:text-white disabled:opacity-40 disabled:cursor-not-allowed"
           >
             <div className="w-8 h-8 rounded-full bg-gradient-to-tr from-accent-orange to-amber-500 flex items-center justify-center text-white shadow-md shadow-accent-orange/30">
               <QrCode className="w-4 h-4" />
@@ -506,7 +506,7 @@ export function AppShell() {
             onClick={() => { if (toolbarLocked) return; router.replace("myposters") }}
             disabled={toolbarLocked}
             aria-disabled={toolbarLocked || undefined}
-            className={`flex flex-col items-center justify-center gap-1 py-1 px-1 rounded-xl transition-all duration-150 active:scale-90 cursor-pointer relative disabled:opacity-40 disabled:cursor-not-allowed ${
+            className={`flex flex-col items-center justify-center gap-1 py-1 px-1 rounded-xl transition duration-150 active:scale-90 cursor-pointer relative disabled:opacity-40 disabled:cursor-not-allowed ${
               view === "myposters"
                 ? "text-accent-orange font-semibold"
                 : "text-zinc-400 hover:text-zinc-200"
@@ -531,7 +531,7 @@ export function AppShell() {
             onClick={() => { if (toolbarLocked) return; router.replace("thumbnails") }}
             disabled={toolbarLocked}
             aria-disabled={toolbarLocked || undefined}
-            className={`flex flex-col items-center justify-center gap-1 py-1 px-1 rounded-xl transition-all duration-150 active:scale-90 cursor-pointer disabled:opacity-40 disabled:cursor-not-allowed ${
+            className={`flex flex-col items-center justify-center gap-1 py-1 px-1 rounded-xl transition duration-150 active:scale-90 cursor-pointer disabled:opacity-40 disabled:cursor-not-allowed ${
               view === "thumbnails"
                 ? "text-accent-orange font-semibold"
                 : "text-zinc-400 hover:text-zinc-200"
@@ -550,7 +550,7 @@ export function AppShell() {
             onClick={() => { if (toolbarLocked) return; if (settingsOpen) requestSettingsClose(); else setSettingsOpen(true) }}
             disabled={toolbarLocked}
             aria-disabled={toolbarLocked || undefined}
-            className={`flex flex-col items-center justify-center gap-1 py-1 px-1 rounded-xl transition-all duration-150 active:scale-90 cursor-pointer disabled:opacity-40 disabled:cursor-not-allowed ${
+            className={`flex flex-col items-center justify-center gap-1 py-1 px-1 rounded-xl transition duration-150 active:scale-90 cursor-pointer disabled:opacity-40 disabled:cursor-not-allowed ${
               settingsOpen
                 ? "text-accent-orange font-semibold"
                 : "text-zinc-400 hover:text-zinc-200"

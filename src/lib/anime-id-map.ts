@@ -202,8 +202,16 @@ function snapshotRecords(): { records: unknown; meta: { schemaVersion?: unknown;
   }
 }
 
-const snapshot = snapshotRecords()
-const defaultResolver = createAnimeIdMapResolver(snapshot.records, snapshot.meta)
+// Indici costruiti al primo lookup, non all'import: le route che importano il
+// modulo senza mai interrogarlo non pagano il parsing a cold start.
+let defaultResolver: AnimeIdMapResolver | null = null
+function resolver(): AnimeIdMapResolver {
+  if (!defaultResolver) {
+    const snapshot = snapshotRecords()
+    defaultResolver = createAnimeIdMapResolver(snapshot.records, snapshot.meta)
+  }
+  return defaultResolver
+}
 
 /** Anime ns+id + lato TMDB -> target artwork (unico) — vedi resolveArtwork. */
 export function resolveAnimeArtwork(
@@ -211,20 +219,20 @@ export function resolveAnimeArtwork(
   id: unknown,
   side: string | null | undefined,
 ): AnimeArtworkResolution {
-  return defaultResolver.resolveArtwork(namespace, id, side)
+  return resolver().resolveArtwork(namespace, id, side)
 }
 
 /** TMDB -> tutte le entries anime corrispondenti (tutti i match preservati). */
 export function findAnimeByTmdb(tmdbId: unknown, side?: string | null): AnimeMapRecord[] {
-  return defaultResolver.findByTmdb(tmdbId, side)
+  return resolver().findByTmdb(tmdbId, side)
 }
 
 /** IMDb -> tutte le entries anime corrispondenti (tutti i match preservati). */
 export function findAnimeByImdb(imdbId: unknown, side?: string | null): AnimeMapRecord[] {
-  return defaultResolver.findByImdb(imdbId, side)
+  return resolver().findByImdb(imdbId, side)
 }
 
 /** Disponibilità/versione/conter snapshot per diagnostica. */
 export function animeMapInfo(): AnimeMapInfo {
-  return defaultResolver.info()
+  return resolver().info()
 }

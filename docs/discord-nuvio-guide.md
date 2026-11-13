@@ -72,7 +72,7 @@ Keep the **ID** dropdown on **Auto (recommended)** unless you know you need
 a TMDB- or IMDb-only variant. Placeholder template (yours will differ):
 
 ```
-https://<host>/api/poster/{type}/{tmdb_id|imdb_id}?u=<your-space-uuid>&live=1&shape={shape}
+https://<host>/api/poster/{type}/{tmdb_id|imdb_id|id}?u=<your-space-uuid>&live=1&shape={shape}
 ```
 
 Never share a link containing a raw `api_key` value, and use placeholders —
@@ -167,9 +167,14 @@ caches mean changes are **not instant**. Follow links (`live=1`) revalidate
 per request, yet copies already cached elsewhere refresh on that client's
 schedule — wait and re-request the view instead of saving repeatedly.
 
-IDs: **Auto** (`{tmdb_id|imdb_id}`) fits supported views that provide IDs,
-because different Nuvio rows carry different IDs; when a view provides neither ID, the template
-keeps Nuvio's original poster. `{tmdb_id}` is exact but only where TMDB IDs
+IDs: **Auto** (`{tmdb_id|imdb_id|id}`) fits supported views that provide IDs,
+because different Nuvio rows carry different IDs. Items with neither ID
+(anime catalogs using `kitsu:`, `anilist:`, `mal:`, `anidb:`, or `tvdb:`)
+pass their full ID, which Pictorium maps to TMDB; when that mapping is
+missing or ambiguous, Nuvio keeps its original poster. If you copied the
+Auto template before this change, copy it again to get anime coverage.
+Items whose addon reports a bare `anime` type (not `movie`/`series`) keep
+the original poster. `{tmdb_id}` is exact but only where TMDB IDs
 exist; `{imdb_id}` resolves server-side but can 404 on franchise-shared
 `tt...` IDs (anthology splits) even when the title exists — prefer numeric
 TMDB IDs or ask the instance operator for a manual alias. Limits: saved art
@@ -202,7 +207,7 @@ backups on your own device only.
 - Pictorium [`src/components/InstallModal.tsx`](../src/components/InstallModal.tsx): **Connect Pictorium** dialog (**Install Hub** button), **Nuvio** tab hint (*Poster URL field; format adapts per view*), **Follow my space** vs **Fixed settings in the link** (**Advanced options**), **Auto (recommended)** / TMDB / IMDb ID selector; Nuvio templates carry literal `shape={shape}`, unlike the AIO variant.
 - Pictorium [`src/lib/poster-url.ts`](../src/lib/poster-url.ts) (`buildUrlPattern`): Nuvio variant keeps one literal `shape={shape}` (URL-encoded braces restored post-encode); follow-space mode emits only identity (`u`), placeholders, keys per policy, and `live=1`.
 - Pictorium [`src/lib/poster-config.ts`](../src/lib/poster-config.ts) (`resolvePosterShape`): `shape=landscape` renders 16:9, `shape=poster` and `shape=square` render the portrait canvas (no dedicated square canvas); unrecognized values fall through to mapping/config/defaults.
-- Pictorium [`docs/INTEGRATION.md`](./INTEGRATION.md): `{tmdb_id|imdb_id}` auto alternation (consumer substitutes whichever ID the view provides, keeps the original poster when neither exists; verified against Nuvio `{a|b}` markers); `{tmdb_id}` exact alternative; `{imdb_id}` universal fallback with franchise-split 404 caveat; unmapped/mapped cache TTLs and fail-safe fallbacks.
+- Pictorium [`docs/INTEGRATION.md`](./INTEGRATION.md): `{tmdb_id|imdb_id}` auto alternation (consumer substitutes whichever ID the view provides, keeps the original poster when neither exists; verified against Nuvio `{a|b}` markers); Nuvio variant `{tmdb_id|imdb_id|id}` with poster-route resolution of `anilist:`/`kitsu:`/`mal:`/`anidb:` (local snapshot) and `tvdb:`/`tvdbc:` (TMDB find); `{tmdb_id}` exact alternative; `{imdb_id}` universal fallback with franchise-split 404 caveat; unmapped/mapped cache TTLs and fail-safe fallbacks.
 - Pictorium English strings [`src/lib/translations/en.json`](../src/lib/translations/en.json): **Connect Pictorium**, **Your API keys**, **Personal TMDB Key**, **Verify key**, **Keys saved.**, **Global preview**, **Quick setups**, **Save as defaults**, **Save Poster**, **My Posters**, **Preferences**, **Poster Style**, **Poster shape**, **Link for AIO & Custom URL:**.
 - Nuvio wiki [Cross-Platform UI and Customization](https://nuvio.wiki/settings/ui-and-customization) (fetched Oct 2026): **Shared** Home Screen & Layout Structures section documents **Landscape Posters** (portrait vs landscape cards), TV **Modern**/**Classic**/**Grid** layouts, mobile **Continue Watching** styles (**Card**/**Wide**/**Poster**), and episode-thumbnail vs series-artwork preferences. Exact parent menu paths vary by platform/version — field/setting names cited, paths not asserted.
 - Sibling guide [`docs/discord-aiometadata-guide.md`](./discord-aiometadata-guide.md): AIOMetadata per-catalog **Poster Shape** gear dialogs and bulk actions — referenced as the AIO-only counterpart, not transplanted into Nuvio steps.

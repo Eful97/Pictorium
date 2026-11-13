@@ -12,7 +12,7 @@ export type RankingAppearance = "nastro" | "numero" | "badge"
 export type RankingPresentation = RankingAppearance | "fresh" | "card"
 
 /** Badge variants for the Badge appearance (`standard` = centered default plate). */
-export const RANK_BADGE_VARIANTS = ["pill", "colored", "bordo", "vetro", "corner", "standard", "split"] as const
+export const RANK_BADGE_VARIANTS = ["pill", "colored", "bordo", "vetro", "corner", "standard", "split", "tinta", "sfumato", "editoriale"] as const
 export type RankBadgeVariant = (typeof RANK_BADGE_VARIANTS)[number]
 
 /**
@@ -41,7 +41,7 @@ export function resolveRankingAppearance(args: {
  * selected pill. Pure read — never writes.
  */
 export function resolveRankVariant(rs: string | null | undefined): RankBadgeVariant {
-  if (rs === "pill" || rs === "colored" || rs === "bordo" || rs === "vetro" || rs === "corner" || rs === "split") return rs
+  if (rs === "pill" || rs === "colored" || rs === "bordo" || rs === "vetro" || rs === "corner" || rs === "split" || rs === "tinta" || rs === "sfumato" || rs === "editoriale") return rs
   return "standard"
 }
 
@@ -111,7 +111,7 @@ export function rankVariantValue(variant: RankBadgeVariant): RankVariantValue {
  */
 export function legacyExtraStyleForRank(rs: string | null | undefined): ExtraBadgeStyle {
   if (rs === "corner" || rs === "number") return "corner"
-  if (rs === "pill" || rs === "colored" || rs === "bordo" || rs === "vetro") return rs
+  if (rs === "pill" || rs === "colored" || rs === "bordo" || rs === "vetro" || rs === "tinta" || rs === "sfumato" || rs === "editoriale") return rs
   return "default"
 }
 
@@ -143,6 +143,9 @@ const VARIANT_LABELS: Record<RankBadgeVariant, string> = {
   corner: "ui.corner",
   standard: "ui.qbsStandard",
   split: "ui.split",
+  tinta: "ui.tinta",
+  sfumato: "ui.sfumato",
+  editoriale: "ui.editoriale",
 }
 
 /** Demo accent for the mini previews (same fallback as the badge style selector). */
@@ -161,6 +164,9 @@ const BADGE_VARIANT_SWATCH: Record<RankBadgeVariant, { style: RankingBadgeStyle;
   corner: { style: "corner", ribbon: true },
   standard: { style: "default", ribbon: false },
   split: { style: "split", ribbon: true },
+  tinta: { style: "tinta", ribbon: true },
+  sfumato: { style: "sfumato", ribbon: true },
+  editoriale: { style: "editoriale", ribbon: true },
 }
 /** Ribbon rows → the same canonical pairs `ribbonVariantValue` writes. */
 const RIBBON_VARIANT_SWATCH: Record<RankRibbonVariant, { style: RankingBadgeStyle; ribbon: boolean }> = {
@@ -269,7 +275,7 @@ export function RankingAppearanceSelector({
             role="radio"
             aria-checked={checked}
             onClick={() => onPrimary(a)}
-            className={`flex flex-1 min-w-0 flex-col items-center justify-center gap-0.5 py-1 px-1 rounded-lg text-[11px] font-semibold transition-all duration-150 cursor-pointer ${
+            className={`flex flex-1 min-w-0 flex-col items-center justify-center gap-0.5 py-1 px-1 rounded-lg text-[11px] font-semibold transition duration-150 cursor-pointer ${
               checked
                 ? "bg-white/20 text-white shadow-sm"
                 : "bg-white/5 text-muted hover:bg-white/10 hover:text-zinc-200"
@@ -305,7 +311,7 @@ export function RankingAppearanceSelector({
               role="radio"
               aria-checked={cardSkin === skin}
               onClick={() => onCardSkin(skin)}
-              className={`flex flex-col gap-1 p-1.5 rounded-lg transition-all duration-150 cursor-pointer min-w-0 ${
+              className={`flex flex-col gap-1 p-1.5 rounded-lg transition duration-150 cursor-pointer min-w-0 ${
                 cardSkin === skin
                   ? "bg-white/20 text-white shadow-sm ring-1 ring-white/30"
                   : "bg-white/5 text-muted hover:bg-white/10 hover:text-zinc-200"
@@ -328,7 +334,7 @@ export function RankingAppearanceSelector({
               role="radio"
               aria-checked={ribbonVariant === v}
               onClick={() => onRibbonVariant(v)}
-              className={`flex flex-1 min-w-[56px] flex-col items-center justify-center gap-0.5 py-1 px-1 rounded-lg text-[10px] font-semibold transition-all duration-150 cursor-pointer ${
+              className={`flex flex-1 min-w-[56px] flex-col items-center justify-center gap-0.5 py-1 px-1 rounded-lg text-[10px] font-semibold transition duration-150 cursor-pointer ${
                 ribbonVariant === v
                   ? "bg-white/20 text-white shadow-sm"
                   : "bg-white/5 text-muted hover:bg-white/10 hover:text-zinc-200"
@@ -349,7 +355,7 @@ export function RankingAppearanceSelector({
               role="radio"
               aria-checked={variant === v}
               onClick={() => onVariant(v)}
-              className={`flex flex-1 min-w-[56px] flex-col items-center justify-center gap-0.5 py-1 px-1 rounded-lg text-[10px] font-semibold transition-all duration-150 cursor-pointer ${
+              className={`flex flex-1 min-w-[56px] flex-col items-center justify-center gap-0.5 py-1 px-1 rounded-lg text-[10px] font-semibold transition duration-150 cursor-pointer ${
                 variant === v
                   ? "bg-white/20 text-white shadow-sm"
                   : "bg-white/5 text-muted hover:bg-white/10 hover:text-zinc-200"
@@ -374,7 +380,7 @@ export function RankingAppearanceSelector({
                 role="radio"
                 aria-checked={side === s}
                 onClick={() => onSide(s)}
-                className={`flex-1 py-1 rounded-lg text-[11px] font-semibold transition-all duration-150 cursor-pointer ${
+                className={`flex-1 py-1 rounded-lg text-[11px] font-semibold transition duration-150 cursor-pointer ${
                   side === s
                     ? "bg-white/20 text-foreground shadow-sm"
                     : "bg-white/5 text-muted hover:bg-white/10 hover:text-zinc-200"

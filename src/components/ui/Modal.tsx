@@ -1,7 +1,8 @@
 "use client"
 
-import { useEffect, useRef } from "react"
+import { useEffect, useLayoutEffect, useRef } from "react"
 import { createPortal } from "react-dom"
+import { playExitGhost } from "@/lib/motion"
 
 const FOCUSABLE = [
   "a[href]", "button:not([disabled])", "input:not([disabled])", "select:not([disabled])",
@@ -37,6 +38,15 @@ export function Modal({
   labelledBy, describedBy, testId, className = "", overlayClassName, children,
 }: ModalProps) {
   const panelRef = useRef<HTMLDivElement>(null)
+  const overlayRef = useRef<HTMLDivElement>(null)
+
+  // Uscita animata per ogni via di chiusura (Escape, backdrop, bottoni del
+  // chiamante, smontaggio del genitore): il nodo è ancora disponibile qui.
+  useLayoutEffect(() => {
+    if (!isOpen) return
+    const node = overlayRef.current
+    return () => playExitGhost(node, "[data-modal-panel]")
+  }, [isOpen])
 
   useEffect(() => {
     if (!isOpen) return
@@ -93,6 +103,7 @@ export function Modal({
 
   const content = (
     <div
+      ref={overlayRef}
       role="dialog"
       aria-modal="true"
       aria-labelledby={labelledBy}
@@ -102,6 +113,7 @@ export function Modal({
     >
       <div
         ref={panelRef}
+        data-modal-panel
         tabIndex={-1}
         data-testid={testId}
         className={`relative outline-none w-full max-w-lg rounded-2xl border border-white/10 bg-surface/95 p-6 shadow-2xl space-y-5 select-text animate-modal-panel-in ${className}`}

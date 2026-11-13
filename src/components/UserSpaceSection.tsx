@@ -197,7 +197,7 @@ function UserIdentityCard({ uuid }: { uuid: string }) {
               onClick={copyRecovery}
               title={t("ui.copyUuid")}
               aria-label={t("ui.userRecoveryKey")}
-              className="w-9 h-9 shrink-0 grow-0 basis-auto flex items-center justify-center rounded-lg bg-surface2 hover:bg-zinc-700 text-zinc-300 transition-all disabled:opacity-30 disabled:pointer-events-none cursor-pointer"
+              className="w-9 h-9 shrink-0 grow-0 basis-auto flex items-center justify-center rounded-lg bg-surface2 hover:bg-zinc-700 text-zinc-300 transition disabled:opacity-30 disabled:pointer-events-none cursor-pointer"
             >
               {copiedRecovery ? <Check className="w-4 h-4 text-emerald-400" /> : <Copy className="w-4 h-4" />}
             </button>
@@ -210,7 +210,7 @@ function UserIdentityCard({ uuid }: { uuid: string }) {
           type="button"
           onClick={() => setShowPw((v) => !v)}
           aria-expanded={showPw}
-          className="w-full py-1.5 rounded-lg text-[11px] font-semibold bg-white/[0.06] hover:bg-white/[0.1] text-zinc-200 transition-all cursor-pointer"
+          className="w-full py-1.5 rounded-lg text-[11px] font-semibold bg-white/[0.06] hover:bg-white/[0.1] text-zinc-200 transition cursor-pointer"
         >
           {t("ui.userSpaceChangePw")}
         </button>
@@ -429,7 +429,7 @@ export function UserSpacesList() {
               type="button"
               onClick={() => void copy(created.secret)}
               aria-label={t("ui.copyUuid")}
-              className="w-9 h-9 shrink-0 flex items-center justify-center rounded-lg bg-surface2 hover:bg-zinc-700 text-zinc-300 transition-all cursor-pointer"
+              className="w-9 h-9 shrink-0 flex items-center justify-center rounded-lg bg-surface2 hover:bg-zinc-700 text-zinc-300 transition cursor-pointer"
             >
               {copied ? <Check className="w-4 h-4 text-emerald-400" /> : <Copy className="w-4 h-4" />}
             </button>

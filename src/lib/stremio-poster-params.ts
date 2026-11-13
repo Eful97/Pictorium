@@ -455,7 +455,9 @@ export function buildStremioPosterSearchParams(input: StremioPosterParamsInput):
   const effSepStyle = input.shapeUnknown || input.posterShape !== "landscape"
     ? input.separateRatingsStyle
     : getSeparateRatingsStyleForShape(input.separateRatingsStyle ?? "column", "landscape")
-  if (isBottomSeparateRatingsStyle(effSepStyle)) {
+  // `rings` è una variante COLONNA ma non il default: va emessa anch'essa,
+  // altrimenti Stremio renderebbe la colonna a pill.
+  if (isBottomSeparateRatingsStyle(effSepStyle) || effSepStyle === "rings") {
     params.set("sepstyle", effSepStyle)
   }
   if (input.ratingSources && input.ratingSources.length > 0) params.set("rsrc", input.ratingSources.join(","))

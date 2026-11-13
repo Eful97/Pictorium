@@ -98,7 +98,7 @@ function PatternRow({ value, copyLabel }: { value: string; copyLabel: string }) 
       <button
         type="button"
         onClick={handleCopy}
-        className={`shrink-0 px-3.5 py-2 rounded-lg text-xs sm:text-sm font-medium flex items-center gap-1.5 transition-all cursor-pointer ${FOCUS_RING} ${
+        className={`shrink-0 px-3.5 py-2 rounded-lg text-xs sm:text-sm font-medium flex items-center gap-1.5 transition cursor-pointer ${FOCUS_RING} ${
           copied
             ? "bg-emerald-500/20 text-emerald-300 border border-emerald-500/40 shadow-sm"
             : "bg-accent-orange hover:bg-accent-orange/90 text-white shadow-sm active:scale-95"
@@ -352,14 +352,14 @@ export function InstallModal({
   }
 
   const tabClass = (selected: boolean) =>
-    `flex-1 py-1.5 px-3 rounded-lg text-xs sm:text-sm font-semibold transition-all cursor-pointer ${FOCUS_RING} ${
+    `flex-1 py-1.5 px-3 rounded-lg text-xs sm:text-sm font-semibold transition cursor-pointer ${FOCUS_RING} ${
       selected
         ? "bg-white/15 text-foreground shadow-sm border border-white/10"
         : "text-zinc-400 hover:text-zinc-200 hover:bg-white/5"
     }`
 
   const hubModeClass = (selected: boolean) =>
-    `py-2 px-2.5 rounded-xl text-center text-xs sm:text-sm font-semibold transition-all cursor-pointer border ${FOCUS_RING} ${
+    `py-2 px-2.5 rounded-xl text-center text-xs sm:text-sm font-semibold transition cursor-pointer border ${FOCUS_RING} ${
       selected
         ? "bg-accent-orange/15 border-accent-orange/50 text-foreground shadow-sm"
         : "bg-white/[0.03] border-white/10 text-zinc-400 hover:bg-white/[0.06] hover:text-zinc-200"
@@ -390,7 +390,7 @@ export function InstallModal({
             type="button"
             onClick={onClose}
             aria-label={t("ui.close")}
-            className={`p-2 text-zinc-400 hover:text-white rounded-xl hover:bg-white/10 active:scale-95 transition-all cursor-pointer ${FOCUS_RING}`}
+            className={`p-2 text-zinc-400 hover:text-white rounded-xl hover:bg-white/10 active:scale-95 transition cursor-pointer ${FOCUS_RING}`}
           >
             <X className="w-4 h-4" />
           </button>
@@ -480,7 +480,7 @@ export function InstallModal({
               {/* 4. Pulsante principale a larghezza piena */}
               <a
                 href={stremioDeepLink}
-                className={`w-full py-2.5 px-4 rounded-xl bg-accent-orange-strong hover:bg-accent-orange-strong/90 text-white font-semibold text-sm flex items-center justify-center gap-2 transition-all shadow-md shadow-accent-orange/20 active:scale-[0.98] ${FOCUS_RING}`}
+                className={`w-full py-2.5 px-4 rounded-xl bg-accent-orange-strong hover:bg-accent-orange-strong/90 text-white font-semibold text-sm flex items-center justify-center gap-2 transition shadow-md shadow-accent-orange/20 active:scale-[0.98] ${FOCUS_RING}`}
               >
                 <Download className="w-4 h-4" />
                 <span>{t("ui.installInApp")}</span>
@@ -491,7 +491,7 @@ export function InstallModal({
                 <button
                   type="button"
                   onClick={handleCopy}
-                  className={`w-full py-2 px-3 rounded-xl border text-xs sm:text-sm font-medium flex items-center justify-center gap-1.5 transition-all active:scale-[0.98] cursor-pointer ${FOCUS_RING} ${
+                  className={`w-full py-2 px-3 rounded-xl border text-xs sm:text-sm font-medium flex items-center justify-center gap-1.5 transition active:scale-[0.98] cursor-pointer ${FOCUS_RING} ${
                     copied
                       ? "bg-emerald-500/20 text-emerald-300 border-emerald-500/40 shadow-sm"
                       : "bg-white/[0.04] hover:bg-white/[0.08] text-zinc-200 border-white/10"

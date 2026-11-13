@@ -10,6 +10,7 @@ import { Search, X, Square, CheckSquare, Trash2, Calendar, ArrowUpAZ, ChevronDow
 import { http } from "@/lib/http"
 import { MoodBoardTile, type TileHandlers } from "@/components/MoodBoardTile"
 import { PosterLightbox } from "@/components/PosterLightbox"
+import { withViewTransition, setTransitionName, QUICK_VIEW_VT } from "@/lib/motion"
 import { CollectionBar } from "@/components/CollectionBar"
 import { useCollections } from "@/lib/useCollections"
 import { useCountUp } from "@/lib/useCountUp"
@@ -53,7 +54,8 @@ export function MyPostersView() {
   const [sortClosing, setSortClosing] = useState(false)
   const [deleting, setDeleting] = useState(false)
   const [bulkSaving, setBulkSaving] = useState(false)
-  const [lightbox, setLightbox] = useState<{ mapping: Mapping; rect: DOMRect } | null>(null)
+  const [lightbox, setLightbox] = useState<{ mapping: Mapping } | null>(null)
+  const lightboxTileRef = useRef<HTMLElement | null>(null)
   const [activeCollection, setActiveCollection] = useState<string | null>(null)
   const {
     collections,
@@ -232,7 +234,16 @@ export function MyPostersView() {
   const tileHandlers: TileHandlers = useMemo(() => ({
     select: (key: string) => toggleSelect(key),
     open: (m: Mapping) => navigateToPoster(toSearchResult({ id: m.tmdbId, media_type: m.mediaType, title: m.title, name: m.title, poster_path: m.posterPath }), "myposters"),
-    quickView: (m: Mapping, rect: DOMRect) => setLightbox({ mapping: m, rect }),
+    // Morph tile → lightbox: la tile porta il nome della View Transition nello
+    // stato vecchio, il poster del lightbox in quello nuovo.
+    quickView: (m: Mapping, tileEl: HTMLElement | null) => {
+      lightboxTileRef.current = tileEl
+      setTransitionName(tileEl, QUICK_VIEW_VT)
+      withViewTransition(() => {
+        setTransitionName(tileEl, "")
+        setLightbox({ mapping: m })
+      })
+    },
     remove: (m: Mapping) => setConfirmingKey(`${m.mediaType}:${m.tmdbId}`),
     confirmRemove: (m: Mapping) => {
       setConfirmingKey(null)
@@ -317,7 +328,7 @@ export function MyPostersView() {
       <div className="flex flex-col md:flex-row items-stretch md:items-center justify-between gap-2.5 mb-4 px-4 max-w-7xl mx-auto">
         {/* Ricerca e Filtri Tipo */}
         <div className="flex flex-col sm:flex-row items-stretch sm:items-center gap-2 flex-1">
-          <div role="search" className="search-shell flex items-center h-10 rounded-xl transition-all duration-300 group w-full sm:w-64">
+          <div role="search" className="search-shell flex items-center h-10 rounded-xl transition duration-300 group w-full sm:w-64">
             <span className="shrink-0 pl-3 text-zinc-500 group-focus-within:text-zinc-300 transition-colors">
               <Search size={14} />
             </span>
@@ -339,7 +350,7 @@ export function MyPostersView() {
                 type="button"
                 aria-label={t("ui.filterPlaceholder")}
                 onClick={() => setFilter("")}
-                className="shrink-0 w-6 h-6 mr-1.5 flex items-center justify-center bg-zinc-700/60 text-zinc-300 rounded-full hover:bg-zinc-600 active:scale-90 transition-all duration-200"
+                className="shrink-0 w-6 h-6 mr-1.5 flex items-center justify-center bg-zinc-700/60 text-zinc-300 rounded-full hover:bg-zinc-600 active:scale-90 transition duration-200"
               >
                 <X className="w-3.5 h-3.5" />
               </button>
@@ -351,7 +362,7 @@ export function MyPostersView() {
             <button
               type="button"
               onClick={() => setTypeFilter("all")}
-              className={`px-2.5 py-1.5 rounded-lg text-xs font-medium transition-all duration-150 flex items-center gap-1.5 shrink-0 ${
+              className={`px-2.5 py-1.5 rounded-lg text-xs font-medium transition duration-150 flex items-center gap-1.5 shrink-0 ${
                 typeFilter === "all"
                   ? "bg-accent-orange/8 text-accent-orange border border-accent-orange/30 font-semibold shadow-sm"
                   : "text-muted hover:text-zinc-200 hover:bg-white/5 border border-transparent"
@@ -363,7 +374,7 @@ export function MyPostersView() {
             <button
               type="button"
               onClick={() => setTypeFilter("movie")}
-              className={`px-2.5 py-1.5 rounded-lg text-xs font-medium transition-all duration-150 flex items-center gap-1.5 shrink-0 ${
+              className={`px-2.5 py-1.5 rounded-lg text-xs font-medium transition duration-150 flex items-center gap-1.5 shrink-0 ${
                 typeFilter === "movie"
                   ? "bg-accent-orange/8 text-accent-orange border border-accent-orange/30 font-semibold shadow-sm"
                   : "text-muted hover:text-zinc-200 hover:bg-white/5 border border-transparent"
@@ -375,7 +386,7 @@ export function MyPostersView() {
             <button
               type="button"
               onClick={() => setTypeFilter("tv")}
-              className={`px-2.5 py-1.5 rounded-lg text-xs font-medium transition-all duration-150 flex items-center gap-1.5 shrink-0 ${
+              className={`px-2.5 py-1.5 rounded-lg text-xs font-medium transition duration-150 flex items-center gap-1.5 shrink-0 ${
                 typeFilter === "tv"
                   ? "bg-accent-orange/8 text-accent-orange border border-accent-orange/30 font-semibold shadow-sm"
                   : "text-muted hover:text-zinc-200 hover:bg-white/5 border border-transparent"
@@ -387,7 +398,7 @@ export function MyPostersView() {
             <button
               type="button"
               onClick={() => setTypeFilter("anime")}
-              className={`px-2.5 py-1.5 rounded-lg text-xs font-medium transition-all duration-150 flex items-center gap-1.5 shrink-0 ${
+              className={`px-2.5 py-1.5 rounded-lg text-xs font-medium transition duration-150 flex items-center gap-1.5 shrink-0 ${
                 typeFilter === "anime"
                   ? "bg-accent-orange/8 text-accent-orange border border-accent-orange/30 font-semibold shadow-sm"
                   : "text-muted hover:text-zinc-200 hover:bg-white/5 border border-transparent"
@@ -405,7 +416,7 @@ export function MyPostersView() {
               onClick={() => setFormatFilter(formatFilter === "poster" ? "all" : "poster")}
               title={t("ui.posterShapePortrait")}
               aria-pressed={formatFilter === "poster"}
-              className={`px-2.5 py-1.5 rounded-lg text-xs font-medium transition-all duration-150 flex items-center gap-1.5 shrink-0 ${
+              className={`px-2.5 py-1.5 rounded-lg text-xs font-medium transition duration-150 flex items-center gap-1.5 shrink-0 ${
                 formatFilter === "poster"
                   ? "bg-accent-orange/8 text-accent-orange border border-accent-orange/30 font-semibold shadow-sm"
                   : "text-muted hover:text-zinc-200 hover:bg-white/5 border border-transparent"
@@ -418,7 +429,7 @@ export function MyPostersView() {
               onClick={() => setFormatFilter(formatFilter === "landscape" ? "all" : "landscape")}
               title={t("ui.posterShapeLandscape")}
               aria-pressed={formatFilter === "landscape"}
-              className={`px-2.5 py-1.5 rounded-lg text-xs font-medium transition-all duration-150 flex items-center gap-1.5 shrink-0 ${
+              className={`px-2.5 py-1.5 rounded-lg text-xs font-medium transition duration-150 flex items-center gap-1.5 shrink-0 ${
                 formatFilter === "landscape"
                   ? "bg-accent-orange/8 text-accent-orange border border-accent-orange/30 font-semibold shadow-sm"
                   : "text-muted hover:text-zinc-200 hover:bg-white/5 border border-transparent"
@@ -436,7 +447,7 @@ export function MyPostersView() {
               type="button"
               aria-label={sortBy === "updated" ? t("ui.sortRecent") : t("ui.sortAZ")}
               onClick={() => setSortOpen((o) => !o)}
-              className="flex items-center gap-1.5 h-10 px-3 rounded-xl text-xs font-medium bg-surface border border-surface2/60 text-muted hover:text-zinc-200 hover:bg-surface2 transition-all duration-150 press-scale"
+              className="flex items-center gap-1.5 h-10 px-3 rounded-xl text-xs font-medium bg-surface border border-surface2/60 text-muted hover:text-zinc-200 hover:bg-surface2 transition duration-150 press-scale"
             >
               {sortBy === "updated" ? <Calendar className="w-3.5 h-3.5 text-amber-400" /> : <ArrowUpAZ className="w-3.5 h-3.5 text-sky-400" />}
               <span className="truncate">{sortBy === "updated" ? t("ui.recent") : t("ui.sortAZ")}</span>
@@ -447,7 +458,7 @@ export function MyPostersView() {
                 <button
                   type="button"
                   onClick={() => { setSortBy("updated"); closeSortDropdown() }}
-                  className={`w-full flex items-center gap-2 px-3 py-2 rounded-lg text-xs text-left transition-all duration-150 ${
+                  className={`w-full flex items-center gap-2 px-3 py-2 rounded-lg text-xs text-left transition duration-150 ${
                     sortBy === "updated" ? "bg-accent-orange/8 text-accent-orange font-semibold" : "text-zinc-300 hover:bg-surface2"
                   }`}
                 >
@@ -457,7 +468,7 @@ export function MyPostersView() {
                 <button
                   type="button"
                   onClick={() => { setSortBy("alpha"); closeSortDropdown() }}
-                  className={`w-full flex items-center gap-2 px-3 py-2 rounded-lg text-xs text-left transition-all duration-150 ${
+                  className={`w-full flex items-center gap-2 px-3 py-2 rounded-lg text-xs text-left transition duration-150 ${
                     sortBy === "alpha" ? "bg-accent-orange/8 text-accent-orange font-semibold" : "text-zinc-300 hover:bg-surface2"
                   }`}
                 >
@@ -472,7 +483,7 @@ export function MyPostersView() {
             type="button"
             aria-label={selectMode ? t("ui.cancel") : t("ui.select")}
             onClick={() => { setSelectMode((v) => !v); setSelected(new Set()); setConfirmingKey(null) }}
-            className={`h-10 px-3 rounded-xl text-xs font-medium transition-all duration-150 active:scale-95 flex items-center justify-center gap-1.5 border ${
+            className={`h-10 px-3 rounded-xl text-xs font-medium transition duration-150 active:scale-95 flex items-center justify-center gap-1.5 border ${
               selectMode
                 ? "bg-blue-500/20 text-blue-400 border-blue-500/40 shadow-sm"
                 : "bg-surface border-surface2/60 text-muted hover:bg-surface2 hover:text-zinc-200"
@@ -488,7 +499,7 @@ export function MyPostersView() {
                 type="button"
                 aria-label={t("ui.deleteAll")}
                 onClick={() => setShowDeleteAll((v) => !v)}
-                className="h-10 px-3 rounded-xl text-xs font-medium transition-all duration-150 bg-rose-500/10 border border-rose-500/25 text-rose-300 hover:bg-rose-500/20 hover:text-rose-200 active:scale-95 flex items-center justify-center press-scale"
+                className="h-10 px-3 rounded-xl text-xs font-medium transition duration-150 bg-rose-500/10 border border-rose-500/25 text-rose-300 hover:bg-rose-500/20 hover:text-rose-200 active:scale-95 flex items-center justify-center press-scale"
                 title={t("ui.deleteAll")}
               >
                 <Trash2 className="w-3.5 h-3.5" />
@@ -563,7 +574,7 @@ export function MyPostersView() {
               type="button"
               aria-label={t("ui.cancel")}
               onClick={() => { setSelectMode(false); setSelected(new Set()) }}
-              className="text-xs text-muted hover:text-zinc-200 px-3 py-1.5 rounded-lg hover:bg-surface2 active:scale-95 transition-all duration-150"
+              className="text-xs text-muted hover:text-zinc-200 px-3 py-1.5 rounded-lg hover:bg-surface2 active:scale-95 transition duration-150"
             >
               {t("ui.cancel")}
             </button>
@@ -573,7 +584,7 @@ export function MyPostersView() {
                 aria-label={t("ui.delete")}
                 disabled={deleting}
                 onClick={() => setShowDeleteSelected(true)}
-                className="flex items-center gap-1.5 text-xs font-semibold text-rose-300 bg-rose-500/15 border border-rose-500/30 px-3.5 py-1.5 rounded-xl hover:bg-rose-500/25 active:scale-95 transition-all duration-150 disabled:opacity-50 disabled:cursor-not-allowed"
+                className="flex items-center gap-1.5 text-xs font-semibold text-rose-300 bg-rose-500/15 border border-rose-500/30 px-3.5 py-1.5 rounded-xl hover:bg-rose-500/25 active:scale-95 transition duration-150 disabled:opacity-50 disabled:cursor-not-allowed"
               >
                 <Trash2 className="w-3.5 h-3.5" /> {deleting ? t("ui.deleting") : t("ui.delete")}
               </button>
@@ -687,7 +698,15 @@ export function MyPostersView() {
       )}
       <PosterLightbox
         lightbox={lightbox}
-        onClose={() => setLightbox(null)}
+        onClose={() => {
+          const tileEl = lightboxTileRef.current
+          const vt = withViewTransition(() => {
+            setLightbox(null)
+            setTransitionName(tileEl, QUICK_VIEW_VT)
+          })
+          if (vt) void vt.finished.finally(() => setTransitionName(tileEl, ""))
+          else setTransitionName(tileEl, "")
+        }}
         posterUrlFn={posterUrl}
         t={t}
         collections={collections}

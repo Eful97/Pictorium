@@ -202,7 +202,7 @@ export function SearchView() {
               type="button"
               onClick={() => setTypeFilter(chip.id)}
               aria-pressed={typeFilter === chip.id}
-              className={`px-2.5 py-1.5 rounded-lg text-xs font-medium transition-all duration-150 flex items-center gap-1.5 shrink-0 border ${
+              className={`px-2.5 py-1.5 rounded-lg text-xs font-medium transition duration-150 flex items-center gap-1.5 shrink-0 border ${
                 typeFilter === chip.id
                   ? "bg-accent-orange/15 text-accent-orange border-accent-orange/30 font-semibold shadow-sm"
                   : "text-muted hover:text-zinc-200 hover:bg-white/5 border-transparent"
@@ -241,7 +241,7 @@ export function SearchView() {
                 onMouseEnter={() => prefetchTitle(r)}
                 onFocus={() => prefetchTitle(r)}
                 aria-label={`${title} (${year})`}
-                className="surface-card group relative rounded-xl overflow-hidden transition-all duration-300 ease-out w-full border border-white/10 shadow-2xl hover:-translate-y-[3px] hover:scale-[1.015] hover:shadow-[0_22px_48px_rgba(0,0,0,0.48),0_0_22px_rgba(232,93,42,0.10)] hover:border-white/20 active:scale-[0.98] cursor-pointer animate-stagger-in text-left flex flex-col"
+                className="surface-card group relative rounded-xl overflow-hidden transition duration-300 ease-out w-full border border-white/10 shadow-2xl hover:-translate-y-[3px] hover:scale-[1.015] hover:shadow-[0_22px_48px_rgba(0,0,0,0.48),0_0_22px_rgba(232,93,42,0.10)] hover:border-white/20 active:scale-[0.98] cursor-pointer animate-stagger-in text-left flex flex-col"
                 style={{ animationDelay: `${Math.min(idx * 30, 300)}ms` }}
               >
                 {/* NuvioDesktop-style depth edge */}
@@ -314,7 +314,7 @@ export function SearchView() {
                 aria-label={t("ui.showMore")}
                 disabled={loadingMore || s.searching}
                 onClick={handleLoadMore}
-                className="group relative inline-flex items-center justify-center gap-2.5 px-8 py-3.5 rounded-2xl text-sm font-medium text-zinc-200 bg-surface/90 hover:bg-surface2/90 border border-white/[0.08] hover:border-accent-orange/40 shadow-lg shadow-black/25 hover:shadow-accent-orange/10 backdrop-blur-md transition-all duration-200 active:scale-[0.98] disabled:opacity-50 disabled:cursor-not-allowed cursor-pointer overflow-hidden"
+                className="group relative inline-flex items-center justify-center gap-2.5 px-8 py-3.5 rounded-2xl text-sm font-medium text-zinc-200 bg-surface/90 hover:bg-surface2/90 border border-white/[0.08] hover:border-accent-orange/40 shadow-lg shadow-black/25 hover:shadow-accent-orange/10 backdrop-blur-md transition duration-200 active:scale-[0.98] disabled:opacity-50 disabled:cursor-not-allowed cursor-pointer overflow-hidden"
               >
                 {/* Subtle gradient hover highlight */}
                 <div className="absolute inset-0 bg-gradient-to-r from-accent-orange/0 via-accent-orange/10 to-accent-orange/0 opacity-0 group-hover:opacity-100 transition-opacity duration-300 pointer-events-none" />
@@ -327,7 +327,7 @@ export function SearchView() {
                 ) : (
                   <>
                     <span>{t("ui.showMore")}</span>
-                    <ChevronDown className="w-4 h-4 text-accent-orange/80 group-hover:text-accent-orange group-hover:translate-y-0.5 transition-all duration-200" />
+                    <ChevronDown className="w-4 h-4 text-accent-orange/80 group-hover:text-accent-orange group-hover:translate-y-0.5 transition duration-200" />
                   </>
                 )}
               </button>
@@ -350,7 +350,7 @@ export function SearchView() {
           type="button"
           onClick={() => window.scrollTo({ top: 0, behavior: "smooth" })}
           aria-label={t("ui.backToTop")}
-          className="fixed bottom-6 right-6 z-40 w-11 h-11 rounded-full bg-surface/90 backdrop-blur-md border border-white/10 text-zinc-300 hover:text-white hover:border-accent-orange/40 shadow-xl flex items-center justify-center active:scale-95 transition-all"
+          className="fixed bottom-6 right-6 z-40 w-11 h-11 rounded-full bg-surface/90 backdrop-blur-md border border-white/10 text-zinc-300 hover:text-white hover:border-accent-orange/40 shadow-xl flex items-center justify-center active:scale-95 transition"
         >
           <ChevronUp className="w-5 h-5" />
         </button>
@@ -378,7 +378,7 @@ export function SearchView() {
           </div>
           <p className="text-danger text-sm font-medium mb-1">{t("ui.searchError")}</p>
           <p className="text-zinc-500 text-xs mb-4 max-w-xs mx-auto leading-relaxed">{s.error}</p>
-          <button type="button" onClick={() => { void s.retryFailed() }} className="px-5 py-2 rounded-xl text-xs font-semibold bg-red-900/30 border border-red-800/40 text-red-300 hover:bg-red-900/50 hover:text-red-200 active:scale-95 transition-all duration-200 press-scale">{t("ui.retry")}</button>
+          <button type="button" onClick={() => { void s.retryFailed() }} className="px-5 py-2 rounded-xl text-xs font-semibold bg-red-900/30 border border-red-800/40 text-red-300 hover:bg-red-900/50 hover:text-red-200 active:scale-95 transition duration-200 press-scale">{t("ui.retry")}</button>
         </div>
       )}
       {s.hasSearched && s.results.length === 0 && s.searchPage >= s.totalPages && !s.searching && !showRecent && !s.error && s.query.length >= 2 && hasKey && (

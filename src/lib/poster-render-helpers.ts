@@ -194,6 +194,52 @@ export async function fitCompositeToCanvas(
 }
 
 /**
+ * Vetro reale: per ogni placca `vetro` inserisce SOTTO di lei un ritaglio
+ * sfocato di ciò che il poster mostra in quel punto (base + tutti i layer che
+ * stanno sotto la placca), ritagliato con la sagoma della placca (alpha del
+ * bitmap badge, sogliato). Una sola composizione intermedia per render, solo
+ * quando esiste almeno una placca vetro: gli altri stili non pagano nulla.
+ * Placca fuori canvas o identità persa → resta il vetro storico (fail-open).
+ */
+export async function insertFrostedGlassUnderlays<L extends { input: Buffer; top: number; left: number }>(
+  base: ReturnType<typeof sharp>,
+  layers: L[],
+  glass: ReadonlySet<PosterComposite>,
+  CW: number,
+  CH: number,
+): Promise<void> {
+  const targets = layers.filter((l) => glass.has(l as unknown as PosterComposite))
+  if (targets.length === 0) return
+  const firstIdx = Math.min(...targets.map((t) => layers.indexOf(t)))
+  const pre = await base.clone().composite(layers.slice(0, firstIdx)).removeAlpha().raw().toBuffer({ resolveWithObject: true })
+  const sigma = Math.max(4, Math.round(CW / 40))
+  for (const layer of targets) {
+    try {
+      const meta = await sharp(layer.input).metadata()
+      const lw = meta.width ?? 0
+      const lh = meta.height ?? 0
+      const left = Math.max(0, layer.left)
+      const top = Math.max(0, layer.top)
+      const right = Math.min(CW, layer.left + lw)
+      const bottom = Math.min(CH, layer.top + lh)
+      const w = right - left
+      const h = bottom - top
+      if (w <= 2 || h <= 2) continue
+      const mask = await sharp(layer.input)
+        .extract({ left: left - layer.left, top: top - layer.top, width: w, height: h })
+        .ensureAlpha().extractChannel(3).threshold(24).blur(0.6).raw().toBuffer()
+      const frosted = await sharp(pre.data, { raw: { width: pre.info.width, height: pre.info.height, channels: pre.info.channels } })
+        .extract({ left, top, width: w, height: h }).blur(sigma).raw().toBuffer()
+      const patch = await sharp(frosted, { raw: { width: w, height: h, channels: pre.info.channels } })
+        .joinChannel(mask, { raw: { width: w, height: h, channels: 1 } }).png().toBuffer()
+      layers.splice(layers.indexOf(layer), 0, { input: patch, top, left } as L)
+    } catch {
+      // vetro storico
+    }
+  }
+}
+
+/**
  * Compute the luminance of the top strip of the poster (top 8% of STD_H).
  *
  * Batch B: delegates to computeRegionStats() from image-utils.ts, so the pixel

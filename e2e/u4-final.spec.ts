@@ -450,6 +450,7 @@ test.describe("U4 U1 ribbon Standard/Colorato (per-title)", () => {
     await expect(badgeTab).toHaveAttribute("aria-selected", "true")
 
     const editor = page.locator("main").first()
+    await page.getByRole("tab", { name: "In alto", exact: true }).click() // per-title sub-tab (3a2be9c7): rank lives under "In alto"
     const rankGroup = editor.getByRole("radiogroup", { name: "Classifica" })
     await expect(rankGroup).toBeVisible()
 
@@ -728,7 +729,10 @@ test.describe("U4 U3 number baseline (pixel regression)", () => {
       return { minX, maxX, minY, maxY, n }
     }
 
-    const base = { genreName: "Action", voteAverage: "7.8", badges: "1", ranking: "1" }
+    // netLogo=0: the network mark stacks below the numeral (corner style) and
+    // its top reaches into the y<140 band, pinning minX/maxX to a static logo
+    // edge (tox 19/20/21 all read 44). Measure the numeral alone.
+    const base = { genreName: "Action", voteAverage: "7.8", badges: "1", ranking: "1", netLogo: "0" }
     const cases = [
       { label: "left-1", params: { ...base, rank: "1", label: "Today", rs: "number" }, id: 19995, mirror: false, band: [0, 250] as const },
       { label: "left-12", params: { ...base, rank: "12", label: "Today", rs: "number", quality: "4K" }, id: 603, mirror: false, band: [0, 300] as const },
@@ -756,11 +760,15 @@ test.describe("U4 U3 number baseline (pixel regression)", () => {
       }
       const b0 = await get("0")
       const b20 = await get("20")
-      // Exact tox semantics: +20px on X, zero on Y, no ink growth/clipping.
-      expect(b20.minX - b0.minX).toBe(20)
-      expect(b20.maxX - b0.maxX).toBe(20)
-      expect(b20.minY - b0.minY).toBe(0)
-      expect(b20.maxY - b0.maxY).toBe(0)
+      // tox semantics: +20px on X, zero on Y, no ink growth/clipping. ±1px:
+      // the canonical render is lossy webp, so an antialiased edge pixel can
+      // sit on the >150 threshold (measured 151 vs 149 for the same edge) —
+      // a broken offset is off by ~20, far outside this tolerance.
+      const near = (v: number, want: number) => expect(Math.abs(v - want)).toBeLessThanOrEqual(1)
+      near(b20.minX - b0.minX, 20)
+      near(b20.maxX - b0.maxX, 20)
+      near(b20.minY - b0.minY, 0)
+      near(b20.maxY - b0.maxY, 0)
       expect(Math.abs(b20.n - b0.n)).toBeLessThanOrEqual(8)
       // On-canvas: ink never clips at either edge.
       expect(b0.minX).toBeGreaterThanOrEqual(0)

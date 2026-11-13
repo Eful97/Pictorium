@@ -187,7 +187,7 @@ export function FloatingPreview({
   }
 
   const toolButtonClass =
-    "min-w-[44px] min-h-[44px] px-2 flex items-center justify-center rounded-xl bg-black/60 border border-white/15 text-zinc-200 hover:text-white hover:bg-white/10 active:scale-90 transition-all cursor-pointer touch-manipulation"
+    "min-w-[44px] min-h-[44px] px-2 flex items-center justify-center rounded-xl bg-black/60 border border-white/15 text-zinc-200 hover:text-white hover:bg-white/10 active:scale-90 transition cursor-pointer touch-manipulation"
 
   // Static desktop column keeps the panel's existing testids/geometry
   // (preview-column width assertions); the floating overlay reuses them so

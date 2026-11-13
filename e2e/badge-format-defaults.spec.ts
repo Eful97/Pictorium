@@ -852,6 +852,7 @@ test.describe("Per-title appearance + extra (no side, no ribbon duplicate)", () 
 
     // Editor scope: everything below the Anteprima heading, outside any dialog.
     const editor = page.locator("main").first()
+    await page.getByRole("tab", { name: "In alto", exact: true }).click() // per-title sub-tab (3a2be9c7): rank lives under "In alto"
     const rankGroup = editor.getByRole("radiogroup", { name: "Classifica" })
     await expect(rankGroup).toBeVisible()
     await rankGroup.getByRole("radio", { name: "Numero" }).click()
@@ -1088,6 +1089,7 @@ test.describe("Per-title late load preserves user drafts (deferred title data)",
       await badgeTab.click()
       await expect(badgeTab).toHaveAttribute("aria-selected", "true")
       const editor = page.locator("main").first()
+      await page.getByRole("tab", { name: "In alto", exact: true }).click() // per-title sub-tab (3a2be9c7): rank lives under "In alto"
       const rankGroup = editor.getByRole("radiogroup", { name: "Classifica" })
       await expect(rankGroup).toBeVisible()
       // Side stays defaults-only while loading too: no Posizione per-title.
@@ -1146,6 +1148,7 @@ test.describe("Per-title late load preserves user drafts (deferred title data)",
       await badgeTab.click()
       await expect(badgeTab).toHaveAttribute("aria-selected", "true")
       const editor = page.locator("main").first()
+      await page.getByRole("tab", { name: "In alto", exact: true }).click() // per-title sub-tab (3a2be9c7): rank lives under "In alto"
       const rankGroup = editor.getByRole("radiogroup", { name: "Classifica" })
       await expect(rankGroup).toBeVisible()
       await expect(editor.getByRole("radiogroup", { name: "Posizione" })).toHaveCount(0)

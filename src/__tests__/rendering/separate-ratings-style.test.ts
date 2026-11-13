@@ -86,9 +86,9 @@ afterEach(() => {
 })
 
 describe("separateRatingsStyle enum", () => {
-  it("default column, five additive styles, guards", () => {
+  it("default column, additive styles, guards", () => {
     expect(DEFAULT_SEPARATE_RATINGS_STYLE).toBe("column")
-    expect([...SEPARATE_RATINGS_STYLES].sort()).toEqual(["bottom-bar", "bottom-color", "bottom-mono", "bottom-pills", "column"])
+    expect([...SEPARATE_RATINGS_STYLES].sort()).toEqual(["bottom-bar", "bottom-color", "bottom-mono", "bottom-pills", "column", "rings"])
     expect(isSeparateRatingsStyle("column")).toBe(true)
     expect(isSeparateRatingsStyle("bottom-bar")).toBe(true)
     expect(isSeparateRatingsStyle("bottom-pills")).toBe(true)

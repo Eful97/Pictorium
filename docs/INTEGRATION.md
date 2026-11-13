@@ -38,13 +38,20 @@ which supports `{tmdb_id}` and `{imdb_id}`), use them in the path
   the original poster when neither is available — verified against
   AIOMetadata's alternation groups (`{a|b}`, first non-empty wins) and
   Nuvio's `{a|b}` markers. One template works everywhere — no per-view
-  choice needed.
+  choice needed. The Nuvio variant is `{tmdb_id|imdb_id|id}`: same result
+  for `tt…`/`tmdb:` items, and when neither id exists Nuvio passes the full
+  meta id (`kitsu:N`, `anilist:N`, `mal:N`, `anidb:N`, `tvdb:N`), resolved
+  below.
 - `{tmdb_id}` (exact alternative): no resolution involved — but only if the
   consumer genuinely knows that item's TMDB id.
 - `{imdb_id}` (universal fallback): every item has one, but it pays the
   resolution cost above and fails on franchise splits.
   Typed `tmdb:<num>` substitutions resolve as the exact numeric path;
-  anything else unresolvable still answers `400`.
+  `anilist:`/`kitsu:`/`mal:`/`anidb:` resolve via the local anime snapshot
+  (unique match on the requested movie/series side, zero network, see
+  `docs/anime-id-mapping.md`); `tvdb:`/`tvdbc:` via TMDB find. Anything
+  else unresolvable still answers `400` (the consumer keeps its original
+  poster).
 
 If a title answers `404` via `tt...` while it exists on TMDB, use the
 numeric id or ask the instance operator to stitch a manual alias.

@@ -778,7 +778,7 @@ export function LandscapeDefaultsSection({ editVal, editTxt, setEditVal, setEdit
                 type="button"
                 onClick={() => set({ networkLogoPosition: pos })}
                 aria-pressed={(land.networkLogoPosition ?? ed.defaultNetworkLogoPosition) === pos}
-                className={`flex-1 py-1 rounded-lg text-[11px] font-semibold transition-all duration-150 cursor-pointer ${
+                className={`flex-1 py-1 rounded-lg text-[11px] font-semibold transition duration-150 cursor-pointer ${
                   (land.networkLogoPosition ?? ed.defaultNetworkLogoPosition) === pos
                     ? "bg-white/20 text-foreground shadow-sm"
                     : "bg-white/5 text-muted hover:bg-white/10 hover:text-zinc-200"

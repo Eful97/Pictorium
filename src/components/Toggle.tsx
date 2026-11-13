@@ -19,7 +19,7 @@ export function Toggle({ value, onChange, label, disabled }: { value: boolean; o
     >
       <span
         aria-hidden="true"
-        className={`toggle-track transition-all ${
+        className={`toggle-track transition ${
           value ? "toggle-track-on" : "toggle-track-off"
         }`}
       >

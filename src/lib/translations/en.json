@@ -894,26 +894,13 @@
   "ui.episodeMetadataSource": "Episode Metadata Source",
   "ui.episodeMetadataSourceHint": "Use TheTVDB or TMDB for episode covers (screencaps) and episode overviews.",
   "ui.episodeThumbnails": "Episode thumbnails",
-
   "ui.thumbnailsZoneSubtitle": "Titles with custom episode thumbnails. Editing here never touches the poster.",
-
   "ui.thumbnailsZoneEmpty": "No customized episode thumbnails yet. Open a poster and use Episode thumbnails to customize them.",
-
   "ui.thumbnailsZoneEdit": "Edit thumbnails",
-
-
   "ui.thumbnailsNav": "Thumbnails",
-
-
   "ui.thumbnailsZoneSearch": "Search titles",
-
-
   "ui.thumbnailsZoneClear": "Clear search",
-
-
   "ui.thumbnailsZoneDeleteTitle": "Delete thumbnails?",
-
-
   "ui.thumbnailsZoneDeleteMsg": "Remove the custom episode thumbnails for the selected titles? Your posters are not touched. This cannot be undone.",
   "ui.episodeThumbnailsHint": "Show episode stills with rating badges on Stremio episode cards. When off, the original TMDB stills are used.",
   "ui.episodeStillPickerTitle": "Episode still",
@@ -1011,6 +998,10 @@
   "ui.pinSaveError": "Error while saving",
   "ui.ink": "Ink",
   "ui.split": "Split",
+  "ui.tinta": "Tint",
+  "ui.sfumato": "Gradient edge",
+  "ui.editoriale": "Editorial",
+  "ui.sepRings": "Rings",
   "ui.minimal": "Minimal",
   "ui.tintStrength": "Tint strength",
   "ui.topShade": "Top shade",
@@ -1361,5 +1352,9 @@
   "duckdnsSunset.body3": "To keep going without interruptions you can {vercel} or {elfhosted}:",
   "duckdnsSunset.dismiss": "Dismiss notice",
   "duckdnsSunset.vercelLabel": "create your own private instance on Vercel for free",
-  "duckdnsSunset.elfhostedLabel": "use the public ElfHosted one right away"
+  "duckdnsSunset.elfhostedLabel": "use the public ElfHosted one right away",
+  "ui.badgeTabRatings": "Ratings",
+  "ui.badgeTabTop": "Top",
+  "ui.badgeTabQuality": "Quality",
+  "ui.badgeTabLook": "Look"
 }

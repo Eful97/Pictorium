@@ -337,7 +337,7 @@ export function TraktAccountSection({ active = true, onRequestExternalAction }: 
             type="button"
             disabled={loading || busy}
             onClick={() => void refresh(uuid)}
-            className="w-full py-1.5 rounded-lg text-[11px] font-semibold bg-white/[0.06] hover:bg-white/[0.1] disabled:opacity-40 text-zinc-200 transition-all cursor-pointer disabled:cursor-not-allowed"
+            className="w-full py-1.5 rounded-lg text-[11px] font-semibold bg-white/[0.06] hover:bg-white/[0.1] disabled:opacity-40 text-zinc-200 transition cursor-pointer disabled:cursor-not-allowed"
           >
             {loading ? t("ui.loading") : t("ui.retry")}
           </button>
@@ -354,7 +354,7 @@ export function TraktAccountSection({ active = true, onRequestExternalAction }: 
           disabled={busy || !hasCredential}
           onClick={() => void disconnect()}
           aria-label={t("ui.traktDisconnect")}
-          className="w-full py-1.5 rounded-lg text-[11px] font-semibold bg-white/[0.06] hover:bg-white/[0.1] disabled:opacity-40 text-zinc-200 transition-all cursor-pointer disabled:cursor-not-allowed flex items-center justify-center gap-1.5"
+          className="w-full py-1.5 rounded-lg text-[11px] font-semibold bg-white/[0.06] hover:bg-white/[0.1] disabled:opacity-40 text-zinc-200 transition cursor-pointer disabled:cursor-not-allowed flex items-center justify-center gap-1.5"
         >
           {busy && <Loader2 className="w-3.5 h-3.5 animate-spin" />}
           {busy ? t("ui.saving") : t("ui.traktDisconnect")}

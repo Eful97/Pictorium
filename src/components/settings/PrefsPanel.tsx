@@ -107,7 +107,7 @@ export function PrefsPanel({ active }: { active: boolean }) {
               onClick={() => {
                 ed.setDefaultEpisodeMetadataSource("tmdb")
               }}
-              className={`px-4 py-2 min-h-[40px] rounded-xl text-xs sm:text-sm font-semibold transition-all duration-150 cursor-pointer touch-manipulation ${
+              className={`px-4 py-2 min-h-[40px] rounded-xl text-xs sm:text-sm font-semibold transition duration-150 cursor-pointer touch-manipulation ${
                 (ed.defaultEpisodeMetadataSource ?? ed.episodeMetadataSource) === "tmdb"
                   ? "bg-white/20 text-white shadow-sm"
                   : "bg-white/5 text-muted hover:bg-white/10 hover:text-zinc-200"
@@ -120,7 +120,7 @@ export function PrefsPanel({ active }: { active: boolean }) {
               onClick={() => {
                 ed.setDefaultEpisodeMetadataSource("tvdb")
               }}
-              className={`px-4 py-2 min-h-[40px] rounded-xl text-xs sm:text-sm font-semibold transition-all duration-150 cursor-pointer touch-manipulation ${
+              className={`px-4 py-2 min-h-[40px] rounded-xl text-xs sm:text-sm font-semibold transition duration-150 cursor-pointer touch-manipulation ${
                 (ed.defaultEpisodeMetadataSource ?? ed.episodeMetadataSource) === "tvdb"
                   ? "bg-white/20 text-white shadow-sm"
                   : "bg-white/5 text-muted hover:bg-white/10 hover:text-zinc-200"
@@ -189,7 +189,7 @@ export function PrefsPanel({ active }: { active: boolean }) {
                     type="button"
                     aria-pressed={ed.defaultRotationIncludeNonClean}
                     onClick={() => ed.setDefaultRotationIncludeNonClean(!ed.defaultRotationIncludeNonClean)}
-                    className={`px-2 py-1 text-[11px] font-semibold rounded-lg border transition-all ${
+                    className={`px-2 py-1 text-[11px] font-semibold rounded-lg border transition ${
                       ed.defaultRotationIncludeNonClean
                         ? "bg-accent-orange/20 text-accent-orange border-accent-orange/25"
                         : "bg-white/5 text-muted border-white/10"
@@ -264,7 +264,7 @@ export function PrefsPanel({ active }: { active: boolean }) {
                   onClick={() => {
                     ed.setDefaultPosterShape("poster")
                   }}
-                  className={`px-3.5 py-2 min-h-[40px] rounded-xl text-xs sm:text-sm font-semibold transition-all duration-150 cursor-pointer flex items-center gap-1.5 touch-manipulation ${
+                  className={`px-3.5 py-2 min-h-[40px] rounded-xl text-xs sm:text-sm font-semibold transition duration-150 cursor-pointer flex items-center gap-1.5 touch-manipulation ${
                     ed.defaultPosterShape !== "landscape"
                       ? "bg-white/20 text-white shadow-sm"
                       : "bg-white/5 text-muted hover:bg-white/10 hover:text-zinc-200"
@@ -281,7 +281,7 @@ export function PrefsPanel({ active }: { active: boolean }) {
                   onClick={() => {
                     ed.setDefaultPosterShape("landscape")
                   }}
-                  className={`px-3.5 py-2 min-h-[40px] rounded-xl text-xs sm:text-sm font-semibold transition-all duration-150 cursor-pointer flex items-center gap-1.5 touch-manipulation ${
+                  className={`px-3.5 py-2 min-h-[40px] rounded-xl text-xs sm:text-sm font-semibold transition duration-150 cursor-pointer flex items-center gap-1.5 touch-manipulation ${
                     ed.defaultPosterShape === "landscape"
                       ? "bg-white/20 text-white shadow-sm"
                       : "bg-white/5 text-muted hover:bg-white/10 hover:text-zinc-200"

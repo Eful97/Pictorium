@@ -892,26 +892,13 @@
   "ui.episodeMetadataSource": "Nguồn metadata tập",
   "ui.episodeMetadataSourceHint": "Dùng TheTVDB hoặc TMDB cho ảnh tập (screencap) và tóm tắt tập.",
   "ui.episodeThumbnails": "Episode thumbnails",
-
   "ui.thumbnailsZoneSubtitle": "Tiêu đề có ảnh thu nhỏ tập tùy chỉnh. Chỉnh sửa ở đây không bao giờ ảnh hưởng đến áp phích.",
-
   "ui.thumbnailsZoneEmpty": "Chưa có ảnh thu nhỏ tập tùy chỉnh. Mở một áp phích và dùng Ảnh thu nhỏ tập.",
-
   "ui.thumbnailsZoneEdit": "Sửa ảnh thu nhỏ",
-
-
   "ui.thumbnailsNav": "Ảnh thu nhỏ",
-
-
   "ui.thumbnailsZoneSearch": "Tìm tiêu đề",
-
-
   "ui.thumbnailsZoneClear": "Xóa tìm kiếm",
-
-
   "ui.thumbnailsZoneDeleteTitle": "Xóa ảnh thu nhỏ?",
-
-
   "ui.thumbnailsZoneDeleteMsg": "Xóa ảnh thu nhỏ tập tùy chỉnh của các tiêu đề đã chọn? Áp phích không bị ảnh hưởng. Không thể hoàn tác.",
   "ui.episodeThumbnailsHint": "Show episode stills with rating badges on Stremio episode cards. When off, the original TMDB stills are used.",
   "ui.episodeStillPickerTitle": "Episode still",
@@ -1009,6 +996,10 @@
   "ui.pinSaveError": "Lỗi khi lưu",
   "ui.ink": "Mực",
   "ui.split": "Chia đôi",
+  "ui.tinta": "Sắc màu",
+  "ui.sfumato": "Viền chuyển màu",
+  "ui.editoriale": "Biên tập",
+  "ui.sepRings": "Vòng",
   "ui.minimal": "Tối giản",
   "ui.tintStrength": "Độ nhuộm",
   "ui.topShade": "Bóng trên",
@@ -1361,5 +1352,9 @@
   "duckdnsSunset.body3": "Để tiếp tục mà không bị gián đoạn, bạn có thể {vercel} hoặc {elfhosted}:",
   "duckdnsSunset.dismiss": "Đóng thông báo",
   "duckdnsSunset.vercelLabel": "tạo miễn phí bản riêng của bạn trên Vercel",
-  "duckdnsSunset.elfhostedLabel": "dùng ngay bản công khai của ElfHosted"
+  "duckdnsSunset.elfhostedLabel": "dùng ngay bản công khai của ElfHosted",
+  "ui.badgeTabRatings": "Đánh giá",
+  "ui.badgeTabTop": "Phía trên",
+  "ui.badgeTabQuality": "Chất lượng",
+  "ui.badgeTabLook": "Giao diện"
 }

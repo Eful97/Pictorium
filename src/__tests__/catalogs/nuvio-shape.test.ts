@@ -55,7 +55,7 @@ describe("Nuvio shape={shape} template", () => {
   })
 
   it("preserves the ID placeholders and the other params", () => {
-    for (const idPlaceholder of ["{tmdb_id}", "{imdb_id}", "{tmdb_id|imdb_id}"] as const) {
+    for (const idPlaceholder of ["{tmdb_id}", "{imdb_id}", "{tmdb_id|imdb_id}", "{tmdb_id|imdb_id|id}"] as const) {
       const url = buildUrlPattern({ ...baseBadgeParams, tmdbKey: "k", lang: "it", idPlaceholder, shapePlaceholder: "{shape}" })
       expect(url).toContain(`/api/poster/{type}/${idPlaceholder}`)
       expect(url).toContain("shape={shape}")
