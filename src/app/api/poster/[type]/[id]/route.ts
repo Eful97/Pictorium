@@ -3050,12 +3050,13 @@ export async function GET(req: NextRequest, { params }: { params: Promise<RouteP
     )
 
     // Formati A/V built-in (dv, atmos, imax, hdr, hdr10plus): sempre
-    // automatici dalle specifiche reali del film (localSpec) — mai un logo che
+    // automatici dalle specifiche reali del film (localSpec, poi JW live) — mai un logo che
     // il titolo non possiede. I marchi del pack (`QualityMarkId` non built-in)
     // non hanno dati per-titolo: entrano SOLO quando la selezione esplicita
     // (query/mapping, o defaults non vuoti) li contiene, quindi l'assenza di
     // selezione resta byte-identica allo storico.
-    const availableFormats = localSpec?.formats ?? []
+    // Precedenza come la qualità: DB locale (curato) > JustWatch live.
+    const availableFormats = localSpec?.formats ?? liveQualityResult.formats ?? []
     const qFormatsRaw = req.nextUrl.searchParams.get("formats")
     const qFormats = qFormatsRaw !== null
       ? (qFormatsRaw === "none" || qFormatsRaw === "" ? [] : qFormatsRaw.split(",").map((s) => s.trim().toLowerCase()).filter(isQualityMarkId))
@@ -3085,6 +3086,10 @@ export async function GET(req: NextRequest, { params }: { params: Promise<RouteP
     // Formato data badge "in uscita": query `df` > default utente > `locale`
     // (fail-closed: valori ignoti o assenti = comportamento storico).
     const dateFormat = parseDateFormat(hardenedParams.get("df") ?? sd.dateFormat ?? null) ?? "locale"
+    // Genere in alto con slot libero: query `gtop` (presente ≠ "0" = on, come
+    // gli altri toggle booleani in chiave) > default utente > off.
+    const qGtop = hardenedParams.get("gtop")
+    const genreTopWhenFree = qGtop !== null ? qGtop !== "0" : sd.genreTopWhenFree === true
     // Task D — freshness cap: il poster non deve sopravvivere alla scadenza
     // reale dei fatti volatili che cuoce dentro. Solo fatti CONSUMATI:
     // ranking finale abilitato + fetch live vinto senza override da query
@@ -3523,6 +3528,7 @@ export async function GET(req: NextRequest, { params }: { params: Promise<RouteP
       lastAirDate, seasonCount, nextEpisodeAirDate, numberOfEpisodes, originCountries, genreIds,
       wikidataResult, tmdbKeywords, locale, t,
       dateFormat,
+      genreTopWhenFree,
       qLabel, queryExtra, qNetLogo, networkLogo, networkLogoPosition, sd,
       networkLogoFollowTitle, networkFixedX, networkFixedY,
       onNetworkGeometry: isDebug && wantNetGeo ? (geo) => { netGeo = geo } : undefined,

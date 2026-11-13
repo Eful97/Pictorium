@@ -382,6 +382,8 @@ export interface ServerDefaults {
   region?: string
   /** Formato data badge "in uscita" (default `locale` = segue la lingua). */
   dateFormat?: DateFormat
+  /** Portrait: genere/voto nello slot alto quando non c'è badge superiore (default false). */
+  genreTopWhenFree?: boolean
   /**
    * Tuning di resa specifico per il canvas landscape 16:9 (default globali
    * orizzontali). I campi flat restano i default portrait E il fallback per

@@ -30,6 +30,22 @@ export interface ChangelogRelease {
  *  (which bumps on every commit and would leave the dot permanently on). */
 export const CHANGELOG: ChangelogRelease[] = [
   {
+    version: "1.27.7",
+    date: "2026-11-13",
+    title: "Release 1.27.7",
+    items: [
+      { type: "feature", text: "Browse custom posters in a coverflow view with drag and tap, and find grid actions in a single menu" },
+      { type: "feature", text: "See a full-bleed poster wall on the home page instead of the demo carousel" },
+      { type: "feature", text: "Optionally show the genre badge at the top of portrait posters when the top slot is free" },
+      { type: "feature", text: "Browse search results in the same clean card grid as My Posters" },
+      { type: "feature", text: "Manage episode thumbnails in a card grid with large previews, a per-card menu, a selection mode and every customized episode at a glance" },
+      { type: "feature", text: "Show Dolby Vision and Dolby Atmos on the quality badge from live JustWatch offers when the local database has no data for the title" },
+      { type: "fix", text: "Ask for confirmation before deleting a single title's custom thumbnails" },
+      { type: "fix", text: "Keep the still you pick in the thumbnail studio when daily rotation is on" },
+      { type: "fix", text: "Keep Docker containers free of leftover warmup processes" },
+    ],
+  },
+  {
     version: "1.27.6",
     date: "2026-11-13",
     title: "Release 1.27.6",

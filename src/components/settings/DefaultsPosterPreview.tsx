@@ -299,6 +299,7 @@ export function buildDefaultsPreviewUrlFromEditor(
       defaultPosterFreshScope: ed.defaultPosterFreshScope,
       defaultLogoAlign: ed.defaultLogoAlign,
       defaultDateFormat: ed.defaultDateFormat,
+      defaultGenreTopWhenFree: ed.defaultGenreTopWhenFree,
       defaultRegion: ed.defaultRegion,
       // Profilo Orizzontale live (stessi slider del Verticale): chiavi definite
       // vincono sui flat SOLO con shape Orizzontale (regola `land ?? flat` nel
@@ -533,6 +534,7 @@ export function DefaultsPosterPreview({ compact, floating, suspended, previewSha
     ed.defaultPosterFreshScope,
     ed.defaultLogoAlign,
     ed.defaultDateFormat,
+    ed.defaultGenreTopWhenFree,
     ed.defaultRegion,
     ed.defaultSashOrder,
     ed.landscape,

@@ -66,44 +66,24 @@ The fastest path uses a public instance — no install needed:
 <table align="center" width="100%">
   <tr>
     <td width="50%"><img src="https://raw.githubusercontent.com/Eful97/Pictorium/master/public/Screen/editor.png" alt="Pictorium Editor" style="border-radius: 8px;" /></td>
-    <td width="50%"><img src="https://raw.githubusercontent.com/Eful97/Pictorium/master/public/Screen/myposters.png" alt="Pictorium My Posters" style="border-radius: 8px;" /></td>
+    <td width="50%"><img src="https://raw.githubusercontent.com/Eful97/Pictorium/master/public/Screen/catalogs.png" alt="Pictorium Catalogs" style="border-radius: 8px;" /></td>
   </tr>
   <tr>
     <td align="center"><em>WYSIWYG Editor & Live Preview</em></td>
-    <td align="center"><em>My Posters & Personal Library</em></td>
-  </tr>
-  <tr>
-    <td colspan="2"><img src="https://raw.githubusercontent.com/Eful97/Pictorium/master/public/Screen/catalogs.png" alt="Pictorium Catalogs" style="border-radius: 8px;" /></td>
-  </tr>
-  <tr>
-    <td align="center" colspan="2"><em>Dynamic Catalogs & JustWatch Streaming Charts</em></td>
-  </tr>
-  <tr>
-    <td colspan="2"><img src="https://raw.githubusercontent.com/Eful97/Pictorium/master/public/Screen/landscape-editor.png" alt="Landscape 16:9 Editor — Ted Lasso" style="border-radius: 8px;" /></td>
-  </tr>
-  <tr>
-    <td align="center" colspan="2"><em>Landscape 16:9 Editor: backdrops, baked-in logo & Live Preview</em></td>
+    <td align="center"><em>Dynamic Catalogs & JustWatch Streaming Charts</em></td>
   </tr>
 </table>
 
 <div align="center">
-  <img src="https://raw.githubusercontent.com/Eful97/Pictorium/master/public/Screen/1405.jpg" alt="Poster Demo — Dexter" width="31%" style="border-radius: 8px;" />
-  <img src="https://raw.githubusercontent.com/Eful97/Pictorium/master/public/Screen/155.jpg" alt="Poster Demo — The Dark Knight" width="31%" style="border-radius: 8px;" />
-  <img src="https://raw.githubusercontent.com/Eful97/Pictorium/master/public/Screen/66732.jpg" alt="Poster Demo — Stranger Things" width="31%" style="border-radius: 8px;" />
+  <img src="https://raw.githubusercontent.com/Eful97/Pictorium/master/public/Screen/poster-wall.jpg" alt="Portrait poster wall" width="100%" style="border-radius: 8px;" />
   <br />
-  <em>Portrait posters: textless base, baked-in logo, quality and rating badges</em>
+  <em>Portrait posters: Fresh, Ribbon, Number, Corner, Split, Glass, Tint, Gradient, Outline, Editorial and Coming Soon badges</em>
 </div>
 
 <div align="center">
-  <img src="https://raw.githubusercontent.com/Eful97/Pictorium/master/public/Screen/landscape.jpg" alt="Landscape 16:9 Poster Demo — Lanterns (HBO)" width="64%" style="border-radius: 8px;" />
+  <img src="https://raw.githubusercontent.com/Eful97/Pictorium/master/public/Screen/landscape-wall.jpg" alt="Landscape 16:9 poster wall" width="100%" style="border-radius: 8px;" />
   <br />
-  <em>16:9 landscape poster with baked-in logo, top-10 outline number, genre/rating and network badge</em>
-</div>
-
-<div align="center">
-  <img src="https://raw.githubusercontent.com/Eful97/Pictorium/master/public/Screen/1368337.jpg" alt="Pre-Digital Effect — Coming Soon" width="31%" style="border-radius: 8px;" />
-  <br />
-  <em>Pre-Digital Effect: dark veil + "Coming Soon" ribbon on movies not yet streaming</em>
+  <em>16:9 landscape posters: the same badge styles on backdrops with baked-in logo</em>
 </div>
 
 ---
@@ -381,7 +361,7 @@ All variables use the `PICTORIUM_*` prefix. The legacy `POSTERIUM_*` names are s
 | `PICTORIUM_BADGE_QUALITY` | `1` | Show or hide video streaming resolution badges (4K/FHD). |
 | `PICTORIUM_AGE_BADGE` | `0` | Show or hide the regional age-certification badge below the quality stack (original country label, no conversion). |
 | `PICTORIUM_AGE_COUNTRY` | `IT` | Certification country for the age badge (ISO-2, e.g. `US`, `FR`; `GLOBAL` is rejected). Independent from UI language and streaming region. |
-| `PICTORIUM_QUALITY_SOURCE` | `justwatch` | Live streaming quality source: `justwatch` (JustWatch only) or `none` (no live provider; the local DB still applies). The legacy value `torrentio` and unknown values are normalized to `justwatch` and never trigger a live Torrentio call. Torrentio data is used only to expand/update the local `av-specs.json` DB through the offline operator scripts. Poster chain: explicit `quality` param > local DB > live source. |
+| `PICTORIUM_QUALITY_SOURCE` | `justwatch` | Live streaming quality source: `justwatch` (JustWatch only: tier plus Dolby Vision/Atmos formats from offer `videoTechnology`/`audioTechnology`) or `none` (no live provider; the local DB still applies). The legacy value `torrentio` and unknown values are normalized to `justwatch` and never trigger a live Torrentio call. Torrentio data is used only to expand/update the local `av-specs.json` DB through the offline operator scripts. Poster chain: explicit `quality` param > local DB > live source. |
 | `PICTORIUM_NETWORK_LOGO` | `1` | Show or hide production network/studio logos. |
 | `PICTORIUM_PRE_RELEASE` | `0` | Dark veil + "Coming Soon" ribbon for movies not yet streaming. |
 | `PICTORIUM_GRADIENT_HEIGHT` | `65` | Percentage height of the bottom dark gradient. |

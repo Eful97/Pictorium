@@ -733,6 +733,7 @@ export function useSettingsSession(): SettingsSessionResult {
       setDefaultLogoAlign: makeSimpleSetter(updateSession, "defaultLogoAlign"),
       setDefaultRegion: makeSimpleSetter(updateSession, "defaultRegion"),
       setDefaultDateFormat: makeSimpleSetter(updateSession, "defaultDateFormat"),
+      setDefaultGenreTopWhenFree: makeSimpleSetter(updateSession, "defaultGenreTopWhenFree"),
       setDefaultTopShade: makeSimpleSetter(updateSession, "defaultTopShade"),
       setLandscape,
       resetLandscape,

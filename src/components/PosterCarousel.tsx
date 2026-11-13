@@ -1,16 +1,19 @@
 "use client"
 
-import { useState, useRef, useEffect, useCallback, useMemo, type TouchEvent } from "react"
-import { ChevronLeft, ChevronRight } from "lucide-react"
+import { useState, useRef, useEffect, useMemo } from "react"
 import { usePSelector } from "@/lib/context"
 import { currentPathUuid } from "@/lib/user-token"
 import { useT } from "@/lib/contexts/TranslationContext"
-import { toSearchResult } from "@/lib/types"
 import { titleOf } from "@/lib/utils"
 import { useSecurePosterUrl } from "@/lib/useSecurePosterUrl"
 
-/** Numero di card del carosello: 20 poster demo scelti a caso tra esempi statici e top. */
-const CAROUSEL_SIZE = 20
+/** Colonne della poster wall full-bleed (su schermi stretti le esterne escono
+ *  dal bordo sfumato). */
+const WALL_COLS = 10
+/** Poster per colonna (la lista è poi duplicata per il loop CSS). */
+const PER_COL = 7
+/** Una card ogni N è orizzontale (16:9): spezza il ritmo delle colonne. */
+const LANDSCAPE_EVERY = 3
 
 /** Fisher–Yates: copia mescolata deterministica solo per test (Math.random stub). */
 function shuffle<T>(arr: T[]): T[] {
@@ -22,91 +25,71 @@ function shuffle<T>(arr: T[]): T[] {
   return a
 }
 
-interface CarouselEntry {
+interface WallEntry {
   id: number
   type: "movie" | "tv"
   title: string
   params: string
-  desc: string
 }
 
-const EXAMPLES: CarouselEntry[] = [
+const EXAMPLES: WallEntry[] = [
   // --- Film ---
-  { id: 278, type: "movie", title: "The Shawshank Redemption", params: "?genreName=Dramma&voteAverage=9.3&bs=vetro&gradHeight=25&blur=30&bf=50&bd=40&tl=0&logoFit=0", desc: "Badge vetro con effetto liquid glass, tema scuro morbido" },
-  { id: 155, type: "movie", title: "The Dark Knight", params: "?genreName=Azione&voteAverage=8.5&bs=bordo&gradHeight=20&blur=20&bf=55&bd=35&tl=1&logoFit=0", desc: "Badge bordato elegante, tema chiaro con sfocatura leggera" },
-  { id: 27205, type: "movie", title: "Inception", params: "?genreName=Thriller&voteAverage=8.8&bs=bar&tl=0&ac=%23f39c12&gradHeight=30&blur=35&bf=50&bd=45&logoFit=0", desc: "Badge a barra con colore accentato arancione, tema scuro" },
-  { id: 157336, type: "movie", title: "Interstellar", params: "?genreName=Fantascienza&voteAverage=8.7&bs=vetro&be=0&tl=1&gradHeight=15&blur=0&logoFit=0", desc: "Badge vetro senza sfocatura, asciutto e luminoso" },
-  { id: 299534, type: "movie", title: "Avengers: Endgame", params: "?genreName=Azione&voteAverage=8.4&bs=shadow&gradHeight=40&blur=50&bf=70&bd=50&tl=0&logoFit=0", desc: "Sfocatura intensa con gradiente scuro molto pronunciato" },
-  { id: 238, type: "movie", title: "The Godfather", params: "?genreName=Crime&voteAverage=9.2&bs=bordo&gradHeight=10&tl=0&logoFit=0", desc: "Badge bordato, tema scuro, pulito senza blur extra" },
-  { id: 11, type: "movie", title: "Star Wars", params: "?genreName=Fantascienza&voteAverage=8.5&bs=colored&tl=1&gradHeight=25&blur=25&bf=45&bd=30&logoFit=0", desc: "Badge colorato genere Fantascienza con sfocatura media" },
-  { id: 680, type: "movie", title: "Pulp Fiction", params: "?genreName=Crime&voteAverage=8.9&bs=pill&tl=0&ac=%23e74c3c&gradHeight=15&blur=15&bf=40&bd=25&logoFit=0", desc: "Badge pill con accento rosso, tema scuro minimal" },
-  { id: 597, type: "movie", title: "Titanic", params: "?genreName=Dramma&voteAverage=8.4&bs=shadow&gradHeight=20&blur=30&bf=60&bd=40&tl=1&logoFit=0", desc: "Badge ombra con dramma e gradiente morbido" },
-  { id: 122, type: "movie", title: "The Return of the King", params: "?genreName=Avventura&voteAverage=8.5&bs=pill&gradHeight=30&blur=40&bf=65&bd=45&tl=0&ac=%23d4a017&logoFit=0", desc: "Badge pill tema scuro con accento dorato" },
+  { id: 278, type: "movie", title: "The Shawshank Redemption", params: "?genreName=Dramma&voteAverage=9.3&bs=vetro&gradHeight=25&blur=30&bf=50&bd=40&tl=0&logoFit=0" },
+  { id: 155, type: "movie", title: "The Dark Knight", params: "?genreName=Azione&voteAverage=8.5&bs=bordo&gradHeight=20&blur=20&bf=55&bd=35&tl=1&logoFit=0" },
+  { id: 27205, type: "movie", title: "Inception", params: "?genreName=Thriller&voteAverage=8.8&bs=bar&tl=0&ac=%23f39c12&gradHeight=30&blur=35&bf=50&bd=45&logoFit=0" },
+  { id: 157336, type: "movie", title: "Interstellar", params: "?genreName=Fantascienza&voteAverage=8.7&bs=vetro&be=0&tl=1&gradHeight=15&blur=0&logoFit=0" },
+  { id: 299534, type: "movie", title: "Avengers: Endgame", params: "?genreName=Azione&voteAverage=8.4&bs=shadow&gradHeight=40&blur=50&bf=70&bd=50&tl=0&logoFit=0" },
+  { id: 238, type: "movie", title: "The Godfather", params: "?genreName=Crime&voteAverage=9.2&bs=bordo&gradHeight=10&tl=0&logoFit=0" },
+  { id: 11, type: "movie", title: "Star Wars", params: "?genreName=Fantascienza&voteAverage=8.5&bs=colored&tl=1&gradHeight=25&blur=25&bf=45&bd=30&logoFit=0" },
+  { id: 680, type: "movie", title: "Pulp Fiction", params: "?genreName=Crime&voteAverage=8.9&bs=pill&tl=0&ac=%23e74c3c&gradHeight=15&blur=15&bf=40&bd=25&logoFit=0" },
+  { id: 597, type: "movie", title: "Titanic", params: "?genreName=Dramma&voteAverage=8.4&bs=shadow&gradHeight=20&blur=30&bf=60&bd=40&tl=1&logoFit=0" },
+  { id: 122, type: "movie", title: "The Return of the King", params: "?genreName=Avventura&voteAverage=8.5&bs=pill&gradHeight=30&blur=40&bf=65&bd=45&tl=0&ac=%23d4a017&logoFit=0" },
   // --- Serie TV ---
-  { id: 1396, type: "tv", title: "Breaking Bad", params: "?genreName=Crime&voteAverage=9.5&rs=bordo&rank=1&label=Serie%20tv&ranking=&tl=1&gradHeight=20&blur=25&bf=50&bd=30&logoFit=0", desc: "Ranking badge bordato con genere Crime in primo piano" },
-  { id: 66732, type: "tv", title: "Stranger Things", params: "?genreName=Fantascienza&voteAverage=8.6&bs=colored&tl=1&gradHeight=20&blur=20&bf=45&bd=25&logoFit=0", desc: "Badge colorato genere Fantascienza con leggera sfocatura" },
-  { id: 1668, type: "tv", title: "Friends", params: "?genreName=Commedia&voteAverage=8.3&bs=bordo&tl=1&gradHeight=10&be=0&logoFit=0", desc: "Badge bordato pulito, senza sfocatura, tema chiaro" },
-  { id: 1399, type: "tv", title: "Game of Thrones", params: "?genreName=Dramma&voteAverage=8.4&bs=bar&tl=0&ac=%233498db&gradHeight=35&blur=45&bf=70&bd=50&logoFit=0", desc: "Badge a barra con accento blu e sfocatura forte" },
-  { id: 456, type: "tv", title: "The Simpsons", params: "?genreName=Commedia&voteAverage=8.0&bs=vetro&tl=1&gradHeight=10&blur=10&bf=30&bd=15&logoFit=0", desc: "Badge vetro su tema chiaro, leggero e vivace" },
-  { id: 76479, type: "tv", title: "The Boys", params: "?genreName=Azione&voteAverage=8.4&bs=shadow&tl=0&gradHeight=25&blur=30&bf=55&bd=40&logoFit=0", desc: "Badge ombra tema scuro, gradiente marcato" },
-  { id: 82883, type: "tv", title: "The Mandalorian", params: "?genreName=Fantascienza&voteAverage=8.2&bs=bordo&tl=0&gradHeight=20&blur=20&bf=45&bd=30&logoFit=0", desc: "Badge bordato tema scuro genere Fantascienza" },
-  { id: 60574, type: "tv", title: "Peaky Blinders", params: "?genreName=Crime&voteAverage=8.5&bs=pill&tl=0&gradHeight=15&blur=15&bf=40&bd=25&logoFit=0", desc: "Badge pill tema scuro, essenziale" },
-  { id: 71912, type: "tv", title: "The Witcher", params: "?genreName=Azione&voteAverage=8.2&bs=colored&tl=1&gradHeight=30&blur=35&bf=60&bd=40&ac=%239b59b6&logoFit=0", desc: "Badge colorato con accento viola e sfocatura media" },
-  { id: 44217, type: "tv", title: "Dark", params: "?genreName=Thriller&voteAverage=8.0&rs=netflix&rank=4&label=Serie%20tv&ranking=&tl=0&gradHeight=25&blur=30&bf=50&bd=40&logoFit=0", desc: "Ranking badge stile Netflix Top 10, tema scuro e misterioso" },
+  { id: 1396, type: "tv", title: "Breaking Bad", params: "?genreName=Crime&voteAverage=9.5&rs=bordo&rank=1&label=Serie%20tv&ranking=&tl=1&gradHeight=20&blur=25&bf=50&bd=30&logoFit=0" },
+  { id: 66732, type: "tv", title: "Stranger Things", params: "?genreName=Fantascienza&voteAverage=8.6&bs=colored&tl=1&gradHeight=20&blur=20&bf=45&bd=25&logoFit=0" },
+  { id: 1668, type: "tv", title: "Friends", params: "?genreName=Commedia&voteAverage=8.3&bs=bordo&tl=1&gradHeight=10&be=0&logoFit=0" },
+  { id: 1399, type: "tv", title: "Game of Thrones", params: "?genreName=Dramma&voteAverage=8.4&bs=bar&tl=0&ac=%233498db&gradHeight=35&blur=45&bf=70&bd=50&logoFit=0" },
+  { id: 456, type: "tv", title: "The Simpsons", params: "?genreName=Commedia&voteAverage=8.0&bs=vetro&tl=1&gradHeight=10&blur=10&bf=30&bd=15&logoFit=0" },
+  { id: 76479, type: "tv", title: "The Boys", params: "?genreName=Azione&voteAverage=8.4&bs=shadow&tl=0&gradHeight=25&blur=30&bf=55&bd=40&logoFit=0" },
+  { id: 82883, type: "tv", title: "The Mandalorian", params: "?genreName=Fantascienza&voteAverage=8.2&bs=bordo&tl=0&gradHeight=20&blur=20&bf=45&bd=30&logoFit=0" },
+  { id: 60574, type: "tv", title: "Peaky Blinders", params: "?genreName=Crime&voteAverage=8.5&bs=pill&tl=0&gradHeight=15&blur=15&bf=40&bd=25&logoFit=0" },
+  { id: 71912, type: "tv", title: "The Witcher", params: "?genreName=Azione&voteAverage=8.2&bs=colored&tl=1&gradHeight=30&blur=35&bf=60&bd=40&ac=%239b59b6&logoFit=0" },
+  { id: 44217, type: "tv", title: "Dark", params: "?genreName=Thriller&voteAverage=8.0&rs=netflix&rank=4&label=Serie%20tv&ranking=&tl=0&gradHeight=25&blur=30&bf=50&bd=40&logoFit=0" },
 ]
-
-const CARD_W_DESKTOP = 240
-const CARD_W_MOBILE = 145
-const GAP_DESKTOP = 16
-const GAP_MOBILE = 10
-const SCROLL_SPEED = 0.5 // px per frame
-
-const POSTER_IMG_CLASS = "w-full h-full object-cover transition-transform duration-500 ease-out group-hover:scale-[1.05]"
 
 /** M21: `<img>` che porta la chiave nell'header x-api-key (object URL) invece
  *  di esporla nel query string del DOM pubblico. */
-function SecureCarouselImg({ url, alt, className }: { url: string; alt: string; className: string }) {
+function SecureWallImg({ url }: { url: string }) {
   const tmdbKey = usePSelector((v) => v.tmdbKey)
   const src = useSecurePosterUrl(url, tmdbKey)
   // eslint-disable-next-line @next/next/no-img-element -- poster dinamico /api/poster
-  return <img src={src ?? undefined} alt={alt} className={className} loading="lazy" />
+  return <img src={src ?? undefined} alt="" loading="lazy" />
 }
 
-/** P3: tile non ancora vicina al viewport. Mostra l'URL così com'è — il
- *  carosello non mette mai `api_key` in query, quindi è già la stessa URL
- *  "pulita" che `useSecurePosterUrl` userebbe in assenza di chiave: nessuna
- *  fetch anticipata, nessun layout shift (il box ha già l'aspect ratio). */
-function CarouselImgPlaceholder({ url, alt, className }: { url: string; alt: string; className: string }) {
+/** P3: tile non ancora vicina al viewport. L'URL non contiene mai `api_key`,
+ *  quindi è già la stessa URL "pulita" che `useSecurePosterUrl` userebbe senza
+ *  chiave: nessuna fetch anticipata, nessun layout shift (aspect ratio fisso). */
+function WallImgPlaceholder({ url }: { url: string }) {
   // eslint-disable-next-line @next/next/no-img-element -- poster dinamico /api/poster
-  return <img src={url} alt={alt} className={className} loading="lazy" />
+  return <img src={url} alt="" loading="lazy" />
 }
 
+/** Poster wall decorativa della home: colonne inclinate che scorrono in CSS,
+ *  mix verticale/orizzontale, nessuna interazione (pointer-events: none). */
 export function PosterCarousel() {
-  const navigateToPoster = usePSelector((v) => v.navigateToPoster)
   const trending = usePSelector((v) => v.trending)
+  const tmdbKey = usePSelector((v) => v.tmdbKey)
   const { t } = useT()
   // Come HomeHero: ?u= per far risolvere al server le chiavi del profilo.
-  // Costante per mount (il cambio path rimonta la route): fuori dai deps di items.
+  // Costante per mount (il cambio path rimonta la route): fuori dai deps.
   const nsSuffix = useMemo(() => {
     const id = currentPathUuid()
     return id ? `&u=${id}` : ""
   }, [])
-  const containerRef = useRef<HTMLDivElement>(null)
-  // P3: con una chiave BYOK la fetch header-only di ogni tile parte solo quando
-  // la tile è vicina al viewport (un solo IntersectionObserver condiviso).
-  // `null` = nessun gate: ramo anonimo storico (URL diretto + loading="lazy").
-  const tmdbKey = usePSelector((v) => v.tmdbKey)
-  const tileRefs = useRef<Array<HTMLDivElement | null>>([])
-  // Stato iniziale coerente con la chiave già presente al mount: con la chiave
-  // nessuna tile è attiva finché l'observer non la avvicina al viewport, così
-  // il primo commit non monta 40 fetch. Senza chiave `null` = resa storica.
-  const [activeTiles, setActiveTiles] = useState<ReadonlySet<number> | null>(() =>
-    tmdbKey ? new Set<number>() : null,
-  )
 
-  // 20 poster demo scelti a caso a ogni refresh tra gli esempi statici e i film/
-  // serie di tendenza JustWatch (con rank badge coerente)
-  const items = useMemo<CarouselEntry[]>(() => {
+  // Esempi statici + top JustWatch (rank badge coerente), mescolati a ogni
+  // refresh e distribuiti round-robin sulle colonne.
+  const columns = useMemo(() => {
     const rankParams = (rank: number) =>
       `?ranking=&rank=${rank}&rs=netflix&tl=0&gradHeight=25&blur=30&bf=50&bd=40&logoFit=0`
     const top = trending.slice(0, 15).map((i) => ({
@@ -114,319 +97,81 @@ export function PosterCarousel() {
       type: i.media_type,
       title: titleOf(i),
       params: rankParams(i.rank),
-      desc: i.media_type === "movie" ? `Top ${i.rank} ${t("ui.movie")}` : `Top ${i.rank} ${t("ui.tvSeries")}`,
     }))
-    return shuffle([...EXAMPLES, ...top]).slice(0, CAROUSEL_SIZE)
-  }, [trending, t])
+    const pool = shuffle([...EXAMPLES, ...top])
+    // Ogni colonna cicla sul pool (passo 3, coprimo con 20/35: niente
+    // doppioni nella stessa colonna) così è sempre più alta della parete.
+    return Array.from({ length: WALL_COLS }, (_, c) =>
+      Array.from({ length: PER_COL }, (_, k) => {
+        const ex = pool[(c * PER_COL + k * 3) % pool.length]
+        const shape = (c + k) % LANDSCAPE_EVERY === 1 ? "&shape=landscape" : ""
+        return `/api/poster/${ex.type}/${ex.id}${ex.params}${shape}${nsSuffix}`
+      }),
+    )
+  }, [trending, nsSuffix])
 
-  // P3: prima del gate ogni tile resta sull'URL senza chiave (la stessa del
-  // primo paint) invece di montare `useSecurePosterUrl`, che farebbe partire
-  // 40 fetch insieme al mount anche a carosello fuori schermo. Senza chiave,
-  // o senza IntersectionObserver, il gate non esiste e la resa è quella
-  // storica (URL diretto + loading="lazy").
+  // P3: con una chiave BYOK la fetch header-only di ogni tile parte solo quando
+  // la tile entra nel viewport (un IntersectionObserver condiviso; una volta
+  // attiva resta attiva). `null` = nessun gate: URL diretto + loading="lazy".
+  const wallRef = useRef<HTMLDivElement>(null)
+  const [activeTiles, setActiveTiles] = useState<ReadonlySet<string> | null>(() =>
+    tmdbKey ? new Set<string>() : null,
+  )
   useEffect(() => {
-    if (!tmdbKey || typeof IntersectionObserver === "undefined") {
+    if (!tmdbKey || typeof IntersectionObserver === "undefined" || !wallRef.current) {
       setActiveTiles(null)
       return
     }
-    setActiveTiles((prev) => (prev && prev.size === 0 ? prev : new Set<number>()))
-    const indexByNode = new Map<Element, number>()
-    tileRefs.current.forEach((el, i) => {
-      if (el) indexByNode.set(el, i)
-    })
+    setActiveTiles((prev) => (prev && prev.size === 0 ? prev : new Set<string>()))
     const observer = new IntersectionObserver(
       (entries) => {
-        const entered: number[] = []
+        const entered: string[] = []
         for (const entry of entries) {
           if (!entry.isIntersecting) continue
-          const idx = indexByNode.get(entry.target)
-          if (idx === undefined) continue
-          entered.push(idx)
-          // Una volta attiva la tile resta attiva: niente toggle sul marquee.
+          const key = (entry.target as HTMLElement).dataset.tile
+          if (key) entered.push(key)
           observer.unobserve(entry.target)
         }
         if (entered.length === 0) return
-        setActiveTiles((prev) => {
-          const next = new Set(prev ?? [])
-          for (const idx of entered) next.add(idx)
-          return next
-        })
+        setActiveTiles((prev) => new Set([...(prev ?? []), ...entered]))
       },
-      // Precarica poco prima dell'ingresso (il marquee scorre in orizzontale).
-      { rootMargin: "200px" }
+      { root: wallRef.current, rootMargin: "200px" },
     )
-    for (const el of indexByNode.keys()) observer.observe(el)
+    wallRef.current.querySelectorAll("[data-tile]").forEach((el) => observer.observe(el))
     return () => observer.disconnect()
-  }, [tmdbKey, items])
-
-  // D4: il transform della pista è scritto DIRETTAMENTE sul DOM via ref.
-  // Prima setOffset() a ogni frame (60fps) ri-renderizzava tutte le card del
-  // carousel via React; ora solo activeIndex/showLeft/showRight restano state
-  // (aggiornati ogni 12 frame) e il movimento è puro CSS senza re-render.
-  const trackRef = useRef<HTMLDivElement>(null)
-  const rafRef = useRef<number>(0)
-  const posRef = useRef(0)
-  // Riavvio del marquee dopo lo scroll manuale (le frecce fermano il loop):
-  // l'effect assegna start/stop correnti, scrollTo li usa a inizio/fine.
-  const startRef = useRef<() => void>(() => {})
-  const stopRef = useRef<() => void>(() => {})
-  const [isHovering, setIsHovering] = useState(false)
-  const [activeIndex, setActiveIndex] = useState(0)
-  const hoveringRef = useRef(false)
-  const [showLeft, setShowLeft] = useState(false)
-  const [showRight, setShowRight] = useState(true)
-
-  const [cardW, setCardW] = useState(CARD_W_DESKTOP)
-  const gap = cardW < 200 ? GAP_MOBILE : GAP_DESKTOP
-  const step = cardW + gap
-  const totalItems = items.length
-  const totalW = totalItems * step
-
-  useEffect(() => {
-    const updateSize = () => {
-      setCardW(typeof window !== "undefined" && window.innerWidth < 640 ? CARD_W_MOBILE : CARD_W_DESKTOP)
-    }
-    updateSize()
-    window.addEventListener("resize", updateSize)
-    return () => window.removeEventListener("resize", updateSize)
-  }, [])
-
-  const applyTransform = useCallback((x: number) => {
-    if (trackRef.current) trackRef.current.style.transform = `translate3d(${x}px, 0, 0)`
-  }, [])
-
-  useEffect(() => {
-    hoveringRef.current = isHovering
-  }, [isHovering])
-
-  useEffect(() => {
-    const reduced = typeof window.matchMedia === "function" && window.matchMedia("(prefers-reduced-motion: reduce)").matches
-    if (reduced) {
-      startRef.current = () => {}
-      stopRef.current = () => {}
-      return
-    }
-
-    let frameCount = 0
-    let isVisible = true
-    let isRunning = false
-
-    const tick = () => {
-      if (!hoveringRef.current && isVisible) {
-        posRef.current += SCROLL_SPEED
-        if (posRef.current >= totalW) {
-          posRef.current = 0
-        }
-        applyTransform(-posRef.current)
-        frameCount++
-        if (frameCount % 12 === 0) {
-          const idx = Math.floor(posRef.current / step) % totalItems
-          setActiveIndex(idx)
-          setShowLeft(posRef.current > 0)
-          setShowRight(true)
-        }
-      }
-
-      if (!hoveringRef.current && isVisible) {
-        rafRef.current = requestAnimationFrame(tick)
-      } else {
-        isRunning = false
-      }
-    }
-
-    const start = () => {
-      if (isRunning || hoveringRef.current || !isVisible) return
-      isRunning = true
-      rafRef.current = requestAnimationFrame(tick)
-    }
-
-    const stop = () => {
-      isRunning = false
-      cancelAnimationFrame(rafRef.current)
-    }
-
-    // Observer: se il carosello è fuori viewport, ferma completamente il loop
-    let observer: IntersectionObserver | null = null
-    if (typeof IntersectionObserver !== "undefined" && containerRef.current) {
-      observer = new IntersectionObserver(([entry]) => {
-        isVisible = entry.isIntersecting
-        if (isVisible) {
-          start()
-        } else {
-          stop()
-        }
-      }, { threshold: 0.05 })
-      observer.observe(containerRef.current)
-    } else {
-      start()
-    }
-
-    if (!isHovering) {
-      start()
-    } else {
-      stop()
-    }
-
-    // Espone start/stop correnti per scrollTo (stop a inizio frecce,
-    // restart a fine animazione).
-    startRef.current = start
-    stopRef.current = stop
-
-    return () => {
-      stop()
-      observer?.disconnect()
-    }
-  }, [totalW, totalItems, step, isHovering, applyTransform])
-
-  // Touch: pausa il loop al tocco, drag manuale a dito, resume al rilascio.
-  // touch-pan-y sul container lascia lo scroll verticale nativo alla pagina.
-  const touchStartX = useRef<number | null>(null)
-  const onTouchStart = (e: TouchEvent) => {
-    touchStartX.current = e.touches[0]?.clientX ?? null
-    stopRef.current()
-  }
-  const onTouchMove = (e: TouchEvent) => {
-    if (touchStartX.current === null) return
-    const x = e.touches[0]?.clientX
-    if (x === undefined) return
-    const dx = x - touchStartX.current
-    touchStartX.current = x
-    posRef.current = Math.max(0, Math.min(totalW, posRef.current - dx))
-    applyTransform(-posRef.current)
-  }
-  const onTouchEnd = () => {
-    touchStartX.current = null
-    const idx = Math.floor(posRef.current / step) % Math.max(totalItems, 1)
-    setActiveIndex(idx)
-    setShowLeft(posRef.current > 0)
-    setShowRight(true)
-    startRef.current()
-  }
-
-  const scrollTo = useCallback((dir: number) => {
-    const target = Math.max(0, Math.min(totalW, posRef.current + dir * step))
-    const start = posRef.current
-    const duration = 200
-    const startTime = performance.now()
-    const animate = (time: number) => {
-      const t = Math.min((time - startTime) / duration, 1)
-      const ease = 1 - Math.pow(1 - t, 3)
-      posRef.current = start + (target - start) * ease
-      applyTransform(-posRef.current)
-      if (t < 1) {
-        rafRef.current = requestAnimationFrame(animate)
-      } else {
-        // Fine scroll manuale: riavvia il marquee (start rispetta
-        // hover/visibilità/reduced-motion: no-op se non deve girare).
-        startRef.current()
-      }
-    }
-    stopRef.current()
-    rafRef.current = requestAnimationFrame(animate)
-  }, [totalW, step, applyTransform])
+  }, [tmdbKey, columns])
 
   return (
     <div id="poster-examples" className="mt-8 sm:mt-14 max-w-5xl mx-auto px-2 sm:px-8">
-      <div className="flex items-center justify-between mb-3 sm:mb-4">
-        <h2 className="section-heading text-lg sm:text-xl font-bold">
-          {t("ui.posterExamples")}
-          <span className="demo-tag">{t("ui.demoTag")}</span>
-        </h2>
-        <div className="flex items-center gap-3">
-          <div className="hidden sm:flex items-center gap-2">
-            <div className="w-20 h-1 rounded-full bg-surface2 overflow-hidden">
-              <div
-                className="h-full rounded-full bg-accent-orange transition duration-300"
-                style={{ width: `${(activeIndex / Math.max(totalItems - 1, 1)) * 100}%` }}
-              />
-            </div>
-            <span className="text-[10px] text-zinc-500 tabular-nums">{activeIndex + 1}/{totalItems}</span>
-          </div>
-        </div>
-      </div>
+      <h2 className="section-heading text-lg sm:text-xl font-bold mb-3 sm:mb-4">
+        {t("ui.posterExamples")}
+        <span className="demo-tag">{t("ui.demoTag")}</span>
+      </h2>
       <p className="text-[11px] sm:text-xs text-zinc-500 mb-4 sm:mb-6">
         {t("ui.posterExamplesDesc")}
       </p>
 
-      <div
-        className="relative"
-        onMouseEnter={() => setIsHovering(true)}
-        onMouseLeave={() => setIsHovering(false)}
-      >
-        {showLeft && (
-          <button type="button"
-            onClick={() => scrollTo(-1)}
-            className="absolute -left-2 sm:-left-3 top-1/2 -translate-y-1/2 z-20 w-8 sm:w-9 h-8 sm:h-9 rounded-full bg-surface/80 border border-border/50 backdrop-blur-xl flex items-center justify-center text-zinc-300 hover:text-white hover:bg-surface2/80 active:scale-90 transition shadow-xl"
-            aria-label={t("ui.scrollLeft")}
-          >
-            <ChevronLeft className="w-4 h-4" />
-          </button>
-        )}
-
-        <div
-          ref={containerRef}
-          className="carousel-track overflow-hidden px-2 sm:px-4 touch-pan-y"
-          onTouchStart={onTouchStart}
-          onTouchMove={onTouchMove}
-          onTouchEnd={onTouchEnd}
-          onTouchCancel={onTouchEnd}
-        >
-          <div
-            ref={trackRef}
-            className="flex gap-2.5 sm:gap-4 will-change-transform"
-          >
-            {[...items, ...items].map((ex, i) => {
-              // URL pulita: la chiave viaggia solo via header x-api-key
-              // (SecureCarouselImg) — il server la legge lì per primo.
-              const posterUrl = `/api/poster/${ex.type}/${ex.id}${ex.params}${nsSuffix}`
-              // P3: fetch header-only solo a tile vicina al viewport.
-              const secure = activeTiles === null || activeTiles.has(i)
-              return (
-                <div
-                  key={i}
-                  ref={(el) => { tileRefs.current[i] = el }}
-                  className="shrink-0 animate-stagger-in"
-                  style={{ width: cardW, animationDelay: `${(i % totalItems) * 50}ms` }}
-                >
+      <div ref={wallRef} className="poster-wall" aria-hidden="true">
+        <div className="poster-wall-tilt">
+          {columns.map((urls, c) => (
+            <div key={c} className="poster-wall-col">
+              {/* Lista duplicata: il loop CSS trasla di -50% senza salti. */}
+              {[...urls, ...urls].map((url, i) => {
+                const key = `${c}-${i}`
+                const secure = activeTiles === null || activeTiles.has(key)
+                return (
                   <div
-                    onClick={() => navigateToPoster(toSearchResult({ id: ex.id, media_type: ex.type, title: ex.title, name: ex.title }))}
-                    className="carousel-card group cursor-pointer h-full flex flex-col bg-white/[0.03] border border-white/[0.06]"
+                    key={key}
+                    data-tile={key}
+                    className={`poster-wall-card ${url.includes("shape=landscape") ? "is-landscape" : ""}`}
                   >
-                    <div className="relative z-[1] flex flex-col flex-1">
-                      <div className="aspect-[2/3] shrink-0 relative overflow-hidden bg-surface2">
-                        {/* M21: la chiave viaggia nell'header x-api-key, mai nel DOM */}
-                        {secure ? (
-                          <SecureCarouselImg url={posterUrl} alt={ex.title} className={POSTER_IMG_CLASS} />
-                        ) : (
-                          <CarouselImgPlaceholder url={posterUrl} alt={ex.title} className={POSTER_IMG_CLASS} />
-                        )}
-                      </div>
-                    <div className="p-2 sm:p-3 relative z-10 flex-1">
-                      <h3 className="text-[11px] sm:text-xs font-semibold text-foreground transition-colors duration-200 line-clamp-1">{ex.title}</h3>
-                      <p className="text-[9px] sm:text-[10px] text-muted mt-0.5 sm:mt-1 leading-tight sm:leading-relaxed transition-colors duration-200 line-clamp-2">{ex.desc}</p>
-                    </div>
-                    </div>
-                    <span className="car-arrow hidden sm:flex" aria-hidden="true">
-                      <svg className="w-3.5 h-3.5" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.4" strokeLinecap="round" strokeLinejoin="round">
-                        <polyline points="9 18 15 12 9 6" />
-                      </svg>
-                    </span>
+                    {secure ? <SecureWallImg url={url} /> : <WallImgPlaceholder url={url} />}
                   </div>
-                </div>
-              )
-            })}
-          </div>
+                )
+              })}
+            </div>
+          ))}
         </div>
-
-        {showRight && (
-          <button type="button"
-            onClick={() => scrollTo(1)}
-            className="absolute -right-2 sm:-right-3 top-1/2 -translate-y-1/2 z-20 w-8 sm:w-9 h-8 sm:h-9 rounded-full bg-surface/80 border border-border/50 backdrop-blur-xl flex items-center justify-center text-zinc-300 hover:text-white hover:bg-surface2/80 active:scale-90 transition shadow-xl"
-            aria-label={t("ui.scrollRight")}
-          >
-            <ChevronRight className="w-4 h-4" />
-          </button>
-        )}
       </div>
     </div>
   )

@@ -363,6 +363,12 @@ export interface GenerationInput {
   locale: string
   /** Formato data badge "in uscita" (query `df` > default utente; default `locale`). */
   dateFormat?: DateFormat | null
+  /**
+   * Portrait Standard only: with no top badge painted (no rank/extra, no
+   * Coming Soon) the genre/rating badge takes the free top slot instead of
+   * the bottom (query `gtop` > default utente; default false).
+   */
+  genreTopWhenFree?: boolean
   t: BadgeT
   qLabel: string | null
   queryExtra: string | null
@@ -1630,8 +1636,15 @@ export async function generatePosterBuffer(input: GenerationInput): Promise<Buff
   const isRankNetflixRibbonStyle = isRibbonRankingStyle(rankingBadgeStyle) && topBadge?.type === "rank"
   const isRankDetached = !!topBadge && !isRankNetflixRibbonStyle && topBadgeStyle !== "number" && effTopBadgeOffsetY !== 0
 
+  // Genere in alto quando lo slot superiore è libero (opt-in, solo portrait
+  // Standard, mai la barra full-width): stessa decisione del ramo rank
+  // (`rankBadgeKey` nullo) + nessun nastro Coming Soon. Sopra il badge legge
+  // la polarità della banda alta (`topLight`), come i badge superiori.
+  const genreAtTop = input.genreTopWhenFree === true && shape !== "landscape" && !isFresh && !isCard
+    && badgeStyle !== "bar" && !topBadge && !showComingSoon
+  const genreLight = genreAtTop ? topLight : bottomLight
   const genreBadgeKey = hasGenreBadge
-    ? badgeCacheKey("genre", genreName, voteAverage, CW, year, badgeStyle, badgeFont, genreStdAccent, bottomLight, badgeGenre, badgeYear, badgeRating, genreBadgeScale)
+    ? badgeCacheKey("genre", genreName, voteAverage, CW, year, badgeStyle, badgeFont, genreStdAccent, genreLight, badgeGenre, badgeYear, badgeRating, genreBadgeScale)
     : null
   // The award logo mode is part of the cache identity: the logo bitmap can
   // never be served for a textual request (or vice versa). Non-award extras
@@ -1681,7 +1694,7 @@ export async function generatePosterBuffer(input: GenerationInput): Promise<Buff
     genreBadgeKey
       ? (cacheGet<BadgeRender>(genreBadgeKey)
           || coalesceBadgeRender(genreBadgeKey, () =>
-                renderGenreBadge(genreName ?? "", voteAverage ?? 0, badgePw, year, badgeStyle, genreStdAccent, bottomLight, { showGenre: badgeGenre, showYear: badgeYear, showRating: badgeRating }, badgeStyle === "bar" ? genreBadgeScale : 100, badgeFont)
+                renderGenreBadge(genreName ?? "", voteAverage ?? 0, badgePw, year, badgeStyle, genreStdAccent, genreLight, { showGenre: badgeGenre, showYear: badgeYear, showRating: badgeRating }, badgeStyle === "bar" ? genreBadgeScale : 100, badgeFont)
                 .then((r) => { if (r) cacheSet(genreBadgeKey, r, ["badge"], BADGE_CACHE_TTL); return r })
             ))
       : Promise.resolve(null)
@@ -1835,7 +1848,11 @@ export async function generatePosterBuffer(input: GenerationInput): Promise<Buff
       // Ombra/minimale in landscape: testo nudo, +10px verso l'alto per
       // staccarlo dal bordo (con e senza separati).
       const styleLiftY = anchorRight && (badgeStyle === "shadow" || badgeStyle === "minimal") ? 10 : 0
-      const genreTopFor = (h: number) => Math.round(Math.min(CH - h, CH - h - Math.max(0, Math.round(targetCenter - h / 2)) + combinedGenreOY - styleCornerShiftY - styleLiftY))
+      // In alto (slot libero): corpo sulla griglia superiore di network/qualità
+      // (netBaseTop), offset utente applicati come in basso.
+      const genreTopFor = genreAtTop
+        ? (h: number) => Math.round(Math.max(0, Math.min(CH - h, Math.round(18 * CH / 570) + combinedGenreOY)))
+        : (h: number) => Math.round(Math.min(CH - h, CH - h - Math.max(0, Math.round(targetCenter - h / 2)) + combinedGenreOY - styleCornerShiftY - styleLiftY))
       // Separati attivi: il segmento ★ sparisce e la pill si restringe —
       // ancorata a destra, la massa visiva andrebbe a destra. Si compensa di
       // metà larghezza rimossa così il centro resta dov'era con ★ (solo
@@ -1909,7 +1926,7 @@ export async function generatePosterBuffer(input: GenerationInput): Promise<Buff
     const customRowBitmap = await renderMultiRatings(input.ratings, CW - 40, bottomLight, badgeFont).catch(() => null)
     const row = customRowBitmap
     if (row) {
-      const legacyTop = safeGenreBadgeResult
+      const legacyTop = safeGenreBadgeResult && !genreAtTop
         ? (badgeStyle === "bar" ? CH - safeGenreBadgeResult.h
           : CH - safeGenreBadgeResult.h - Math.max(0, Math.round(targetCenter - safeGenreBadgeResult.h / 2)) + combinedGenreOY)
         : CH - 20
@@ -2013,6 +2030,13 @@ export async function generatePosterBuffer(input: GenerationInput): Promise<Buff
     // Il badge centrale resta invariato — la gestione overlap vive nei blocchi
     // network/qualità qui sotto (shrink dei laterali).
   }
+  // Occupante centrale dello slot alto per lo shrink dei laterali
+  // (network/qualità): il badge rank/extra, o il genere spostato in alto.
+  const genreOnTop = genreAtTop && !!genreBadgeRect
+  const topCenterRect: { left: number; top: number; w: number; h: number } | null =
+    finalRankBadge && finalRankLeft !== null
+      ? { left: finalRankLeft, top: finalRankTop, w: badgeBody(finalRankBadge).w, h: badgeBody(finalRankBadge).h }
+      : (genreOnTop ? genreBadgeRect : null)
   // Fresh: il rank vive nel numerale vetro (sotto); qui solo gli extra.
   // Card: il rank vive nel numerale della card (blocco 6c); qui solo gli extra.
   if (finalRankBadge && finalRankLeft !== null && !isFresh && !isCard) {
@@ -2154,10 +2178,10 @@ export async function generatePosterBuffer(input: GenerationInput): Promise<Buff
       // deterministiche della scala) + UN solo resize — prima ogni step
       // intermedio faceva un resize sharp poi scartato (fino a ~7).
       const shrinkToAvoidRank = async <T extends BadgeRender>(box: T, top: number, left: number): Promise<T> => {
-        if (finalRankBadge && finalRankLeft !== null && finalRankBody) {
-          const rankL = finalRankLeft
-          const rankR = finalRankLeft + finalRankBody.w
-          const rankB = finalRankTop + finalRankBody.h
+        if (topCenterRect) {
+          const rankL = topCenterRect.left
+          const rankR = topCenterRect.left + topCenterRect.w
+          const rankB = topCenterRect.top + topCenterRect.h
           const overlapsAt = (w: number, h: number) =>
             left < rankR + 6 && left + w > rankL - 6 && top < rankB + 4 && top + h > netPadY - 4
           let scale = 1
@@ -2341,7 +2365,7 @@ export async function generatePosterBuffer(input: GenerationInput): Promise<Buff
         // Above the title the network does not take the top-left corner:
         // quality keeps its corner anchor (netTopLeftBottom stays null).
         if (rightRankRibbonLeft === null && !mirrorNetworkBelow && !cornerAboveTitlePlaced) netTopLeftBottom = top + NETWORK_LOGO_SHIFT_Y + fittedRaw.h
-      } else if (logoResult && (finalRankBadge || hasComingSoonCorner)) {
+      } else if (logoResult && (finalRankBadge || hasComingSoonCorner || genreOnTop)) {
         // Con logo film + badge alto (nastro Netflix, badge centrale
         // rank/extra, o Coming Soon): subito sopra il logo film
         // (in Cinematic Left allineato a sinistra come sopratitolo, non centrato).
@@ -2498,11 +2522,10 @@ export async function generatePosterBuffer(input: GenerationInput): Promise<Buff
       }
     }
 
-    if (finalRankBadge && finalRankLeft !== null) {
-      const rankBodyBox = badgeBody(finalRankBadge)
-      const rankL = finalRankLeft
-      const rankR = finalRankLeft + rankBodyBox.w
-      const rankB = finalRankTop + rankBodyBox.h
+    if (topCenterRect) {
+      const rankL = topCenterRect.left
+      const rankR = topCenterRect.left + topCenterRect.w
+      const rankB = topCenterRect.top + topCenterRect.h
       let curW = finalQualityBadge.w
       let curH = finalQualityBadge.h
       let curPng = finalQualityBadge.png
@@ -2671,7 +2694,7 @@ export async function generatePosterBuffer(input: GenerationInput): Promise<Buff
     let stackFitted = fitted
     if (stackFitted) {
       const intendedTop = Math.max(0, Math.min(Math.max(0, CH - 1), stackTop + sepOY))
-      const bottomEdge = genreBadgeRect
+      const bottomEdge = genreBadgeRect && !genreAtTop
         ? genreBadgeRect.top
         : CH - Math.round(20 * CH / 570)
       const maxStackH = bottomEdge - intendedTop - 6

@@ -1,7 +1,7 @@
 "use client"
 
 import { useEffect, useState, useId, type ReactNode } from "react"
-import { ChevronDown, Flame, Layers, Menu, Palette, SlidersHorizontal, Sparkles, Star, Trophy, Tv } from "lucide-react"
+import { ArrowUpToLine, ChevronDown, Flame, Layers, Menu, Palette, SlidersHorizontal, Sparkles, Star, Trophy, Tv } from "lucide-react"
 import { useT } from "@/lib/contexts/TranslationContext"
 import { usePosterEditor } from "@/lib/contexts/PosterEditorContext"
 import { usePSelector } from "@/lib/context"
@@ -1615,6 +1615,25 @@ export function BadgeDefaultsSection({ active, shape, onPreviewFamilyChange, pre
                 />
               </div>
               </fieldset>
+            </div>
+          )}
+
+          {/* Posizione automatica (non un altro badge): blocco separato con
+              descrizione visibile. Solo verticale: il render la ignora in landscape. */}
+          {globalBadges && !isLandscape && (
+            <div className="pt-2 mt-1 border-t border-surface2/50 space-y-1">
+              <div className="flex items-center justify-between py-1">
+                <span className="text-zinc-300 font-medium flex items-center gap-1.5">
+                  <ArrowUpToLine className="w-3.5 h-3.5 text-sky-400" />
+                  {t("ui.genreTopWhenFree")}
+                </span>
+                <Toggle
+                  value={ed.defaultGenreTopWhenFree}
+                  onChange={(v) => ed.setDefaultGenreTopWhenFree(v)}
+                  label={t("ui.genreTopWhenFree")}
+                />
+              </div>
+              <p className="text-[11px] text-zinc-400 leading-snug -mt-1">{t("ui.genreTopWhenFreeHint")}</p>
             </div>
           )}
 

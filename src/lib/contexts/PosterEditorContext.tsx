@@ -483,6 +483,9 @@ export interface PosterEditorCtx {
   /** Formato data badge "in uscita" (default `locale` = segue la lingua). */
   defaultDateFormat: DateFormat
   setDefaultDateFormat: (v: DateFormat | ((prev: DateFormat) => DateFormat)) => void
+  /** Portrait: genere/voto nello slot alto libero (default false). */
+  defaultGenreTopWhenFree: boolean
+  setDefaultGenreTopWhenFree: (v: boolean) => void
   loadDefaultsToState: () => void
   /** Authoritative defaults sync state (local + server truth for the footer). */
   defaultSyncStatus: DefaultSyncStatus
@@ -911,7 +914,7 @@ export function PosterEditorProvider({
     defaultThumbnailRotation,
     defaultThumbnailFillerBadge,
     defaultThumbnailFillerStyle,
-    region, defaultRegion, defaultDateFormat,
+    region, defaultRegion, defaultDateFormat, defaultGenreTopWhenFree,
     loadDefaultsToState, update,
   } = defaults
   const { defaultSyncStatus, retryDefaultSync, saveStagedDefaults } = defaults
@@ -1887,6 +1890,8 @@ export function PosterEditorProvider({
       const next = typeof v === "function" ? v(defaultDateFormat) : v
       update({ defaultDateFormat: next })
     }, [defaultDateFormat, update])
+  const setDefaultGenreTopWhenFree = useCallback(
+    (v: boolean) => update({ defaultGenreTopWhenFree: v }), [update])
 
   // H3: stable region applier for AppShell (LangPicker). Reads the latest
   // setters via ref so its identity never changes — the shell subscribes to
@@ -2401,6 +2406,8 @@ export function PosterEditorProvider({
       setDefaultRegion,
       defaultDateFormat,
       setDefaultDateFormat,
+      defaultGenreTopWhenFree,
+      setDefaultGenreTopWhenFree,
       loadDefaultsToState,
       defaultSyncStatus,
       retryDefaultSync,
@@ -2595,6 +2602,7 @@ export function PosterEditorProvider({
       region, setRegion,
       defaultRegion, setDefaultRegion,
       defaultDateFormat, setDefaultDateFormat,
+      defaultGenreTopWhenFree, setDefaultGenreTopWhenFree,
 
       // Defaults
       defaultBadgeStyle, setDefaultBadgeStyle,

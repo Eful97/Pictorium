@@ -126,3 +126,6 @@ skills-lock.json
 # local agent tooling dir
 .commandcode/
 
+
+# Config MCP locale (Claude Code)
+.mcp.json

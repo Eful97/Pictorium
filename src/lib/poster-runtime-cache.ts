@@ -127,7 +127,7 @@ const INFLIGHT_TIMEOUT_MS = 60_000
 // che mantengono il proprio valore semantico.
 const POSTER_BOOLEAN_CACHE_PARAMS: ReadonlySet<string> = new Set([
   "badges", "ranking", "bg", "by", "br", "bq", "ribbon", "cr", "sep",
-  "netLogo", "netFollow", "pre", "hideLogo", "be",
+  "netLogo", "netFollow", "pre", "hideLogo", "be", "gtop",
 ])
 
 export function normalizePosterCacheParams(searchParams: URLSearchParams): URLSearchParams {

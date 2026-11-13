@@ -49,7 +49,8 @@ COPY --from=builder /app/public ./public
 COPY --from=builder --chown=node:node /app/.next/standalone ./
 COPY --from=builder --chown=node:node /app/.next/static ./.next/static
 COPY --from=builder /app/entrypoint.sh /entrypoint.sh
-RUN chmod +x /entrypoint.sh && mkdir -p /data && chown -R node:node /data
+RUN apt-get update && apt-get install -y --no-install-recommends tini && rm -rf /var/lib/apt/lists/* \
+    && chmod +x /entrypoint.sh && mkdir -p /data && chown -R node:node /data
 
 # Esegui il server come utente non-root (principio del minimo privilegio).
 USER node
@@ -59,4 +60,6 @@ EXPOSE 8080
 HEALTHCHECK --interval=30s --timeout=5s --start-period=10s --retries=3 \
   CMD node -e "fetch('http://localhost:' + (process.env.PORT || 8080) + '/api/health?probe=1').then(r => r.ok ? process.exit(0) : process.exit(1)).catch(() => process.exit(1))"
 
-ENTRYPOINT ["/entrypoint.sh"]
+# tini reaps orphans (self-warmup subshell) and forwards signals; -s keeps it a
+# subreaper even when not PID 1 (e.g. `docker run --init`).
+ENTRYPOINT ["/usr/bin/tini", "-s", "--", "/entrypoint.sh"]

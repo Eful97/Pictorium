@@ -122,9 +122,9 @@ try {
       const imgs = Array.from(document.querySelectorAll(".p-frame img"))
       return imgs.length >= 3 && imgs.every((i) => i.complete && i.naturalWidth > 0)
     }, { timeout: 120_000 })
-    // Carosello: aspetta che una buona parte delle card abbia il poster caricato
+    // Poster wall: aspetta che una buona parte delle card abbia il poster caricato
     await page.waitForFunction(() => {
-      const imgs = Array.from(document.querySelectorAll(".carousel-track img"))
+      const imgs = Array.from(document.querySelectorAll(".poster-wall img"))
       const loaded = imgs.filter((i) => i.complete && i.naturalWidth > 0).length
       return imgs.length >= 10 && loaded >= Math.min(10, imgs.length)
     }, { timeout: 120_000 })
