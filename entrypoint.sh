@@ -62,7 +62,10 @@ echo "[entrypoint] ============================================"
 # ---------------------------------------------------------------------------
 WARMUP_ENABLED="${PICTORIUM_SELF_WARMUP:-${POSTERIUM_SELF_WARMUP:-1}}"
 if [ "$WARMUP_ENABLED" = "1" ]; then
-  (
+  # Double fork: il subshell esterno esce subito (reaped qui), quello interno resta
+  # orfano e viene adottato da tini (subreaper) invece che da node dopo l'exec —
+  # node non fa wait() sui figli e lascerebbe uno zombie <defunct>.
+  ( (
     HEALTH_URL="http://127.0.0.1:${PORT:-8080}/api/health?probe=1"
     # D2: warmup gentile al boot (seriale, niente JustWatch): su 512M il
     # default pieno (~110 target a concurrency 3) competeva con il traffico
@@ -96,7 +99,7 @@ if [ "$WARMUP_ENABLED" = "1" ]; then
     else
       echo "[entrypoint] Server not up in time — self-warmup skipped"
     fi
-  ) &
+  ) & )
 fi
 
 exec env PICTORIUM_DATA_DIR="$DATA_DIR" POSTERIUM_DATA_DIR="$DATA_DIR" node server.js
