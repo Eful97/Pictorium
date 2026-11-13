@@ -25,6 +25,8 @@
  *   landscape compositions. No off-canvas at 100 (wide + tall fixtures);
  *   network/title overlap free by default (title stays right of the column).
  */
+import { tmpdir } from "node:os"
+import { join } from "node:path"
 import sharp from "sharp"
 import { createHash } from "node:crypto"
 import { mkdir, writeFile } from "node:fs/promises"
@@ -638,7 +640,7 @@ describe("explicit topShade 80 pins (stored 80 keeps the 80-era bytes)", () => {
 
 describe("task9 evidence samples (approved temp only, never the repo)", () => {
   it("writes before/after landscape 100/150/200 + preserved portrait 100", async () => {
-    const outDir = "C:/Users/lucaf/AppData/Local/Temp/opencode/task9/after"
+    const outDir = join(tmpdir(), "opencode", "task9", "after")
     await mkdir(outDir, { recursive: true })
     const wordmark = await wordmarkLogo()
     const rankedBase = {

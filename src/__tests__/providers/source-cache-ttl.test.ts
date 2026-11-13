@@ -185,7 +185,7 @@ describe("source cache TTL (FP 12h / MDBList 12h / JW 6h)", () => {
 describe("FlixPatrol disk+memory validity 12h", () => {
   // Approved scratch root for the test fixture (created in beforeAll,
   // removed in afterAll so no temp dir leaks between runs).
-  const SCRATCH_BASE = "C:\\Users\\lucaf\\AppData\\Local\\Temp\\opencode"
+  const SCRATCH_BASE = path.join(os.tmpdir(), "opencode")
   let tmpDir = ""
 
   function createScratchDir(): string {
