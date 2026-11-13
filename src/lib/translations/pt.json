@@ -96,6 +96,8 @@
   "ui.genreRatingBadge": "Gênero / Nota",
   "ui.badgeGenre": "Gênero",
   "ui.badgeYear": "Ano",
+  "ui.genreTopWhenFree": "Gênero/nota no topo se houver espaço",
+  "ui.genreTopWhenFreeHint": "Não é um selo novo: só move o selo de gênero/nota existente. Se o pôster não tem selo de ranking nem extra no topo, ele passa de baixo para cima. Apenas pôsteres verticais.",
   "ui.badgeRating": "Nota",
   "ui.badgeQuality": "Qualidade de streaming",
   "ui.ageBadge": "Classificação etária",

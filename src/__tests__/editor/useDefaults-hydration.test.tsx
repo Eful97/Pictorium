@@ -123,6 +123,7 @@ const USER_SAVED = {
   thumbnailFillerStyle: "corner",
   region: "IT",
   dateFormat: "locale",
+  genreTopWhenFree: false,
   logoScale: null,
   logoOffsetX: null,
   logoOffsetY: null,

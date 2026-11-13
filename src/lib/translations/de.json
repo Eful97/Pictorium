@@ -96,6 +96,8 @@
   "ui.genreRatingBadge": "Genre / Bewertung",
   "ui.badgeGenre": "Genre",
   "ui.badgeYear": "Jahr",
+  "ui.genreTopWhenFree": "Genre/Bewertung oben, wenn Platz ist",
+  "ui.genreTopWhenFreeHint": "Kein neues Badge: Es verschiebt nur das vorhandene Genre-/Bewertungsbadge. Hat ein Poster oben kein Ranking- oder Extra-Badge, wandert es von unten nach oben. Nur Hochformat.",
   "ui.badgeRating": "Bewertung",
   "ui.badgeQuality": "Streaming-Qualität",
   "ui.ageBadge": "Altersfreigabe",

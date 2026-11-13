@@ -96,6 +96,8 @@
   "ui.genreRatingBadge": "النوع / التقييم",
   "ui.badgeGenre": "النوع",
   "ui.badgeYear": "السنة",
+  "ui.genreTopWhenFree": "Genre/rating at top when there's room",
+  "ui.genreTopWhenFreeHint": "Not a new badge: it only moves the existing genre/rating badge. When a poster has no ranking or extra badge at the top, the genre/rating badge moves from the bottom to the top. Portrait posters only.",
   "ui.badgeRating": "التقييم",
   "ui.badgeQuality": "جودة البث",
   "ui.ageBadge": "التصنيف العمري",

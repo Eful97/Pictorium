@@ -219,6 +219,7 @@ const defaultsSchema = z.object({
   thumbnailFillerStyle: z.enum(["corner", "strip"]).optional(),
   region: z.string().max(32).optional(),
   dateFormat: z.enum(["locale", "dmy", "mdy", "iso"]).optional(),
+  genreTopWhenFree: z.boolean().optional(),
   /**
    * Additive clear contract (transport only, never stored): profile keys to
    * delete after the normal merge/backfill, because omitting them cannot

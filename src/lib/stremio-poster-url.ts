@@ -240,6 +240,7 @@ export function buildStremioPosterUrl(input: BuildStremioPosterUrlInput): URL {
     topShadeHeight: eff?.topShadeHeight ?? sd.topShadeHeight ?? 25,
     customBadge,
     dateFormat: sd.dateFormat ?? undefined,
+    genreTopWhenFree: sd.genreTopWhenFree ?? undefined,
     title: mapping?.title ?? undefined,
     networkLogo: eff?.networkLogo ?? sd.networkLogo,
     // Follow spento effettivo viaggia (acceso/assente resta omesso per URL e

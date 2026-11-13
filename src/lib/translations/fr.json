@@ -96,6 +96,8 @@
   "ui.genreRatingBadge": "Genre / Note",
   "ui.badgeGenre": "Genre",
   "ui.badgeYear": "Année",
+  "ui.genreTopWhenFree": "Genre/note en haut s'il y a de la place",
+  "ui.genreTopWhenFreeHint": "Ce n'est pas un nouveau badge : il déplace seulement le badge genre/note existant. Si l'affiche n'a ni badge de classement ni badge extra en haut, il passe du bas vers le haut. Affiches portrait uniquement.",
   "ui.badgeRating": "Note",
   "ui.badgeQuality": "Qualité streaming",
   "ui.ageBadge": "Classification par âge",

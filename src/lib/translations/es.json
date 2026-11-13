@@ -96,6 +96,8 @@
   "ui.genreRatingBadge": "Género / Puntuación",
   "ui.badgeGenre": "Género",
   "ui.badgeYear": "Año",
+  "ui.genreTopWhenFree": "Género/nota arriba si hay espacio",
+  "ui.genreTopWhenFreeHint": "No es una insignia nueva: solo mueve la de género/nota existente. Si el póster no tiene insignia de ranking ni extra arriba, pasa de abajo hacia arriba. Solo pósters verticales.",
   "ui.badgeRating": "Puntuación",
   "ui.badgeQuality": "Calidad streaming",
   "ui.ageBadge": "Clasificación por edad",

@@ -210,6 +210,8 @@ export interface DefaultsState {
   defaultRegion: string
   /** Formato data badge "in uscita" (default `locale` = segue la lingua). */
   defaultDateFormat: DateFormat
+  /** Portrait: genere/voto nello slot alto libero (default false). */
+  defaultGenreTopWhenFree: boolean
   region: string
   globalBadges: boolean
   rankingBadges: boolean
@@ -405,6 +407,7 @@ const DEFAULT_FLAT_DEFAULTS: Omit<DefaultsState, "landscape"> = {
   defaultThumbnailFillerBadge: false,
   defaultThumbnailFillerStyle: "corner",
   defaultDateFormat: "locale",
+  defaultGenreTopWhenFree: false,
   defaultRegion: "IT",
   region: "IT",
   globalBadges: true,
@@ -679,6 +682,8 @@ interface StoredDefaults {
   defaultDateFormat?: DateFormat
   /** Chiave server/local piatta (saveDefaults/defaultsToPayload): fallback di lettura. */
   dateFormat?: DateFormat
+  defaultGenreTopWhenFree?: boolean
+  genreTopWhenFree?: boolean
   defaultRegion?: string
   region?: string
   autoRotateClean?: boolean
@@ -1084,6 +1089,7 @@ function buildFromStored(d: StoredDefaults | null): DefaultsState {
       d.defaultThumbnailFillerStyle ?? d.thumbnailFillerStyle,
     ),
     defaultDateFormat: parseDateFormat(d.defaultDateFormat ?? d.dateFormat) ?? "locale",
+    defaultGenreTopWhenFree: (d.defaultGenreTopWhenFree ?? d.genreTopWhenFree) === true,
     defaultRegion: normalizeRegion(d.defaultRegion ?? d.region),
     region: normalizeRegion(d.region ?? d.defaultRegion),
     globalBadges: d.globalBadges ?? d.defaultGlobalBadges ?? true,
@@ -1306,6 +1312,7 @@ export function defaultsToPayload(d: DefaultsState): Record<string, unknown> {
     thumbnailFillerStyle: d.defaultThumbnailFillerStyle,
     region: d.defaultRegion,
     dateFormat: d.defaultDateFormat,
+    genreTopWhenFree: d.defaultGenreTopWhenFree,
     videoFormats: d.defaultVideoFormats,
     logoScale: d.defaultLogoScale ?? null,
     logoOffsetX: d.defaultLogoOffsetX ?? null,

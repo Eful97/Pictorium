@@ -74,6 +74,8 @@ interface BadgeParams {
   customBadge: string | null
   /** Formato data badge "in uscita" (default `locale` = segue la lingua). */
   dateFormat?: DateFormat | null
+  /** Genere/voto nello slot alto libero (portrait, default globale). */
+  genreTopWhenFree?: boolean | null
   gradientHeight: number
   blurIntensity: number
   blurFade: number
@@ -409,6 +411,7 @@ export function buildUrlPattern(bp: BadgeParams & {
     networkLogoOffsetX: bp.networkLogoOffsetX,
     networkLogoOffsetY: bp.networkLogoOffsetY,
     dateFormat: bp.dateFormat ?? undefined,
+    genreTopWhenFree: bp.genreTopWhenFree ?? undefined,
   })
   // Template che l'utente copia per sé (come la manifest URL con chiavi):
   // qui le chiavi sono volute — Stremio non invia header custom, quindi il
@@ -553,6 +556,8 @@ export function buildPreviewUrl(ps: PosterState, bp: BadgeParams, configToken?: 
   // SEMPRE esplicito in preview (come badges/ranking/cr): senza, un default
   // salvato diverso scavalcerebbe la scelta editor (desync WYSIWYG).
   params.push(`df=${ps.dateFormat ?? "locale"}`)
+  // Sempre esplicito come `df` (WYSIWYG contro un default salvato diverso).
+  params.push(`gtop=${bp.genreTopWhenFree ? "1" : "0"}`)
   params.push(`gradHeight=${bp.gradientHeight}`)
   params.push(`blur=${bp.blurIntensity}`)
   params.push(`bf=${bp.blurFade}`)
@@ -885,6 +890,7 @@ export interface DefaultsPreviewParams {
    *  persistito senza modificarlo. Assente/null = segui il default. */
   previewShape?: "portrait" | "landscape" | null
   defaultDateFormat?: DateFormat | null
+  defaultGenreTopWhenFree?: boolean | null
   defaultRegion?: string
   /** Effective top-badge priority for the previewed shape (portrait flat or
    *  landscape profile override): always emitted explicitly as `sash=` so
@@ -1213,6 +1219,7 @@ export function buildDefaultsPreviewUrl(bp: DefaultsPreviewParams): string {
   if (bp.lang) params.push(`lang=${encodeURIComponent(bp.lang)}`)
   if (bp.defaultRegion) params.push(`region=${encodeURIComponent(bp.defaultRegion)}`)
   if (bp.defaultDateFormat) params.push(`df=${bp.defaultDateFormat}`)
+  params.push(`gtop=${bp.defaultGenreTopWhenFree ? "1" : "0"}`)
 
   const qs = "?" + params.join("&")
   const demo = resolveDemoMedia(bp.demoMedia)

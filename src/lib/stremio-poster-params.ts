@@ -243,6 +243,8 @@ export interface StremioPosterParamsInput {
    * invalida (il server risolve `locale` da solo).
    */
   readonly dateFormat?: DateFormat | null
+  /** Genere in alto con slot libero: emesso `gtop=1` solo quando acceso (URL esistenti invariati). */
+  readonly genreTopWhenFree?: boolean | null
   readonly config?: string | null
   readonly user?: string | null
   readonly region?: string | null
@@ -481,6 +483,7 @@ export function buildStremioPosterSearchParams(input: StremioPosterParamsInput):
   if (input.dateFormat && input.dateFormat !== "locale") {
     params.set("df", input.dateFormat)
   }
+  if (input.genreTopWhenFree === true) params.set("gtop", "1")
   if (input.title) params.set("title", input.title)
   if (!networkLogo) params.set("netLogo", "0")
   if (input.networkLogoFollowTitle === false) params.set("netFollow", "0")
