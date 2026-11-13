@@ -95,8 +95,7 @@ html.light {
 .floating-action,
 .floating-group,
 .search-shell,
-.simkl-list-card,
-.carousel-card {
+.simkl-list-card {
   background: var(--glass-grad), var(--glass-tint);
   border: 1px solid var(--glass-border);
   box-shadow: var(--glass-shadow);
@@ -1916,30 +1915,62 @@ select:focus-visible {
   color: rgb(113 113 122);
 }
 
-/* Carousel poster card — hover lift + orange glow */
-.carousel-card {
-  --glass-tint: rgba(24,24,27,0.85);
-  --glass-shadow: none; /* nessuna ombra base: solo hover (vedi sotto) */
+/* Poster wall (home) — colonne inclinate che scorrono in verticale, solo CSS.
+   Decorativa: niente hover/click, bordi sfumati via mask. */
+.poster-wall {
   position: relative;
-  isolation: isolate;
-  border-radius: 1rem;
+  /* Full-bleed: esce dal contenitore centrato della sezione fino ai bordi
+     della finestra. L'eccedenza della scrollbar la taglia .app-shell
+     (overflow-x-hidden), quindi niente scroll orizzontale. */
+  width: 100vw;
+  margin-inline: calc(50% - 50vw);
+  height: 560px;
   overflow: hidden;
-  transition: transform var(--dur-slow) var(--ease-out-expo), box-shadow var(--dur-slow) var(--ease-out-expo), border-color var(--dur-slow) ease;
+  pointer-events: none;
+  user-select: none;
+  -webkit-mask-image: linear-gradient(90deg, transparent, #000 6%, #000 94%, transparent), linear-gradient(transparent, #000 15%, #000 85%, transparent);
+  -webkit-mask-composite: source-in;
+  mask-image: linear-gradient(90deg, transparent, #000 6%, #000 94%, transparent), linear-gradient(transparent, #000 15%, #000 85%, transparent);
+  mask-composite: intersect;
 }
-
-.carousel-card:hover {
-  transform: translateY(-4px);
-  border-color: rgb(var(--accent-rgb) / 0.35);
-  box-shadow:
-    0 0 0 1px rgb(var(--accent-rgb) / 0.12),
-    0 18px 40px rgba(0,0,0,0.36);
+.poster-wall-tilt {
+  position: absolute;
+  inset: -40% -10%;
+  display: flex;
+  align-items: flex-start;
+  justify-content: center;
+  gap: 14px;
+  transform: rotate(-12deg);
 }
-
-/* Carousel track — glass wrapper */
-.carousel-track {
-  border-radius: 1.25rem;
-  border: 1px solid rgba(255,255,255,0.05);
-  background: rgba(255,255,255,0.015);
+.poster-wall-col {
+  flex: none;
+  width: 170px;
+  display: flex;
+  flex-direction: column;
+  gap: 14px;
+  animation: poster-wall-up 70s linear infinite;
+}
+.poster-wall-col:nth-child(even) { animation-name: poster-wall-down; }
+.poster-wall-col:nth-child(3n) { animation-duration: 85s; }
+@keyframes poster-wall-up { to { transform: translateY(-50%); } }
+@keyframes poster-wall-down { from { transform: translateY(-50%); } to { transform: translateY(0); } }
+.poster-wall-card {
+  flex: none;
+  aspect-ratio: 2 / 3;
+  border-radius: 12px;
+  overflow: hidden;
+  background: var(--color-surface2, #1a1a20);
+  box-shadow: 0 10px 30px rgba(0,0,0,0.5);
+}
+.poster-wall-card.is-landscape { aspect-ratio: 16 / 9; }
+.poster-wall-card img { display: block; width: 100%; height: 100%; object-fit: cover; }
+@media (max-width: 640px) {
+  .poster-wall { height: 420px; }
+  .poster-wall-tilt, .poster-wall-col { gap: 10px; }
+  .poster-wall-col { width: 120px; }
+}
+@media (prefers-reduced-motion: reduce) {
+  .poster-wall-col { animation: none; }
 }
 
 /* ============================================================
@@ -2198,31 +2229,6 @@ select:focus-visible {
   border-radius: 999px;
   padding: 0.18rem 0.5rem;
   vertical-align: middle;
-}
-
-/* Freccia hover sulle card del carosello */
-.car-arrow {
-  position: absolute;
-  top: 10px;
-  right: 10px;
-  z-index: 4;
-  width: 28px;
-  height: 28px;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  border-radius: 50%;
-  color: #fff;
-  background: rgb(var(--accent-rgb) / 0.85);
-  box-shadow: 0 6px 16px rgb(var(--accent-rgb) / 0.4), 0 0 0 1px rgba(255,255,255,0.2);
-  opacity: 0;
-  transform: scale(0.7);
-  transition: opacity var(--dur-fast) ease, transform var(--dur-fast) var(--ease-out-expo);
-}
-
-.carousel-card:hover .car-arrow {
-  opacity: 1;
-  transform: scale(1);
 }
 
 /* ── Strip di stato (footer home) ──────────────────────────── */
@@ -2813,7 +2819,7 @@ button.status-version:hover {
 }
 
 /* Light surfaces must also override the local dark glass recipes. */
-[data-theme="light"] :is(.glass-panel, .editor-panel, .surface-card, .poster-tile, .preview-frame, .floating-action, .floating-group, .search-shell, .simkl-list-card, .carousel-card) {
+[data-theme="light"] :is(.glass-panel, .editor-panel, .surface-card, .poster-tile, .preview-frame, .floating-action, .floating-group, .search-shell, .simkl-list-card) {
   --glass-grad: none;
   --glass-tint: var(--color-surface);
   --glass-border: var(--color-border-subtle);
