@@ -1,5 +1,5 @@
 ﻿import { describe, expect, it, beforeEach, vi, afterEach } from "vitest"
-import { resolveMaxQuality, getJWTitleQuality, __resetJWRankingsCache } from "@/lib/justwatch"
+import { resolveMaxQuality, resolveJWFormats, getJWTitleQuality, __resetJWRankingsCache } from "@/lib/justwatch"
 
 describe("resolveMaxQuality", () => {
   it("returns null for empty offers", () => {
@@ -84,5 +84,23 @@ describe("getJWTitleQuality", () => {
 
     const quality = await getJWTitleQuality(999999, "MOVIE", "Nonexistent", "IT")
     expect(quality).toBeNull()
+  })
+})
+
+describe("resolveJWFormats", () => {
+  it("unions DV/Atmos across offers, ignores empty and unknown values", () => {
+    expect(resolveJWFormats([
+      { videoTechnology: [], audioTechnology: [] },
+      { videoTechnology: ["DOLBY_VISION"], audioTechnology: ["_5_POINT_1"] },
+      { videoTechnology: null, audioTechnology: ["DOLBY_ATMOS"] },
+    ])).toEqual(["dv", "atmos"])
+  })
+
+  it("maps HDR10+ apart from HDR and keeps a stable order", () => {
+    expect(resolveJWFormats([{ videoTechnology: ["IMAX_ENHANCED", "HDR10_PLUS", "HDR10"] }])).toEqual(["hdr", "hdr10plus", "imax"])
+  })
+
+  it("returns [] for offers without technology fields", () => {
+    expect(resolveJWFormats([{}])).toEqual([])
   })
 })

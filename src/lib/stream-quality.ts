@@ -1,5 +1,6 @@
 import { getJWTitleQualityResult } from "./justwatch"
 import { envWithFallback } from "./env-compat"
+import type { VideoFormat } from "./av-specs"
 
 // Tier/soglia in quality-tiers.ts (zero dipendenze): qui solo re-export per
 // compatibilità degli import esistenti (+ import type per l'uso locale).
@@ -45,6 +46,8 @@ export interface StreamQualityResult {
   readonly status: QualityStatus
   readonly source: QualitySource
   readonly rawTokens?: string[]
+  /** Formati A/V live (JustWatch videoTechnology/audioTechnology). */
+  readonly formats?: VideoFormat[]
 }
 
 const qualityCache = new Map<string, { quality: StreamQualityResult; timestamp: number }>()
@@ -177,7 +180,7 @@ export async function resolveStreamQuality(
       )
       if (jw.quality) {
         // Qualità accertata → resolved con TTL pieno.
-        return store({ quality: jw.quality, status: "resolved", source: "justwatch" })
+        return store({ quality: jw.quality, status: "resolved", source: "justwatch", formats: jw.formats })
       }
       // ok=false (breaker aperto o trasporto fallito) = incertezza, NON miss:
       // error effimero. Solo ok=true con quality null è esito negativo accertato.
@@ -188,7 +191,7 @@ export async function resolveStreamQuality(
           source: "justwatch",
         })
       }
-      return store({ quality: null, status: "resolved", source: "justwatch" })
+      return store({ quality: null, status: "resolved", source: "justwatch", formats: jw.formats })
     } catch (err) {
       return store({ quality: null, status: isQualityTimeout(err) ? "timeout" : "error", source: "justwatch" })
     }

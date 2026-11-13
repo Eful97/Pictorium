@@ -4,6 +4,7 @@ import { timedFetch } from "./outbound-stats"
 import { envWithFallback } from "@/lib/env-compat"
 import { createCircuitBreaker } from "@/lib/circuit-breaker"
 import { GLOBAL_REGION_CODE } from "./regions"
+import type { VideoFormat } from "./av-specs"
 import { cacheGetSharedUpstream, cacheSetSharedUpstream } from "./cache"
 
 // Sovrascrivibile via env: nei test E2E punta al mock server locale.
@@ -944,6 +945,8 @@ const TITLE_OFFERS_QUERY = `query GetTitleOffers($country: Country!, $language: 
         offers(country: $country, platform: WEB) {
           monetizationType
           presentationType
+          videoTechnology
+          audioTechnology
         }
       }
     }
@@ -966,10 +969,35 @@ export function resolveMaxQuality(presentationTypes: (string | null | undefined)
   return null
 }
 
-const qualityCache = new Map<string, { data: JWQuality | null; timestamp: number }>()
+/**
+ * Formati A/V dalle offerte JW (`videoTechnology`/`audioTechnology`, unione su
+ * tutte le offerte: alcune piattaforme lasciano i campi vuoti). Valori visti:
+ * DOLBY_VISION, DOLBY_ATMOS, _5_POINT_1 (introspection chiusa → match per
+ * sottostringa, i valori ignoti sono scartati). Ordine stabile = KNOWN order.
+ */
+export function resolveJWFormats(
+  offers: ReadonlyArray<{ videoTechnology?: readonly (string | null)[] | null; audioTechnology?: readonly (string | null)[] | null }>,
+): VideoFormat[] {
+  const found = new Set<VideoFormat>()
+  for (const o of offers) {
+    for (const raw of [...(o.videoTechnology ?? []), ...(o.audioTechnology ?? [])]) {
+      const t = String(raw ?? "").toUpperCase().replace(/[^A-Z0-9]/g, "")
+      if (t.includes("DOLBYVISION")) found.add("dv")
+      else if (t.includes("HDR10PLUS")) found.add("hdr10plus")
+      else if (t.includes("HDR")) found.add("hdr")
+      else if (t.includes("ATMOS")) found.add("atmos")
+      else if (t.includes("IMAX")) found.add("imax")
+    }
+  }
+  return (["dv", "hdr", "hdr10plus", "atmos", "imax"] as const).filter((f) => found.has(f))
+}
+
+const qualityCache = new Map<string, { data: JWQuality | null; formats: VideoFormat[]; timestamp: number }>()
 
 export interface JWTitleQualityResult {
   readonly quality: JWQuality | null
+  /** Formati A/V live (vuoto se ignoti o nessuna offerta li dichiara). */
+  readonly formats: VideoFormat[]
   /** False quando il null NON è un miss genuino: breaker aperto o fallimento
    *  di trasporto (ingoiato da fetchTitleOffersShared). Il chiamante decide
    *  il TTL effimero invece di cachare a lungo un degradato. */
@@ -998,7 +1026,7 @@ export async function getJWTitleQualityResult(
   const cacheKey = `${objectType}:${country}:${tmdbId}`
   const cached = qualityCache.get(cacheKey)
   if (cached && Date.now() - cached.timestamp < CACHE_TTL) {
-    return { quality: cached.data, ok: true }
+    return { quality: cached.data, formats: cached.formats, ok: true }
   }
 
   const filter: Record<string, unknown> = {
@@ -1019,7 +1047,7 @@ export async function getJWTitleQualityResult(
   let trial: number | null = null
   if (!joined) {
     if (isCircuitOpen()) {
-      return { quality: null, ok: false }
+      return { quality: null, formats: [], ok: false }
     }
     trial = justwatchBreaker.currentTrial()
   }
@@ -1028,7 +1056,7 @@ export async function getJWTitleQualityResult(
   // Payload null = fallimento di trasporto (non miss genuina): ok=false così
   // il chiamante applica TTL effimero invece di congelare il degradato.
   // (hasJWOffers sotto resta fail-open a null: semantica invariata.)
-  if (!payload) return { quality: null, ok: false }
+  if (!payload) return { quality: null, formats: [], ok: false }
   {
     const edges = payload.edges
 
@@ -1045,14 +1073,16 @@ export async function getJWTitleQualityResult(
       matchedNode = (edges[0] as { node?: unknown }).node
     }
 
-    const node = matchedNode as { offers?: Array<{ presentationType?: string }> } | null
-    const offers = (node?.offers || []) as Array<{ presentationType?: string }>
+    type Offer = { presentationType?: string; videoTechnology?: string[] | null; audioTechnology?: string[] | null }
+    const node = matchedNode as { offers?: Offer[] } | null
+    const offers = node?.offers || []
     const presTypes = offers.map((o) => o.presentationType)
     const maxQ = resolveMaxQuality(presTypes)
+    const formats = resolveJWFormats(offers)
 
     if (qualityCache.size >= CACHE_MAX) qualityCache.delete(qualityCache.keys().next().value!)
-    qualityCache.set(cacheKey, { data: maxQ, timestamp: Date.now() })
-    return { quality: maxQ, ok: true }
+    qualityCache.set(cacheKey, { data: maxQ, formats, timestamp: Date.now() })
+    return { quality: maxQ, formats, ok: true }
   }
 }
 

@@ -3050,12 +3050,13 @@ export async function GET(req: NextRequest, { params }: { params: Promise<RouteP
     )
 
     // Formati A/V built-in (dv, atmos, imax, hdr, hdr10plus): sempre
-    // automatici dalle specifiche reali del film (localSpec) — mai un logo che
+    // automatici dalle specifiche reali del film (localSpec, poi JW live) — mai un logo che
     // il titolo non possiede. I marchi del pack (`QualityMarkId` non built-in)
     // non hanno dati per-titolo: entrano SOLO quando la selezione esplicita
     // (query/mapping, o defaults non vuoti) li contiene, quindi l'assenza di
     // selezione resta byte-identica allo storico.
-    const availableFormats = localSpec?.formats ?? []
+    // Precedenza come la qualità: DB locale (curato) > JustWatch live.
+    const availableFormats = localSpec?.formats ?? liveQualityResult.formats ?? []
     const qFormatsRaw = req.nextUrl.searchParams.get("formats")
     const qFormats = qFormatsRaw !== null
       ? (qFormatsRaw === "none" || qFormatsRaw === "" ? [] : qFormatsRaw.split(",").map((s) => s.trim().toLowerCase()).filter(isQualityMarkId))
