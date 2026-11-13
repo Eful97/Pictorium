@@ -9,3 +9,7 @@ updates:
     directory: "/"
     schedule:
       interval: "weekly"
+    # One weekly PR for all action bumps instead of one PR per action.
+    groups:
+      github-actions:
+        patterns: ["*"]
