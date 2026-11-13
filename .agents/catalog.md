@@ -842,14 +842,17 @@ Il proxy (`/api/proxy`, rewrite in `lib/addon-proxy.ts`) riscrive SOLO la
 poster URL degli item esterni con id anime-native **risolvibili in modo
 sicuro**, senza toccare id/tipo/ordine/paginazione/videos:
 
-- Solo `anilist:`/`kitsu:` + tipo item esplicito (`movie`/`anime.movie` →
+- Solo `anilist:`/`kitsu:`/`mal:`/`anidb:` + tipo item esplicito (`movie`/`anime.movie` →
   movie, `series`/`anime.series`/`tv`/`show` → tv). Snapshot versionato in
   `src/generated/anime-id-map.json` (derivato compatto di
   Fribb/anime-lists, vedi `docs/anime-id-mapping.md`), indici in-memory,
   lookup sincrono a zero rete.
 - Match unico lato-compatibile → `/api/poster/{movie|series}/{tmdbId}` con la
   stessa propagazione `rv`/`u`/`dv`. Miss, ambiguità, mismatch di media type,
-  tipo `anime` nudo, `mal:`/`anidb:`, id malformati → artwork originale.
+  tipo `anime` nudo, id malformati → artwork originale.
+- La poster route usa la stessa regola (`animeArtworkPosterId`) sugli id
+  anime nel path (template Nuvio auto `{tmdb_id|imdb_id|id}`), con il
+  `{type}` del path come lato; `tvdb:`/`tvdbc:` via TMDB find. Miss → `400`.
 - Un match unico stagione→show riusa l'artwork della SERIE (mai artwork
   stagione-specifico, mai merge di stagioni).
 - Le risposte proxy non sono cachate server-side: un refresh dello snapshot

@@ -66,6 +66,13 @@ the manifest (no `kitsu:`/`anilist:`/`mal:`/`anidb:` meta prefixes advertised).
   never a first-pick, and an id present only on the other TMDB side is
   `missing`. No title search, no enrichment calls, zero network (the rewrite
   stays synchronous).
+- **Poster route** (`/api/poster/{type}/{id}`): the same `animeArtworkPosterId`
+  rule resolves path ids `anilist:N`/`kitsu:N`/`mal:N`/`anidb:N` with the
+  path `{type}` as the side, so consumers that substitute the full meta id
+  (Nuvio auto template `{tmdb_id|imdb_id|id}`) get Pictorium posters for
+  anime items. Same zero-network snapshot lookup; a miss, an ambiguous
+  match or a bare `anime` type answers `400` and the consumer keeps its
+  original poster.
 - **Season limit**: a unique season→show match reuses *series* artwork; it
   does not promise season-specific artwork and never merges seasons.
 - **Ratings** (`resolveAnimeIds` in `src/lib/anime-ratings.ts`): local reverse
