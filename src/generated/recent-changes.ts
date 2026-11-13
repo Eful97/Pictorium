@@ -11,6 +11,12 @@ export interface RecentChange {
 }
 
 export const RECENT_CHANGES: RecentChange[] = [
-  { type: "feature", text: "Modernize animations and transitions", sha: "29ed00a", date: "2026-11-12" },
-  { type: "fix", text: "Realign specs with Preferenze-first settings and fix a11y", sha: "16f2e0b", date: "2026-11-12" },
+  { type: "perf", text: "poster disk cache, chart probe memo, larger L1", sha: "b775da5", date: "2026-11-13" },
+  { type: "fix", text: "bind rating fetch to render deadline", sha: "892c4b0", date: "2026-11-12" },
+  { type: "fix", text: "align ranked column to numeral, soften left blur", sha: "c6d582c", date: "2026-11-12" },
+  { type: "fix", text: "fit editoriale Dolby mark width to logo", sha: "d8863e6", date: "2026-11-12" },
+  { type: "fix", text: "unify quality badge sizes and frames", sha: "757f597", date: "2026-11-12" },
+  { type: "fix", text: "keep DuckDNS notice above app background", sha: "86aae86", date: "2026-11-12" },
+  { type: "feature", text: "split per-title badge panel into sub-tabs", sha: "3a2be9c", date: "2026-11-12" },
+  { type: "feature", text: "add new badge styles and modernize materials", sha: "e2d200f", date: "2026-11-12" },
 ]
