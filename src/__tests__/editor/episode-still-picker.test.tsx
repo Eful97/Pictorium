@@ -1422,6 +1422,38 @@ describe("EpisodePreview still studio", () => {
     })
   })
 
+  it("a manual still pick pins the title when daily rotation is ON (preview follows the click)", async () => {
+    mockFetch()
+    function RotationOn() {
+      const ed = usePosterEditor()
+      return <button type="button" data-testid="rotation-on" onClick={() => ed.setDefaultThumbnailRotation(true)}>on</button>
+    }
+    renderWithCtx(
+      <>
+        <EpisodePreview />
+        <RotationOn />
+      </>,
+      { selected: selectedSeries(), tmdbKey: "test-key" },
+    )
+    act(() => {
+      fireEvent.click(screen.getByTestId("rotation-on"))
+    })
+    const dialog = await openEpisodeBrowser()
+    await waitFor(() => {
+      expect(within(dialog).getAllByTestId("episode-still-tile")).toHaveLength(2)
+    })
+    const before = within(dialog).getByTestId("episode-still-preview").getAttribute("src") ?? ""
+    expect(before).toContain("rotate=1")
+
+    act(() => {
+      fireEvent.click(within(dialog).getAllByTestId("episode-still-tile")[1])
+    })
+
+    const after = within(dialog).getByTestId("episode-still-preview").getAttribute("src") ?? ""
+    expect(after).not.toContain("rotate=1")
+    expect(after).not.toBe(before)
+  })
+
   it("fills the left grid with each episode's first still by default (no manual select)", async () => {
     // Real payloads can lack a TMDB thumbnail on episodes: the grid must not
     // stay a placeholder until the user selects the row. The first still of

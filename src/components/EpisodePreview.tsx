@@ -943,7 +943,10 @@ function EpisodeStillStudio({
     const safe = sanitizeEpisodeStillPath(still)
     if (!safe) return
     setStaged((prev) => ({ ...prev, [selectedKey]: { provider: "tmdb", still: safe } }))
-  }, [selectedKey])
+    // Daily rotation replaces `?still` server-side, so a manual pick would be
+    // invisible (preview AND `/meta`): an explicit choice pins this title.
+    if ((rotationDraft ?? ed.defaultThumbnailRotation) === true) setRotationDraft(false)
+  }, [selectedKey, rotationDraft, ed.defaultThumbnailRotation])
 
   // TVDB choice: records the provider and removes any TMDB override for this
   // S:E at save, so `/meta` serves the space TVDB base (the only per-episode
