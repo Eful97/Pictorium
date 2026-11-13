@@ -66,44 +66,24 @@ La strada più veloce usa un'istanza pubblica — nessuna installazione:
 <table align="center" width="100%">
   <tr>
     <td width="50%"><img src="https://raw.githubusercontent.com/Eful97/Pictorium/master/public/Screen/editor.png" alt="Pictorium Editor" style="border-radius: 8px;" /></td>
-    <td width="50%"><img src="https://raw.githubusercontent.com/Eful97/Pictorium/master/public/Screen/myposters.png" alt="Pictorium My Posters" style="border-radius: 8px;" /></td>
+    <td width="50%"><img src="https://raw.githubusercontent.com/Eful97/Pictorium/master/public/Screen/catalogs.png" alt="Pictorium Catalogs" style="border-radius: 8px;" /></td>
   </tr>
   <tr>
     <td align="center"><em>Editor WYSIWYG & Anteprima Live</em></td>
-    <td align="center"><em>I Miei Poster & Libreria Personale</em></td>
-  </tr>
-  <tr>
-    <td colspan="2"><img src="https://raw.githubusercontent.com/Eful97/Pictorium/master/public/Screen/catalogs.png" alt="Pictorium Catalogs" style="border-radius: 8px;" /></td>
-  </tr>
-  <tr>
-    <td align="center" colspan="2"><em>Cataloghi Dinamici & Classifiche Streaming JustWatch</em></td>
-  </tr>
-  <tr>
-    <td colspan="2"><img src="https://raw.githubusercontent.com/Eful97/Pictorium/master/public/Screen/landscape-editor.png" alt="Editor Landscape 16:9 — Ted Lasso" style="border-radius: 8px;" /></td>
-  </tr>
-  <tr>
-    <td align="center" colspan="2"><em>Editor Landscape 16:9: sfondi, logo integrato & Anteprima Live</em></td>
+    <td align="center"><em>Cataloghi Dinamici & Classifiche Streaming JustWatch</em></td>
   </tr>
 </table>
 
 <div align="center">
-  <img src="https://raw.githubusercontent.com/Eful97/Pictorium/master/public/Screen/1405.jpg" alt="Poster Demo — Dexter" width="31%" style="border-radius: 8px;" />
-  <img src="https://raw.githubusercontent.com/Eful97/Pictorium/master/public/Screen/155.jpg" alt="Poster Demo — The Dark Knight" width="31%" style="border-radius: 8px;" />
-  <img src="https://raw.githubusercontent.com/Eful97/Pictorium/master/public/Screen/66732.jpg" alt="Poster Demo — Stranger Things" width="31%" style="border-radius: 8px;" />
+  <img src="https://raw.githubusercontent.com/Eful97/Pictorium/master/public/Screen/poster-wall.jpg" alt="Portrait poster wall" width="100%" style="border-radius: 8px;" />
   <br />
-  <em>Poster verticali: base senza testo, logo integrato, badge qualità e voto</em>
+  <em>Poster verticali: badge Fresh, Nastro, Numero, Angolo, Split, Vetro, Tinta, Sfumato, Bordo, Editoriale e Coming Soon</em>
 </div>
 
 <div align="center">
-  <img src="https://raw.githubusercontent.com/Eful97/Pictorium/master/public/Screen/landscape.jpg" alt="Poster Landscape 16:9 Dimostrativo — Lanterns (HBO)" width="64%" style="border-radius: 8px;" />
+  <img src="https://raw.githubusercontent.com/Eful97/Pictorium/master/public/Screen/landscape-wall.jpg" alt="Landscape 16:9 poster wall" width="100%" style="border-radius: 8px;" />
   <br />
-  <em>Poster landscape 16:9 con logo integrato, nastro ranking e badge genere</em>
-</div>
-
-<div align="center">
-  <img src="https://raw.githubusercontent.com/Eful97/Pictorium/master/public/Screen/1368337.jpg" alt="Effetto Pre-Digitale — Coming Soon" width="31%" style="border-radius: 8px;" />
-  <br />
-  <em>Effetto Pre-Digitale: velo scuro + nastro "Coming Soon" sui film non ancora in streaming</em>
+  <em>Poster orizzontali 16:9: gli stessi stili di badge su sfondi con logo integrato</em>
 </div>
 
 ---

@@ -66,44 +66,24 @@ The fastest path uses a public instance — no install needed:
 <table align="center" width="100%">
   <tr>
     <td width="50%"><img src="https://raw.githubusercontent.com/Eful97/Pictorium/master/public/Screen/editor.png" alt="Pictorium Editor" style="border-radius: 8px;" /></td>
-    <td width="50%"><img src="https://raw.githubusercontent.com/Eful97/Pictorium/master/public/Screen/myposters.png" alt="Pictorium My Posters" style="border-radius: 8px;" /></td>
+    <td width="50%"><img src="https://raw.githubusercontent.com/Eful97/Pictorium/master/public/Screen/catalogs.png" alt="Pictorium Catalogs" style="border-radius: 8px;" /></td>
   </tr>
   <tr>
     <td align="center"><em>WYSIWYG Editor & Live Preview</em></td>
-    <td align="center"><em>My Posters & Personal Library</em></td>
-  </tr>
-  <tr>
-    <td colspan="2"><img src="https://raw.githubusercontent.com/Eful97/Pictorium/master/public/Screen/catalogs.png" alt="Pictorium Catalogs" style="border-radius: 8px;" /></td>
-  </tr>
-  <tr>
-    <td align="center" colspan="2"><em>Dynamic Catalogs & JustWatch Streaming Charts</em></td>
-  </tr>
-  <tr>
-    <td colspan="2"><img src="https://raw.githubusercontent.com/Eful97/Pictorium/master/public/Screen/landscape-editor.png" alt="Landscape 16:9 Editor — Ted Lasso" style="border-radius: 8px;" /></td>
-  </tr>
-  <tr>
-    <td align="center" colspan="2"><em>Landscape 16:9 Editor: backdrops, baked-in logo & Live Preview</em></td>
+    <td align="center"><em>Dynamic Catalogs & JustWatch Streaming Charts</em></td>
   </tr>
 </table>
 
 <div align="center">
-  <img src="https://raw.githubusercontent.com/Eful97/Pictorium/master/public/Screen/1405.jpg" alt="Poster Demo — Dexter" width="31%" style="border-radius: 8px;" />
-  <img src="https://raw.githubusercontent.com/Eful97/Pictorium/master/public/Screen/155.jpg" alt="Poster Demo — The Dark Knight" width="31%" style="border-radius: 8px;" />
-  <img src="https://raw.githubusercontent.com/Eful97/Pictorium/master/public/Screen/66732.jpg" alt="Poster Demo — Stranger Things" width="31%" style="border-radius: 8px;" />
+  <img src="https://raw.githubusercontent.com/Eful97/Pictorium/master/public/Screen/poster-wall.jpg" alt="Portrait poster wall" width="100%" style="border-radius: 8px;" />
   <br />
-  <em>Portrait posters: textless base, baked-in logo, quality and rating badges</em>
+  <em>Portrait posters: Fresh, Ribbon, Number, Corner, Split, Glass, Tint, Gradient, Outline, Editorial and Coming Soon badges</em>
 </div>
 
 <div align="center">
-  <img src="https://raw.githubusercontent.com/Eful97/Pictorium/master/public/Screen/landscape.jpg" alt="Landscape 16:9 Poster Demo — Lanterns (HBO)" width="64%" style="border-radius: 8px;" />
+  <img src="https://raw.githubusercontent.com/Eful97/Pictorium/master/public/Screen/landscape-wall.jpg" alt="Landscape 16:9 poster wall" width="100%" style="border-radius: 8px;" />
   <br />
-  <em>16:9 landscape poster with baked-in logo, top-10 outline number, genre/rating and network badge</em>
-</div>
-
-<div align="center">
-  <img src="https://raw.githubusercontent.com/Eful97/Pictorium/master/public/Screen/1368337.jpg" alt="Pre-Digital Effect — Coming Soon" width="31%" style="border-radius: 8px;" />
-  <br />
-  <em>Pre-Digital Effect: dark veil + "Coming Soon" ribbon on movies not yet streaming</em>
+  <em>16:9 landscape posters: the same badge styles on backdrops with baked-in logo</em>
 </div>
 
 ---
