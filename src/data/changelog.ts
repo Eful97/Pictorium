@@ -30,6 +30,17 @@ export interface ChangelogRelease {
  *  (which bumps on every commit and would leave the dot permanently on). */
 export const CHANGELOG: ChangelogRelease[] = [
   {
+    version: "1.27.7",
+    date: "2026-11-13",
+    title: "Release 1.27.7",
+    items: [
+      { type: "feature", text: "Browse custom posters in a coverflow view with drag and tap, and find grid actions in a single menu" },
+      { type: "feature", text: "See a full-bleed poster wall on the home page instead of the demo carousel" },
+      { type: "feature", text: "Optionally show the genre badge at the top of portrait posters when the top slot is free" },
+      { type: "fix", text: "Keep Docker containers free of leftover warmup processes" },
+    ],
+  },
+  {
     version: "1.27.6",
     date: "2026-11-13",
     title: "Release 1.27.6",
