@@ -84,7 +84,11 @@ universal fallback (every item has one, but franchise-shared `tt` ids on
 split season entries need a manual alias or mapping `imdbId` — resolution
 order: user alias > global alias > own mapping `imdbId` > global mapping
 `imdbId` > `/find`). Typed `tmdb:<num>` substitutions resolve as the exact
-numeric path, other prefixes stay `400`.
+numeric path. Anime-native `anilist:`/`kitsu:`/`mal:`/`anidb:` resolve via the
+local anime snapshot (`animeArtworkPosterId`, unique side-compatible match
+only, zero network) and `tvdb:`/`tvdbc:` via TMDB find; misses and other
+prefixes stay `400`. The Nuvio "auto" template uses `{tmdb_id|imdb_id|id}` so
+anime/tvdb items fall through to the full `{id}`.
 
 ## Catalog list (`PICTORIUM_CATALOGS` in `catalog-definitions.ts`)
 

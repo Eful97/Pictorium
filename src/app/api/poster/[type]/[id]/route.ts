@@ -1,7 +1,8 @@
 import { NextRequest } from "next/server"
 import { hydratePosterFromDisk } from "@/lib/poster-disk-cache"
 import { initSharp } from "@/lib/sharp-config"
-import { getImages, getDetails, getDetailsWithExternalIds, getExternalIds, getKeywords, getReleaseDates, getContentRatings, resolveUserApiKeys, type TMDBImage, type TMDBCompany } from "@/lib/tmdb"
+import { animeArtworkPosterId } from "@/lib/addon-proxy"
+import { getImages, getDetails, getDetailsWithExternalIds, getExternalIds, getKeywords, getReleaseDates, getContentRatings, resolveUserApiKeys, tmdbFindByTvdb, type TMDBImage, type TMDBCompany } from "@/lib/tmdb"
 import { hasJWOffers, jwAvailabilityRemainingMs, jwRankingsRemainingMs, jwTitlesRemainingMs, JW_DIGITAL_MONETIZATION_TYPES } from "@/lib/justwatch"
 import { resolveRankingSource } from "@/lib/ranking-source"
 import { customRankingRemainingMs, fetchCustomRankingTop20, findRankingCustomCatalog } from "@/lib/custom-ranking"
@@ -352,9 +353,25 @@ export async function GET(req: NextRequest, { params }: { params: Promise<RouteP
   const pathImdbId = typeof id === "string" && /^tt\d+$/.test(id) ? id : null
   // Id tipizzato `tmdb:<num>` (es. sostituzione Nuvio del template auto
   // `{tmdb_id|imdb_id}`): path numerico esatto, niente /find — come il nudo.
-  // Altri prefissi restano 400 (non risolvibili senza lookup dedicati).
+  // Altri prefissi: ramo anime/tvdb sotto, il resto resta 400.
   const pathTmdbPrefixed = typeof id === "string" ? id.match(/^tmdb:(\d+)$/i)?.[1] ?? null : null
   let tmdbId = pathTmdbPrefixed ? Number(pathTmdbPrefixed) : Number(id)
+  // Id anime-native (`kitsu:`/`mal:`/`anilist:`/`anidb:`, es. template Nuvio
+  // `{id}`): stesso snapshot locale del proxy addon (zero rete, solo match
+  // unico e lato-compatibile). Miss/ambiguo → 400 sotto, il client tiene
+  // l'artwork originale. `tvdb:`/`tvdbc:` come /meta: TMDB /find (cache 5min
+  // + coalescing), errore/chiave assente → 400.
+  if ((isNaN(tmdbId) || tmdbId <= 0) && typeof id === "string") {
+    const anime = animeArtworkPosterId(id, type)
+    const tvdbRaw = anime ? null : id.match(/^tvdbc?:(\d+)$/i)?.[1]
+    if (anime) {
+      tmdbId = anime.tmdbId
+      mediaType = anime.mediaType === "movie" ? "movie" : "tv"
+    } else if (tvdbRaw) {
+      const resolved = await tmdbFindByTvdb(tvdbRaw, mediaType, effTmdbKey).catch(() => null)
+      if (resolved) tmdbId = resolved
+    }
+  }
   if (isNaN(tmdbId) || tmdbId <= 0) {
     if (typeof id === "string" && id.startsWith("tt")) {
       // Alias manuale per-namespace vince sul /find TMDB (tt di franchise su
