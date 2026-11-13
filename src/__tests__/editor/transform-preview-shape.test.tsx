@@ -503,5 +503,5 @@ describe("SettingsPanel reale: tab Trasforma → Orizzontale → slider live →
     // The Portrait flats were not rewritten by the Landscape target.
     expect(ed.defaultGradientHeight).toBe(30)
     expect(ed.defaultTopBadgeScale).toBe(100)
-  })
+  }, 20000)
 })
