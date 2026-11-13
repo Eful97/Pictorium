@@ -51,7 +51,7 @@ afterEach(() => {
 })
 
 describe("Thumbnails zone (top-level)", () => {
-  it("lists only customized TV titles, sorted, with compact rows (no preview until expanded)", () => {
+  it("lists only customized TV titles, sorted, as cards with the preview always visible", () => {
     renderWithCtx(<ThumbnailsView />, { lang: "en", mappings: baseMappings() })
 
     const rows = screen.getAllByTestId("thumbnail-zone-row")
@@ -60,27 +60,28 @@ describe("Thumbnails zone (top-level)", () => {
     expect(screen.getByText("Rotation Only")).toBeTruthy()
     expect(screen.getByText("With Stills")).toBeTruthy()
     expect(screen.queryByText("Plain")).toBeNull()
-    // Compact by default: the composed preview only mounts when expanded.
-    expect(screen.queryByRole("img")).toBeNull()
-    expect(rows[0].querySelector('[data-testid="thumbnail-zone-edit"]')).toBeNull()
+    // Preview always visible; details (rotation, episodes) only when expanded.
+    for (const row of rows) expect(row.querySelector('img[src^="/api/thumbnail/tv/"]')).toBeTruthy()
+    expect(screen.queryByTestId("thumbnail-zone-details")).toBeNull()
   })
 
-  it("expands one row at a time to reveal preview + rotation + still-studio entry", () => {
+  it("shows the composed preview and expands details with rotation + customized episodes", () => {
     renderWithCtx(<ThumbnailsView />, { lang: "en", mappings: baseMappings() })
 
     const stillRow = screen.getByText("With Stills").closest("li") as HTMLLIElement
-    fireEvent.click(screen.getByLabelText(`${t("ui.details")}: With Stills`))
-
     const preview = stillRow.querySelector("img") as HTMLImageElement
     expect(preview.getAttribute("src")).toBe(
-      "/api/thumbnail/tv/2/season/1/episode/2?w=160&badges=vote&still=%2Fstill-two.jpg",
+      "/api/thumbnail/tv/2/season/1/episode/2?w=480&badges=vote&still=%2Fstill-two.jpg",
     )
+    expect(stillRow.querySelector('[data-testid="episode-rotation-inherit"]')).toBeNull()
+
+    fireEvent.click(screen.getByLabelText(`${t("ui.details")}: With Stills`))
     expect(stillRow.querySelector('[data-testid="episode-rotation-inherit"]')).toBeTruthy()
-    expect(stillRow.querySelector('[data-testid="thumbnail-zone-edit"]')).toBeTruthy()
+    expect(stillRow.querySelector('[data-testid="thumbnail-zone-episodes"]')?.textContent).toContain("S01E02")
 
     // Collapsing hides them again.
     fireEvent.click(screen.getByLabelText(`${t("ui.details")}: With Stills`))
-    expect(stillRow.querySelector("img")).toBeNull()
+    expect(stillRow.querySelector('[data-testid="thumbnail-zone-details"]')).toBeNull()
   })
 
   it("opens the still studio entry with the Miniature-zone source (not a plain poster open)", () => {
@@ -91,10 +92,12 @@ describe("Thumbnails zone (top-level)", () => {
       mappings: [mapping({ tmdbId: 2, title: "With Stills", episodeThumbnailStills: { "1:2": "/still-two.jpg" } })],
     })
 
-    fireEvent.click(screen.getByLabelText(`${t("ui.details")}: With Stills`))
+    // Card click and menu entry both open the studio.
+    fireEvent.click(screen.getByLabelText(`${t("ui.thumbnailsZoneEdit")}: With Stills`))
+    fireEvent.click(screen.getByLabelText(`${t("ui.moreActions")}: With Stills`))
     fireEvent.click(screen.getByTestId("thumbnail-zone-edit"))
 
-    expect(navigateToPoster).toHaveBeenCalledTimes(1)
+    expect(navigateToPoster).toHaveBeenCalledTimes(2)
     const [item, source] = navigateToPoster.mock.calls[0] as [Record<string, unknown>, string]
     expect(source).toBe("thumbnails")
     expect(item).toMatchObject({ id: 2, media_type: "tv", title: "With Stills" })
@@ -110,6 +113,7 @@ describe("Thumbnails zone (top-level)", () => {
     expect(screen.getByText("Rotation Only")).toBeTruthy()
 
     // Select the filtered row, then clear the filter: selection survives.
+    fireEvent.click(screen.getByTestId("thumbnails-select-mode"))
     fireEvent.click(screen.getByLabelText(`${t("ui.selectAll")}: Rotation Only`))
     fireEvent.change(search, { target: { value: "stills" } })
     // "With Stills" remains visible; the selected (hidden) row is still counted.
@@ -151,6 +155,7 @@ describe("Thumbnails zone (top-level)", () => {
       ],
     })
 
+    fireEvent.click(screen.getByTestId("thumbnails-select-mode"))
     fireEvent.click(screen.getByLabelText(`${t("ui.selectAll")}: With Stills`))
     fireEvent.click(screen.getByLabelText(`${t("ui.selectAll")}: Rotation Only`))
     expect(screen.getByTestId("thumbnails-selected-count").getAttribute("data-count")).toBe("2")
@@ -175,7 +180,7 @@ describe("Thumbnails zone (top-level)", () => {
     await waitFor(() => expect(loadMappings).toHaveBeenCalledTimes(1))
   })
 
-  it("supports a per-row delete (thumbnail keys only)", async () => {
+  it("supports a per-card delete only after the inline confirm (thumbnail keys only)", async () => {
     const loadMappings = vi.fn(async () => {})
     renderWithCtx(<ThumbnailsView />, {
       lang: "en",
@@ -183,7 +188,10 @@ describe("Thumbnails zone (top-level)", () => {
       mappings: [mapping({ tmdbId: 2, title: "With Stills", episodeThumbnailStills: { "1:2": "/two.jpg" } })],
     })
 
+    fireEvent.click(screen.getByLabelText(`${t("ui.moreActions")}: With Stills`))
     fireEvent.click(screen.getByTestId("thumbnail-zone-delete-row"))
+    expect(httpMock).not.toHaveBeenCalled()
+    fireEvent.click(screen.getByTestId("thumbnail-zone-confirm-delete"))
     await waitFor(() => expect(httpMock).toHaveBeenCalledTimes(1))
     const [url, init] = httpMock.mock.calls[0] as unknown as [string, RequestInit]
     expect(url).toBe("/api/mappings/tv:2")
@@ -201,6 +209,6 @@ describe("Thumbnails zone (top-level)", () => {
     })
     expect(screen.getByTestId("thumbnail-zone-empty")).toBeTruthy()
     expect(screen.queryAllByTestId("thumbnail-zone-row")).toHaveLength(0)
-    expect(screen.getByTestId("thumbnails-bulk-delete")).toBeDisabled()
+    expect(screen.getByTestId("thumbnails-select-mode")).toBeDisabled()
   })
 })

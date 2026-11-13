@@ -8,7 +8,7 @@ import { posterUrl, titleOf, yearOf } from "@/lib/utils"
 import { SearchBar } from "@/components/SearchBar"
 import { PosterCardSkeleton } from "@/components/Skeleton"
 import { Clock, X, Check, ChevronDown, ChevronUp, Clapperboard, Tv, Star, Trash2, Loader2 } from "lucide-react"
-import { PosterDepthEdge } from "@/components/PosterDepthGlow"
+import { PosterDepthEdge, PosterDepthSheen } from "@/components/PosterDepthGlow"
 
 export function SearchView() {
   const { t } = useT()
@@ -181,7 +181,7 @@ export function SearchView() {
       </div>
 
       {s.searching && s.results.length === 0 && (
-        <div className="mx-auto grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 xl:grid-cols-6 gap-3.5 sm:gap-4 max-w-7xl">
+        <div className="mx-auto grid gap-x-3 gap-y-6 md:gap-x-5 md:gap-y-8 max-w-7xl px-4 grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 xl:grid-cols-6">
           {Array.from({ length: 12 }).map((_, i) => (
             <PosterCardSkeleton key={i} />
           ))}
@@ -219,7 +219,7 @@ export function SearchView() {
       {s.results.length > 0 && (
         <div className="relative animate-fade-scale-in">
           {s.searching && <div className="absolute inset-0 bg-background/60 backdrop-blur-sm z-20 rounded-2xl flex items-center justify-center"><p className="text-sm text-muted animate-pulse">{t("ui.searching")}</p></div>}
-          <div className="mx-auto grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 xl:grid-cols-6 gap-3.5 sm:gap-4 max-w-7xl">
+          <div className="mx-auto grid gap-x-3 gap-y-6 md:gap-x-5 md:gap-y-8 max-w-7xl px-4 grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 xl:grid-cols-6">
           {visibleResults.map((r, idx) => {
             const mapping = mappingsMap.get(`${r.media_type}:${r.id}`)
             const year = yearOf(r)
@@ -233,6 +233,8 @@ export function SearchView() {
                 : r.vote_average != null && r.vote_average > 0
                   ? r.vote_average
                   : null
+            // Stessa tile della griglia "I miei poster" (MoodBoardTile): card
+            // pulita + didascalia sotto.
             return (
               <button
                 type="button"
@@ -241,13 +243,12 @@ export function SearchView() {
                 onMouseEnter={() => prefetchTitle(r)}
                 onFocus={() => prefetchTitle(r)}
                 aria-label={`${title} (${year})`}
-                className="surface-card group relative rounded-xl overflow-hidden transition duration-300 ease-out w-full border border-white/10 shadow-2xl hover:-translate-y-[3px] hover:scale-[1.015] hover:shadow-[0_22px_48px_rgba(0,0,0,0.48),0_0_22px_rgba(232,93,42,0.10)] hover:border-white/20 active:scale-[0.98] cursor-pointer animate-stagger-in text-left flex flex-col"
-                style={{ animationDelay: `${Math.min(idx * 30, 300)}ms` }}
+                className={`group relative w-full text-left cursor-pointer ${idx < 12 ? "animate-stagger-in tile-cv" : "tile-cv"}`}
+                style={idx < 12 ? { animationDelay: `${Math.min(idx * 30, 300)}ms` } : undefined}
               >
-                {/* NuvioDesktop-style depth edge */}
-                <PosterDepthEdge edgeStrength={35} edgeCoverage={10} />
-                <div className="relative z-[1] w-full flex-1 flex flex-col">
-                  <div className="aspect-[2/3] bg-surface/80 overflow-hidden relative w-full">
+                <div className="surface-card relative z-10 rounded-xl overflow-hidden transition duration-300 ease-out w-full border border-white/10 shadow-lg group-hover:-translate-y-1 group-hover:shadow-[0_22px_48px_rgba(0,0,0,0.5),0_0_26px_rgb(var(--accent-rgb)/0.14)] group-hover:border-white/20">
+                <PosterDepthEdge edgeStrength={40} edgeCoverage={10} />
+                  <div className="relative z-[1] aspect-[2/3] bg-surface/80 overflow-hidden w-full">
                     {/* Immagine Poster */}
                     {r.poster_path ? (
                       // eslint-disable-next-line @next/next/no-img-element -- TMDB dynamic URL
@@ -256,7 +257,7 @@ export function SearchView() {
                         alt={title}
                         loading="lazy"
                         decoding="async"
-                        className="w-full h-full object-cover transition-transform duration-[400ms] ease-out group-hover:scale-[1.06]"
+                        className="w-full h-full object-cover transition-transform duration-500 ease-out group-hover:scale-[1.05]"
                       />
                     ) : (
                       <div className="w-full h-full flex flex-col items-center justify-center bg-gradient-to-b from-zinc-800/50 to-zinc-900/80 gap-2">
@@ -278,28 +279,23 @@ export function SearchView() {
                       </div>
                     )}
 
-                    {/* Hover affordance: la strip sotto mostra già titolo, anno,
-                        tipo e voto — nessun overlay informativo ridondante.
-                        Resta lift/scale/glow della card come feedback. */}
                   </div>
+                  <PosterDepthSheen sheenStrength={20} />
+                </div>
 
-                    {/* Card info strip sottostante (sempre leggibile, anche touch):
-                        voto incluso qui — l'overlay hover sopra resta per desktop. */}
-                    <div className="p-2.5 text-left bg-surface/50 border-t border-white/[0.04]">
-                      <p className="text-xs font-semibold text-zinc-100 truncate group-hover:text-accent-orange transition-colors duration-200">
-                        {title}
-                      </p>
-                      <div className="flex items-center justify-between text-[11px] text-muted mt-0.5 gap-1">
-                        <span>{year || "—"}</span>
-                        {displayRating !== null && (
-                          <span className="px-1.5 py-px rounded bg-amber-500/20 border border-amber-500/30 text-amber-300 font-semibold flex items-center gap-1 tabular-nums">
-                            <Star className="w-2.5 h-2.5 fill-amber-300" />
-                            {displayRating.toFixed(1)}
-                          </span>
-                        )}
-                        <span className="capitalize text-zinc-400">{r.media_type === "movie" ? t("ui.movie") : t("ui.tvSeries")}</span>
-                      </div>
-                    </div>
+                {/* Didascalia sotto la card: il poster resta pulito. */}
+                <div className="mt-2 px-0.5 min-w-0">
+                  <p className="text-[13px] font-medium text-foreground truncate">{title}</p>
+                  <p className="text-[11px] text-muted flex items-center gap-1.5 mt-0.5">
+                    {year && <><span className="tabular-nums">{year}</span><span aria-hidden="true">·</span></>}
+                    <span>{r.media_type === "movie" ? t("ui.movie") : t("ui.tvSeries")}</span>
+                    {displayRating !== null && (
+                      <span className="ml-auto inline-flex items-center gap-0.5 tabular-nums text-amber-300">
+                        <Star className="w-3 h-3 fill-amber-300" />
+                        {displayRating.toFixed(1)}
+                      </span>
+                    )}
+                  </p>
                 </div>
               </button>
             )
