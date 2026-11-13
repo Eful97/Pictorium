@@ -96,7 +96,7 @@ import { createLogger } from "@/lib/logger"
 import { resolvePosterRenderConfig, resolvePosterShape, resolveSeparateRatingsEnabled, resolveSeparateDisplayState, resolveAgeBadgeRequest } from "@/lib/poster-config"
 import { selectBestLogo, logoBestLogoFallbackReason } from "@/lib/logo-selection"
 import { buildTextLogoBuffer } from "@/lib/svg-badge"
-import { resolveAutoWordmark, resolveTextLogo, type TextLogo, AUTO_WORDMARK_TRACK_FACTOR } from "@/lib/text-logo"
+import { resolveAutoWordmark, resolveTextLogo, AUTO_WORDMARK_TRACK_FACTOR } from "@/lib/text-logo"
 import { resolveStreamQuality, type StreamQualityResult } from "@/lib/stream-quality"
 import { applyMinQuality, type StreamQuality } from "@/lib/quality-tiers"
 import { lookupAVSpecs } from "@/lib/av-specs"
@@ -119,6 +119,7 @@ import {
   posterErrorResponse,
 } from "./phases"
 import { admitPosterRequest } from "./admission"
+import type { PosterArtwork, PosterTitleMeta } from "./sources"
 
 // Vercel: limite massimo di esecuzione della funzione. Il render poster ha un
 // deadline interno di 30s (PICTORIUM_RENDER_TIMEOUT_MS) → 40s copre il caso
@@ -1156,49 +1157,50 @@ export async function GET(req: NextRequest, { params }: { params: Promise<RouteP
       return posterErrorResponse(503)
     }
   }
-  // 4. Resolve poster/logo/backdrop paths
-  let posterPath: string | null = null
-  let posterPathBuffer: Buffer | null = null
-  // Ramo portrait senza clean: path del backdrop da cui è stato ricavato il
-  // cover-crop 2:3 della base. Serve solo alla chiave di analisi pixel
-  // (`analysisKey`): i byte sono un crop, non il poster nominale.
-  let portraitBackdropCropPath: string | null = null
-  // Ramo mapping: backdrop congelato al save (`portraitBackdropPath`, solo
-  // portrait) da cui ricavare la base come cover-crop 2:3. Null = base
-  // storica (`mapping.posterPath`), landscape e basi custom invariati.
-  let mappingPortraitBackdropPath: string | null = null
-  // Buffer del logo già scaricato dal best-fit (w500): riusato nel Block A per
-  // evitare il re-fetch. Assente su cache hit del best-fit o timeout del logo →
-  // Block A fa il fetch normale.
-  let logoPathBuffer: Buffer | null = null
-  let logoPath: string | null = null
-  // Il poster finale del ramo automatico è clean (senza testo incorporato)?
-  // Solo TMDB iso_639_1===null. Serve a: (1) non sovrapporre mai il logo a un
-  // poster con testo, (2) forzare il profilo blur non-clean sui default
-  // iniettati da Stremio (Golden Rule col client).
-  let autoPosterClean = false
-  // Lingua richiesta per artwork/logo (ramo non-mappato; default da posterRegion):
-  // serve al blocco debug=1 fuori dallo scope del ramo.
-  let posterRequestedLang = posterRegion.lang2
-  // Selezione logo per debug=1: iso scelto + motivo del fallback (null = logo
-  // esplicito da query/mapping, nessun fallback applicato).
-  let logoChosenIso: string | null = null
-  let logoFallbackReason: string | null = null
-  let backdropPath: string | null = null
-  // Sfondi TMDB del ramo automatico (details.backdrop_path o primo backdrops
-  // di getImages): fallback per la base landscape quando query/mapping non
-  // ne forniscono uno.
-  let autoBackdropPath: string | null = null
-  let backdropScale = 100
-  let backdropOffsetX = 0
-  let backdropOffsetY = 0
+  // 4. Resolve poster/logo/backdrop paths (campi documentati in sources.ts)
+  const artwork: PosterArtwork = {
+    posterPath: null,
+    posterPathBuffer: null,
+    portraitBackdropCropPath: null,
+    mappingPortraitBackdropPath: null,
+    logoPathBuffer: null,
+    logoPath: null,
+    autoPosterClean: false,
+    posterRequestedLang: posterRegion.lang2,
+    logoChosenIso: null,
+    logoFallbackReason: null,
+    backdropPath: null,
+    autoBackdropPath: null,
+    backdropScale: 100,
+    backdropOffsetX: 0,
+    backdropOffsetY: 0,
+    autoFetchFailed: false,
+    textLogo: resolveTextLogo(hardenedParams.get("ltext"), hardenedParams.get("lfont")),
+    textLogoAuto: false,
+  }
   let etag: string
-  let genreName: string | null = null
-  let voteAverage: number | null = null
-  // Il ramo non-mappato ha fallito il fetch automatico dei dati TMDB
-  // (errore/outage upstream, non titolo inesistente): le risposte da
-  // !posterPath devono essere 503, non 404.
-  let autoFetchFailed = false
+  const titleMeta: PosterTitleMeta = {
+    genreName: null,
+    voteAverage: null,
+    releaseDate: null,
+    firstAirDate: null,
+    lastAirDate: null,
+    seasonCount: null,
+    nextEpisodeAirDate: null,
+    numberOfEpisodes: null,
+    originCountries: [],
+    genreIds: null,
+    tvType: null,
+    tvStatus: null,
+    tmdbStudios: [],
+    tmdbNetworks: [],
+    productionCompanies: [],
+    tmdbNetworksDetailed: [],
+    productionCompaniesDetailed: [],
+    imdbId: pathImdbId,
+    autoTitle: null,
+    wikidataId: null,
+  }
   // A1: promise del voto medio TMDB+IMDb (MDBList) lanciata nel ramo
   // non-mappato ma attesa SOLO dopo il blocco dati parallelo, con un tetto
   // breve (RATING_WAIT_MS): se MDBList è lenta, il poster usa il voto TMDB
@@ -1215,46 +1217,14 @@ export async function GET(req: NextRequest, { params }: { params: Promise<RouteP
   let ratingAbort: AbortController | null = null
   let showBadges = true
   let rankingBadges = true
-  let releaseDate: string | null = null
-  let firstAirDate: string | null = null
-  let lastAirDate: string | null = null
-  let seasonCount: number | null = null
-  /** TMDB `next_episode_to_air.air_date` + `number_of_episodes` (TV series: New Episode / Only N Episodes inputs). */
-  let nextEpisodeAirDate: string | null = null
-  let numberOfEpisodes: number | null = null
-  let originCountries: string[] = []
-  /** ID generi TMDB canonici (16 = Animation) — escludono l'animazione dal K-Drama automatico. */
-  let genreIds: number[] | null = null
-  let tvType: string | null = null
-  let tvStatus: string | null = null
-  let tmdbStudios: string[] = []
-  let tmdbNetworks: string[] = []
-  let productionCompanies: string[] = []
-  let tmdbNetworksDetailed: { name: string; logoPath: string | null }[] = []
-  let productionCompaniesDetailed: { name: string; logoPath: string | null }[] = []
-  let imdbId: string | null = pathImdbId
-  // TMDB title from the auto branch, kept in scope for the JustWatch match:
-  // the session cache is a small LRU and can be evicted mid-render.
-  let autoTitle: string | null = null
-  // QID Wikidata per il fast-path REST awards (wbgetentities, ~150ms) invece
-  // della lotteria SPARQL (4-13s contro race da 2.5s). Catena: query
-  // `wikidata_id` (la preview lo ha già dai details, zero RTT) > mapping
-  // salvato > session cache TMDB del processo > resolve server-side con memo
-  // 7gg (quarto anello, prima della race) > ramo else (details +
-  // external_ids in append). Senza QID ovunque: fallback SPARQL invariato.
-  // F2: the session cache is language-isolated — reads use the same
-  // query > mapping > region chain as the branches that populate it (it
-  // matches preferredLanguage when mapping is null, and fbLang of the
-  // landscape fallback).
-  let wikidataId: string | null = null
   const sessionLang = canonicalLang || mapping?.language || posterRegion.lang2
   {
     const queryWikidataId = hardenedParams.get("wikidata_id")
     const mappingWikidataId = mapping?.wikidataId ?? null
     const sessionWikidataId = getTMDBSessionCache(mediaType, tmdbId, sessionLang)?.externalIds?.wikidata_id ?? null
-    if (isValidWikidataQid(queryWikidataId)) wikidataId = queryWikidataId
-    else if (isValidWikidataQid(mappingWikidataId)) wikidataId = mappingWikidataId
-    else if (isValidWikidataQid(sessionWikidataId)) wikidataId = sessionWikidataId
+    if (isValidWikidataQid(queryWikidataId)) titleMeta.wikidataId = queryWikidataId
+    else if (isValidWikidataQid(mappingWikidataId)) titleMeta.wikidataId = mappingWikidataId
+    else if (isValidWikidataQid(sessionWikidataId)) titleMeta.wikidataId = sessionWikidataId
   }
 
   const queryPoster = hardenedParams.get("poster")
@@ -1264,16 +1234,6 @@ export async function GET(req: NextRequest, { params }: { params: Promise<RouteP
   // clean selezionato nel picker. Vince sulla base salvata/con automatica solo
   // in forma canonica (path TMDB raster): un valore malformato è assente.
   const queryPortraitBase = sanitizePortraitBaseBackdropPath(hardenedParams.get("pbase"))
-  // Text-as-logo (titoli senza logo TMDB): il testo digitato (+ font del
-  // bundle, enum badge) è una SORGENTE LOGO alternativa e vince su quella
-  // immagine (query > mapping, stessa catena del resto). Testo vuoto = nessun
-  // logo (comportamento storico invariato): `resolveTextLogo` ritorna null e
-  // tutto il ramo logo resta identico a prima.
-  let textLogo: TextLogo | null = resolveTextLogo(hardenedParams.get("ltext"), hardenedParams.get("lfont"))
-  // Provenienza del wordmark: manuale (query/mapping) o automatico (derivato
-  // dal titolo). Cambia solo la resa (tracking) e la firma della cache
-  // image-level: il testo automatico NON viene mai persistito come logoText.
-  let textLogoAuto = false
   // Formato canvas: query `shape` > mapping > config > defaults (stessa
   // catena degli altri parametri — vedi resolvePosterShape). Solo
   // "landscape" attiva il ramo 16:9 con base = sfondo TMDB.
@@ -1293,23 +1253,23 @@ export async function GET(req: NextRequest, { params }: { params: Promise<RouteP
   const t = createT(canonicalLang || mapping?.language || posterRegion.lang2)
 
   if (queryPoster) {
-    posterPath = queryPoster
-    logoPath = queryLogo || null
-    backdropPath = queryBackdrop || null
+    artwork.posterPath = queryPoster
+    artwork.logoPath = queryLogo || null
+    artwork.backdropPath = queryBackdrop || null
     if (queryBackdrop) {
-      backdropScale = Number(hardenedParams.get("bscale") || "100")
+      artwork.backdropScale = Number(hardenedParams.get("bscale") || "100")
       // Bound inferiore + superiore: un valore come 1e-7 produrrebbe resize(0,0) → 500.
-      if (!Number.isFinite(backdropScale) || backdropScale < 5 || backdropScale > 500) backdropScale = 100
-      backdropOffsetX = Number(hardenedParams.get("box") || "0")
-      if (!Number.isFinite(backdropOffsetX)) backdropOffsetX = 0
-      backdropOffsetY = Number(hardenedParams.get("boy") || "0")
-      if (!Number.isFinite(backdropOffsetY)) backdropOffsetY = 0
+      if (!Number.isFinite(artwork.backdropScale) || artwork.backdropScale < 5 || artwork.backdropScale > 500) artwork.backdropScale = 100
+      artwork.backdropOffsetX = Number(hardenedParams.get("box") || "0")
+      if (!Number.isFinite(artwork.backdropOffsetX)) artwork.backdropOffsetX = 0
+      artwork.backdropOffsetY = Number(hardenedParams.get("boy") || "0")
+      if (!Number.isFinite(artwork.backdropOffsetY)) artwork.backdropOffsetY = 0
     }
-    if (queryGenre) genreName = queryGenre
+    if (queryGenre) titleMeta.genreName = queryGenre
     if (queryVote) {
-      voteAverage = Number(queryVote)
-      if (!Number.isFinite(voteAverage)) voteAverage = null
-      else voteAverage = Math.min(Math.max(voteAverage, 0), 10) // clamp a [0,10]
+      titleMeta.voteAverage = Number(queryVote)
+      if (!Number.isFinite(titleMeta.voteAverage)) titleMeta.voteAverage = null
+      else titleMeta.voteAverage = Math.min(Math.max(titleMeta.voteAverage, 0), 10) // clamp a [0,10]
     }
     // Fix M1: anno della preview (WYSIWYG). Senza, il ramo query non impostava
     // releaseDate/firstAirDate e il badge genere della preview ometteva
@@ -1320,30 +1280,30 @@ export async function GET(req: NextRequest, { params }: { params: Promise<RouteP
     const queryRd = hardenedParams.get("rd")
     const queryFad = hardenedParams.get("fad")
     if (mediaType === "tv" && queryFad && /^\d{4}-\d{2}-\d{2}$/.test(queryFad)) {
-      firstAirDate = queryFad
+      titleMeta.firstAirDate = queryFad
     } else if (mediaType !== "tv" && queryRd && /^\d{4}-\d{2}-\d{2}$/.test(queryRd)) {
-      releaseDate = queryRd
+      titleMeta.releaseDate = queryRd
     } else {
       const queryYear = hardenedParams.get("year")
       if (queryYear && /^\d{4}$/.test(queryYear.slice(0, 4))) {
         const y = queryYear.slice(0, 4)
-        if (mediaType === "tv") firstAirDate = `${y}-01-01`
-        else releaseDate = `${y}-01-01`
+        if (mediaType === "tv") titleMeta.firstAirDate = `${y}-01-01`
+        else titleMeta.releaseDate = `${y}-01-01`
       }
     }
-    imdbId = hardenedParams.get("imdbId") || imdbId
+    titleMeta.imdbId = hardenedParams.get("imdbId") || titleMeta.imdbId
     showBadges = req.nextUrl.searchParams.get("badges") !== "0"
     rankingBadges = req.nextUrl.searchParams.get("ranking") !== "0"
     etag = `"p${etagBase}"`
   } else if (mapping) {
-    posterPath = mapping.posterPath
+    artwork.posterPath = mapping.posterPath
     // Base portrait congelata dal save in modalità auto: la base resa è il
     // cover-crop 2:3 di quel backdrop, non il poster in lingua. La base custom
     // salvata vince sempre (stessa precedenza del ramo custom, invariato) e il
     // landscape resta su `backdropPath`: qui solo portrait senza custom.
     // La scelta live dell'editor (`pbase`) vince sulla base salvata: stessa
     // catena query > mapping degli altri parametri.
-    mappingPortraitBackdropPath = !isLandscape && !(mapping.customPosterUrl && isCustomPosterUrl(mapping.customPosterUrl))
+    artwork.mappingPortraitBackdropPath = !isLandscape && !(mapping.customPosterUrl && isCustomPosterUrl(mapping.customPosterUrl))
       ? (queryPortraitBase ?? mapping.portraitBackdropPath ?? null)
       : null
     // Logo identity per shape (portrait flat / landscape profile): a title
@@ -1358,12 +1318,12 @@ export async function GET(req: NextRequest, { params }: { params: Promise<RouteP
     // a monte, ma il logoPath esplicito (mapping o ?logo=) è ammesso in ogni
     // formato. logoDisabled sempre onorato; query esplicita vince.
     const effectiveMappingLogo = !shapeEffLogo.logoDisabled ? shapeEffLogo.logoPath : null
-    logoPath = queryLogo || effectiveMappingLogo
+    artwork.logoPath = queryLogo || effectiveMappingLogo
     // Wordmark salvato (stessa catena: query > mapping, logoDisabled onorato).
     // Vince sul logoPath del mapping (una sola sorgente logo): un titolo
     // salvato con testo non ha più un logo immagine da comporre.
-    if (!textLogo && !shapeEffLogo.logoDisabled) {
-      textLogo = resolveTextLogo(shapeEffLogo.logoText ?? null, shapeEffLogo.logoFont ?? null)
+    if (!artwork.textLogo && !shapeEffLogo.logoDisabled) {
+      artwork.textLogo = resolveTextLogo(shapeEffLogo.logoText ?? null, shapeEffLogo.logoFont ?? null)
     }
     // Wordmark automatico (mapping): nessun logo salvato o selezionato, titolo
     // noto e base senza titolo cotto — poster clean (`language === null`,
@@ -1371,7 +1331,7 @@ export async function GET(req: NextRequest, { params }: { params: Promise<RouteP
     // (`portraitBackdropPath` / `pbase`, backdrop textless) o backdrop del
     // landscape. Una base custom URL non è certificabile come textless: mai
     // wordmark sopra. Il testo NON viene salvato: si rigenera a ogni render.
-    if (!textLogo && !logoPath) {
+    if (!artwork.textLogo && !artwork.logoPath) {
       const mappingCustomPoster = !!(mapping.customPosterUrl && isCustomPosterUrl(mapping.customPosterUrl))
       const mappingCustomBackdrop = !!(mapping.customBackdropUrl && isCustomPosterUrl(mapping.customBackdropUrl))
       const auto = resolveAutoWordmark({
@@ -1382,25 +1342,25 @@ export async function GET(req: NextRequest, { params }: { params: Promise<RouteP
         logoDisabled: shapeEffLogo.logoDisabled === true,
         baseIsTextless: isLandscape
           ? !mappingCustomBackdrop
-          : !mappingCustomPoster && (mappingPortraitBackdropPath !== null || mapping.language === null),
+          : !mappingCustomPoster && (artwork.mappingPortraitBackdropPath !== null || mapping.language === null),
       })
       if (auto) {
-        textLogo = auto
-        textLogoAuto = true
+        artwork.textLogo = auto
+        artwork.textLogoAuto = true
       }
     }
-    backdropPath = queryBackdrop || mapping?.backdropPath || null
-    backdropScale = mapping?.backdropScale ?? 100
+    artwork.backdropPath = queryBackdrop || mapping?.backdropPath || null
+    artwork.backdropScale = mapping?.backdropScale ?? 100
     // Fix M5: clamp difensivo anche sui mapping già salvati (pre-bounds zod):
     // 0/negativi rompono resizeBackdropCached → 500 permanente.
-    if (!Number.isFinite(backdropScale) || backdropScale < 5 || backdropScale > 500) backdropScale = 100
-    backdropOffsetX = mapping?.backdropOffsetX ?? 0
-    backdropOffsetY = mapping?.backdropOffsetY ?? 0
-    genreName = mapping.genreName ?? null
+    if (!Number.isFinite(artwork.backdropScale) || artwork.backdropScale < 5 || artwork.backdropScale > 500) artwork.backdropScale = 100
+    artwork.backdropOffsetX = mapping?.backdropOffsetX ?? 0
+    artwork.backdropOffsetY = mapping?.backdropOffsetY ?? 0
+    titleMeta.genreName = mapping.genreName ?? null
     // A saved genre is a localized string, not a language-independent ID.
     // Explicit poster language wins, just as it does for automatic posters.
     const genreLang = canonicalLang
-    if (genreName && genreLang && effTmdbKey && (earlyEffMapping?.showBadges ?? mapping.showBadges) !== false && !queryGenre) {
+    if (titleMeta.genreName && genreLang && effTmdbKey && (earlyEffMapping?.showBadges ?? mapping.showBadges) !== false && !queryGenre) {
       try {
         const cached = getTMDBSessionCache(mediaType, tmdbId, genreLang)
         const localizedDetails = cached?.details
@@ -1408,20 +1368,20 @@ export async function GET(req: NextRequest, { params }: { params: Promise<RouteP
         if (!cached?.details && localizedDetails) {
           setTMDBSessionCache(mediaType, tmdbId, genreLang, { ...cached ?? undefined, details: localizedDetails })
         }
-        genreName = localizedDetails?.genres?.[0]?.name || genreName
+        titleMeta.genreName = localizedDetails?.genres?.[0]?.name || titleMeta.genreName
         if (Array.isArray(localizedDetails?.genres)) {
-          genreIds = localizedDetails.genres.map((g) => g.id).filter((id): id is number => Number.isFinite(id))
+          titleMeta.genreIds = localizedDetails.genres.map((g) => g.id).filter((id): id is number => Number.isFinite(id))
         }
       } catch {
         // Keep the saved genre if TMDB is unavailable.
       }
     }
-    voteAverage = mapping.voteAverage ?? null
+    titleMeta.voteAverage = mapping.voteAverage ?? null
     showBadges = earlyEffMapping?.showBadges ?? mapping.showBadges ?? true
     rankingBadges = earlyEffMapping?.rankingBadges ?? mapping.rankingBadges ?? true
     // IMDb ID salvato al save (il path `tt...` vince se presente): evita il
     // fallback getExternalIds che richiede una chiave TMDB assente in Stremio.
-    imdbId = imdbId ?? mapping.imdbId ?? null
+    titleMeta.imdbId = titleMeta.imdbId ?? mapping.imdbId ?? null
     etag = `"m${etagBase}:${mapping.updatedAt}"`
     // Niente uscita 304 anticipata qui: il validatore sintetico non
     // rappresenta i byte (rank live e altre dipendenze dinamiche) — la
@@ -1429,7 +1389,7 @@ export async function GET(req: NextRequest, { params }: { params: Promise<RouteP
     // (hit fresca) o ri-renderizzato (audit freschezza, problemi 1–2).
   } else {
     const preferredLanguage = canonicalLang || posterRegion.lang2
-    posterRequestedLang = preferredLanguage
+    artwork.posterRequestedLang = preferredLanguage
     const apiKey = effTmdbKey
     try {
       // F6: session cache editor — i tick di preview sullo stesso titolo
@@ -1481,12 +1441,12 @@ export async function GET(req: NextRequest, { params }: { params: Promise<RouteP
       }
       // Candidato sfondo per il ramo landscape: backdrop principale TMDB,
       // poi il primo backdrops di /images (già 16:9 nativi).
-      autoTitle = details.title || details.name || null
-      autoBackdropPath = details.backdrop_path || images.backdrops[0]?.file_path || null
-      imdbId = extIds.imdb_id
+      titleMeta.autoTitle = details.title || details.name || null
+      artwork.autoBackdropPath = details.backdrop_path || images.backdrops[0]?.file_path || null
+      titleMeta.imdbId = extIds.imdb_id
       // Non sovrascrivere un QID già risolto a monte (query > mapping >
       // session): il fetch qui è l'ultima ruota, non la prima.
-      if (!wikidataId) wikidataId = extIds.wikidata_id ?? null
+      if (!titleMeta.wikidataId) titleMeta.wikidataId = extIds.wikidata_id ?? null
       // A1: fetch deferito — la media TMDB+IMDb parte subito ma non blocca.
       // Simkl solo se tra le fonti richieste: la colonna separati pesca da
       // reqRatingSources, quindi sep=1 senza simkl in rsrc non deve pagare i
@@ -1499,10 +1459,10 @@ export async function GET(req: NextRequest, { params }: { params: Promise<RouteP
       // Task C: senza IMDb ma con TMDB id + tipo esplicito si richiedono
       // comunque le fonti via /tmdb/{movie|show}/ (stesso endpoint condiviso,
       // nessuna seconda resa).
-      const canRequestRatings = !!imdbId || isMdbTmdbIdentityUsable(tmdbId, mediaType)
+      const canRequestRatings = !!titleMeta.imdbId || isMdbTmdbIdentityUsable(tmdbId, mediaType)
       ratingAbort = canRequestRatings ? new AbortController() : null
       aggregatedRating = canRequestRatings
-        ? fetchAggregatedRating(imdbId, effMdblistKey, AbortSignal.any([renderAbort.signal, ratingAbort!.signal]), {
+        ? fetchAggregatedRating(titleMeta.imdbId, effMdblistKey, AbortSignal.any([renderAbort.signal, ratingAbort!.signal]), {
             simklKey: effSimklKey,
             tmdbId,
             mediaType,
@@ -1516,25 +1476,25 @@ export async function GET(req: NextRequest, { params }: { params: Promise<RouteP
             tmdbFallbackVote: details.vote_average ?? undefined,
           }).catch(() => null)
         : Promise.resolve(null)
-      genreName = details.genres[0]?.name || null
-      genreIds = Array.isArray(details.genres) ? details.genres.map((g) => g.id).filter((id): id is number => Number.isFinite(id)) : null
-      voteAverage = details.vote_average ?? 0
-      releaseDate = details.release_date || null
-      firstAirDate = details.first_air_date || null
-      lastAirDate = details.last_air_date || null
-      seasonCount = details.number_of_seasons ?? null
-      nextEpisodeAirDate = details.next_episode_to_air?.air_date || null
-      numberOfEpisodes = details.number_of_episodes ?? null
-      originCountries = [...(details.networks || []), ...(details.production_companies || [])]
+      titleMeta.genreName = details.genres[0]?.name || null
+      titleMeta.genreIds = Array.isArray(details.genres) ? details.genres.map((g) => g.id).filter((id): id is number => Number.isFinite(id)) : null
+      titleMeta.voteAverage = details.vote_average ?? 0
+      titleMeta.releaseDate = details.release_date || null
+      titleMeta.firstAirDate = details.first_air_date || null
+      titleMeta.lastAirDate = details.last_air_date || null
+      titleMeta.seasonCount = details.number_of_seasons ?? null
+      titleMeta.nextEpisodeAirDate = details.next_episode_to_air?.air_date || null
+      titleMeta.numberOfEpisodes = details.number_of_episodes ?? null
+      titleMeta.originCountries = [...(details.networks || []), ...(details.production_companies || [])]
         .map((c) => c.origin_country)
         .filter((c): c is string => !!c)
-      tmdbNetworks = (details.networks || []).map((n: TMDBCompany) => n.name)
-      tmdbNetworksDetailed = (details.networks || []).map((n: TMDBCompany) => ({ name: n.name, logoPath: n.logo_path }))
-      productionCompanies = (details.production_companies || []).map((c: TMDBCompany) => c.name)
-      productionCompaniesDetailed = (details.production_companies || []).map((c: TMDBCompany) => ({ name: c.name, logoPath: c.logo_path }))
-      tmdbStudios = matchTMDBStudios([...tmdbNetworks, ...productionCompanies])
-      tvType = details.type || null
-      tvStatus = details.status || null
+      titleMeta.tmdbNetworks = (details.networks || []).map((n: TMDBCompany) => n.name)
+      titleMeta.tmdbNetworksDetailed = (details.networks || []).map((n: TMDBCompany) => ({ name: n.name, logoPath: n.logo_path }))
+      titleMeta.productionCompanies = (details.production_companies || []).map((c: TMDBCompany) => c.name)
+      titleMeta.productionCompaniesDetailed = (details.production_companies || []).map((c: TMDBCompany) => ({ name: c.name, logoPath: c.logo_path }))
+      titleMeta.tmdbStudios = matchTMDBStudios([...titleMeta.tmdbNetworks, ...titleMeta.productionCompanies])
+      titleMeta.tvType = details.type || null
+      titleMeta.tvStatus = details.status || null
       // H1: no slot held across the network waits below (logo-fit fetches,
       // Block A/B, Wikidata). The single render slot is acquired just before
       // the composite; the finally still releases it.
@@ -1549,13 +1509,13 @@ export async function GET(req: NextRequest, { params }: { params: Promise<RouteP
         // Custom logo from an external tile (same policy as the custom base):
         // wins directly without a TMDB list match. TMDB paths stay bound to
         // the exact list match as before.
-        if (isCustomPosterUrl(queryLogo)) logoPath = queryLogo
+        if (isCustomPosterUrl(queryLogo)) artwork.logoPath = queryLogo
         else {
           const exact = allLogos.find((l: TMDBImage) => l.file_path === queryLogo)
-          if (exact) logoPath = exact.file_path
+          if (exact) artwork.logoPath = exact.file_path
         }
       }
-      if (!logoPath && !textLogo) {
+      if (!artwork.logoPath && !artwork.textLogo) {
         // Default = primo logo del gruppo lingua, lo stesso che mostra il
         // client (`selectBestLogo` in context.tsx): nessun re-ranking per
         // leggibilità, così Stremio rende lo stesso logo della preview.
@@ -1564,15 +1524,15 @@ export async function GET(req: NextRequest, { params }: { params: Promise<RouteP
         if (reason === "origLang") log.info("Logo fallback to original_language", { lang: details.original_language, mediaType, tmdbId })
         else if (reason === "any") log.info("Logo fallback to any (first available)", { mediaType, tmdbId })
         else if (reason === "none") log.info("No logo available", { mediaType, tmdbId })
-        logoFallbackReason = reason
-        if (chosenLogo) { logoPath = chosenLogo.file_path; logoChosenIso = chosenLogo.iso_639_1 ?? null }
+        artwork.logoFallbackReason = reason
+        if (chosenLogo) { artwork.logoPath = chosenLogo.file_path; artwork.logoChosenIso = chosenLogo.iso_639_1 ?? null }
       }
       // Text-as-logo: il testo digitato è la sorgente logo esplicita e vince
       // sulla selezione TMDB appena fatta (una sola sorgente logo, la stessa
       // della preview). Senza testo tutto il ramo sotto resta identico.
-      if (textLogo) {
-        logoPath = null
-        logoPathBuffer = null
+      if (artwork.textLogo) {
+        artwork.logoPath = null
+        artwork.logoPathBuffer = null
       }
       // Un titolo ha un logo (immagine o wordmark)? I gate sotto (clean,
       // rotazione, base portrait da backdrop) valgono per ENTRAMBE le
@@ -1586,10 +1546,10 @@ export async function GET(req: NextRequest, { params }: { params: Promise<RouteP
       // primo backdrop nel ramo senza clean. Nessun logo immagine e nessun testo
       // digitato: quelli vincono sempre. Con clean disabilitati la catena "in
       // lingua" resta storica (poster col titolo stampato, nessun wordmark).
-      if (!logoPath && !textLogo && cleanEnabled) {
+      if (!artwork.logoPath && !artwork.textLogo && cleanEnabled) {
         const auto = resolveAutoWordmark({
           enabled: autoWordmarkEnabled,
-          title: autoTitle,
+          title: titleMeta.autoTitle,
           hasImageLogo: false,
           hasTypedText: false,
           logoDisabled: false,
@@ -1598,12 +1558,12 @@ export async function GET(req: NextRequest, { params }: { params: Promise<RouteP
             : (images.backdrops?.length ?? 0) > 0),
         })
         if (auto) {
-          textLogo = auto
-          textLogoAuto = true
+          artwork.textLogo = auto
+          artwork.textLogoAuto = true
           log.info("Text logo — auto wordmark from title", { mediaType, tmdbId, auto: true })
         }
       }
-      const hasTitleLogo = !!logoPath || !!textLogo
+      const hasTitleLogo = !!artwork.logoPath || !!artwork.textLogo
 
       // Opzione "disattiva clean" (default OFF = priorità ai clean): con flag ON
       // il ramo clean è saltato del tutto e si usa la catena in lingua sotto
@@ -1612,7 +1572,7 @@ export async function GET(req: NextRequest, { params }: { params: Promise<RouteP
       if (clean) {
         // Ramo clean: best-fit pesca solo dalla pool clean, quindi il poster
         // finale resta clean (logo tenuto) salvo il fallback in lingua sotto.
-        autoPosterClean = true
+        artwork.autoPosterClean = true
         const qLogoFit = req.nextUrl.searchParams.get("logoFit")
         // Catena in best-fit-config.ts: globale > query > config token >
         // per-shape del namespace > legacy. Default spento.
@@ -1641,16 +1601,16 @@ export async function GET(req: NextRequest, { params }: { params: Promise<RouteP
           : []
         if (dynamicDayBucket !== null && dynamicPortraitPool.length >= 2) {
           const picked = dynamicPortraitPool[rotationIndexFor(dynamicDayBucket, dynamicPortraitPool.length)]
-          posterPath = picked.file_path
+          artwork.posterPath = picked.file_path
           const pickedNonClean = picked.iso_639_1 !== null
-          autoPosterClean = !pickedNonClean
+          artwork.autoPosterClean = !pickedNonClean
           if (pickedNonClean) {
             // Un poster in lingua ha gia' il titolo cotto: nessun secondo
             // titolo (logo/wordmark) sopra la base.
-            logoPath = null
-            logoPathBuffer = null
-            textLogo = null
-            textLogoAuto = false
+            artwork.logoPath = null
+            artwork.logoPathBuffer = null
+            artwork.textLogo = null
+            artwork.textLogoAuto = false
           }
           log.info("Dynamic rotation: daily portrait poster", {
             mediaType,
@@ -1659,11 +1619,11 @@ export async function GET(req: NextRequest, { params }: { params: Promise<RouteP
             pool: dynamicPortraitPool.length,
             includeNonClean: dynamicRotationIncludeNonClean,
           })
-        } else if (logoPath && logoFitEnabled) {
+        } else if (artwork.logoPath && logoFitEnabled) {
           try {
             const fitStart = Date.now()
             const bestFit = await selectBestLogoFitPosterPath({
-              posters: images.posters, logoPath,
+              posters: images.posters, logoPath: artwork.logoPath,
               fetchImage: async (path: string) => {
                 // Byte-LRU (F3): key = URL finale (imgSrc lancia su URL esterni
                 // come prima, fuori dalla cache). B5: signal combinato col
@@ -1705,23 +1665,23 @@ export async function GET(req: NextRequest, { params }: { params: Promise<RouteP
             } else {
               log.info("Best-fit: first clean already optimal", { mediaType, tmdbId, ms: fitMs, winnerIndex: bestFit?.winnerIndex ?? null, candidateCount: bestFit?.candidateCount ?? null })
             }
-            posterPath = bestFit?.posterPath ?? clean.file_path
-            if (bestFit?.posterBuffer) posterPathBuffer = bestFit.posterBuffer
-            if (bestFit?.logoBuffer) logoPathBuffer = bestFit.logoBuffer
+            artwork.posterPath = bestFit?.posterPath ?? clean.file_path
+            if (bestFit?.posterBuffer) artwork.posterPathBuffer = bestFit.posterBuffer
+            if (bestFit?.logoBuffer) artwork.logoPathBuffer = bestFit.logoBuffer
           } catch (e) {
             log.error("Best-fit: fallback to first clean", { mediaType, tmdbId, error: e instanceof Error ? e.message : String(e) })
-            posterPath = clean.file_path
+            artwork.posterPath = clean.file_path
           }
-        } else if (logoPath) {
+        } else if (artwork.logoPath) {
           // Logo disponibile ma best-fit disabilitato: il clean viene usato
           // comunque (il logo verrà composto sopra).
           log.info("Best-fit: disabled by config", { mediaType, tmdbId })
-          posterPath = clean.file_path
-        } else if (textLogo) {
+          artwork.posterPath = clean.file_path
+        } else if (artwork.textLogo) {
           // Wordmark digitato (nessun logo TMDB da far combaciare): la base
           // clean resta quella storica, il testo viene composto sopra.
           log.info("Text logo — clean poster base", { mediaType, tmdbId })
-          posterPath = clean.file_path
+          artwork.posterPath = clean.file_path
         } else {
           // Nessun logo disponibile: il poster clean senza logo è inutile
           // (lo spazio è pensato per il logo). Fallback al poster in lingua:
@@ -1731,8 +1691,8 @@ export async function GET(req: NextRequest, { params }: { params: Promise<RouteP
           const nonCleanPoster = images.posters.find((p: TMDBImage) => p.iso_639_1 !== null)
           const fallbackPoster = langPoster || origPoster || nonCleanPoster || clean
           log.info("No logo — fallback to language poster", { mediaType, tmdbId, poster: fallbackPoster.file_path })
-          posterPath = fallbackPoster.file_path
-          autoPosterClean = fallbackPoster.iso_639_1 === null
+          artwork.posterPath = fallbackPoster.file_path
+          artwork.autoPosterClean = fallbackPoster.iso_639_1 === null
         }
       } else {
         // Nessun clean TMDB disponibile: il poster in lingua ha già il titolo
@@ -1757,7 +1717,7 @@ export async function GET(req: NextRequest, { params }: { params: Promise<RouteP
           const langPoster = images.posters.find((p: TMDBImage) => p.iso_639_1 === preferredLanguage)
           const origPoster = details.original_language ? images.posters.find((p: TMDBImage) => p.iso_639_1 === details.original_language) : undefined
           const chosen = langPoster || origPoster || images.posters[0]
-          if (chosen) posterPath = chosen.file_path
+          if (chosen) artwork.posterPath = chosen.file_path
         } else {
           const langPoster = images.posters.find((p: TMDBImage) => p.iso_639_1 === preferredLanguage)
           const enPoster = preferredLanguage !== "en"
@@ -1768,7 +1728,7 @@ export async function GET(req: NextRequest, { params }: { params: Promise<RouteP
             ? images.posters.find((p: TMDBImage) => p.iso_639_1 === origLang)
             : undefined
           const chosen = langPoster || enPoster || origPoster
-          if (chosen) posterPath = chosen.file_path
+          if (chosen) artwork.posterPath = chosen.file_path
         }
         // Portrait senza clean ma con un backdrop: il backdrop è un'immagine
         // SENZA titolo cotto, quindi vale come base clean (stesso invariante
@@ -1802,26 +1762,26 @@ export async function GET(req: NextRequest, { params }: { params: Promise<RouteP
               ? await fetchImg(landscapeBackdropUrl(cropBackdropPath), renderAbort.signal).catch(() => null)
               : null
             if (cropBase && cropBackdropPath) {
-              posterPathBuffer = await cropBackdropToPortrait(cropBase, "center")
-              posterPath = cropBackdropPath
-              portraitBackdropCropPath = cropBackdropPath
-              autoPosterClean = true
+              artwork.posterPathBuffer = await cropBackdropToPortrait(cropBase, "center")
+              artwork.posterPath = cropBackdropPath
+              artwork.portraitBackdropCropPath = cropBackdropPath
+              artwork.autoPosterClean = true
               log.info("No clean poster — portrait base from backdrop crop", { mediaType, tmdbId, backdrop: cropBackdropPath })
             }
           } catch (e) {
             // Fetch/crop falliti: catena in lingua invariata, logo tolto.
-            posterPathBuffer = null
+            artwork.posterPathBuffer = null
             log.error("Backdrop crop for portrait base failed", { mediaType, tmdbId, error: e instanceof Error ? e.message : String(e) })
           }
         }
         if (isLandscape && hasTitleLogo) {
-          autoPosterClean = true
-        } else if (!autoPosterClean) {
+          artwork.autoPosterClean = true
+        } else if (!artwork.autoPosterClean) {
           // Base con il titolo già cotto: niente logo immagine NE' wordmark
           // sopra (doppio titolo).
-          logoPath = null
-          logoPathBuffer = null
-          textLogo = null
+          artwork.logoPath = null
+          artwork.logoPathBuffer = null
+          artwork.textLogo = null
         }
       }
       // Rotazione giornaliera dinamici landscape (solo backdrop clean, cut
@@ -1832,9 +1792,9 @@ export async function GET(req: NextRequest, { params }: { params: Promise<RouteP
       if (isLandscape && !queryBackdrop && hasTitleLogo && dynamicDayBucket !== null) {
         const dynamicBackdropPool = (images.backdrops ?? []).filter((b) => b.iso_639_1 === null)
         if (dynamicBackdropPool.length >= 2) {
-          autoBackdropPath = dynamicBackdropPool[rotationIndexFor(dynamicDayBucket, dynamicBackdropPool.length)].file_path
+          artwork.autoBackdropPath = dynamicBackdropPool[rotationIndexFor(dynamicDayBucket, dynamicBackdropPool.length)].file_path
           dynamicLandscapeRotated = true
-          log.info("Dynamic rotation: daily backdrop", { mediaType, tmdbId, backdrop: autoBackdropPath, pool: dynamicBackdropPool.length })
+          log.info("Dynamic rotation: daily backdrop", { mediaType, tmdbId, backdrop: artwork.autoBackdropPath, pool: dynamicBackdropPool.length })
         }
       }
       // Best-fit automatico dello sfondo landscape (mirror del portrait sopra):
@@ -1844,7 +1804,7 @@ export async function GET(req: NextRequest, { params }: { params: Promise<RouteP
       // WYSIWYG, "vedo comunque il primo poster"). Solo con logo disponibile
       // (senza, niente da comporre sopra) e fit abilitato; qualsiasi fallimento
       // mantiene il fallback storico (primo backdrop), mai 500.
-      if (isLandscape && !queryBackdrop && logoPath && !dynamicLandscapeRotated && (images.backdrops?.length ?? 0) > 0) {
+      if (isLandscape && !queryBackdrop && artwork.logoPath && !dynamicLandscapeRotated && (images.backdrops?.length ?? 0) > 0) {
         const qLogoFitLand = req.nextUrl.searchParams.get("logoFit")
         const landFitEnabled = resolveLogoFitEnabled({
           global: BEST_FIT_GLOBAL,
@@ -1865,7 +1825,7 @@ export async function GET(req: NextRequest, { params }: { params: Promise<RouteP
             } else {
               const landFit = await selectBestLogoFitPosterPath({
                 posters: images.backdrops,
-                logoPath,
+                logoPath: artwork.logoPath,
                 fetchImage: async (path: string) => {
                   const url = imgSrc(path)
                   const imgSignal = combineAbortSignals(renderAbort.signal, AUTO_FIT_FETCH_TIMEOUT_MS)
@@ -1893,10 +1853,10 @@ export async function GET(req: NextRequest, { params }: { params: Promise<RouteP
                 shape: "landscape",
               })
               if (landFit?.posterPath) {
-                if (landFit.posterPath !== autoBackdropPath) {
-                  log.info("Best-fit: improved landscape backdrop selected", { mediaType, tmdbId, bestFit: landFit.posterPath, original: autoBackdropPath })
+                if (landFit.posterPath !== artwork.autoBackdropPath) {
+                  log.info("Best-fit: improved landscape backdrop selected", { mediaType, tmdbId, bestFit: landFit.posterPath, original: artwork.autoBackdropPath })
                 }
-                autoBackdropPath = landFit.posterPath
+                artwork.autoBackdropPath = landFit.posterPath
               }
             }
           } catch (e) {
@@ -1905,7 +1865,7 @@ export async function GET(req: NextRequest, { params }: { params: Promise<RouteP
         }
       }
     } catch (e) {
-      autoFetchFailed = true
+      artwork.autoFetchFailed = true
       log.error("Auto image fetch failed", { error: e instanceof Error ? e.message : String(e) })
     }
     etag = `"a${etagBase}"`
@@ -1916,7 +1876,7 @@ export async function GET(req: NextRequest, { params }: { params: Promise<RouteP
   // fallback live a details.backdrop_path (poi primo backdrops di /images).
   // Solo ramo landscape: il portrait non ne ha bisogno. Su errore resta null
   // e il blocco landscape sotto risponde 404 onesto.
-  if (isLandscape && !queryBackdrop && !mapping?.backdropPath && !autoBackdropPath) {
+  if (isLandscape && !queryBackdrop && !mapping?.backdropPath && !artwork.autoBackdropPath) {
     try {
       const fbApiKey = effTmdbKey
       const fbLang = canonicalLang || mapping?.language || posterRegion.lang2
@@ -1927,18 +1887,18 @@ export async function GET(req: NextRequest, { params }: { params: Promise<RouteP
         const prev = getTMDBSessionCache(mediaType, tmdbId, fbLang)
         setTMDBSessionCache(mediaType, tmdbId, fbLang, { ...prev ?? undefined, details: fbDetails })
       }
-      autoBackdropPath = fbDetails?.backdrop_path || null
-      if (!autoBackdropPath) {
+      artwork.autoBackdropPath = fbDetails?.backdrop_path || null
+      if (!artwork.autoBackdropPath) {
         const fbImages = cached?.images
           ?? await getImages(mediaType, tmdbId, `${fbLang},en,null`, fbApiKey, renderAbort.signal, POSTER_TMDB_TIMEOUT_MS).catch(() => null)
         if (fbImages && !cached?.images) {
           const prev = getTMDBSessionCache(mediaType, tmdbId, fbLang)
           setTMDBSessionCache(mediaType, tmdbId, fbLang, { ...prev ?? undefined, images: fbImages })
         }
-        autoBackdropPath = fbImages?.backdrops?.[0]?.file_path || null
+        artwork.autoBackdropPath = fbImages?.backdrops?.[0]?.file_path || null
       }
     } catch {
-      autoBackdropPath = null
+      artwork.autoBackdropPath = null
     }
   }
 
@@ -1949,14 +1909,14 @@ export async function GET(req: NextRequest, { params }: { params: Promise<RouteP
   // dal backdrop full-bleed alimenta comunque pillarbox e cache image-level,
   // namespaced per path come le altre sorgenti). Deadline/fetch falliti
   // restano 503/404: niente crop su dati degradati.
-  if (!posterPath && !deadlineFired && !autoFetchFailed) {
-    const cropSrc = queryBackdrop || mapping?.backdropPath || autoBackdropPath || backdropPath
+  if (!artwork.posterPath && !deadlineFired && !artwork.autoFetchFailed) {
+    const cropSrc = queryBackdrop || mapping?.backdropPath || artwork.autoBackdropPath || artwork.backdropPath
     if (cropSrc) {
       try {
         const cropBase = await fetchImg(landscapeBackdropUrl(cropSrc), renderAbort.signal).catch(() => null)
         if (cropBase) {
-          posterPathBuffer = await cropBackdropToPortrait(cropBase)
-          posterPath = cropSrc
+          artwork.posterPathBuffer = await cropBackdropToPortrait(cropBase)
+          artwork.posterPath = cropSrc
           recordBackdropCropRescue()
         }
       } catch {
@@ -1966,14 +1926,14 @@ export async function GET(req: NextRequest, { params }: { params: Promise<RouteP
   }
 
   try {
-    if (!posterPath) {
+    if (!artwork.posterPath) {
       // Deadline sforato o fetch upstream fallito: NIENTE 404. Il titolo può
       // semplicemente essere lento/indisponibile upstream; la negative-cache 503
       // (TTL breve) evita la tempesta di ri-render senza marchiare il titolo
       // come inesistente. Dentro il try: il finally unifica il rilascio slot
       // (releaseSlotOnce è idempotente) — nessun return fuori dal try/finally
       // può più leakare lo slot acquisito dal logo-fit.
-      if (deadlineFired || autoFetchFailed) {
+      if (deadlineFired || artwork.autoFetchFailed) {
         // H2 single-503: past the deadline the watchdog already wrote the
         // 503 entry — the late job only answers 503, never rewrites.
         // Pre-deadline autoFetchFailed still writes (existing negative cache).
@@ -1991,7 +1951,7 @@ export async function GET(req: NextRequest, { params }: { params: Promise<RouteP
     // ramo automatico). Senza sfondo la base diventa pillarbox dal poster
     // (mai 404: nessun riquadro rotto su Stremio).
     if (isLandscape) {
-      backdropPath = queryBackdrop || mapping?.backdropPath || autoBackdropPath || backdropPath
+      artwork.backdropPath = queryBackdrop || mapping?.backdropPath || artwork.autoBackdropPath || artwork.backdropPath
     }
 
     // Wordmark automatico in preview (`lauto=1`): risolto QUI perché la base
@@ -2002,21 +1962,21 @@ export async function GET(req: NextRequest, { params }: { params: Promise<RouteP
     // funzione del render Stremio, così il save non eredita un wordmark
     // automatico. Logo immagine, testo digitato e base in lingua/custom
     // spengono il flag (una sola sorgente logo, stessa precedenza del render).
-    if (queryPoster && !textLogo && hardenedParams.get("lauto") === "1") {
+    if (queryPoster && !artwork.textLogo && hardenedParams.get("lauto") === "1") {
       const queryBaseTextless = isLandscape
-        ? !!backdropPath && !isCustomPosterUrl(backdropPath)
-        : !!posterPath && !isCustomPosterUrl(posterPath)
+        ? !!artwork.backdropPath && !isCustomPosterUrl(artwork.backdropPath)
+        : !!artwork.posterPath && !isCustomPosterUrl(artwork.posterPath)
       const auto = resolveAutoWordmark({
         enabled: autoWordmarkEnabled,
         title: hardenedParams.get("title"),
-        hasImageLogo: !!logoPath,
+        hasImageLogo: !!artwork.logoPath,
         hasTypedText: false,
         logoDisabled: false,
         baseIsTextless: queryBaseTextless,
       })
       if (auto) {
-        textLogo = auto
-        textLogoAuto = true
+        artwork.textLogo = auto
+        artwork.textLogoAuto = true
       }
     }
 
@@ -2078,9 +2038,9 @@ export async function GET(req: NextRequest, { params }: { params: Promise<RouteP
     // sovrapporsi a loro. Semantica invariata: un reject arriva comunque al
     // job catch attraverso l'await di Block B.
     const wikidataIdPromise: Promise<string | null> =
-      !wikidataId && rankingEnabledEarly && effTmdbKey
+      !titleMeta.wikidataId && rankingEnabledEarly && effTmdbKey
         ? resolveWikidataId(mediaType, tmdbId, effTmdbKey, 1500)
-        : Promise.resolve(wikidataId)
+        : Promise.resolve(titleMeta.wikidataId)
 
     // Saved custom base: portrait from customPosterUrl, landscape from
     // customBackdropUrl (per-format independent). Downloaded IN PARALLEL with
@@ -2122,13 +2082,13 @@ export async function GET(req: NextRequest, { params }: { params: Promise<RouteP
     if (
       !isLandscape
       && !effectiveCustomUrl
-      && mappingPortraitBackdropPath === null
-      && isRotatedNonCleanPoster(mapping, posterPath, rotationSelectedLang)
+      && artwork.mappingPortraitBackdropPath === null
+      && isRotatedNonCleanPoster(mapping, artwork.posterPath, rotationSelectedLang)
     ) {
-      logoPath = null
-      logoPathBuffer = null
-      textLogo = null
-      textLogoAuto = false
+      artwork.logoPath = null
+      artwork.logoPathBuffer = null
+      artwork.textLogo = null
+      artwork.textLogoAuto = false
     }
 
     // 5. Fetch all data in parallel: images + rankings + quality + wikidata + keywords + imdbTop250
@@ -2148,9 +2108,9 @@ export async function GET(req: NextRequest, { params }: { params: Promise<RouteP
     // TMDB fallback for the custom base (never a custom URL inside
     // landscapeBackdropUrl/imgSrc: the former would throw on non-TMDB hosts).
     const tmdbBackdropSrc = (() => {
-      if (!backdropPath || isCustomPosterUrl(backdropPath)) return null
+      if (!artwork.backdropPath || isCustomPosterUrl(artwork.backdropPath)) return null
       try {
-        return isLandscape ? landscapeBackdropUrl(backdropPath) : imgSrc(backdropPath)
+        return isLandscape ? landscapeBackdropUrl(artwork.backdropPath) : imgSrc(artwork.backdropPath)
       } catch {
         return null
       }
@@ -2159,7 +2119,7 @@ export async function GET(req: NextRequest, { params }: { params: Promise<RouteP
     // a hand-crafted query): same validated pipeline, never 500 on
     // allowlisted URLs (in preview it coincides with the effectiveCustomUrl
     // below).
-    const explicitBackdropCustomUrl = backdropPath && isCustomPosterUrl(backdropPath) ? backdropPath : null
+    const explicitBackdropCustomUrl = artwork.backdropPath && isCustomPosterUrl(artwork.backdropPath) ? artwork.backdropPath : null
     // Custom base for the backdrop slot: in landscape the explicit preview
     // query or the saved customBackdropUrl; in portrait ONLY the explicit URL
     // in backdropPath (the portrait custom travels on the poster slot, never
@@ -2170,19 +2130,19 @@ export async function GET(req: NextRequest, { params }: { params: Promise<RouteP
     // (unico renderer), risolto in parallelo al resto di Block A. Ogni errore
     // (fetch o crop) risolve a null e la catena sotto torna al poster nominale
     // del mapping: mai 500, mai un crop parziale usato come base.
-    const savedPortraitBasePath = mappingPortraitBackdropPath
+    const savedPortraitBasePath = artwork.mappingPortraitBackdropPath
     const portraitBasePromise = savedPortraitBasePath !== null
       ? (async () => {
         try {
           const source = await fetchImg(landscapeBackdropUrl(savedPortraitBasePath), renderAbort.signal)
           const buf = await cropBackdropToPortrait(source, "center")
-          posterPath = savedPortraitBasePath
-          portraitBackdropCropPath = savedPortraitBasePath
+          artwork.posterPath = savedPortraitBasePath
+          artwork.portraitBackdropCropPath = savedPortraitBasePath
           return { buf, custom: false }
         } catch {
           // Fetch/crop falliti: base storica dal poster nominale del mapping
           // (mai 500, mai crop parziale).
-          const fallbackPath: string | null = posterPath
+          const fallbackPath: string | null = artwork.posterPath
           if (!fallbackPath) return null
           const buf = await fetchImg(imgSrc(fallbackPath), renderAbort.signal).catch(() => null)
           return buf ? { buf, custom: false } : null
@@ -2195,34 +2155,34 @@ export async function GET(req: NextRequest, { params }: { params: Promise<RouteP
     ] = await Promise.all([
       // Block A: images + ranking data + quality
       Promise.all([
-        posterPathBuffer
-          ? Promise.resolve({ buf: posterPathBuffer, custom: false })
+        artwork.posterPathBuffer
+          ? Promise.resolve({ buf: artwork.posterPathBuffer, custom: false })
           : portraitBasePromise
             ? portraitBasePromise
             : posterCustomForFetch
-              ? fetchPosterBaseWithCustom(posterCustomForFetch, tmdbFallbackSrc ?? safeTmdbImgSrc(posterPath), renderAbort.signal)
-              : fetchImg(imgSrc(posterPath), renderAbort.signal).catch(() => null).then((buf) => (buf ? { buf, custom: false } : null)),
-        logoPathBuffer
-          ? Promise.resolve(logoPathBuffer)
+              ? fetchPosterBaseWithCustom(posterCustomForFetch, tmdbFallbackSrc ?? safeTmdbImgSrc(artwork.posterPath), renderAbort.signal)
+              : fetchImg(imgSrc(artwork.posterPath), renderAbort.signal).catch(() => null).then((buf) => (buf ? { buf, custom: false } : null)),
+        artwork.logoPathBuffer
+          ? Promise.resolve(artwork.logoPathBuffer)
           // Text-as-logo: il wordmark digitato è la sorgente logo (vince su
           // quella immagine sopra): SVG con i font del bundle rasterizzato
           // qui e composto dal renderer esistente, stessi passi di layout,
           // velatura e scala di un logo TMDB. Un errore = composizione senza
           // logo (mai 500), come per il logo custom.
-          : textLogo
+          : artwork.textLogo
             ? buildTextLogoBuffer(
-              textLogo.text,
-              textLogo.font,
-              textLogoAuto ? { trackingEm: AUTO_WORDMARK_TRACK_FACTOR } : undefined,
+              artwork.textLogo.text,
+              artwork.textLogo.font,
+              artwork.textLogoAuto ? { trackingEm: AUTO_WORDMARK_TRACK_FACTOR } : undefined,
             ).catch(() => null)
             // Custom logo from an external URL: same safe pipeline as the custom
             // base (allowlist + SSRF + raster-only, no SVG); a definitive
             // failure resolves to null + logo-less composition, never 500. A
             // render abort propagates (never a zombie fallback).
-            : logoPath
-              ? (isCustomPosterUrl(logoPath)
-                ? fetchValidatedCustomImage(logoPath, renderAbort.signal).catch(() => null)
-                : fetchLogoImg(logoPath, renderAbort.signal).catch(() => null))
+            : artwork.logoPath
+              ? (isCustomPosterUrl(artwork.logoPath)
+                ? fetchValidatedCustomImage(artwork.logoPath, renderAbort.signal).catch(() => null)
+                : fetchLogoImg(artwork.logoPath, renderAbort.signal).catch(() => null))
               : Promise.resolve(null),
         // Landscape custom base (explicit preview query or saved
         // customBackdropUrl): same validated pipeline as the portrait base
@@ -2236,8 +2196,8 @@ export async function GET(req: NextRequest, { params }: { params: Promise<RouteP
           // SOLO landscape: il portrait non ha alcun layer backdrop (la base è
           // `posterPath`/crop) — un buffer qui finiva composto come banda 16:9
           // centrata (y ~235..516) sopra il poster. Il fetch è inutile lì.
-          : isLandscape && backdropPath
-            ? fetchImg(landscapeBackdropUrl(backdropPath), renderAbort.signal).catch(() => null)
+          : isLandscape && artwork.backdropPath
+            ? fetchImg(landscapeBackdropUrl(artwork.backdropPath), renderAbort.signal).catch(() => null)
             : Promise.resolve(null),
         rankingEnabledEarly
           // Pre-cache snapshot reuse: same value as the cache key.
@@ -2264,11 +2224,11 @@ export async function GET(req: NextRequest, { params }: { params: Promise<RouteP
                   const sessionTitle = getTMDBSessionCache(mediaType, tmdbId, sessionLang)?.details?.title
                     || getTMDBSessionCache(mediaType, tmdbId, sessionLang)?.details?.name
                     || null
-                  const fallbackTitle = mapping?.title || hardenedParams.get("title") || autoTitle || sessionTitle || genreName || null
-                  const effSeasonCount = seasonCount ?? getTMDBSessionCache(mediaType, tmdbId, sessionLang)?.details?.number_of_seasons ?? null
+                  const fallbackTitle = mapping?.title || hardenedParams.get("title") || titleMeta.autoTitle || sessionTitle || titleMeta.genreName || null
+                  const effSeasonCount = titleMeta.seasonCount ?? getTMDBSessionCache(mediaType, tmdbId, sessionLang)?.details?.number_of_seasons ?? null
                   return resolveStreamQuality(
                     mediaType === "movie" ? "movie" : "series",
-                    imdbId,
+                    titleMeta.imdbId,
                     tmdbId,
                     fallbackTitle,
                     renderAbort.signal,
@@ -2297,10 +2257,10 @@ export async function GET(req: NextRequest, { params }: { params: Promise<RouteP
                   const sessionDetails = getTMDBSessionCache(mediaType, tmdbId, sessionLang)?.details
                   const preTitle = mapping?.title
                     || hardenedParams.get("title")
-                    || autoTitle
+                    || titleMeta.autoTitle
                     || sessionDetails?.title
                     || sessionDetails?.name
-                    || genreName
+                    || titleMeta.genreName
                     || null
                   const [relDates, jw] = await Promise.all([
                     getReleaseDates(mediaType, tmdbId, apiKey, renderAbort.signal, POSTER_TMDB_TIMEOUT_MS).catch(() => null),
@@ -2310,7 +2270,7 @@ export async function GET(req: NextRequest, { params }: { params: Promise<RouteP
                   preJw = jw
                   return isDigitalPreRelease({
                     mediaType,
-                    theatricalDate: releaseDate ?? mapping?.releaseDate ?? null,
+                    theatricalDate: titleMeta.releaseDate ?? mapping?.releaseDate ?? null,
                     digitalDate: preDigital,
                     jwAvailable: jw,
                   })
@@ -2372,13 +2332,13 @@ export async function GET(req: NextRequest, { params }: { params: Promise<RouteP
           // mai i sources (desync WYSIWYG).
           const sepFetch = sepDisplay
           if (!rankingEnabledEarly && !customRatingConfig.enabled && !sepFetch) return false
-          if (!imdbId) {
+          if (!titleMeta.imdbId) {
             // F6: externalIds già in session cache (ramo non-mappato) → niente rete.
             const extIds = getTMDBSessionCache(mediaType, tmdbId, sessionLang)?.externalIds
               ?? (await getExternalIds(mediaType, tmdbId, effTmdbKey, renderAbort.signal, POSTER_TMDB_TIMEOUT_MS).catch(() => null))
-            if (extIds?.imdb_id) imdbId = extIds.imdb_id
+            if (extIds?.imdb_id) titleMeta.imdbId = extIds.imdb_id
           }
-          if (!imdbId && !isMdbTmdbIdentityUsable(tmdbId, mediaType)) return false
+          if (!titleMeta.imdbId && !isMdbTmdbIdentityUsable(tmdbId, mediaType)) return false
           // Task C: senza IMDb il TMDB id + tipo esplicito basta per le fonti
           // qui sotto (il ranking Top250 resta IMDb-only al return finale).
           if ((customRatingConfig.enabled || sepFetch) && !aggregatedRating) {
@@ -2399,7 +2359,7 @@ export async function GET(req: NextRequest, { params }: { params: Promise<RouteP
               ? cachedTmdbVote
               : undefined
             aggregatedRating = fetchAggregatedRating(
-              imdbId,
+              titleMeta.imdbId,
               effMdblistKey,
               combineAbortSignals(AbortSignal.any([renderAbort.signal, ratingAbort.signal]), RATING_WAIT_MS),
               {
@@ -2418,7 +2378,7 @@ export async function GET(req: NextRequest, { params }: { params: Promise<RouteP
           }
           // Absolute Cinema badge flag: rank 1..100 only (variable keeps the
           // legacy `imdbTop250` name for minimal diff; see imdb-top250.ts).
-          return rankingEnabledEarly ? isImdbTop100(imdbId, renderAbort.signal) : false
+          return rankingEnabledEarly ? isImdbTop100(titleMeta.imdbId, renderAbort.signal) : false
         })(),
         // Badge età (OPTIONAL, default OFF): film → release_dates (stessa URL
         // del blocco pre-digitale in Block A: il tmdbFetch condiviso coalesce
@@ -2486,7 +2446,7 @@ export async function GET(req: NextRequest, { params }: { params: Promise<RouteP
       }
       if (!multiRatingOnly) {
         const avgVote = computeVote(effectiveAggregated, reqRatingSources)
-        if (typeof avgVote === "number" && avgVote > 0) voteAverage = avgVote
+        if (typeof avgVote === "number" && avgVote > 0) titleMeta.voteAverage = avgVote
       }
       // Colonna separati: dai sources aggregati (anche con media skippata via
       // multiRatingOnly — i sources servono comunque). Vuoto → fallback media.
@@ -2520,7 +2480,7 @@ export async function GET(req: NextRequest, { params }: { params: Promise<RouteP
     // field application are unchanged (the mapping TV metadata assignments
     // below overwrite unconditionally when present, the recovery guards only
     // fill nulls — final values are identical in either order).
-    const needsDetailsRecovery = tmdbNetworks.length === 0 && productionCompanies.length === 0
+    const needsDetailsRecovery = titleMeta.tmdbNetworks.length === 0 && titleMeta.productionCompanies.length === 0
     const detailsRecovery = needsDetailsRecovery
       ? (async () => {
         const apiKey = effTmdbKey
@@ -2538,31 +2498,31 @@ export async function GET(req: NextRequest, { params }: { params: Promise<RouteP
           // still settles via the first attempt (abort-fast or cache hit).
           ?? (renderAbort.signal.aborted ? null : await attempt())
         if (!details) return
-        if (!releaseDate) releaseDate = details.release_date || null
-        if (!firstAirDate) firstAirDate = details.first_air_date || null
-        if (!lastAirDate) lastAirDate = details.last_air_date || null
-        if (seasonCount == null) seasonCount = details.number_of_seasons ?? null
-        if (!nextEpisodeAirDate) nextEpisodeAirDate = details.next_episode_to_air?.air_date || null
-        if (numberOfEpisodes == null) numberOfEpisodes = details.number_of_episodes ?? null
-        if (originCountries.length === 0) {
-          originCountries = [...(details.networks || []), ...(details.production_companies || [])]
+        if (!titleMeta.releaseDate) titleMeta.releaseDate = details.release_date || null
+        if (!titleMeta.firstAirDate) titleMeta.firstAirDate = details.first_air_date || null
+        if (!titleMeta.lastAirDate) titleMeta.lastAirDate = details.last_air_date || null
+        if (titleMeta.seasonCount == null) titleMeta.seasonCount = details.number_of_seasons ?? null
+        if (!titleMeta.nextEpisodeAirDate) titleMeta.nextEpisodeAirDate = details.next_episode_to_air?.air_date || null
+        if (titleMeta.numberOfEpisodes == null) titleMeta.numberOfEpisodes = details.number_of_episodes ?? null
+        if (titleMeta.originCountries.length === 0) {
+          titleMeta.originCountries = [...(details.networks || []), ...(details.production_companies || [])]
             .map((c) => c.origin_country)
             .filter((c): c is string => !!c)
         }
-        if (genreIds == null && Array.isArray(details.genres)) {
-          genreIds = details.genres.map((g) => g.id).filter((id): id is number => Number.isFinite(id))
+        if (titleMeta.genreIds == null && Array.isArray(details.genres)) {
+          titleMeta.genreIds = details.genres.map((g) => g.id).filter((id): id is number => Number.isFinite(id))
         }
-        if (!tvType) tvType = details.type || null
-        if (!tvStatus) tvStatus = details.status || null
+        if (!titleMeta.tvType) titleMeta.tvType = details.type || null
+        if (!titleMeta.tvStatus) titleMeta.tvStatus = details.status || null
         if (details.networks) {
-          tmdbNetworks = details.networks.map((n: TMDBCompany) => n.name)
-          tmdbNetworksDetailed = details.networks.map((n: TMDBCompany) => ({ name: n.name, logoPath: n.logo_path }))
+          titleMeta.tmdbNetworks = details.networks.map((n: TMDBCompany) => n.name)
+          titleMeta.tmdbNetworksDetailed = details.networks.map((n: TMDBCompany) => ({ name: n.name, logoPath: n.logo_path }))
         }
         if (details.production_companies) {
-          productionCompanies = details.production_companies.map((c: TMDBCompany) => c.name)
-          productionCompaniesDetailed = details.production_companies.map((c: TMDBCompany) => ({ name: c.name, logoPath: c.logo_path }))
+          titleMeta.productionCompanies = details.production_companies.map((c: TMDBCompany) => c.name)
+          titleMeta.productionCompaniesDetailed = details.production_companies.map((c: TMDBCompany) => ({ name: c.name, logoPath: c.logo_path }))
         }
-        if (tmdbNetworks.length || productionCompanies.length) tmdbStudios = matchTMDBStudios([...tmdbNetworks, ...productionCompanies])
+        if (titleMeta.tmdbNetworks.length || titleMeta.productionCompanies.length) titleMeta.tmdbStudios = matchTMDBStudios([...titleMeta.tmdbNetworks, ...titleMeta.productionCompanies])
       })().catch((e: unknown) => { log.error("Details fetch failed", { error: e instanceof Error ? e.message : String(e) }) })
       : null
 
@@ -2610,26 +2570,26 @@ export async function GET(req: NextRequest, { params }: { params: Promise<RouteP
     const analysisKey = !isLandscape
       ? (effectiveCustomUrl
         ? customBaseAnalysisKey(effectiveCustomUrl)
-        : portraitBackdropCropPath
-          ? `portrait:backdropcrop:${portraitBackdropCropPath}`
-          : (posterPath && !isCustomPosterUrl(posterPath) ? `portrait:poster:${posterPath}` : null))
+        : artwork.portraitBackdropCropPath
+          ? `portrait:backdropcrop:${artwork.portraitBackdropCropPath}`
+          : (artwork.posterPath && !isCustomPosterUrl(artwork.posterPath) ? `portrait:poster:${artwork.posterPath}` : null))
       : backdropFetch
         ? (backdropCustomForFetch
           ? customBaseAnalysisKey(backdropCustomForFetch, "landscape")
-          : (backdropPath ? `landscape:backdrop:${backdropPath}` : null))
-        : (posterPath ? `landscape:pillarbox:${posterPath}` : null)
+          : (artwork.backdropPath ? `landscape:backdrop:${artwork.backdropPath}` : null))
+        : (artwork.posterPath ? `landscape:pillarbox:${artwork.posterPath}` : null)
 
     // Apply mapping TV metadata (synchronous — no race, no side-effects in parallel closures)
-    if (mapping?.tvType) tvType = mapping.tvType
-    if (mapping?.tvStatus) tvStatus = mapping.tvStatus
-    if (mapping?.releaseDate) releaseDate = mapping.releaseDate
-    if (mapping?.firstAirDate) firstAirDate = mapping.firstAirDate
+    if (mapping?.tvType) titleMeta.tvType = mapping.tvType
+    if (mapping?.tvStatus) titleMeta.tvStatus = mapping.tvStatus
+    if (mapping?.releaseDate) titleMeta.releaseDate = mapping.releaseDate
+    if (mapping?.firstAirDate) titleMeta.firstAirDate = mapping.firstAirDate
 
     // Luminance + optional TV details fetch (parallel, independent).
     // detailsRecovery was started above (before the sharp resize) so a
     // session-miss fetch overlaps resize CPU; awaited here with the rest.
     const [customRatings, topLum, bottomLum] = await Promise.all([
-      customRatingConfig.enabled ? fetchCustomRatings(imdbId, customRatingConfig, renderAbort.signal) : Promise.resolve([]),
+      customRatingConfig.enabled ? fetchCustomRatings(titleMeta.imdbId, customRatingConfig, renderAbort.signal) : Promise.resolve([]),
       (async (): Promise<number | null> => {
         if (qTopLight === "1" || qTopLight === "0" || qTopLight === "true" || qTopLight === "false") return null
         return await topLuminance(posterBuf, analysisKey)
@@ -2690,7 +2650,7 @@ export async function GET(req: NextRequest, { params }: { params: Promise<RouteP
     // preview (slider editor), poster esplicito o mapping (intento utente).
     let effBlurHeight = blurHeight
     let effBlurFade = blurFade
-    if (!isPreview && !mapping && !queryPoster && !autoPosterClean) {
+    if (!isPreview && !mapping && !queryPoster && !artwork.autoPosterClean) {
       effBlurHeight = NON_CLEAN_GRADIENT_HEIGHT
       effBlurFade = NON_CLEAN_BLUR_FADE
     }
@@ -2793,23 +2753,23 @@ export async function GET(req: NextRequest, { params }: { params: Promise<RouteP
         mediaType,
         tmdbId,
         digitalReleaseDate: preDigital ?? null,
-        releaseDate: releaseDate ?? null,
-        firstAirDate: firstAirDate ?? null,
-        lastAirDate: lastAirDate ?? null,
-        seasonCount: seasonCount ?? null,
-        nextEpisodeAirDate: nextEpisodeAirDate ?? null,
-        numberOfEpisodes: numberOfEpisodes ?? null,
-        originCountries: [...originCountries],
-        genreIds: genreIds ? [...genreIds] : null,
-        voteAverage: voteAverage ?? 0,
+        releaseDate: titleMeta.releaseDate ?? null,
+        firstAirDate: titleMeta.firstAirDate ?? null,
+        lastAirDate: titleMeta.lastAirDate ?? null,
+        seasonCount: titleMeta.seasonCount ?? null,
+        nextEpisodeAirDate: titleMeta.nextEpisodeAirDate ?? null,
+        numberOfEpisodes: titleMeta.numberOfEpisodes ?? null,
+        originCountries: [...titleMeta.originCountries],
+        genreIds: titleMeta.genreIds ? [...titleMeta.genreIds] : null,
+        voteAverage: titleMeta.voteAverage ?? 0,
         trendRank: finalRank,
         animeRank: animeRankResult,
         awards: wikidataResult.awards,
         nominations: wikidataResult.nominations,
         studios: [...wikidataResult.studios],
         director: directorBadgeLabel(wikidataResult.director, t),
-        tvType: tvType ?? null,
-        tvStatus: tvStatus ?? null,
+        tvType: titleMeta.tvType ?? null,
+        tvStatus: titleMeta.tvStatus ?? null,
         keywords: [...tmdbKeywords],
         imdbTop250: !!imdbTop250,
         whatsonFeatures: aggregated?.whatsonFeatures ?? null,
@@ -2848,7 +2808,7 @@ export async function GET(req: NextRequest, { params }: { params: Promise<RouteP
     const applyPreRelease = preRelease && preReleaseDetected
 
     // Database locale AV specs (prioritario per 4K e formati, zero rete):
-    const localSpec = lookupAVSpecs(imdbId)
+    const localSpec = lookupAVSpecs(titleMeta.imdbId)
     // Soglia minima qualità all'uscita: la cache upstream (`resolveStreamQuality`)
     // tiene sempre il raw — qui si sopprime solo il badge sotto soglia.
     // Demo samples (Settings preview only): a demo tier only when no real
@@ -3012,14 +2972,14 @@ export async function GET(req: NextRequest, { params }: { params: Promise<RouteP
       applyPreRelease && mediaType === "movie" && preJw !== true ? preDigital : null
     const upcomingLabelForCap = getUpcomingReleaseLabel({
       mediaType,
-      releaseDate,
-      firstAirDate,
+      releaseDate: titleMeta.releaseDate,
+      firstAirDate: titleMeta.firstAirDate,
       locale,
       dateFormat,
       t,
     })
     const upcomingDateForCap = upcomingLabelForCap
-      ? (mediaType === "movie" ? releaseDate : firstAirDate)
+      ? (mediaType === "movie" ? titleMeta.releaseDate : titleMeta.firstAirDate)
       : null
     const factCapMs = resolvePosterFactCapMs({
       trendRankRemainingMs: trendFactMs,
@@ -3068,14 +3028,14 @@ export async function GET(req: NextRequest, { params }: { params: Promise<RouteP
     // in it-IT) in etichette brevi da badge — stesso helper del client, così
     // preview e poster Stremio non divergono e i mapping storici grezzi si
     // sanano senza migrazione. Idempotente.
-    genreName = normalizeGenreName(genreName, locale) || null
+    titleMeta.genreName = normalizeGenreName(titleMeta.genreName, locale) || null
     // Demo samples: genere/anno reali quando disponibili, fallback fissi
     // (passato deterministico: nessun badge upcoming/new) quando assenti.
     if (demoSamples) {
-      if (!genreName) genreName = normalizeGenreName(DEMO_SAMPLE_GENRE, locale) || DEMO_SAMPLE_GENRE
-      if (!releaseDate && !firstAirDate) {
-        if (mediaType === "tv") firstAirDate = DEMO_SAMPLE_TV_DATE
-        else releaseDate = DEMO_SAMPLE_MOVIE_DATE
+      if (!titleMeta.genreName) titleMeta.genreName = normalizeGenreName(DEMO_SAMPLE_GENRE, locale) || DEMO_SAMPLE_GENRE
+      if (!titleMeta.releaseDate && !titleMeta.firstAirDate) {
+        if (mediaType === "tv") titleMeta.firstAirDate = DEMO_SAMPLE_TV_DATE
+        else titleMeta.releaseDate = DEMO_SAMPLE_MOVIE_DATE
       }
     }
     const targetCenter = Math.round(30 * (isLandscape ? LAND_H : STD_H) / 570)
@@ -3104,58 +3064,58 @@ export async function GET(req: NextRequest, { params }: { params: Promise<RouteP
         mediaType: mediaType as "movie" | "tv",
         tmdbId,
         digitalReleaseDate: preDigital ?? null,
-        releaseDate: releaseDate ?? null,
-        firstAirDate: firstAirDate ?? null,
-        lastAirDate: lastAirDate ?? null,
-        seasonCount: seasonCount ?? null,
-        nextEpisodeAirDate: nextEpisodeAirDate ?? null,
-        numberOfEpisodes: numberOfEpisodes ?? null,
-        originCountries: [...originCountries],
-        genreIds: genreIds ? [...genreIds] : null,
-        voteAverage: voteAverage ?? 0,
+        releaseDate: titleMeta.releaseDate ?? null,
+        firstAirDate: titleMeta.firstAirDate ?? null,
+        lastAirDate: titleMeta.lastAirDate ?? null,
+        seasonCount: titleMeta.seasonCount ?? null,
+        nextEpisodeAirDate: titleMeta.nextEpisodeAirDate ?? null,
+        numberOfEpisodes: titleMeta.numberOfEpisodes ?? null,
+        originCountries: [...titleMeta.originCountries],
+        genreIds: titleMeta.genreIds ? [...titleMeta.genreIds] : null,
+        voteAverage: titleMeta.voteAverage ?? 0,
         trendRank: finalRank,
         animeRank: animeRankResult,
         awards: wikidataResult.awards,
         nominations: wikidataResult.nominations,
-        studios: tmdbStudios.length ? [...tmdbStudios] : [...productionCompanies, ...tmdbNetworks],
+        studios: titleMeta.tmdbStudios.length ? [...titleMeta.tmdbStudios] : [...titleMeta.productionCompanies, ...titleMeta.tmdbNetworks],
         director: directorBadgeLabel(wikidataResult.director, t),
-        tvType: tvType ?? null,
-        tvStatus,
+        tvType: titleMeta.tvType ?? null,
+        tvStatus: titleMeta.tvStatus,
         keywords: [...tmdbKeywords],
         imdbTop250: !!imdbTop250,
         whatsonFeatures: aggregated?.whatsonFeatures ?? null,
         disabledContentTags: disabledContentTags ?? null,
       }
       const badgeComputed = computeTopBadge(badgeInput, t, locale, sashOrder, dateFormat)
-      log.info("Debug mode", { mediaType, tmdbId, imdbId, imdbTop250: !!imdbTop250, badge: badgeComputed.badge?.label ?? "null", vote: voteAverage, genre: genreName, quality: finalQuality })
+      log.info("Debug mode", { mediaType, tmdbId, imdbId: titleMeta.imdbId, imdbTop250: !!imdbTop250, badge: badgeComputed.badge?.label ?? "null", vote: titleMeta.voteAverage, genre: titleMeta.genreName, quality: finalQuality })
       debugJson = {
         meta: {
           tmdbId,
           mediaType,
           locale,
           region: posterRegion.code,
-          imdbId,
+          imdbId: titleMeta.imdbId,
           imdbTop250: !!imdbTop250,
           renderVersion: RENDER_VERSION,
           shape: isLandscape ? "landscape" : "poster",
           mappingId: mapping ? `${mediaType}:${tmdbId}` : null,
         },
         images: {
-          poster: posterPath,
-          logo: logoPath,
-          backdrop: backdropPath,
+          poster: artwork.posterPath,
+          logo: artwork.logoPath,
+          backdrop: artwork.backdropPath,
         },
         logoSelection: {
-          requestedLang: posterRequestedLang,
-          usedLang: logoChosenIso,
-          fallbackReason: logoFallbackReason,
+          requestedLang: artwork.posterRequestedLang,
+          usedLang: artwork.logoChosenIso,
+          fallbackReason: artwork.logoFallbackReason,
         },
         cache: {
           hit: !!cachedPoster.payload,
           stale: !!cachedPoster.payload && cachedPoster.stale,
         },
-        genre: { name: genreName, year: releaseDate?.slice(0, 4) },
-        vote: { average: voteAverage },
+        genre: { name: titleMeta.genreName, year: titleMeta.releaseDate?.slice(0, 4) },
+        vote: { average: titleMeta.voteAverage },
         quality: {
           value: finalQuality,
           source: liveQualityResult.source,
@@ -3172,7 +3132,7 @@ export async function GET(req: NextRequest, { params }: { params: Promise<RouteP
           degraded: ageEphemeral,
         },
         minQuality,
-        preRelease: { enabled: preRelease, detected: preReleaseDetected, applied: applyPreRelease, jwAvailable: preJw, digitalDate: preDigital, theatricalDate: releaseDate ?? mapping?.releaseDate ?? null },
+        preRelease: { enabled: preRelease, detected: preReleaseDetected, applied: applyPreRelease, jwAvailable: preJw, digitalDate: preDigital, theatricalDate: titleMeta.releaseDate ?? mapping?.releaseDate ?? null },
         rankings: {
           justwatch: rankingResult,
           anime: animeRankResult,
@@ -3267,12 +3227,12 @@ export async function GET(req: NextRequest, { params }: { params: Promise<RouteP
     }
 
     // Fallback mapping network logo per poster salvati (quando non c'è fetch live)
-    if (mapping && tmdbNetworksDetailed.length === 0 && productionCompaniesDetailed.length === 0 && (mapping.networkLogoPath || mapping.networkLogoName)) {
+    if (mapping && titleMeta.tmdbNetworksDetailed.length === 0 && titleMeta.productionCompaniesDetailed.length === 0 && (mapping.networkLogoPath || mapping.networkLogoName)) {
       const fallbackName = mapping.networkLogoName || "network"
       const fallbackPath = mapping.networkLogoPath || null
       // Non sappiamo se è network o production: mettiamo in networks per priorità
-      tmdbNetworks = [fallbackName]
-      tmdbNetworksDetailed = [{ name: fallbackName, logoPath: fallbackPath }]
+      titleMeta.tmdbNetworks = [fallbackName]
+      titleMeta.tmdbNetworksDetailed = [{ name: fallbackName, logoPath: fallbackPath }]
     }
 
     // 10. Generate poster buffer
@@ -3296,9 +3256,9 @@ export async function GET(req: NextRequest, { params }: { params: Promise<RouteP
       // portrait there is no backdrop layer at all. The service gate is the
       // second line of defence.
       posterBuf, logoFetch, backdropFetch: null,
-      backdropScale, backdropOffsetX, backdropOffsetY,
+      backdropScale: artwork.backdropScale, backdropOffsetX: artwork.backdropOffsetX, backdropOffsetY: artwork.backdropOffsetY,
       blurEnabled, blurHeight: effBlurHeight, blurIntensity, blurFade: effBlurFade, blurDarkness, tintStrength, topShade, topShadeHeight,
-      badgesEnabled, rankingEnabled, genreName, voteAverage, badgeStyle,
+      badgesEnabled, rankingEnabled, genreName: titleMeta.genreName, voteAverage: titleMeta.voteAverage, badgeStyle,
       rankingBadgeStyle, extraBadgeStyle, badgeFont, badgeGenre: effectiveBadgeGenre, badgeYear: effectiveBadgeYear, badgeRating: effectiveBadgeRating, badgeQuality,
       qualityBadgeStyle,
       qualityGroupLayout,
@@ -3332,10 +3292,10 @@ export async function GET(req: NextRequest, { params }: { params: Promise<RouteP
       networkLogoOffsetX, networkLogoOffsetY,
       mediaType: mediaType as "movie" | "tv",
       finalRank, animeRankResult, rankingResult,
-      mapping, tmdbId, digitalReleaseDate: preDigital ?? null, tmdbNetworks, productionCompanies, tmdbStudios,
-      tmdbNetworksDetailed, productionCompaniesDetailed,
-      tvType, tvStatus, releaseDate, firstAirDate,
-      lastAirDate, seasonCount, nextEpisodeAirDate, numberOfEpisodes, originCountries, genreIds,
+      mapping, tmdbId, digitalReleaseDate: preDigital ?? null, tmdbNetworks: titleMeta.tmdbNetworks, productionCompanies: titleMeta.productionCompanies, tmdbStudios: titleMeta.tmdbStudios,
+      tmdbNetworksDetailed: titleMeta.tmdbNetworksDetailed, productionCompaniesDetailed: titleMeta.productionCompaniesDetailed,
+      tvType: titleMeta.tvType, tvStatus: titleMeta.tvStatus, releaseDate: titleMeta.releaseDate, firstAirDate: titleMeta.firstAirDate,
+      lastAirDate: titleMeta.lastAirDate, seasonCount: titleMeta.seasonCount, nextEpisodeAirDate: titleMeta.nextEpisodeAirDate, numberOfEpisodes: titleMeta.numberOfEpisodes, originCountries: titleMeta.originCountries, genreIds: titleMeta.genreIds,
       wikidataResult, tmdbKeywords, locale, t,
       dateFormat,
       genreTopWhenFree,
@@ -3355,16 +3315,16 @@ export async function GET(req: NextRequest, { params }: { params: Promise<RouteP
       // query-only via renderConfig — mai mapping/config/defaults).
       seasonalTheme,
       hideLogo,
-      posterSrc: isLandscape ? backdropPath : posterPath,
+      posterSrc: isLandscape ? artwork.backdropPath : artwork.posterPath,
       analysisKey,
       // Chiave della cache image-level del resize: il wordmark non ha un
       // path, quindi firma testo+font (stessi byte → stessa entry).
-      logoSrc: textLogo
-        ? (textLogoAuto
-          ? `text-logo-auto:${textLogo.font}:${textLogo.text}`
-          : `text-logo:${textLogo.font}:${textLogo.text}`)
-        : logoPath,
-      backdropSrc: isLandscape ? null : backdropPath,
+      logoSrc: artwork.textLogo
+        ? (artwork.textLogoAuto
+          ? `text-logo-auto:${artwork.textLogo.font}:${artwork.textLogo.text}`
+          : `text-logo:${artwork.textLogo.font}:${artwork.textLogo.text}`)
+        : artwork.logoPath,
+      backdropSrc: isLandscape ? null : artwork.backdropPath,
       // C3: render sempre canonico (jpeg storico, webp con
       // PICTORIUM_IMAGE_FORMAT=webp; avif solo ?fmt=avif legacy esplicito).
       format: legacyAvif ? outputFormat : canonicalFormat,
@@ -3428,7 +3388,7 @@ export async function GET(req: NextRequest, { params }: { params: Promise<RouteP
       // Rotazione dinamica: il bucket giorno entra nell'ETag così la
       // rivalidazione tra giorni non risponde mai 304 sul poster di ieri.
       const dynEtagSuffix = dynamicDayBucket !== null ? `:${dynamicDayBucket}` : ""
-      etag = `${etag.slice(0, -1)}:${finalRank ?? "X"}:${imdbTop250}:${voteAverage ?? "0"}:${applyPreRelease ? "P" : "x"}:${sepSig}${dynEtagSuffix}"`
+      etag = `${etag.slice(0, -1)}:${finalRank ?? "X"}:${imdbTop250}:${titleMeta.voteAverage ?? "0"}:${applyPreRelease ? "P" : "x"}:${sepSig}${dynEtagSuffix}"`
     }
 
     // 11. Cache + response
