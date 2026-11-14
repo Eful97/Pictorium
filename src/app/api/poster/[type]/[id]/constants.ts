@@ -46,3 +46,10 @@ export const WIKIDATA_TIMEOUT = (() => {
   const n = raw ? Number(raw) : 2500
   return Number.isFinite(n) && n >= 300 && n <= 10000 ? n : 2500
 })()
+
+// TTL effimero (s) per i render degradati da timeout/errore upstream sulla
+// qualità: il poster senza badge resta in cache 2 minuti invece di 6h/24h, così
+// Stremio riprova poco dopo senza avvelenare la CDN per mezza giornata.
+// Solo storage+header di QUESTO render: resolved-null (esito negativo
+// accertato) mantiene il TTL pieno.
+export const QUALITY_EPHEMERAL_TTL_SEC = 120
