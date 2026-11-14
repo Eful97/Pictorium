@@ -1,40 +1,23 @@
 import { NextRequest } from "next/server"
-
 import { hydratePosterFromDisk } from "@/lib/poster-disk-cache"
-
 import { initSharp } from "@/lib/sharp-config"
-
-import { getImages, getDetails, type TMDBCompany } from "@/lib/tmdb"
+import { getImages, getDetails } from "@/lib/tmdb"
 import { jwAvailabilityRemainingMs, jwRankingsRemainingMs, jwTitlesRemainingMs, JW_DIGITAL_MONETIZATION_TYPES } from "@/lib/justwatch"
 import { customRankingRemainingMs } from "@/lib/custom-ranking"
-
 import { getById } from "@/lib/store"
-
 import { getServerDefaultsForUser, getServerDefaultsChecked, effectiveDefaultsForShape, pickVisualDefaults } from "@/lib/server-defaults"
-
 import { effectiveMappingForShape } from "@/lib/types"
-
 import { getRegionDef, normalizeRegion, parseRegion, defaultRegionForLang } from "@/lib/regions"
-
 import { chartSlotEndMs, familySlotEndMs, type ChartFamilyPin } from "@/lib/chart-generation"
-
 import { addonRankingRemainingMs } from "@/lib/addon-ranking"
-
-import { matchTMDBStudios, directorBadgeLabel, isValidWikidataQid } from "@/lib/awards"
+import { directorBadgeLabel, isValidWikidataQid } from "@/lib/awards"
 import { createT } from "@/lib/i18n-server"
-
 import { mdblistRemainingMs } from "@/lib/mdblist"
-
 import { fetchAggregatedRating, pickSeparateRatings, resolveRatingSources, type SeparateRating } from "@/lib/ratings"
 import { getEffectiveRotationState, tryRotatePoster, getEffectiveBackdropRotationState, tryRotateBackdrop, getDynamicRotationBucket, secondsUntilDynamicRotationCut } from "@/lib/poster-rotation"
 import { getTMDBSessionCache, setTMDBSessionCache } from "@/lib/tmdb-session-cache"
-
 import { mappingVersionParam } from "@/lib/stremio-poster-url"
-
 import { RENDER_VERSION } from "@/lib/render-version"
-
-import { TOP_LIGHT_LUMINANCE } from "@/lib/constants"
-
 import {
   RENDER_SLOT_WAIT_MS,
   acquirePosterFetchSlot,
@@ -71,64 +54,37 @@ import {
   payloadHttpRemainingSec,
   type PosterCachePayload,
 } from "@/lib/poster-runtime-cache"
-
 import { capPosterTtlMs, isPreReleaseDetectionUndecided, isRankFactConsumed, resolvePosterFactCapMs } from "@/lib/poster-freshness"
-
 import { sanitizeEffectiveAccentMeta, type EffectiveAccentMeta } from "@/lib/effective-accent"
-
 import { msUntilPosterScheduledRefresh, userTagFragment } from "@/lib/cache"
-
 import { FormatOverloadError, runFormatConversion } from "@/lib/poster-format-gate"
-
 import { canonicalPosterLang, canonicalPosterQuality, resolveFinalRankWithListContext, sanitizePortraitBaseBackdropPath } from "@/lib/poster-params-hardening"
-
 import { DEMO_SAMPLE_AGE_LABEL, DEMO_SAMPLE_GENRE, DEMO_SAMPLE_MOVIE_DATE, DEMO_SAMPLE_QUALITY, DEMO_SAMPLE_RANK, DEMO_SAMPLE_TV_DATE, mergeDemoSampleRatings, sampleDemoVideoFormats } from "@/lib/demo-samples"
-
 import {
   STD_H,
   fetchImg,
   hashKey,
   isValidHex,
-  topLuminance,
-  bottomLuminance,
 } from "@/lib/poster-render-helpers"
 import { computeBottomLight } from "@/lib/accent-color"
-
 import { normalizeGenreName } from "@/lib/genre-normalize"
-
 import { NON_CLEAN_BLUR_FADE, NON_CLEAN_GRADIENT_HEIGHT } from "@/lib/gradient-defaults"
-
-import { LAND_H, landscapeBackdropUrl, pillarboxLandscapeBase, cropBackdropToPortrait, fitPortraitBase, fitLandscapeBase } from "@/lib/image-utils"
-
+import { LAND_H, landscapeBackdropUrl, cropBackdropToPortrait } from "@/lib/image-utils"
 import { generatePosterBuffer, type GenerationInput, type NetworkGeometry, type BadgeGeometryReport } from "@/lib/poster-service"
-
 import { isNextEpisodeDisplayed } from "@/lib/poster-badge"
-
 import { getUpcomingReleaseLabel, parseDateFormat } from "@/lib/release-badge"
-
-import { customBaseAnalysisKey } from "@/lib/custom-poster-base"
 import { isCustomPosterUrl } from "@/lib/utils"
-
-
 import { createLogger } from "@/lib/logger"
-
 import { resolvePosterRenderConfig, resolvePosterShape, resolveSeparateRatingsEnabled, resolveSeparateDisplayState } from "@/lib/poster-config"
 import { resolveAutoWordmark, resolveTextLogo } from "@/lib/text-logo"
 import { type StreamQualityResult } from "@/lib/stream-quality"
 import { applyMinQuality, type StreamQuality } from "@/lib/quality-tiers"
-
 import { lookupAVSpecs } from "@/lib/av-specs"
-
 import { isQualityMarkId } from "@/lib/quality-badge-pack"
-
 import { resolveEffectiveQualityMarks } from "@/lib/quality-marks-selection"
-
 import { computeVote } from "@/lib/rating-weights"
-
 import { createHash } from "node:crypto"
-
-import { fetchCustomRatings, resolveCustomRatingConfig, type RatingItem } from "@/lib/custom-rating"
-
+import { resolveCustomRatingConfig, type RatingItem } from "@/lib/custom-rating"
 import { sanitizeAgeLabel } from "@/lib/certification"
 import {
   PosterCacheLookupContext,
@@ -139,20 +95,15 @@ import {
   corsHeaders,
   posterErrorResponse,
 } from "./phases"
-
 import { admitPosterRequest } from "./admission"
-
 import { POSTER_TMDB_TIMEOUT_MS, RATING_WAIT_MS, RENDER_TIMEOUT_MS } from "./constants"
-
 import { runRankingPreflight } from "./ranking-preflight"
-
 import { buildPosterDebugJson } from "./debug"
-
 import { fetchRenderData } from "./fetch-render-data"
-
+import { prepareRenderBase } from "./render-base"
 import type { PosterArtwork, PosterTitleMeta } from "./sources"
-
 import { resolveAutoSources, resolveMappingSources, resolveQuerySources, type SourceResolutionContext } from "./resolve-sources"
+
 
 
 // Vercel: limite massimo di esecuzione della funzione. Il render poster ha un
@@ -1130,58 +1081,6 @@ export async function GET(req: NextRequest, { params }: { params: Promise<RouteP
       return new Response(isLandscape ? "Landscape backdrop not available" : "Poster image not available", { status: 404, headers: corsHeaders() })
     }
 
-    // Details recovery starts BEFORE the sharp resize below so a session-miss
-    // fetch overlaps resize CPU instead of extending the critical path after
-    // it. The promise is awaited in the luminance Promise.all; outcome and
-    // field application are unchanged (the mapping TV metadata assignments
-    // below overwrite unconditionally when present, the recovery guards only
-    // fill nulls — final values are identical in either order).
-    const needsDetailsRecovery = titleMeta.tmdbNetworks.length === 0 && titleMeta.productionCompanies.length === 0
-    const detailsRecovery = needsDetailsRecovery
-      ? (async () => {
-        const apiKey = effTmdbKey
-        const preferredLang = canonicalLang || mapping?.language || posterRegion.lang2
-        // F6: anche il refetch dei dettagli TV riusa la session cache.
-        // Un singolo retry sul fallimento transitorio (cold-start
-        // upstream): senza dettagli saltano studio/network badge e il
-        // render resta cachato così per tutto il TTL.
-        const attempt = () => getDetails(mediaType, tmdbId, preferredLang, apiKey, renderAbort.signal, POSTER_TMDB_TIMEOUT_MS).catch(() => null)
-        const details = getTMDBSessionCache(mediaType, tmdbId, preferredLang)?.details
-          ?? (await attempt())
-          // Hard abort/deadline stops the retry: past the watchdog the caller
-          // is already gone and a second full-cap wait only delays the zombie
-          // settle (the inflight entry stays held meanwhile). The recovery
-          // still settles via the first attempt (abort-fast or cache hit).
-          ?? (renderAbort.signal.aborted ? null : await attempt())
-        if (!details) return
-        if (!titleMeta.releaseDate) titleMeta.releaseDate = details.release_date || null
-        if (!titleMeta.firstAirDate) titleMeta.firstAirDate = details.first_air_date || null
-        if (!titleMeta.lastAirDate) titleMeta.lastAirDate = details.last_air_date || null
-        if (titleMeta.seasonCount == null) titleMeta.seasonCount = details.number_of_seasons ?? null
-        if (!titleMeta.nextEpisodeAirDate) titleMeta.nextEpisodeAirDate = details.next_episode_to_air?.air_date || null
-        if (titleMeta.numberOfEpisodes == null) titleMeta.numberOfEpisodes = details.number_of_episodes ?? null
-        if (titleMeta.originCountries.length === 0) {
-          titleMeta.originCountries = [...(details.networks || []), ...(details.production_companies || [])]
-            .map((c) => c.origin_country)
-            .filter((c): c is string => !!c)
-        }
-        if (titleMeta.genreIds == null && Array.isArray(details.genres)) {
-          titleMeta.genreIds = details.genres.map((g) => g.id).filter((id): id is number => Number.isFinite(id))
-        }
-        if (!titleMeta.tvType) titleMeta.tvType = details.type || null
-        if (!titleMeta.tvStatus) titleMeta.tvStatus = details.status || null
-        if (details.networks) {
-          titleMeta.tmdbNetworks = details.networks.map((n: TMDBCompany) => n.name)
-          titleMeta.tmdbNetworksDetailed = details.networks.map((n: TMDBCompany) => ({ name: n.name, logoPath: n.logo_path }))
-        }
-        if (details.production_companies) {
-          titleMeta.productionCompanies = details.production_companies.map((c: TMDBCompany) => c.name)
-          titleMeta.productionCompaniesDetailed = details.production_companies.map((c: TMDBCompany) => ({ name: c.name, logoPath: c.logo_path }))
-        }
-        if (titleMeta.tmdbNetworks.length || titleMeta.productionCompanies.length) titleMeta.tmdbStudios = matchTMDBStudios([...titleMeta.tmdbNetworks, ...titleMeta.productionCompanies])
-      })().catch((e: unknown) => { log.error("Details fetch failed", { error: e instanceof Error ? e.message : String(e) }) })
-      : null
-
     // rankingResult è autoritativo: il fallback al mapping salvato avviene solo
     // su fetch fallito (nei catch sopra), MAI su miss genuina. Altrimenti un
     // titolo uscito dalla chart mostrerebbe per sempre il rank del save
@@ -1201,63 +1100,11 @@ export async function GET(req: NextRequest, { params }: { params: Promise<RouteP
     // JW + wikidata + immagini + selezione logo). Da qui in poi solo CPU locale.
     const tFetchMs = Date.now() - startTime
 
-    // 6. Resize poster + compute luminance
-    // Landscape: base = sfondo TMDB ritagliato sul canvas 16:9, oppure
-    // pillarbox dal poster quando il titolo non ha sfondi.
-    // Portrait: `fitPortraitBase` salta il resize quando la base è già
-    // 500×750 (poster TMDB `w500`), evitando l'encode/decode JPEG q80 che il
-    // vecchio `sharp(...).resize(...).toBuffer()` pagava anche a geometria
-    // invariata (generazione lossy extra rimossa: miglioramento di qualità
-    // intenzionale, nessun cambio di geometria).
-    const posterBuf = isLandscape
-      ? (backdropFetch
-          ? await fitLandscapeBase(backdropFetch)
-          : await pillarboxLandscapeBase(baseBuf))
-      : await fitPortraitBase(baseBuf)
-    const qTopLight = req.nextUrl.searchParams.get("tl")
-    const qBottomLight = req.nextUrl.searchParams.get("bl")
-
-    // Custom base: hash of the URL, never the URL in the clear (and never
-    // the TMDB posterPath, which does not describe the rendered bytes with a
-    // custom base). Same effectiveness as the fetch above: effectiveCustomUrl
-    // decides in a single place. In landscape the key prefers the effective
-    // custom (query or saved) over the nominal backdropPath (with a custom
-    // the TMDB path does not describe the bytes).
-    const analysisKey = !isLandscape
-      ? (effectiveCustomUrl
-        ? customBaseAnalysisKey(effectiveCustomUrl)
-        : artwork.portraitBackdropCropPath
-          ? `portrait:backdropcrop:${artwork.portraitBackdropCropPath}`
-          : (artwork.posterPath && !isCustomPosterUrl(artwork.posterPath) ? `portrait:poster:${artwork.posterPath}` : null))
-      : backdropFetch
-        ? (backdropCustomForFetch
-          ? customBaseAnalysisKey(backdropCustomForFetch, "landscape")
-          : (artwork.backdropPath ? `landscape:backdrop:${artwork.backdropPath}` : null))
-        : (artwork.posterPath ? `landscape:pillarbox:${artwork.posterPath}` : null)
-
-    // Apply mapping TV metadata (synchronous — no race, no side-effects in parallel closures)
-    if (mapping?.tvType) titleMeta.tvType = mapping.tvType
-    if (mapping?.tvStatus) titleMeta.tvStatus = mapping.tvStatus
-    if (mapping?.releaseDate) titleMeta.releaseDate = mapping.releaseDate
-    if (mapping?.firstAirDate) titleMeta.firstAirDate = mapping.firstAirDate
-
-    // Luminance + optional TV details fetch (parallel, independent).
-    // detailsRecovery was started above (before the sharp resize) so a
-    // session-miss fetch overlaps resize CPU; awaited here with the rest.
-    const [customRatings, topLum, bottomLum] = await Promise.all([
-      customRatingConfig.enabled ? fetchCustomRatings(titleMeta.imdbId, customRatingConfig, renderAbort.signal) : Promise.resolve([]),
-      (async (): Promise<number | null> => {
-        if (qTopLight === "1" || qTopLight === "0" || qTopLight === "true" || qTopLight === "false") return null
-        return await topLuminance(posterBuf, analysisKey)
-      })(),
-      (async (): Promise<number | null> => {
-        if (qBottomLight === "1" || qBottomLight === "0" || qBottomLight === "true" || qBottomLight === "false") return null
-        return await bottomLuminance(posterBuf, analysisKey)
-      })(),
-      detailsRecovery ?? Promise.resolve(),
-    ])
-
-    const topLight = (qTopLight === "1" || qTopLight === "true") ? true : (qTopLight === "0" || qTopLight === "false") ? false : (topLum ?? 0.5) > TOP_LIGHT_LUMINANCE
+    // 6. Details recovery + resize base + luminance (vedi render-base.ts)
+    const { posterBuf, analysisKey, qBottomLight, customRatings, bottomLum, topLight } = await prepareRenderBase({
+      req, mediaType, tmdbId, mapping, canonicalLang, posterRegion, effTmdbKey, isLandscape,
+      customRatingConfig, effectiveCustomUrl, backdropCustomForFetch, backdropFetch, renderAbort,
+    }, baseBuf, artwork, titleMeta)
 
     // 7. Parse blur / badge / logo config from query
     const renderConfig = resolvePosterRenderConfig({
