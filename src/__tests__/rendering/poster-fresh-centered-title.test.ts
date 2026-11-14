@@ -22,6 +22,8 @@
  *   poster-fresh-unranked.test.ts). No new params, no client renderer fork
  *   (preview hits the same endpoint), missing/hidden logo unchanged.
  */
+import { tmpdir } from "node:os"
+import { join } from "node:path"
 import sharp from "sharp"
 import { createHash } from "node:crypto"
 import { mkdir, writeFile } from "node:fs/promises"
@@ -703,7 +705,7 @@ describe("explicit topShade 80 pins (stored 80 keeps the 80-era bytes)", () => {
 
 describe("task8a2 evidence samples (approved temp only, never the repo)", () => {
   it("writes ranked-portrait 100/150/200 + preservation samples", async () => {
-    const outDir = "C:/Users/lucaf/AppData/Local/Temp/opencode/task8a2"
+    const outDir = join(tmpdir(), "opencode", "task8a2")
     await mkdir(outDir, { recursive: true })
     const wordmark = await wordmarkLogo()
     const rankedBase = {

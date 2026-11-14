@@ -5,7 +5,11 @@ import { renderMultiRatings } from "@/lib/multi-rating-renderer"
 import { loadSeparateRatingLogo, renderSeparateRatingsBottom } from "@/lib/separate-rating-renderer"
 import { TOP_SHADOW_FILTER, escSvg, estimateTextWidth, fontFamilyFor } from "@/lib/badge-svg-shared"
 import { formatSeparateValue } from "@/lib/ratings"
-import { badgeBody, badgeCanvasForBody, fitBadgeToCanvas, scaleBadgeBleed } from "@/lib/poster-render-helpers"
+import { badgeBody, badgeCanvasForBody, fitBadgeToCanvas, insertFrostedGlassUnderlays, scaleBadgeBleed } from "@/lib/poster-render-helpers"
+import type { PosterComposite } from "@/lib/poster-render-helpers"
+import { computeRegionStats } from "@/lib/image-utils"
+import { TOP_LIGHT_LUMINANCE } from "@/lib/constants"
+import { RENDER_VERSION } from "@/lib/render-version"
 import type { BadgeBleed } from "@/lib/poster-render-helpers"
 import { readResponseBodyCapped } from "@/lib/outbound-stats"
 import { isTmdbImageCdnUrl } from "@/lib/resolve-image"
@@ -929,7 +933,9 @@ export function thumbnailCacheKey(input: ThumbnailCacheKeyInput): string {
   const fillerFragment = input.filler
     ? `:fl${input.filler}:fln${fillerLanguageTag(input.fillerLang)}:fls${input.fillerStyle ?? "corner"}`
     : ""
-  return `thumbnail:episode:${input.seriesId}:${input.seasonNumber}:${input.episodeNumber}:${stillPathHash(input.still)}:${input.width}:${input.badges}:bs${badgeStyle}:a${anchor}:x${ox}:y${oy}:sc${scale}:mx${THUMBNAIL_BADGE_SAFE_MARGIN_X}:my${THUMBNAIL_BADGE_SAFE_MARGIN_Y}:pr${provider}:src${voteSource}:si${stills}:b${input.blur ? 1 : 0}:${input.languages}${rotationFragment}${epochFragment}${fillerFragment}`
+  // RENDER_VERSION namespaces the entry like the poster key: a renderer change
+  // can never be served from a pre-change PNG.
+  return `thumbnail:v${RENDER_VERSION}:episode:${input.seriesId}:${input.seasonNumber}:${input.episodeNumber}:${stillPathHash(input.still)}:${input.width}:${input.badges}:bs${badgeStyle}:a${anchor}:x${ox}:y${oy}:sc${scale}:mx${THUMBNAIL_BADGE_SAFE_MARGIN_X}:my${THUMBNAIL_BADGE_SAFE_MARGIN_Y}:pr${provider}:src${voteSource}:si${stills}:b${input.blur ? 1 : 0}:${input.languages}${rotationFragment}${epochFragment}${fillerFragment}`
 }
 
 export class ThumbnailRenderError extends Error {
@@ -1546,6 +1552,26 @@ export async function renderEpisodeThumbnail(input: RenderEpisodeThumbnailInput)
 
   let voteBadge: ThumbnailBadge | null = null
   let customBadge: ThumbnailBadge | null = null
+  // Neutral vote pill through the shared genre-badge recipe. `light` = the
+  // still behind the badge is light (same polarity rule as the poster bands).
+  const renderNeutralVote = (light: boolean) => renderGenreBadge(
+    "",
+    input.voteAverage,
+    width,
+    undefined,
+    voteBadgeStyle,
+    undefined,
+    light,
+    { showGenre: false, showYear: false, showRating: true },
+    100,
+    "inter",
+  )
+  const fitVote = async (b: { png: Buffer; w: number; h: number }) =>
+    fitBadgeToCanvas(await scaleThumbnailBadge(b, badgeScale), maxW, perMaxH)
+  // `vetro` = the same glass as poster ranking/extra: real frosted still under
+  // the plate + light/dark polarity measured under the plate itself.
+  const voteIsGlass = badgeStyle === "vetro"
+  const glassLayers = new Set<PosterComposite>()
   if (wantsVote) {
     // Branded style: the vote source's own logo + inline score through the
     // SHARED separate-rating renderer (same `public/rating/*.svg` brand map).
@@ -1586,25 +1612,8 @@ export async function renderEpisodeThumbnail(input: RenderEpisodeThumbnailInput)
       ? circleVote
       : useScore
         ? scoreVote
-        : brandedVote ?? nakedVote ?? await renderGenreBadge(
-        "",
-        input.voteAverage,
-        width,
-        undefined,
-        voteBadgeStyle,
-        undefined,
-        false,
-        { showGenre: false, showYear: false, showRating: true },
-        100,
-        "inter",
-      )
-    if (voteSourceBadge) {
-      voteBadge = await fitBadgeToCanvas(
-        await scaleThumbnailBadge(voteSourceBadge, badgeScale),
-        maxW,
-        perMaxH,
-      )
-    }
+        : brandedVote ?? nakedVote ?? await renderNeutralVote(false)
+    if (voteSourceBadge) voteBadge = await fitVote(voteSourceBadge)
   }
   if (wantsCustom && brandedRating) {
     // Branded single pill: reused shared renderer (logo + inline score), not a
@@ -1711,7 +1720,19 @@ export async function renderEpisodeThumbnail(input: RenderEpisodeThumbnailInput)
     const body = stackBodies[i]!
     const bodyLeft = (anchorRight ? width - safeMarginX - body.w : safeMarginX) + offsetX
     const canvas = badgeCanvasForBody(bodyLeft, cursorTop, badge)
-    composites.push({ input: badge.png, left: Math.round(canvas.left), top: Math.round(canvas.top) })
+    let layerPng = badge.png
+    if (voteIsGlass && badge === voteBadge) {
+      // Glass box dims do not depend on polarity, so the light re-render keeps
+      // exactly this canvas/position.
+      const stats = await computeRegionStats(base, bodyLeft, cursorTop, body.w, body.h, { width, height })
+      if (stats && stats.mean / 255 > TOP_LIGHT_LUMINANCE) {
+        const light = await fitVote(await renderNeutralVote(true))
+        if (light) layerPng = light.png
+      }
+    }
+    const layer = { input: layerPng, left: Math.round(canvas.left), top: Math.round(canvas.top) }
+    if (voteIsGlass && badge === voteBadge) glassLayers.add(layer)
+    composites.push(layer)
     unionLeft = Math.min(unionLeft, bodyLeft)
     unionTop = Math.min(unionTop, cursorTop)
     unionRight = Math.max(unionRight, bodyLeft + body.w)
@@ -1724,8 +1745,11 @@ export async function renderEpisodeThumbnail(input: RenderEpisodeThumbnailInput)
   if (voteBadge) rendered.vote = true
   if (customBadge) rendered.custom = true
 
-  const png = composites.length
-    ? await sharp(base).composite(composites).png().toBuffer()
-    : base
+  let png = base
+  if (composites.length) {
+    const pipeline = sharp(base)
+    if (glassLayers.size > 0) await insertFrostedGlassUnderlays(pipeline, composites, glassLayers, width, height)
+    png = await pipeline.composite(composites).png().toBuffer()
+  }
   return { png, w: width, h: height, rendered, voteSource, stillSource, geometry }
 }

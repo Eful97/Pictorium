@@ -5,6 +5,7 @@ import { fireEvent, screen, waitFor } from "@testing-library/react"
 import { ThumbnailsView } from "@/components/ThumbnailsView"
 import { renderWithCtx } from "@/__tests__/test-utils"
 import { t } from "@/lib/i18n"
+import { RENDER_VERSION } from "@/lib/render-version"
 import type { Mapping } from "@/lib/types"
 
 const httpMock = vi.hoisted(() => vi.fn(async () => ({})))
@@ -71,7 +72,7 @@ describe("Thumbnails zone (top-level)", () => {
     const stillRow = screen.getByText("With Stills").closest("li") as HTMLLIElement
     const preview = stillRow.querySelector("img") as HTMLImageElement
     expect(preview.getAttribute("src")).toBe(
-      "/api/thumbnail/tv/2/season/1/episode/2?w=480&badges=vote&still=%2Fstill-two.jpg",
+      `/api/thumbnail/tv/2/season/1/episode/2?rv=${RENDER_VERSION}&w=480&badges=vote&still=%2Fstill-two.jpg`,
     )
     expect(stillRow.querySelector('[data-testid="episode-rotation-inherit"]')).toBeNull()
 

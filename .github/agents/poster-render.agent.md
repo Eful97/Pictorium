@@ -30,7 +30,7 @@ the server-rendered Stremio poster MUST stay visually identical (WYSIWYG).
   `node scripts/write-render-version.mjs` when rendering changed.
 - DO NOT update snapshots just because tests fail — determine intentionality first.
 - DO NOT touch concurrency/caching/deadline behavior without reading the pipeline
-  docs (README "Variabili d'Ambiente").
+  docs (docs/CONFIGURATION.md).
 
 ## Workflow
 

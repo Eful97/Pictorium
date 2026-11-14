@@ -28,6 +28,7 @@ import {
 } from "@/lib/episode-stills"
 import { buildThumbnailPreviewUrl } from "@/components/settings/thumbnail-preview"
 import { t } from "@/lib/i18n"
+import { RENDER_VERSION } from "@/lib/render-version"
 import itDict from "@/lib/translations/it.json"
 import enDict from "@/lib/translations/en.json"
 import { mappingSchema } from "@/lib/validation"
@@ -219,7 +220,7 @@ describe("episode still picker helpers", () => {
       still: "/still-two.jpg",
     })
     expect(url).toBe(
-      `/api/thumbnail/tv/${SERIES_ID}/season/2/episode/5?still=%2Fstill-two.jpg&w=320&badges=both`,
+      `/api/thumbnail/tv/${SERIES_ID}/season/2/episode/5?rv=${RENDER_VERSION}&still=%2Fstill-two.jpg&w=320&badges=both`,
     )
     expect(buildEpisodeThumbnailUrl({ seriesId: SERIES_ID, season: 1, episode: 1, still: "/bad still.jpg" })).toBeNull()
   })
@@ -239,7 +240,7 @@ describe("episode still picker helpers", () => {
       blur: true,
     })
     expect(url).toBe(
-      `/api/thumbnail/tv/${SERIES_ID}/season/1/episode/1?still=%2Fstill-one.jpg&w=320&badges=both&bstyle=branded&anchor=br&ox=12&oy=-4&bscale=150&source=tmdb&blur=1`,
+      `/api/thumbnail/tv/${SERIES_ID}/season/1/episode/1?rv=${RENDER_VERSION}&still=%2Fstill-one.jpg&w=320&badges=both&bstyle=branded&anchor=br&ox=12&oy=-4&bscale=150&source=tmdb&blur=1`,
     )
     // Scale is optional: absent = no param (the renderer default 100), so a
     // caller without space defaults keeps the historical URL byte-identical.
@@ -375,7 +376,7 @@ describe("useEpisodeStills", () => {
     expect(result.current.editor.episodeThumbnailStills).toEqual({ "1:1": "/still-two.jpg" })
     expect(result.current.state.selected).toBe("/still-two.jpg")
     expect(result.current.state.previewUrl).toBe(
-      `/api/thumbnail/tv/${SERIES_ID}/season/1/episode/1?still=%2Fstill-two.jpg&w=320&badges=both&bstyle=pill&anchor=tr&ox=0&oy=0&bscale=100&source=imdb`,
+      `/api/thumbnail/tv/${SERIES_ID}/season/1/episode/1?rv=${RENDER_VERSION}&still=%2Fstill-two.jpg&w=320&badges=both&bstyle=pill&anchor=tr&ox=0&oy=0&bscale=100&source=imdb`,
     )
   })
 
@@ -405,7 +406,7 @@ describe("useEpisodeStills", () => {
       expect(url).toContain("anchor=br")
     })
     expect(result.current.state.previewUrl).toBe(
-      `/api/thumbnail/tv/${SERIES_ID}/season/1/episode/1?still=%2Fstill-one.jpg&w=320&badges=both&bstyle=branded&anchor=br&ox=0&oy=0&bscale=100&source=imdb`,
+      `/api/thumbnail/tv/${SERIES_ID}/season/1/episode/1?rv=${RENDER_VERSION}&still=%2Fstill-one.jpg&w=320&badges=both&bstyle=branded&anchor=br&ox=0&oy=0&bscale=100&source=imdb`,
     )
   })
 
@@ -502,7 +503,7 @@ describe("useEpisodeStills", () => {
     expect(result.current.editor.episodeThumbnailStills).toEqual({ "3:1": "/orig-b.jpg" })
     // The composed preview stays the visible episode's request (same as /meta).
     expect(result.current.state.previewUrl).toBe(
-      `/api/thumbnail/tv/${SERIES_ID}/season/3/episode/1?still=%2Forig-b.jpg&w=320&badges=both&bstyle=pill&anchor=tr&ox=0&oy=0&bscale=100&source=imdb`,
+      `/api/thumbnail/tv/${SERIES_ID}/season/3/episode/1?rv=${RENDER_VERSION}&still=%2Forig-b.jpg&w=320&badges=both&bstyle=pill&anchor=tr&ox=0&oy=0&bscale=100&source=imdb`,
     )
   })
 })

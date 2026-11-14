@@ -89,6 +89,7 @@ const RENDER_FILES = [
   "src/lib/stremio-poster-url.ts",
   "src/lib/subgenres.ts",
   "src/lib/text-logo.ts",
+  "src/lib/thumbnail-renderer.ts",
   "src/lib/types.ts",
   "src/lib/svg-badge.ts",
   "src/lib/wikidata-cache.ts",
