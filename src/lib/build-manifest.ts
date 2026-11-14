@@ -1,4 +1,5 @@
 import crypto from "node:crypto"
+import { touchUserActivity } from "@/lib/user-activity"
 import { NextRequest } from "next/server"
 import { APP_VERSION } from "@/generated/app-version"
 import { PICTORIUM_CATALOGS, PICTORIUM_PEOPLE_SEARCH_CATALOGS, regionJwName } from "@/lib/catalog-definitions"
@@ -72,6 +73,9 @@ export async function buildManifestResponse(req: NextRequest, user?: string | nu
   }
   // Namespace manifest (multi-user): null con flag OFF → globale invariato.
   const scopedManifestUser = getScopedUserId(user)
+  // Activity for the inactive/unused cleanup, on every manifest entry point
+  // (/u/<uuid>/, /manifest.json?u=, /c/<config>/). Only real spaces persist.
+  if (scopedManifestUser) touchUserActivity(scopedManifestUser)
   // Base namespace (una sola lettura): i defaults dell'utente, mai i globali
   // — altrimenti i cataloghi di B seguono i default di A. Con flag OFF o
   // senza uuid → globali invariati (byte-identico).

@@ -11,6 +11,7 @@ import {
   isTvdbBreakerOpen,
 } from "@/lib/tvdb"
 import { combineAbortSignals } from "@/lib/abort-signal"
+import { touchUserActivity } from "@/lib/user-activity"
 import { getScopedUserId, extractUserParam } from "@/lib/user-auth"
 import { rateLimit, rateLimitKey, rateLimitResponse } from "@/lib/rate-limit"
 import { cacheGet, cacheSet } from "@/lib/cache"
@@ -96,6 +97,8 @@ async function handleTvdbArtworks(
   }
   // Single namespace resolution for both kinds (space over env).
   const userId = getScopedUserId(extractUserParam(req))
+  // Activity for the inactive/unused cleanup (only real spaces are persisted).
+  if (userId) touchUserActivity(userId)
   const resolved = await resolveUserApiKeys(req, userId)
   if (!resolved.tvdb.key) {
     return Response.json(
