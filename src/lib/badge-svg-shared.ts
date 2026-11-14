@@ -1111,8 +1111,8 @@ export interface SplitChipInput {
   readonly label: string
   readonly fs: number
   /**
-   * Legacy scene accent (or `ac=` override). IGNORED by the chip: the numeral
-   * cell is always the fixed mockup yellow `SPLIT_ACCENT_YELLOW`.
+   * Scene accent (or `ac=` override). Tints the numeral cell; falls back to
+   * SPLIT_ACCENT_YELLOW when absent/neutral/invalid.
    */
   readonly accentColor?: string
   readonly topLight?: boolean
@@ -1136,12 +1136,11 @@ export interface SplitChipInput {
  * - visible box: `textW + numeralPadX + 0.75fs` wide (numeral cell padding is
  *   +10% for double digits), `badgeBoxHeight(fs)` tall, radius `0.30 × boxH`
  *   (contained rounded rectangle, not a full pill);
- * - left cell: FIXED mockup yellow (`SPLIT_ACCENT_YELLOW`, flat — never the
- *   scene accent/`ac=`: the mark is always recognizable), rank numeral at
- *   `0.9em` / weight 900 with dark ink `SPLIT_NUMERAL_INK` (12.07:1),
- *   optically centered on the YELLOW CELL's ink box (`leftCellW / 2` plus the
- *   shared ink-bearing compensation `SPLIT_NUMERAL_INK_SHIFT_FACTOR` — the
- *   asymmetric `numeralPadX`/`cellGap` insets no longer bias it);
+ * - left cell: flat accent (`usableAccent(input.accentColor)` ?? `SPLIT_ACCENT_YELLOW`),
+ *   rank numeral at `0.9em` / weight 900 with ink `textColorForBg(accent)` (or
+ *   `SPLIT_NUMERAL_INK` on the yellow fallback), optically centered on the
+ *   accent cell's ink box (`leftCellW / 2` plus the shared ink-bearing
+ *   compensation `SPLIT_NUMERAL_INK_SHIFT_FACTOR`);
  *   double digits keep the +10% cell padding (box contract) and center the
  *   same way, single and double digits alike;
  * - 1px inner divider (polarity-adaptive) between the cells;
@@ -1173,7 +1172,7 @@ export function buildSplitChipSvg(input: SplitChipInput): { svg: string; w: numb
   // contract, unchanged), but the numeral is no longer anchored on the padded
   // advance box: that inset is asymmetric (`numeralPadX` on the left, the
   // divider gap `cellGap` on the right), so it read off-center. The anchor is
-  // the YELLOW CELL's own center (`leftCellW / 2`) plus a small
+  // the accent cell's own center (`leftCellW / 2`) plus a small
   // em-proportional ink-bearing compensation, so the rasterized glyphs sit
   // optically centered (single and double digits alike).
   const doubleDigit = numeral.length >= 2
@@ -1208,7 +1207,9 @@ export function buildSplitChipSvg(input: SplitChipInput): { svg: string; w: numb
     : `M ${ox},${oy} L ${ox + totalW},${oy} L ${ox + totalW},${oy + boxH - r} A ${r},${r} 0 0,1 ${ox + totalW - r},${oy + boxH} L ${ox + r},${oy + boxH} A ${r},${r} 0 0,1 ${ox},${oy + boxH - r} Z`
   const centerY = oy + boxH / 2
   const stroke = topLight ? "rgba(0,0,0,0.12)" : "rgba(255,255,255,0.22)"
-  const accent = SPLIT_ACCENT_YELLOW
+  const usable = usableAccent(input.accentColor)
+  const accent = usable ?? SPLIT_ACCENT_YELLOW
+  const numeralInk = usable ? textColorForBg(usable) : SPLIT_NUMERAL_INK
   const labelInk = input.textColor ?? (topLight ? "rgba(255,255,255,0.95)" : "rgba(0,0,0,0.88)")
   const defs = `<defs><linearGradient id="splg" x1="0" y1="0" x2="0" y2="1">${satinPillStops(topLight)}</linearGradient><clipPath id="splc"><path d="${pathD}"/></clipPath>${TOP_SHADOW_FILTER}</defs>`
   // Chip body: satin fill + polarized border + the single shared 3D shadow.
@@ -1222,7 +1223,7 @@ export function buildSplitChipSvg(input: SplitChipInput): { svg: string; w: numb
   // unchanged). The shadow already bleeds from the body path underneath.
   const outlineEl = `<path d="${pathD}" fill="none" stroke="${stroke}" stroke-width="1.5"/>`
   const numeralX = ox + leftCellW / 2 + inkShift
-  const numeralEl = `<text x="${numeralX}" y="${centerY}" text-anchor="middle" dominant-baseline="central" font-family="${fontFamilyFor(numeral, font)}" font-weight="900" font-size="${numeralFs}" fill="${SPLIT_NUMERAL_INK}"${textFitAttrs(numeralW)}>${escSvg(numeral)}</text>`
+  const numeralEl = `<text x="${numeralX}" y="${centerY}" text-anchor="middle" dominant-baseline="central" font-family="${fontFamilyFor(numeral, font)}" font-weight="900" font-size="${numeralFs}" fill="${numeralInk}"${textFitAttrs(numeralW)}>${escSvg(numeral)}</text>`
   const labelCenterX = ox + leftCellW + dividerW + cellGap + labelW / 2
   const labelEl = label
     ? `<text x="${labelCenterX}" y="${centerY}" text-anchor="middle" dominant-baseline="central" font-family="${fontFamilyFor(label, font)}" font-weight="600" font-size="${labelFs}" fill="${labelInk}"${textFitAttrs(labelW)}>${escSvg(label)}</text>`
@@ -1258,8 +1259,8 @@ export function buildRankingPillSvg(fullText: string, fs: number, textColor: str
  * Flat accent pill for the ranking `corner` style (top-left anchor):
  * same box model as the satin pill but flat-filled with `accentColorRank`
  * (already-resolved scene tint or `ac=` override), readability-preferred
- * text via `textColorForBg` (white while its effective contrast stays >= 2:1,
- * a visual preference — see COLORED_BADGE_LIGHT_TEXT_MIN_CONTRAST).
+ * text via `textColorForBg` (APCA: first candidate wins with a small Lc bias,
+ * see COLORED_BADGE_LIGHT_TEXT_LC_BIAS).
  * No satin gradient, no stroke — only the shared 3D shadow.
  */
 export function buildRankingCornerSvg(fullText: string, fs: number, accentColor: string, font: BadgeFont = "inter") {

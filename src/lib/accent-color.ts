@@ -21,33 +21,39 @@ export function contrastRatio(l1: number, l2: number): number {
   return (lighter + 0.05) / (darker + 0.05)
 }
 
-/** Minimum effective contrast for the preferred light text on flat
- * colored badges: an explicit VISUAL preference requested by the user
- * (more light text on mid-tone fills), NOT a WCAG readability or
- * compliance claim — 2:1 is below every WCAG threshold, including the
- * 3:1 large-text one. Near-white fills (golds, yellows, pastels) still
- * fall back to dark text via the max-contrast rule below. */
-export const COLORED_BADGE_LIGHT_TEXT_MIN_CONTRAST = 2
+function apcaY(r: number, g: number, b: number): number {
+  const y = 0.2126729 * (r / 255) ** 2.4 + 0.7151522 * (g / 255) ** 2.4 + 0.072175 * (b / 255) ** 2.4
+  return y < 0.022 ? y + (0.022 - y) ** 1.414 : y
+}
+/** |Lc| APCA 0.0.98G-4g del testo su fondo (valore assoluto, 0..~108). */
+export function apcaLc(txt: [number, number, number], bg: [number, number, number]): number {
+  const t = apcaY(...txt), bb = apcaY(...bg)
+  if (Math.abs(bb - t) < 0.0005) return 0
+  if (bb > t) { const s = (bb ** 0.56 - t ** 0.57) * 1.14; return s < 0.1 ? 0 : (s - 0.027) * 100 }
+  const s = (bb ** 0.65 - t ** 0.62) * 1.14; return s > -0.1 ? 0 : -(s + 0.027) * 100
+}
+
+/** Vantaggio in punti Lc concesso al primo candidato (testo chiaro):
+ * preferenza visiva, non un claim di leggibilità. 0 = APCA puro. */
+export const COLORED_BADGE_LIGHT_TEXT_LC_BIAS = 5
 
 /**
  * Picks the text color for a flat accent background (colored genre,
  * ranking, extra and corner badges, Netflix ribbon tint, style swatches).
  * Prefers the light-text candidate (`dark`, default white — legacy param
- * name: the text color meant for dark backgrounds) while its effective
- * contrast stays >= COLORED_BADGE_LIGHT_TEXT_MIN_CONTRAST (a visual
- * preference for light text on colored fills, not a WCAG claim);
- * on lighter backgrounds where it would wash out, falls back to the
- * highest-contrast candidate (previous behavior).
- * This is a readability preference, not a max-contrast claim: e.g. on
- * #E67E22 white is preferred at ~2.9:1 over dark text at ~5.9:1, while on
- * yellow/gold/near-white fills (white below 2:1) the dark candidate wins
- * and stays fully legible.
+ * name: the text color meant for dark backgrounds) using APCA (WCAG 3
+ * draft, 0.0.98G-4g): the first candidate wins when its |Lc| plus a small
+ * bias (COLORED_BADGE_LIGHT_TEXT_LC_BIAS) is >= the second candidate's
+ * |Lc|; otherwise the higher-|Lc| candidate wins. The bias is a visual
+ * preference for light text on colored fills, not a readability claim.
+ * APCA uses its own linearization (exponent 2.4), NOT WCAG relative
+ * luminance — do not reuse relativeLuminance here.
  * Param order and semantics are unchanged: the first candidate is always
  * the preferred one when readable, whichever custom colors callers pass.
  * Effective (alpha-blended on the background) contrast decides, never the
  * raw candidate values. Empty `hex` (unresolved accent) keeps the
  * historical `light` fallback. The former `#555555` special case is gone:
- * that gray is measured like any real background (white text at ~7.5:1).
+ * that gray is measured like any real background.
  * Background, tint and shadow treatment are untouched.
  */
 export function textColorForBg(hex: string, dark: string = "#ffffff", light: string = "rgba(0,0,0,0.80)"): string {
@@ -56,20 +62,17 @@ export function textColorForBg(hex: string, dark: string = "#ffffff", light: str
   const g = parseInt(hex.slice(3, 5), 16)
   const b = parseInt(hex.slice(5, 7), 16)
 
-  const bgLum = relativeLuminance(r, g, b)
-
   const scored = [dark, light]
     .map((textColor) => {
       const [tr, tg, tb, ta] = parseColor(textColor)
       const effectiveR = ta < 1 ? Math.round(tr * ta + r * (1 - ta)) : tr
       const effectiveG = ta < 1 ? Math.round(tg * ta + g * (1 - ta)) : tg
       const effectiveB = ta < 1 ? Math.round(tb * ta + b * (1 - ta)) : tb
-      const textLum = relativeLuminance(effectiveR, effectiveG, effectiveB)
-      return { color: textColor, ratio: contrastRatio(textLum, bgLum) }
+      const lc = apcaLc([effectiveR, effectiveG, effectiveB], [r, g, b])
+      return { color: textColor, lc }
     })
 
-  if (scored[0].ratio >= COLORED_BADGE_LIGHT_TEXT_MIN_CONTRAST) return scored[0].color
-  return scored[0].ratio >= scored[1].ratio ? scored[0].color : scored[1].color
+  return scored[0].lc + COLORED_BADGE_LIGHT_TEXT_LC_BIAS >= scored[1].lc ? scored[0].color : scored[1].color
 }
 
 /**
@@ -247,20 +250,16 @@ export interface AdaptiveAccentDiagnostics {
 
 /** Effective text choice for an 8-bit fill, replicating textColorForBg. */
 function chosenTextForFill(r: number, g: number, b: number): { color: string; ratio: number } {
+  const hex = `#${r.toString(16).padStart(2, "0")}${g.toString(16).padStart(2, "0")}${b.toString(16).padStart(2, "0")}`
+  const color = textColorForBg(hex)
   const bgLum = relativeLuminance(r, g, b)
-  const whiteLum = relativeLuminance(255, 255, 255)
-  const whiteRatio = contrastRatio(whiteLum, bgLum)
-  if (whiteRatio >= COLORED_BADGE_LIGHT_TEXT_MIN_CONTRAST) {
-    return { color: "#ffffff", ratio: whiteRatio }
-  }
-  const er = Math.round(r * 0.2)
-  const eg = Math.round(g * 0.2)
-  const eb = Math.round(b * 0.2)
-  const darkLum = relativeLuminance(er, eg, eb)
-  const darkRatio = contrastRatio(darkLum, bgLum)
-  return whiteRatio >= darkRatio
-    ? { color: "#ffffff", ratio: whiteRatio }
-    : { color: "rgba(0,0,0,0.80)", ratio: darkRatio }
+  const [tr, tg, tb, ta] = parseColor(color)
+  const effectiveR = ta < 1 ? Math.round(tr * ta + r * (1 - ta)) : tr
+  const effectiveG = ta < 1 ? Math.round(tg * ta + g * (1 - ta)) : tg
+  const effectiveB = ta < 1 ? Math.round(tb * ta + b * (1 - ta)) : tb
+  const textLum = relativeLuminance(effectiveR, effectiveG, effectiveB)
+  const ratio = contrastRatio(textLum, bgLum)
+  return { color, ratio }
 }
 
 function clampChannel(v: number): number {

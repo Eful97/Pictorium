@@ -1,4 +1,54 @@
-import { normalizeExtraBadgeStyleForRender, type BadgeStyle, type RankingBadgeStyle, type ExtraBadgeStyle, type ExtraBadgeFollowRank } from "./badge-styles"
+import { normalizeExtraBadgeStyleForRender, type BadgeStyle, type RankingBadgeStyle, type ExtraBadgeStyle, type ExtraBadgeFollowRank, isRibbonRankingStyle } from "./badge-styles"
+
+export type BadgeSampleAnchor = "center" | "left" | "right"
+
+export const BADGE_SAMPLE_WIDTH_FRACTION = 0.5
+
+export function topBadgeSampleAnchor(params: {
+  readonly topBadgeType: "rank" | "extra" | null | undefined
+  readonly rankingBadgeStyle: RankingBadgeStyle
+  readonly extraBadgeStyle?: ExtraBadgeStyle | ExtraBadgeFollowRank | string | null
+  readonly ribbonSide?: string | null
+}): BadgeSampleAnchor {
+  const topBadgeType = params.topBadgeType ?? "rank"
+  const eff = resolveTopBadgeStyle({
+    topBadgeType: topBadgeType === "extra" ? "extra" : "rank",
+    rankingBadgeStyle: params.rankingBadgeStyle,
+    extraBadgeStyle: params.extraBadgeStyle,
+  })
+  if (isRibbonRankingStyle(eff)) {
+    return params.ribbonSide === "right" ? "right" : "left"
+  }
+  if (isTopBadgeNumberRightCorner({
+    topBadgeType: topBadgeType === "extra" ? "extra" : "rank",
+    rankingBadgeStyle: params.rankingBadgeStyle,
+    extraBadgeStyle: params.extraBadgeStyle,
+    ribbonSide: params.ribbonSide,
+    hasTopBadge: true,
+  })) {
+    return "right"
+  }
+  if (isCornerAnchoredStyle(eff)) {
+    return "left"
+  }
+  return "center"
+}
+
+export function badgeSampleWindow(anchor: BadgeSampleAnchor, canvasW: number): { left: number; width: number } {
+  const w = Math.max(1, canvasW)
+  if (anchor === "left") {
+    const width = Math.round(w * 0.4)
+    return { left: 0, width: Math.max(1, width) }
+  }
+  if (anchor === "right") {
+    const width = Math.round(w * 0.4)
+    const left = w - width
+    return { left: Math.max(0, left), width: Math.max(1, width) }
+  }
+  const width = Math.round(w * BADGE_SAMPLE_WIDTH_FRACTION)
+  const left = Math.round((w - width) / 2)
+  return { left: Math.max(0, left), width: Math.max(1, width) }
+}
 
 // Ancoraggio destro landscape (rightPadX in scala + shift ottico verso il
 // bordo, clamp anti-overflow). UNICA definizione: il ramo genere la riusa con

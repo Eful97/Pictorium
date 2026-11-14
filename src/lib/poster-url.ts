@@ -12,8 +12,7 @@ import { normalizeSeasonalTheme, resolveEffectiveSeasonalTheme } from "./seasona
 import { isManualAccent } from "./accent-color"
 import { RENDER_VERSION } from "./render-version"
 import { isValidWikidataQid } from "./badge-labels"
-import { TOP_LIGHT_LUMINANCE } from "./constants"
-import { hexLuminance, computeBottomLight } from "./accent-color"
+
 import { normalizeGenreName } from "./genre-normalize"
 import type { SearchResult, TMDBImage } from "./types"
 import type { EnrichedAnimeItem } from "./validation"
@@ -687,16 +686,10 @@ export function buildPreviewUrl(ps: PosterState, bp: BadgeParams, configToken?: 
   // scavalcerebbe il calcolo server (tinta di scena) nella preview.
   const manualAccent = isManualAccent(ps.accentColor, ps.autoAccentColor) ? ps.accentColor : null
   if (manualAccent) params.push(`ac=${encodeURIComponent(manualAccent)}`)
-  // Fix M16: tl è inviato SOLO a calcolo completato: con topEdgeColor null
-  // (colore non ancora campionato) la preview forzava tl=1 (testo chiaro)
-  // anche quando il server avrebbe calcolato scuro — ora il server decide.
-  const topLight = computeTopLight(ps.topEdgeColor)
-  if (topLight !== null) params.push(`tl=${topLight ? "1" : "0"}`)
-  // bl come tl (regola M16): solo a calcolo completato, altrimenti decide il
-  // server. Senza, la preview forzava la polarità del badge genere sul top
-  // anche con fondo scuro. La correzione blur viaggia nei stessi bp del render.
-  const bottomLight = computeBottomLight(hexLuminance(ps.bottomEdgeColor ?? null), bp.blurDarkness, bp.blurEnabled)
-  if (bottomLight !== null) params.push(`bl=${bottomLight ? "1" : "0"}`)
+  // Polarità badge (tl/bl) NON viene più emessa dalla preview: il server la
+  // calcola sulla finestra del badge (badgeSampleWindow) e la preview carica
+  // la stessa route, quindi WYSIWYG resta garantito. topEdgeColor/bottomEdgeColor
+  // restano nel contesto (useRootColors) per altri usi.
   if (bp.rankingBadges) {
     // List-rank context (decisione A): un `rk=` valido vince sui rank live.
     // Le emissioni automatiche `rank=`/`animerank=` da customBadge rank-key o
@@ -725,22 +718,7 @@ export function buildPreviewUrl(ps: PosterState, bp: BadgeParams, configToken?: 
   return `${getDomain()}/api/poster/${ps.selected.media_type}/${ps.selected.id}${qs}`
 }
 
-/**
- * Top-light della preview. Ritorna `null` quando il colore non è ancora stato
- * campionato (topEdgeColor null): in quel caso il parametro tl viene OMESSO e
- * decide il server (calcolo sull'immagine reale). Formula Rec.709 sugli stessi
- * coefficienti del server (image-utils.luma) e soglia condivisa
- * TOP_LIGHT_LUMINANCE (fix M16): prima i byte sRGB venivano confrontati con
- * una soglia hardcoded e il null diventava true (testo chiaro forzato).
- */
-function computeTopLight(hexColor: string | null): boolean | null {
-  if (!hexColor || hexColor.length < 7) return null
-  const r = parseInt(hexColor.slice(1, 3), 16) / 255
-  const g = parseInt(hexColor.slice(3, 5), 16) / 255
-  const b = parseInt(hexColor.slice(5, 7), 16) / 255
-  const luminance = 0.2126 * r + 0.7152 * g + 0.0722 * b
-  return luminance > TOP_LIGHT_LUMINANCE
-}
+
 
 function computeBadgeParams(ps: PosterState, bp: BadgeParams, omitAutoRank = false): string[] {
   const params: string[] = []

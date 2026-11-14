@@ -252,6 +252,10 @@ export interface GenerationInput {
   topLight: boolean
   /** Polarità del badge genere in basso (fondo chiaro → pill scura). Default = topLight (comportamento storico). */
   bottomLight?: boolean
+  /** Polarità del badge in alto (rank/extra) misurata sulla finestra del badge. Default = topLight. */
+  topBadgeLight?: boolean
+  /** Polarità del badge genere misurata sulla finestra del badge. Default = bottomLight ?? topLight. */
+  genreBadgeLight?: boolean
   /**
    * Visibilità badge di riferimento per la reservation logo (solo geometria):
    * in bottom la route passa l'equivalente colonna così il logo titolo resta
@@ -939,6 +943,8 @@ export async function generatePosterBuffer(input: GenerationInput): Promise<Buff
     // Tinta accent sul default centrato (degrado "colored" senza nastro).
     rankingBadgeAccent = false,
     bottomLight: bottomLightOpt,
+    topBadgeLight: topBadgeLightOpt,
+    genreBadgeLight: genreBadgeLightOpt,
     logoScale, logoOffsetX, logoOffsetY,
     topBadgeScale, topBadgeOffsetX, topBadgeOffsetY,
     extraBadgeScale, extraBadgeOffsetX, extraBadgeOffsetY,
@@ -967,6 +973,8 @@ export async function generatePosterBuffer(input: GenerationInput): Promise<Buff
   // con alto chiaro e fondo scuro la pill restava grafite su nero). Chiamanti
   // vecchi/test diretti che non passano bottomLight ricadono sul top.
   const bottomLight = bottomLightOpt ?? topLight
+  const topBadgeLight = topBadgeLightOpt ?? topLight
+  const genreBadgeLight = genreBadgeLightOpt ?? bottomLight
   // Font badge normalizzato (assente/invalido → "inter" = resa storica).
   const badgeFont = normalizeBadgeFont(input.badgeFont)
   // Stile pill età normalizzato (assente/invalido → "standard" = resa
@@ -1642,7 +1650,7 @@ export async function generatePosterBuffer(input: GenerationInput): Promise<Buff
   // la polarità della banda alta (`topLight`), come i badge superiori.
   const genreAtTop = input.genreTopWhenFree === true && shape !== "landscape" && !isFresh && !isCard
     && badgeStyle !== "bar" && !topBadge && !showComingSoon
-  const genreLight = genreAtTop ? topLight : bottomLight
+  const genreLight = genreAtTop ? topBadgeLight : genreBadgeLight
   const genreBadgeKey = hasGenreBadge
     ? badgeCacheKey("genre", genreName, voteAverage, CW, year, badgeStyle, badgeFont, genreStdAccent, genreLight, badgeGenre, badgeYear, badgeRating, genreBadgeScale)
     : null
@@ -1650,7 +1658,7 @@ export async function generatePosterBuffer(input: GenerationInput): Promise<Buff
   // never be served for a textual request (or vice versa). Non-award extras
   // keep the historic key (identical text render in both modes).
   const rankBadgeKey = !showComingSoon && topBadge
-    ? badgeCacheKey("rank", topBadge.type === "extra" ? topBadge.label : `${(topBadge as { rank: number }).rank}:${topBadge!.label}:${(topBadge as { ribbonLabel?: string }).ribbonLabel ?? ""}`, CW, topLight, topBadgeStyle, badgeFont, rankStdAccent, ribbonSide, isAnimeRank, effTopBadgeScale, isRankDetached ? "detached" : undefined, rankingBadgeAccent ? "accent" : undefined, awardLogoTopKey ? `awardlogo:${awardLogoTopKey}:${awardLogoTopCaption ?? ""}` : undefined)
+    ? badgeCacheKey("rank", topBadge.type === "extra" ? topBadge.label : `${(topBadge as { rank: number }).rank}:${topBadge!.label}:${(topBadge as { ribbonLabel?: string }).ribbonLabel ?? ""}`, CW, topBadgeLight, topBadgeStyle, badgeFont, rankStdAccent, ribbonSide, isAnimeRank, effTopBadgeScale, isRankDetached ? "detached" : undefined, rankingBadgeAccent ? "accent" : undefined, awardLogoTopKey ? `awardlogo:${awardLogoTopKey}:${awardLogoTopCaption ?? ""}` : undefined)
     : null
   const formatsKey = (effectiveFormats && effectiveFormats.length > 0) ? effectiveFormats.join(",") : "none"
   // Per-item corrections, split by family so each group's cache key carries
@@ -1706,7 +1714,7 @@ export async function generatePosterBuffer(input: GenerationInput): Promise<Buff
                 // Extra badges render with the standalone style when set, else
                 // the legacy `rs` fallback (plus the no-ribbon accent rule).
                 // The follow-rank sentinel normalizes to null (own-rank).
-                const renderText = () => renderExtraBadge(topBadge!.label, topBadgePw, topLight, normalizeExtraBadgeStyleForRender(extraBadgeStyle) ?? (rankingBadgeAccent ? "colored" : rankingBadgeStyle), rankStdAccent, isRankDetached, badgeFont)
+                const renderText = () => renderExtraBadge(topBadge!.label, topBadgePw, topBadgeLight, normalizeExtraBadgeStyleForRender(extraBadgeStyle) ?? (rankingBadgeAccent ? "colored" : rankingBadgeStyle), rankStdAccent, isRankDetached, badgeFont)
                 // Award logo mode: canonical award icon on the shared
                 // anthracite pill. A missing/unreadable asset falls back to
                 // the historic textual badge (never a failed render).
@@ -1716,7 +1724,7 @@ export async function generatePosterBuffer(input: GenerationInput): Promise<Buff
                 return rendered
                   .then((r) => { const v = { ...r, isRank: false }; cacheSet(rankBadgeKey, v, ["badge"], BADGE_CACHE_TTL); return v })
               }
-              return renderRankingBadge((topBadge as { rank: number }).rank, isRibbonRankingStyle(rankingBadgeStyle) ? badgePw : topBadgePw, topBadge!.label, topLight, rankingBadgeStyle, rankStdAccent, ribbonSide, isAnimeRank, isRankDetached, rankingBadgeAccent, (topBadge as { ribbonLabel?: string }).ribbonLabel, badgeFont)
+              return renderRankingBadge((topBadge as { rank: number }).rank, isRibbonRankingStyle(rankingBadgeStyle) ? badgePw : topBadgePw, topBadge!.label, topBadgeLight, rankingBadgeStyle, rankStdAccent, ribbonSide, isAnimeRank, isRankDetached, rankingBadgeAccent, (topBadge as { ribbonLabel?: string }).ribbonLabel, badgeFont)
                 .then((r) => { const v = { ...r, isRank: true }; cacheSet(rankBadgeKey, v, ["badge"], BADGE_CACHE_TTL); return v })
             }))
       : Promise.resolve(null)
@@ -1861,12 +1869,12 @@ export async function generatePosterBuffer(input: GenerationInput): Promise<Buff
       // divergono con shrink overflow e metriche dei font).
       let sepCenterShift = 0
       if (anchorRight && genreBadgeResult && (input.separateRatings?.length ?? 0) > 0) {
-        const fullKey = badgeCacheKey("genre", genreName, voteAverage, CW, year, badgeStyle, badgeFont, genreStdAccent, bottomLight, badgeGenre, badgeYear, true, genreBadgeScale)
+        const fullKey = badgeCacheKey("genre", genreName, voteAverage, CW, year, badgeStyle, badgeFont, genreStdAccent, genreBadgeLight, badgeGenre, badgeYear, true, genreBadgeScale)
         const fullHit = cacheGet<{ png: Buffer; w: number; h: number }>(fullKey)
         const fullW = fullHit
           ? fullHit.w
           : await coalesceBadgeRender(fullKey, () =>
-              renderGenreBadge(genreName ?? "", voteAverage ?? 0, badgePw, year, badgeStyle, genreStdAccent, bottomLight, { showGenre: badgeGenre, showYear: badgeYear, showRating: true }, 100, badgeFont)
+              renderGenreBadge(genreName ?? "", voteAverage ?? 0, badgePw, year, badgeStyle, genreStdAccent, genreBadgeLight, { showGenre: badgeGenre, showYear: badgeYear, showRating: true }, 100, badgeFont)
                 .then((r) => { if (r) cacheSet(fullKey, r, ["badge"], BADGE_CACHE_TTL); return r }),
             ).then((r) => (r ? r.w : null), () => null)
         if (fullW != null && fullW > genreBadgeResult.w) {
@@ -1923,7 +1931,7 @@ export async function generatePosterBuffer(input: GenerationInput): Promise<Buff
   if (badgesEnabled !== false && input.ratings?.length && !isBottomStyle && !isFresh && !isCard) {
     // Optional enrichment must never prevent the original poster from rendering.
     // La riga sta sopra il badge genere, in basso: stessa polarità del fondo.
-    const customRowBitmap = await renderMultiRatings(input.ratings, CW - 40, bottomLight, badgeFont).catch(() => null)
+    const customRowBitmap = await renderMultiRatings(input.ratings, CW - 40, genreBadgeLight, badgeFont).catch(() => null)
     const row = customRowBitmap
     if (row) {
       const legacyTop = safeGenreBadgeResult && !genreAtTop
@@ -3132,7 +3140,7 @@ export async function generatePosterBuffer(input: GenerationInput): Promise<Buff
     //   bottom styles suppress it via suppressCustomRow like Standard.
     let cardCustomRow: { png: Buffer; w: number; h: number } | null = null
     if (cardShowCustom && input.ratings && !isBottomStyle) {
-      cardCustomRow = await renderMultiRatings(input.ratings, CW - 40, bottomLight, badgeFont).catch(() => null)
+      cardCustomRow = await renderMultiRatings(input.ratings, CW - 40, genreBadgeLight, badgeFont).catch(() => null)
     }
     // - bottom styles: the existing bottom row, stacked below the main badge
     //   (same builder args/geometry inputs as Standard, so the cache entries
