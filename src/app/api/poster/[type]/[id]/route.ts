@@ -8,24 +8,15 @@ import { createT } from "@/lib/i18n-server"
 import { fetchAggregatedRating, pickSeparateRatings, resolveRatingSources, type SeparateRating } from "@/lib/ratings"
 import { getTMDBSessionCache, setTMDBSessionCache } from "@/lib/tmdb-session-cache"
 import {
-  RENDER_SLOT_WAIT_MS,
   acquirePosterFetchSlot,
   acquirePosterRenderSlot,
   beginPosterRender,
   getPendingPoster,
-  posterNotModifiedHeaders,
-  posterResponse,
-  variantEtagFor,
   readCachedPoster,
-  readPosterError,
   recordZombieRenderStart,
   writePosterError,
-  recordPosterRequest,
   recordPosterError,
-  recordPosterCoalescedHit,
   recordBackdropCropRescue,
-  payloadHttpRemainingSec,
-  type PosterCachePayload,
 } from "@/lib/poster-runtime-cache"
 import { type EffectiveAccentMeta } from "@/lib/effective-accent"
 import { resolveFinalRankWithListContext, sanitizePortraitBaseBackdropPath } from "@/lib/poster-params-hardening"
@@ -56,6 +47,7 @@ import {
   buildPosterCacheParams,
   checkPosterCanonicalCache,
   checkPosterNegativeCache,
+  serveCoalescedPoster,
   checkPosterVariantFastPath,
   corsHeaders,
   posterErrorResponse,
@@ -234,54 +226,7 @@ export async function GET(req: NextRequest, { params }: { params: Promise<RouteP
   // finale). Se la rivalidazione fallisce, errore — mai un falso 304.
 
   const pendingPoster = getPendingPoster(cacheKey)
-  if (pendingPoster && !wantNetGeo) {
-    // F8: il waiter coalesced attende al massimo RENDER_SLOT_WAIT_MS, poi 503
-    // con Retry-After invece di tenere la connessione fino all'INFLIGHT_TIMEOUT
-    // (60s) del render lento. Fix L3: il timer della race viene cancellato se
-    // vince la promise concorrente (prima restava attivo fino alla scadenza).
-    let coalesceTimer: ReturnType<typeof setTimeout> | undefined
-    const coalesceTimeout = new Promise<PosterCachePayload | null>((resolve) => {
-      coalesceTimer = setTimeout(() => resolve(null), RENDER_SLOT_WAIT_MS)
-    })
-    const payload = await Promise.race([pendingPoster, coalesceTimeout])
-    if (coalesceTimer) clearTimeout(coalesceTimer)
-    if (payload) {
-      log.debug("Poster cache: coalesced with in-flight render", { mediaType, tmdbId, ms: Date.now() - startTime })
-      recordPosterRequest(true, outputFormat)
-      recordPosterCoalescedHit()
-      // Latency: NO sample — the waiter awaited ANOTHER request's render, so
-      // its latency measures queue + someone else's pipeline, never its own
-      // cache nor its own render. The effective render records its own
-      // "render" sample once at terminal success.
-      // Finding 5: il waiter della preview deve ricevere gli header no-store
-      // anche quando si coalesce con un render in flight (era hardcoded false).
-      // C3: il payload condiviso è canonico — il waiter non-canonico converte.
-      // Il confronto condizionale usa il validatore della rappresentazione
-      // richiesta (audit, problema 1): niente conversione solo per il 304.
-      if (needsVariant) {
-        const waiterVariantEtag = variantEtagFor(payload.etag, outputFormat as "jpeg" | "webp")
-        const waiterNow = Date.now()
-        const waiterVariantHttpSec = payload.factCapped ? payloadHttpRemainingSec(payload, variantTtlSec, waiterNow) : (payload.ttlSec ?? variantTtlSec)
-        if (isConditional && ifNoneMatch === waiterVariantEtag) {
-          return new Response(null, { status: 304, headers: posterNotModifiedHeaders(waiterVariantEtag, immutablePoster, dynamicPoster, waiterVariantHttpSec, isLive, payload.accentMeta, payload.factCapped) })
-        }
-        return serveResponseVariant(payload)
-      }
-      if (isConditional && ifNoneMatch === payload.etag) {
-        return new Response(null, { status: 304, headers: posterNotModifiedHeaders(payload.etag, immutablePoster, dynamicPoster, payload.factCapped ? payloadHttpRemainingSec(payload, dynamicTtlSec) : (payload.ttlSec ?? dynamicTtlSec), isLive, payload.accentMeta, payload.factCapped) })
-      }
-      return posterResponse(payload, immutablePoster, isPreview, dynamicPoster, outputFormat, payload.factCapped ? payloadHttpRemainingSec(payload, dynamicTtlSec) : (payload.ttlSec ?? dynamicTtlSec), undefined, isLive, payload.factCapped)
-    }
-    // Coalesce scaduto: o il render è fallito (negative cache) o è ancora in
-    // corso — mai duplicare il render, rispondere 503 con backoff esplicito.
-    const negError = readPosterError(cacheKey)
-    if (negError) {
-      log.debug("Poster negative cache hit", { mediaType, tmdbId, status: negError.status, ms: Date.now() - startTime })
-      return posterErrorResponse(negError.status)
-    }
-    log.debug("Coalesce timeout: render ancora in corso", { mediaType, tmdbId, ms: Date.now() - startTime })
-    return posterErrorResponse(503)
-  }
+  if (pendingPoster && !wantNetGeo) return await serveCoalescedPoster(cacheLookupCtx, pendingPoster)
   const negativeLookupResponse = checkPosterNegativeCache(cacheLookupCtx)
   if (negativeLookupResponse) return negativeLookupResponse
   const completePosterRender = beginPosterRender(cacheKey)
