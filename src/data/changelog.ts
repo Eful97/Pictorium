@@ -30,6 +30,18 @@ export interface ChangelogRelease {
  *  (which bumps on every commit and would leave the dot permanently on). */
 export const CHANGELOG: ChangelogRelease[] = [
   {
+    version: "1.27.8",
+    date: "2026-11-14",
+    title: "Release 1.27.8",
+    items: [
+      { type: "feature", text: "See a frosted glass rating badge on episode thumbnails with the vetro style, adapting to light and dark stills" },
+      { type: "fix", text: "Show the right IMDb rating on episode thumbnails when TMDB and IMDb split the seasons differently, as with Lupin" },
+      { type: "fix", text: "Keep the thumbnail card previews in sync with the badge style and position chosen in the editor" },
+      { type: "fix", text: "Refresh episode thumbnails right after an update instead of serving old cached images" },
+      { type: "perf", text: "Render posters with badges faster under load" },
+    ],
+  },
+  {
     version: "1.27.7",
     date: "2026-11-13",
     title: "Release 1.27.7",

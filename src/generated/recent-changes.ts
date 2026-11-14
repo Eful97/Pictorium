@@ -11,6 +11,4 @@ export interface RecentChange {
 }
 
 export const RECENT_CHANGES: RecentChange[] = [
-  { type: "feature", text: "frosted adaptive glass vote and versioned thumbnail cache", sha: "5966567", date: "2026-11-14" },
-  { type: "perf", text: "rasterize badge SVGs off the event loop", sha: "e31b664", date: "2026-11-14" },
 ]
