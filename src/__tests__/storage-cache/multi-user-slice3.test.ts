@@ -34,6 +34,7 @@ const ENV_KEYS = [
   "PICTORIUM_MULTI_USER",
   "PICTORIUM_MAX_MAPPINGS_PER_USER",
   "PICTORIUM_USER_RETENTION_DAYS",
+  "PICTORIUM_UNUSED_USER_GRACE_DAYS",
   "PROFILE_ENCRYPTION_KEY",
   "PICTORIUM_TMDB_KEY",
   "PICTORIUM_HOSTED_BY",
@@ -55,6 +56,7 @@ beforeEach(async () => {
   process.env.ADMIN_TOKEN = "admin-secret"
   delete process.env.PICTORIUM_MAX_MAPPINGS_PER_USER
   delete process.env.PICTORIUM_USER_RETENTION_DAYS
+  delete process.env.PICTORIUM_UNUSED_USER_GRACE_DAYS
   delete process.env.PICTORIUM_TMDB_KEY
   delete process.env.PICTORIUM_HOSTED_BY
   delete process.env.POSTERIUM_HOSTED_BY
@@ -438,5 +440,193 @@ describe("KV backend (Redis/Upstash via lib/kv)", () => {
       kvMemory.clear()
       vi.resetModules()
     }
+  })
+})
+
+describe("cleanup spazi mai usati", () => {
+  const DAY = 86400000
+  const ago = (days: number) => new Date(Date.now() - days * DAY).toISOString()
+  const armFile = async (days: number) => {
+    await fsp.mkdir(path.join(tempDir!, "instance"), { recursive: true })
+    await fsp.writeFile(path.join(tempDir!, "instance", "unused-user-cleanup-armed.json"), JSON.stringify({ armedAt: ago(days) }))
+  }
+  const backdateFile = async (uuid: string, days: number) => {
+    const file = path.join(tempDir!, "users", uuid, "auth.json")
+    const rec = JSON.parse(await fsp.readFile(file, "utf-8")) as Record<string, unknown>
+    rec.createdAt = ago(days)
+    await fsp.writeFile(file, JSON.stringify(rec))
+  }
+
+  it("default 14 giorni, 0 = disabilitato, valori invalidi = default", async () => {
+    vi.resetModules()
+    let activity = await import("@/lib/user-activity")
+    expect(activity.getUnusedUserGraceDays()).toBe(14)
+    process.env.PICTORIUM_UNUSED_USER_GRACE_DAYS = "0"
+    vi.resetModules()
+    activity = await import("@/lib/user-activity")
+    expect(activity.getUnusedUserGraceDays()).toBe(0)
+    process.env.PICTORIUM_UNUSED_USER_GRACE_DAYS = "abc"
+    vi.resetModules()
+    activity = await import("@/lib/user-activity")
+    expect(activity.getUnusedUserGraceDays()).toBe(14)
+  })
+
+  it("file mode: rimuove solo gli spazi vecchi senza attività né chiavi", async () => {
+    const backdate = async (uuid: string, days: number) => {
+      const file = path.join(tempDir!, "users", uuid, "auth.json")
+      const rec = JSON.parse(await fsp.readFile(file, "utf-8")) as Record<string, unknown>
+      rec.createdAt = ago(days)
+      await fsp.writeFile(file, JSON.stringify(rec))
+    }
+    const { uuid: unused } = await createUser()
+    const { uuid: withKeys } = await createUser()
+    const { uuid: withActivity } = await createUser()
+    const { uuid: young } = await createUser()
+    await backdate(unused, 30)
+    await backdate(withKeys, 30)
+    await backdate(withActivity, 30)
+    await backdate(young, 3)
+    await armFile(30)
+    vi.resetModules()
+    const keys = await import("@/lib/user-keys")
+    const activity = await import("@/lib/user-activity")
+    await keys.setUserKeys(withKeys, { tmdb: "tmdb-key-value" })
+    activity.touchUserActivity(withActivity)
+    await new Promise((r) => setTimeout(r, 50))
+
+    const result = await activity.cleanupInactiveUsers()
+    expect(result).toMatchObject({ removed: 1, removedUnused: 1, kept: 3 })
+    const left = (await activity.listUsers()).map((u) => u.uuid)
+    expect(left).not.toContain(unused)
+    expect(left).toEqual(expect.arrayContaining([withKeys, withActivity, young]))
+  })
+
+  it("KV mode: rimuove lo spazio abbandonato, fail-safe sugli errori di lettura", async () => {
+    process.env.KV_REST_API_URL = "https://example.upstash.io"
+    process.env.KV_REST_API_TOKEN = "test-token"
+    try {
+      vi.resetModules()
+      const auth = await import("@/lib/user-auth")
+      const keys = await import("@/lib/user-keys")
+      const activity = await import("@/lib/user-activity")
+      const backdate = (uuid: string, days: number) => {
+        const rec = kvMemory.get(`user:${uuid}:auth`) as Record<string, unknown>
+        kvMemory.set(`user:${uuid}:auth`, { ...rec, createdAt: ago(days) })
+      }
+      const unused = (await auth.createUser()).uuid
+      const withKeys = (await auth.createUser()).uuid
+      const withActivity = (await auth.createUser()).uuid
+      const young = (await auth.createUser()).uuid
+      const readFails = (await auth.createUser()).uuid
+      const legacy = (await auth.createUser()).uuid
+      const arrayKeys = (await auth.createUser()).uuid
+      const partialBundle = (await auth.createUser()).uuid
+      const emptyKeys = (await auth.createUser()).uuid
+      for (const u of [unused, withKeys, withActivity, readFails, arrayKeys, partialBundle, emptyKeys]) backdate(u, 30)
+      // Record chiavi malformati → tenuti; record riconosciuto e vuoto → nessuna chiave.
+      kvMemory.set(`user:${arrayKeys}:keys`, { version: 1, keys: [], updatedAt: ago(1) })
+      kvMemory.set(`user:${partialBundle}:keys`, { version: 1, keys: { tmdb: { iv: "x", ct: "y" } }, updatedAt: ago(1) })
+      kvMemory.set(`user:${emptyKeys}:keys`, { version: 1, keys: {}, updatedAt: ago(1) })
+      // Usato in passato: activity scaduta (TTL), resta il marker durevole.
+      const expiredActivity = (await auth.createUser()).uuid
+      backdate(expiredActivity, 30)
+      kvMemory.set(`user:${expiredActivity}:used`, "1")
+      kvMemory.set("instance:unused-user-cleanup-armed-at", ago(30))
+      backdate(young, 3)
+      const legacyRec = { ...(kvMemory.get(`user:${legacy}:auth`) as Record<string, unknown>) }
+      delete legacyRec.createdAt
+      kvMemory.set(`user:${legacy}:auth`, legacyRec)
+      await keys.setUserKeys(withKeys, { tmdb: "tmdb-key-value" })
+      activity.touchUserActivity(withActivity)
+      await new Promise((r) => setTimeout(r, 50))
+      // Defaults salvati dall'editor senza chiavi non contano come uso.
+      kvMemory.set(`defaults:${unused}`, { some: "defaults" })
+
+      const realGet = kvMemory.get.bind(kvMemory)
+      vi.spyOn(kvMemory, "get").mockImplementation((key: string) => {
+        if (key === `user:${readFails}:activity`) throw new Error("redis down")
+        return realGet(key)
+      })
+
+      const result = await activity.cleanupInactiveUsers()
+      expect(result).toMatchObject({ removed: 2, removedUnused: 2, kept: 8 })
+      expect(kvMemory.has(`user:${unused}:auth`)).toBe(false)
+      expect(kvMemory.has(`defaults:${unused}`)).toBe(false)
+      expect(kvMemory.has(`user:${emptyKeys}:auth`)).toBe(false)
+      expect(kvMemory.get(`user:${withActivity}:used`)).toBe("1")
+      for (const u of [withKeys, withActivity, young, readFails, legacy, arrayKeys, partialBundle, expiredActivity]) {
+        expect(kvMemory.has(`user:${u}:auth`)).toBe(true)
+      }
+    } finally {
+      delete process.env.KV_REST_API_URL
+      delete process.env.KV_REST_API_TOKEN
+      kvMemory.clear()
+      vi.resetModules()
+    }
+  })
+
+  it("rollout: il primo run arma la regola e non rimuove nulla fino a fine grace", async () => {
+    const { uuid } = await createUser()
+    await backdateFile(uuid, 30)
+    vi.resetModules()
+    let activity = await import("@/lib/user-activity")
+    expect(await activity.cleanupInactiveUsers()).toMatchObject({ removed: 0, kept: 1 })
+    const armed = JSON.parse(
+      await fsp.readFile(path.join(tempDir!, "instance", "unused-user-cleanup-armed.json"), "utf-8"),
+    ) as { armedAt: string }
+    expect(Date.now() - Date.parse(armed.armedAt)).toBeLessThan(60000)
+    // Secondo run subito dopo: ancora dentro la grace dal momento dell'armamento.
+    vi.resetModules()
+    activity = await import("@/lib/user-activity")
+    expect(await activity.cleanupInactiveUsers()).toMatchObject({ removed: 0, kept: 1 })
+    await armFile(15)
+    vi.resetModules()
+    activity = await import("@/lib/user-activity")
+    expect(await activity.cleanupInactiveUsers()).toMatchObject({ removed: 1, removedUnused: 1 })
+  })
+
+  it("manifest via ?u= e /c/<config>/ registra attività (KV)", async () => {
+    process.env.KV_REST_API_URL = "https://example.upstash.io"
+    process.env.KV_REST_API_TOKEN = "test-token"
+    try {
+      vi.resetModules()
+      const auth = await import("@/lib/user-auth")
+      const a = (await auth.createUser()).uuid
+      const b = (await auth.createUser()).uuid
+      const plain = await import("@/app/manifest.json/route")
+      await plain.GET(nextReq(`http://x/manifest.json?u=${a}`))
+      const withConfig = await import("@/app/c/[config]/manifest.json/route")
+      await withConfig.GET(nextReq(`http://x/c/abc/manifest.json?u=${b}`), { params: Promise.resolve({ config: "abc" }) })
+      await new Promise((r) => setTimeout(r, 50))
+      expect(kvMemory.get(`user:${a}:used`)).toBe("1")
+      expect(kvMemory.get(`user:${b}:used`)).toBe("1")
+    } finally {
+      delete process.env.KV_REST_API_URL
+      delete process.env.KV_REST_API_TOKEN
+      kvMemory.clear()
+      vi.resetModules()
+    }
+  })
+
+  it("proxy addon con ?u= registra attività", async () => {
+    const { uuid } = await createUser()
+    vi.resetModules()
+    const proxy = await import("@/app/api/proxy/[...path]/route")
+    // Target mancante → 400, ma lo spazio reale viene comunque segnato come usato.
+    await proxy.GET(nextReq(`http://x/api/proxy/manifest.json?u=${uuid}`), { params: Promise.resolve({ path: ["manifest.json"] }) })
+    await new Promise((r) => setTimeout(r, 50))
+    expect(await fsp.stat(path.join(tempDir!, "users", uuid, "activity.json"))).toBeTruthy()
+  })
+
+  it("grace 0: nessuno spazio mai usato viene rimosso", async () => {
+    process.env.PICTORIUM_UNUSED_USER_GRACE_DAYS = "0"
+    const { uuid } = await createUser()
+    const file = path.join(tempDir!, "users", uuid, "auth.json")
+    const rec = JSON.parse(await fsp.readFile(file, "utf-8")) as Record<string, unknown>
+    rec.createdAt = ago(30)
+    await fsp.writeFile(file, JSON.stringify(rec))
+    vi.resetModules()
+    const activity = await import("@/lib/user-activity")
+    expect(await activity.cleanupInactiveUsers()).toMatchObject({ removed: 0, removedUnused: 0, kept: 1 })
   })
 })

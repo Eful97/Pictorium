@@ -142,6 +142,35 @@ export async function getUserKeysDisabled(userId: string): Promise<Record<UserKe
   }
 }
 
+/**
+ * True when the space has any saved key bundle (no decryption). Used by the
+ * unused-space cleanup, so it fails SAFE: a read error, or a record whose shape
+ * is not recognised, counts as "has keys" and the space is kept.
+ */
+export async function hasStoredUserKeys(userId: string): Promise<boolean> {
+  assertValidUserId(userId)
+  let raw: unknown
+  try {
+    if (isKvMode()) {
+      raw = await getKv().get<unknown>(keysKvKey(userId))
+    } else {
+      raw = JSON.parse(await fsp.readFile(keysFile(userId), "utf-8"))
+    }
+  } catch (e) {
+    if (!isKvMode() && e instanceof Error && (e as NodeJS.ErrnoException).code === "ENOENT") return false
+    return true
+  }
+  if (raw === null || raw === undefined) return false
+  // Only a recognised record with no stored entries proves absence; any other
+  // shape (malformed bundle, array, unknown version) keeps the space.
+  if (typeof raw !== "object" || Array.isArray(raw)) return true
+  const rec = raw as { version?: unknown; keys?: unknown }
+  if (rec.version !== 1) return true
+  const keys = rec.keys
+  if (!keys || typeof keys !== "object" || Array.isArray(keys)) return true
+  return Object.values(keys as Record<string, unknown>).some((v) => v !== undefined && v !== null)
+}
+
 /** Solo presenza per kind (booleans): nessun valore, nessuna decifratura. */
 export async function getUserKeysStatus(userId: string): Promise<Record<UserKeyKind, boolean>> {
   assertValidUserId(userId)
