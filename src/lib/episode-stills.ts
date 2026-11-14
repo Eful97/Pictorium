@@ -9,6 +9,7 @@
 
 // Type-only: erased at build time, so this leaf keeps its runtime freedom from
 // the server-only renderer (sharp) while reusing its canonical enums.
+import { RENDER_VERSION } from "@/lib/render-version"
 import type {
   ThumbnailBadgeAnchor,
   ThumbnailBadgeStyle,
@@ -196,6 +197,8 @@ export function buildEpisodeThumbnailUrl(input: EpisodeThumbnailUrlInput): strin
   const still = sanitizeEpisodeStillPath(input.still)
   if (!still) return null
   const params = new URLSearchParams({
+    // Render version (same as `/meta`): the browser never reuses a pre-change PNG.
+    rv: RENDER_VERSION,
     still,
     w: String(input.width ?? EPISODE_THUMBNAIL_PREVIEW_WIDTH),
     badges: input.badges ?? EPISODE_THUMBNAIL_PREVIEW_BADGES,

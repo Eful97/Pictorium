@@ -47,6 +47,12 @@ export interface EpisodeRatingQuery {
   readonly episode: number
   /** Caller abort signal (already carries the route's overall timeout). */
   readonly signal?: AbortSignal
+  /**
+   * Lazy TMDB regular-season structure (season → episode_count). `season` /
+   * `episode` are TMDB numbering; a provider keyed on another numbering
+   * (IMDb) uses it to translate. Null/absent/throwing = direct S:E lookup.
+   */
+  readonly loadSeasonEpisodeCounts?: () => Promise<ReadonlyMap<number, number> | null>
 }
 
 /**
@@ -236,11 +242,76 @@ const datasetProvider: EpisodeRatingsProvider = {
  * leg still serves the ★. This is the default episode source (the operator
  * explicitly accepted the third-party risk: no licence, permission pending).
  */
+/**
+ * Translate a TMDB S:E into the IMDb S:E used by the ratings map.
+ *
+ * TMDB and IMDb can split the same episodes differently (Lupin: TMDB 10/7/8,
+ * IMDb 5/5/7/8), so a direct `S:E` lookup reads another episode's score. When
+ * the IMDb season structure matches TMDB (the highest IMDb season may be short:
+ * unrated new episodes) the pair is used as-is; otherwise the TMDB absolute
+ * episode is mapped onto the IMDb episodes in order. That needs gap-free IMDb
+ * seasons and no more IMDb episodes than TMDB has; otherwise `null` (the route
+ * falls back to the TMDB vote instead of drawing a wrong score). Specials and
+ * an unknown TMDB structure keep the direct pair.
+ */
+export function mapTmdbEpisodeToImdb(
+  tmdbCounts: ReadonlyMap<number, number> | null | undefined,
+  imdbKeys: Iterable<string>,
+  season: number,
+  episode: number,
+): { season: number; episode: number } | null {
+  const direct = { season, episode }
+  if (!tmdbCounts || season < 1) return direct
+  const imdbMax = new Map<number, number>()
+  const imdbCount = new Map<number, number>()
+  for (const key of imdbKeys) {
+    const [s, e] = key.split(":").map(Number)
+    if (!(s! >= 1) || !(e! >= 1)) continue
+    imdbMax.set(s!, Math.max(imdbMax.get(s!) ?? 0, e!))
+    imdbCount.set(s!, (imdbCount.get(s!) ?? 0) + 1)
+  }
+  if (imdbMax.size === 0) return direct
+  const imdbSeasons = [...imdbMax.keys()].sort((a, b) => a - b)
+  const lastImdb = imdbSeasons[imdbSeasons.length - 1]!
+  const maxTmdb = Math.max(...tmdbCounts.keys())
+  let aligned = true
+  for (let s = 1; s <= Math.min(lastImdb, maxTmdb); s++) {
+    const tmdb = tmdbCounts.get(s) ?? 0
+    const imdb = imdbMax.get(s) ?? 0
+    if (s < lastImdb ? imdb !== tmdb : imdb > tmdb) {
+      aligned = false
+      break
+    }
+  }
+  if (aligned) return direct
+
+  if (imdbSeasons.some((s) => imdbCount.get(s) !== imdbMax.get(s))) return null
+  const imdbTotal = imdbSeasons.reduce((n, s) => n + imdbMax.get(s)!, 0)
+  let tmdbTotal = 0
+  let absolute = episode
+  for (const [s, count] of tmdbCounts) {
+    if (s < 1) continue
+    tmdbTotal += count
+    if (s < season) absolute += count
+  }
+  if (imdbTotal > tmdbTotal || absolute > imdbTotal) return null
+  for (const s of imdbSeasons) {
+    const count = imdbMax.get(s)!
+    if (absolute <= count) return { season: s, episode: absolute }
+    absolute -= count
+  }
+  return null
+}
+
 const showgridProvider: EpisodeRatingsProvider = {
   id: "showgrid",
   async fetch(query) {
     const ratings = await fetchShowgridEpisodeRatings(query.imdbId, query.signal)
-    const entry = ratings.get(`${query.season}:${query.episode}`)
+    if (ratings.size === 0) return null
+    const counts = query.loadSeasonEpisodeCounts ? await query.loadSeasonEpisodeCounts().catch(() => null) : null
+    const target = mapTmdbEpisodeToImdb(counts, ratings.keys(), query.season, query.episode)
+    if (!target) return null
+    const entry = ratings.get(`${target.season}:${target.episode}`)
     if (!entry) return null
     if (!Number.isFinite(entry.rating) || entry.rating <= 0) return null
     return entry.rating

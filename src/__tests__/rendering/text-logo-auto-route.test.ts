@@ -108,6 +108,18 @@ vi.mock("@/lib/ratings", async (importOriginal) => {
   const actual = await importOriginal<typeof import("@/lib/ratings")>()
   return { ...actual, fetchAggregatedRating: vi.fn(async () => null) }
 })
+// Hermetic custom-URL fetch: the SSRF layer resolves DNS and opens its own
+// socket, bypassing the `globalThis.fetch` stub below. Without this the custom
+// base test hit the real i.imgur.com and failed offline / behind a proxy.
+// The validation pipeline (allowlist, magic bytes, pixels) still runs for real.
+vi.mock("@/lib/safe-remote-fetch", async (importOriginal) => {
+  const actual = await importOriginal<typeof import("@/lib/safe-remote-fetch")>()
+  return {
+    ...actual,
+    resolveAndCheckBlocked: vi.fn(async () => false),
+    safeFetchRemote: vi.fn((url: string, opts: { signal?: AbortSignal }) => globalThis.fetch(url, { signal: opts.signal })),
+  }
+})
 vi.mock("@/lib/imdb-resolver", () => ({ resolveImdbToTmdb: vi.fn(async () => null) }))
 vi.mock("@/lib/imdb-cache", () => ({ resolveWikidataId: vi.fn(async () => null) }))
 vi.mock("@/lib/imdb-top250", () => ({ isImdbTop250: vi.fn(async () => false), isImdbTop100: vi.fn(async () => false) }))

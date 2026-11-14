@@ -53,7 +53,7 @@ export const FONT_FILES = [
  *
  * Il fontdb di resvg è PER-ISTANZA (`index.d.ts` espone solo `fontFiles` /
  * `fontDirs`: nessun fontdb condiviso, nessun buffer di font), quindi ogni
- * `new Resvg` rilegge e ri-parsa i file elencati. Con i 13 file completi un
+ * render resvg rilegge e ri-parsa i file elencati. Con i 13 file completi un
  * poster da 6-10 badge paga quel costo su ogni bitmap; passando solo i gruppi
  * necessari il caso comune (testo latino su Inter) scende a 3 file.
  *

@@ -24,6 +24,8 @@
  *   pins live with the suites that own them; here we assert the change is
  *   the strip and nothing else).
  */
+import { tmpdir } from "node:os"
+import { join } from "node:path"
 import sharp from "sharp"
 import { createHash } from "node:crypto"
 import { mkdir, writeFile } from "node:fs/promises"
@@ -394,7 +396,7 @@ describe("left-blur layer wiring (composeFreshOverlay)", () => {
 
 describe("task8b evidence samples (approved temp only, never the repo)", () => {
   it("writes ranked before/after-style samples + preservation samples", async () => {
-    const outDir = "C:/Users/lucaf/AppData/Local/Temp/opencode/task8b"
+    const outDir = join(tmpdir(), "opencode", "task8b")
     await mkdir(outDir, { recursive: true })
     const logo = await whiteLogo()
     for (const [W, H, name, rank] of [

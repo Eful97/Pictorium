@@ -9,7 +9,7 @@ npm install
 npm run dev
 ```
 
-You need a TMDB key (variable `PICTORIUM_TMDB_KEY`, see `README.md` → Environment Variables) for real catalogs and renders. Tests use a mock server and require no keys.
+You need a TMDB key (variable `PICTORIUM_TMDB_KEY`, see [docs/CONFIGURATION.md](docs/CONFIGURATION.md)) for real catalogs and renders. Tests use a mock server and require no keys.
 
 ## Main commands
 

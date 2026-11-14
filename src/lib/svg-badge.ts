@@ -83,9 +83,16 @@ function fontSubsetFor(svgStr: string): FontSubset {
   }
 }
 
+// Render sul threadpool libuv (`renderAsync`), mai sull'event loop: il
+// costruttore+render sincrono (`new Resvg(...).render()`) teneva il thread
+// principale ~10ms per SVG non cachato — con 8 render paralleli a cache badge
+// fredda fino a ~80ms di blocco, durante i quali nessuna altra richiesta
+// (cache hit, 304, health) veniva servita. Stesso motore, stesse opzioni:
+// output byte-identico al render sincrono (SHA-256 dei poster completi
+// invariati, testo latino/ebraico/CJK e font Oswald/Barlow inclusi).
 export async function renderSVG(svgStr: string, w: number): Promise<Buffer> {
-  const { Resvg } = await loadResvg()
-  const resvg = new Resvg(svgStr, {
+  const { renderAsync } = await loadResvg()
+  const rendered = await renderAsync(svgStr, {
     fitTo: { mode: "width", value: w },
     font: {
       // Fontdb per-istanza: solo i gruppi usabili da questo SVG (vedi
@@ -95,7 +102,7 @@ export async function renderSVG(svgStr: string, w: number): Promise<Buffer> {
       loadSystemFonts: false,
     },
   })
-  return Buffer.from(resvg.render().asPng())
+  return Buffer.from(rendered.asPng())
 }
 
 // --- Single-pass composition (Fase 2) ---
