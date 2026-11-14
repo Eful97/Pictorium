@@ -150,7 +150,7 @@ Run these against the deployed instance:
   headers (Cloudflare/HF edge/Nginx). Behind Cloudflare, prefer
   `PICTORIUM_CLIENT_IP_HEADER=cf-connecting-ip`: Cloudflare forwards a
   client-supplied `x-real-ip`, so the default order is spoofable there.
-- Env table + full defaults live in README "Variabili d'Ambiente" — keep this
+- Env table + full defaults live in docs/CONFIGURATION.md (+ .it.md) — keep this
   skill in sync with it.
 - `PICTORIUM_HOSTED_BY=elfhosted` shows the sponsor banner on the home page
   (served via `GET /api/status` → `hostedBy`, auto-detected from an

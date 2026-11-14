@@ -8,6 +8,9 @@
 //
 // Uso: node scripts/take-readme-shots.mjs            (mock)
 //      TMDB_KEY=xxx node scripts/take-readme-shots.mjs  (poster reali)
+//      TMDB_KEY=xxx SHOTS=styles node scripts/take-readme-shots.mjs
+//        (solo la galleria stili del README in public/Screen/styles/;
+//         SHOTS accetta home,editor,myposters,demos,styles separati da virgola)
 //
 // Avvia: mock server (e2e/mock-server.mjs) + `next dev` con le base URL
 // puntate al mock (o a TMDB reale), poi cattura: home.png, editor.png,
@@ -29,6 +32,8 @@ const APP_URL = `http://127.0.0.1:${APP_PORT}`
 
 const TMDB_KEY = process.env.TMDB_KEY || ""
 const REAL = !!TMDB_KEY
+const SHOTS = (process.env.SHOTS || "home,editor,myposters,demos,styles").split(",")
+const RUN = (name) => SHOTS.includes(name)
 console.log(`[shots] modalità: ${REAL ? "TMDB REALE (poster veri)" : "MOCK (gradiente)"}`)
 
 const children = []
@@ -114,7 +119,7 @@ try {
   const browser = await chromium.launch()
 
   // ---- 1. Home (hero + carosello + strip di stato) ----
-  {
+  if (RUN("home")) {
     const page = await newPage(browser)
     await page.goto(`${APP_URL}/`, { waitUntil: "domcontentloaded" })
     // Podio caricato
@@ -135,7 +140,7 @@ try {
   }
 
   // ---- 2. Editor (flusso identico allo smoke test E2E) ----
-  {
+  if (RUN("editor")) {
     const page = await newPage(browser)
     await page.goto(`${APP_URL}/`, { waitUntil: "domcontentloaded" })
     const search = page.getByPlaceholder(/cerca/i).first()
@@ -158,7 +163,7 @@ try {
   }
 
   // ---- 3. I miei poster (seed di mapping via API, poi vista libreria) ----
-  {
+  if (RUN("myposters")) {
     const page = await newPage(browser)
     const seed = [
       { tmdbId: 19995, mediaType: "movie", title: "Avatar", genreName: "Azione" },
@@ -206,7 +211,7 @@ try {
   }
 
   // ---- 4. Poster demo (render diretti /api/poster) ----
-  {
+  if (RUN("demos")) {
     const demos = [
       // Real: ramo non-mappato → badge con dati reali (genere/voto/anno reali).
       // Mock: poster esplicito (nessun fetch TMDB) + anno fisso.
@@ -227,6 +232,49 @@ try {
       const buf = Buffer.from(await res.arrayBuffer())
       fs.writeFileSync(path.join(OUT_DIR, d.file), buf)
       console.log(`[shots] ${d.file} ok (${buf.length} bytes)`)
+    }
+  }
+
+  // ---- 5. Galleria stili README (solo TMDB reale: col mock non c'è artwork) ----
+  if (RUN("styles")) {
+    if (!REAL) throw new Error("la galleria stili richiede TMDB_KEY (render reali)")
+    const sharp = (await import("sharp")).default
+    const STYLE_DIR = path.join(OUT_DIR, "styles")
+    fs.mkdirSync(STYLE_DIR, { recursive: true })
+    // Galleria sempre in inglese (poster, logo e badge), per entrambi i README.
+    const base = "lang=en&gradHeight=25&blur=30&bf=50&bd=40&logoFit=0"
+    // Stesso titolo per riga: cambia solo lo stile.
+    const shots = [
+      ...["shadow", "pill", "bar", "colored", "bordo", "vetro", "minimal", "ink"]
+        .map((bs) => ({ file: `badge-${bs}`, type: "movie", id: 24428, q: `bs=${bs}&ranking=0` })),
+      ...["netflix", "number", "corner", "pill"]
+        .map((rs) => ({ file: `rank-${rs}`, type: "tv", id: 1396, q: `ranking=1&rank=2&rs=${rs}` })),
+      // pre=1 disegna il nastro solo se il film è davvero al cinema e non in
+      // streaming: aggiorna l'id quando questo titolo arriva in streaming.
+      { file: "coming-soon", type: "movie", id: 1381071, q: "pre=1&ranking=0" },
+      { file: "landscape", type: "tv", id: 1396, q: "shape=landscape&ranking=0", width: 640 },
+      // Badge qualità: colonna completa (4K + formati A/V) quando il titolo li ha.
+      // `crop` = ritaglio della colonna in alto a destra (frazioni del poster).
+      ...["standard", "mono", "color", "knockout", "premium", "nova", "gradient", "outline", "strip", "naked", "editoriale"]
+        .map((qbs) => ({ file: `quality-${qbs}`, type: "movie", id: 24428, q: `qbs=${qbs}&ranking=0`, crop: { x: 0.70, y: 0, w: 0.30, h: 0.32 }, width: 150 })),
+      // Layout alternativi (freshScope=all: valgono anche fuori classifica).
+      { file: "layout-fresh", type: "tv", id: 1396, q: "layout=fresh&freshScope=all&ranking=1&rank=2" },
+      ...["provider-glass", "nuvio", "stremio"]
+        .map((layout) => ({ file: `card-${layout}`, type: "tv", id: 1396, q: `layout=${layout}&freshScope=all&ranking=1&rank=2` })),
+    ]
+    for (const s of shots) {
+      const url = `${APP_URL}/api/poster/${s.type}/${s.id}?${base}&${s.q}&preview=1&api_key=${encodeURIComponent(TMDB_KEY)}`
+      const res = await fetch(url)
+      if (!res.ok) throw new Error(`stile ${s.file} -> HTTP ${res.status}`)
+      // Miniature leggere: il README le mostra a ~200px (landscape ~400px).
+      const out = path.join(STYLE_DIR, `${s.file}.webp`)
+      let img = sharp(Buffer.from(await res.arrayBuffer()))
+      if (s.crop) {
+        const { width: W, height: H } = await img.metadata()
+        img = sharp(await img.extract({ left: Math.round(W * s.crop.x), top: Math.round(H * s.crop.y), width: Math.round(W * s.crop.w), height: Math.round(H * s.crop.h) }).toBuffer())
+      }
+      await img.resize({ width: s.width || 320 }).webp({ quality: 82 }).toFile(out)
+      console.log(`[shots] styles/${s.file}.webp ok`)
     }
   }
 

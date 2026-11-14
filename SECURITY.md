@@ -47,7 +47,7 @@ Out of scope:
 
 ## Hardening for public instances
 
-See `README.md` → Security and Environment Variables
+See [docs/FEATURES.md](docs/FEATURES.md) → Security and [docs/CONFIGURATION.md](docs/CONFIGURATION.md)
 (`ADMIN_TOKEN` — admin routes are fail-closed without it or a PIN session;
 `TRUST_PROXY` + pinned `CLIENT_IP_HEADER` behind Cloudflare, `PUBLIC_STATS=0`,
 `FRAME_ANCESTORS`, `PREVIEW_AUTH`, `PROXY_ALLOW_DOMAINS` — the addon proxy is
