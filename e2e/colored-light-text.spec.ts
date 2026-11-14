@@ -1,10 +1,9 @@
 import { test, expect, type Page } from "@playwright/test"
 
-// C2 — deterministic mid-tone accent coverage for the colored light-text
-// preference (white at ~2.9:1 on #E67E22: dark text under the old 3:1 bar,
-// preferred white under the 2:1 rule). The mocked artwork derives a dark
-// accent, so the generic colored screenshots in pictorium-visual.spec.ts
-// all render white text under both rules and cannot cover this flip — the
+// Colored light-text coverage for the APCA rule (#E67E22 stays white). The
+// mocked artwork derives a dark accent, so the generic colored screenshots in
+// pictorium-visual.spec.ts all render white text under both rules and cannot
+// cover this flip — the
 // explicit `ac` override (same contract as the teal test over there) pins
 // it at the real endpoint, which is also what the editor preview <img>
 // loads (preview=1, same URL Stremio uses).

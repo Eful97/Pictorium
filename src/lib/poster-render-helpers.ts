@@ -253,12 +253,15 @@ export async function insertFrostedGlassUnderlays<L extends { input: Buffer; top
  * and skipped alpha removal; computeRegionStats uses RGB stride-3 with
  * unrounded Rec.709 luminance. This is why RENDER_VERSION was bumped.
  */
-export async function topLuminance(buf: Buffer, cacheKey?: string | null): Promise<number> {
-  const key = cacheKey ? `lum:top:${cacheKey}` : null
+export async function topLuminance(buf: Buffer, cacheKey?: string | null, window?: { left: number; width: number }): Promise<number> {
+  const w = window ? `${window.left}:${window.width}` : "full"
+  const key = cacheKey ? `lum:top:${w}:${cacheKey}` : null
   const hit = key ? cacheGet<number>(key) : null
   if (hit !== null) return hit
   const stripH = Math.max(Math.round(STD_H * 0.08), 3)
-  const stats = await computeRegionStats(buf, 0, 0, STD_W, stripH)
+  const left = window ? window.left : 0
+  const width = window ? window.width : STD_W
+  const stats = await computeRegionStats(buf, left, 0, width, stripH)
   const lum = stats ? stats.mean / 255 : 0.5 // fallback: medium luminance
   if (key) cacheSet(key, lum, [ANALYSIS_CACHE_TAG], ANALYSIS_CACHE_TTL)
   return lum
@@ -270,12 +273,15 @@ export async function topLuminance(buf: Buffer, cacheKey?: string | null): Promi
  * (bottomLight), che non può riusare il top su poster con alto chiaro e
  * fondo scuro. Stesso pool di computeRegionStats, stessa metrica.
  */
-export async function bottomLuminance(buf: Buffer, cacheKey?: string | null): Promise<number> {
-  const key = cacheKey ? `lum:bottom:${cacheKey}` : null
+export async function bottomLuminance(buf: Buffer, cacheKey?: string | null, window?: { left: number; width: number }): Promise<number> {
+  const w = window ? `${window.left}:${window.width}` : "full"
+  const key = cacheKey ? `lum:bottom:${w}:${cacheKey}` : null
   const hit = key ? cacheGet<number>(key) : null
   if (hit !== null) return hit
   const stripH = Math.max(Math.round(STD_H * 0.08), 3)
-  const stats = await computeRegionStats(buf, 0, STD_H - stripH, STD_W, stripH)
+  const left = window ? window.left : 0
+  const width = window ? window.width : STD_W
+  const stats = await computeRegionStats(buf, left, STD_H - stripH, width, stripH)
   const lum = stats ? stats.mean / 255 : 0.5 // fallback: medium luminance
   if (key) cacheSet(key, lum, [ANALYSIS_CACHE_TAG], ANALYSIS_CACHE_TTL)
   return lum

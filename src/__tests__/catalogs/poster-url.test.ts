@@ -376,11 +376,10 @@ describe("buildPreviewUrl", () => {
     expect(url).not.toContain("tl=")
   })
 
-  it("includes tl=1 for a light top edge and tl=0 for a dark one", () => {
-    const lightUrl = buildPreviewUrl({ ...basePosterState, topEdgeColor: "#f0f0f0" }, { ...baseBadgeParams, rankingBadges: false })
-    expect(lightUrl).toContain("tl=1")
-    const darkUrl = buildPreviewUrl({ ...basePosterState, topEdgeColor: "#101010" }, { ...baseBadgeParams, rankingBadges: false })
-    expect(darkUrl).toContain("tl=0")
+  it("never emits tl= or bl= from the preview (server decides polarity)", () => {
+    const url = buildPreviewUrl({ ...basePosterState, topEdgeColor: "#f0f0f0", bottomEdgeColor: "#f0f0f0" }, baseBadgeParams)
+    expect(url).not.toContain("tl=")
+    expect(url).not.toContain("bl=")
   })
 
   it("includes year param from metaInfo release_date (fix M1)", () => {
@@ -431,20 +430,12 @@ describe("buildPreviewUrl", () => {
     expect(url).not.toContain("bl=")
   })
 
-  it("emits bl=1 for a light bottom without blur", () => {
-    const url = buildPreviewUrl(
-      { ...basePosterState, bottomEdgeColor: "#f0f0f0" },
-      { ...baseBadgeParams, blurEnabled: false },
-    )
-    expect(url).toContain("bl=1")
-  })
-
-  it("emits bl=0 for a light bottom darkened by the blur band", () => {
+  it("omits bl even when bottomEdgeColor is computed (server decides polarity)", () => {
     const url = buildPreviewUrl(
       { ...basePosterState, bottomEdgeColor: "#f0f0f0" },
       baseBadgeParams,
     )
-    expect(url).toContain("bl=0")
+    expect(url).not.toContain("bl=")
   })
 
   it("includes badges=1 when globalBadges is true", () => {

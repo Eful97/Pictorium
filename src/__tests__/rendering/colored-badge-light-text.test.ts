@@ -14,13 +14,12 @@ import {
 } from "@/lib/badge-svg-shared"
 
 /**
- * C2 — the 2:1 light-text preference reaches every COLORED consumer through
- * the single shared utility (same SVG for preview <img> and Stremio poster:
- * one endpoint, no second implementation). Mid-tone fills now render white
- * text; near-white fills keep the dark-text safeguard; non-colored styles
- * are untouched.
+ * Colored badge light text: APCA decides the ink. Mid-tone fills render white
+ * text; light fills render dark text; near-white fills keep the dark-text
+ * safeguard; non-colored styles are untouched.
  */
-const MID_TONES = ["#D4A574", "#E67E22", "#1ABC9C", "#2ECC71", "#fb923c", "#9a9a9a"]
+const MID_TONES = ["#E67E22", "#1ABC9C", "#9a9a9a"]
+const LIGHT_FILLS = ["#D4A574", "#2ECC71", "#fb923c"]
 const NEAR_WHITE = ["#FFD700", "#f2c94c", "#F5E6C4", "#ffffff"]
 
 describe("colored badges render light text on mid-tone fills", () => {
@@ -76,6 +75,23 @@ describe("colored badges render light text on mid-tone fills", () => {
     expect(rank!.png.length).toBeGreaterThan(1000)
     const extra = await buildExtraBadgeSVG("Nuova stagione", 380, false, "colored", "#E67E22")
     expect(extra!.png.length).toBeGreaterThan(1000)
+  })
+})
+
+describe("light fills render dark text", () => {
+  it("genre colored pill uses dark text on light fills", () => {
+    for (const ac of LIGHT_FILLS) {
+      const { svg } = buildHouseGenreSvg({
+        genreName: "Dramma",
+        voteStr: "8.2",
+        yearStr: "2024",
+        pw: 380,
+        style: "colored",
+        accentColor: ac,
+      })
+      expect(textColorForBg(ac)).toBe("rgba(0,0,0,0.80)")
+      expect(svg).toContain('fill="rgba(0,0,0,0.80)"')
+    }
   })
 })
 

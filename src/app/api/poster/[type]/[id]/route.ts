@@ -22,12 +22,17 @@ import { type EffectiveAccentMeta } from "@/lib/effective-accent"
 import { resolveFinalRankWithListContext, sanitizePortraitBaseBackdropPath } from "@/lib/poster-params-hardening"
 import { DEMO_SAMPLE_GENRE, DEMO_SAMPLE_MOVIE_DATE, DEMO_SAMPLE_RANK, DEMO_SAMPLE_TV_DATE, mergeDemoSampleRatings } from "@/lib/demo-samples"
 import {
+  STD_W,
   STD_H,
   fetchImg,
   hashKey,
   isValidHex,
+  topLuminance,
+  bottomLuminance,
 } from "@/lib/poster-render-helpers"
 import { computeBottomLight } from "@/lib/accent-color"
+import { badgeSampleWindow, topBadgeSampleAnchor } from "@/lib/badge-layout"
+import { TOP_LIGHT_LUMINANCE } from "@/lib/constants"
 import { normalizeGenreName } from "@/lib/genre-normalize"
 import { LAND_H, landscapeBackdropUrl, cropBackdropToPortrait } from "@/lib/image-utils"
 import { generatePosterBuffer, type GenerationInput, type NetworkGeometry, type BadgeGeometryReport } from "@/lib/poster-service"
@@ -717,6 +722,37 @@ export async function GET(req: NextRequest, { params }: { params: Promise<RouteP
     // esplicito vince (preview WYSIWYG), altrimenti decide il server.
     const bottomLight = (qBottomLight === "1" || qBottomLight === "true") ? true : (qBottomLight === "0" || qBottomLight === "false") ? false : (computeBottomLight(bottomLum, blurDarkness, blurEnabled) ?? topLight)
 
+    // Polarità misurata sulla finestra del badge (badgeSampleWindow) invece
+    // della striscia intera. tl=/bl= espliciti vincono su tutto.
+    // La misura avviene sempre sulla tela 500×750 (computeRegionStats senza
+    // canvas): le proporzioni restano le stesse anche in landscape, quindi la
+    // finestra si calcola sempre su STD_W (mai LAND_W).
+    const badgeCanvasWidth = STD_W
+    const topBadgeType: "rank" | "extra" = rankingEnabled ? "rank" : "extra"
+    const topBadgeAnchor = topBadgeSampleAnchor({ topBadgeType, rankingBadgeStyle, extraBadgeStyle, ribbonSide })
+    const topBadgeWindow = badgeSampleWindow(topBadgeAnchor, badgeCanvasWidth)
+    const qTopLightRaw = hardenedParams.get("tl")
+    const qTopLightExplicit = qTopLightRaw === "1" || qTopLightRaw === "true" ? true : qTopLightRaw === "0" || qTopLightRaw === "false" ? false : null
+    let topBadgeLight: boolean
+    if (qTopLightExplicit !== null) {
+      topBadgeLight = qTopLightExplicit
+    } else {
+      const lum = await topLuminance(posterBuf, analysisKey, topBadgeWindow)
+      topBadgeLight = (lum ?? 0.5) > TOP_LIGHT_LUMINANCE
+    }
+    // genre badge anchor
+    let genreBadgeAnchor: "center" | "left" | "right" = "center"
+    if (isLandscape && logoAlign === "left") genreBadgeAnchor = "left"
+    const genreBadgeWindow = badgeSampleWindow(genreBadgeAnchor, badgeCanvasWidth)
+    const qBottomLightExplicit = qBottomLight === "1" || qBottomLight === "true" ? true : qBottomLight === "0" || qBottomLight === "false" ? false : null
+    let genreBadgeLight: boolean
+    if (qBottomLightExplicit !== null) {
+      genreBadgeLight = qBottomLightExplicit
+    } else {
+      const lum = await bottomLuminance(posterBuf, analysisKey, genreBadgeWindow)
+      const computed = computeBottomLight(lum, blurDarkness, blurEnabled)
+      genreBadgeLight = computed ?? topBadgeLight
+    }
     // Il rilevamento (`preReleaseDetected`) cambia nel tempo: non entra nella
     // cache key (verrebbe letta prima del fetch), il ritorno al poster normale
     // avviene alla scadenza del TTL (6h non-mappati, 24h mappati).
@@ -853,7 +889,7 @@ export async function GET(req: NextRequest, { params }: { params: Promise<RouteP
       ageLabel,
       ageBadgeStyle,
       awardBadgeStyle,
-      topLight, bottomLight, logoBadgeVisibility, targetCenter, ribbonSide, ribbonEnabled, rankingBadgeAccent,
+      topLight, bottomLight, topBadgeLight, genreBadgeLight, logoBadgeVisibility, targetCenter, ribbonSide, ribbonEnabled, rankingBadgeAccent,
       logoScale, logoOffsetX, logoOffsetY,
       topBadgeScale, topBadgeOffsetX, topBadgeOffsetY,
       extraBadgeScale, extraBadgeOffsetX, extraBadgeOffsetY,

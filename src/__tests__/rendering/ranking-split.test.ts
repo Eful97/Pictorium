@@ -78,12 +78,10 @@ describe("buildSplitChipSvg geometry (single shared builder)", () => {
     expect(res.svg).toContain(`A ${r},${r} 0 0,1`)
   })
 
-  it("renders the two cells: yellow numeral (0.9em/900) + satin label (0.72em/600), 1px divider", () => {
+  it("renders the two cells: accent numeral (0.9em/900) + satin label (0.72em/600), 1px divider", () => {
     const { svg } = buildSplitChipSvg({ numeral, label, fs, accentColor: "#E50914" })
-    // Fixed mockup yellow cell (scene accent never tints it) + clip to the
-    // chip shape (rounded corners survive).
-    expect(svg).toContain('fill="#FCD34D"')
-    expect(svg).not.toContain('fill="#E50914"')
+    // Accent cell now takes the scene accent; clip to the chip shape.
+    expect(svg).toContain('fill="#E50914"')
     expect(svg).toContain('clip-path="url(#splc)"')
     // Satin right cell = the shared polarized pill gradient.
     expect(svg).toContain('fill="url(#splg)"')
@@ -107,13 +105,31 @@ describe("buildSplitChipSvg geometry (single shared builder)", () => {
     expect(svg.match(/stroke-width="1.5"/g)).toHaveLength(2)
   })
 
-  it("numeral ink is the fixed dark ink (12.07:1 on the mockup yellow)", () => {
+  it("numeral ink follows APCA on the accent", () => {
     const dark = buildSplitChipSvg({ numeral, label, fs, accentColor: "#E50914" }).svg
     const light = buildSplitChipSvg({ numeral, label, fs, accentColor: "#F7E7A1" }).svg
-    // Same fixed ink on any scene accent: the chip is always recognizable.
-    expect(dark).toContain('fill="#1a1a1a"')
-    expect(light).toContain('fill="#1a1a1a"')
-    expect(dark).not.toContain('fill="#ffffff"')
+    expect(dark).toContain('fill="#ffffff"')
+    expect(light).toContain('fill="rgba(0,0,0,0.80)"')
+  })
+
+  it("falls back to yellow + dark ink when accent is absent/neutral/invalid", () => {
+    for (const ac of [undefined, null, "#555555", "nope", ""] as unknown as (string | undefined)[]) {
+      const { svg } = buildSplitChipSvg({ numeral, label, fs, accentColor: ac })
+      expect(svg).toContain('fill="#FCD34D"')
+      expect(svg).toContain('fill="#1a1a1a"')
+    }
+  })
+
+  it("beige/tan numerals follow APCA", () => {
+    expect(buildSplitChipSvg({ numeral, label, fs, accentColor: "#C8AD7F" }).svg).toContain('fill="rgba(0,0,0,0.80)"')
+    expect(buildSplitChipSvg({ numeral, label, fs, accentColor: "#A89070" }).svg).toContain('fill="#ffffff"')
+  })
+
+  it("geometry is identical with and without accent", () => {
+    const a = buildSplitChipSvg({ numeral, label, fs, accentColor: "#E50914" })
+    const b = buildSplitChipSvg({ numeral, label, fs })
+    expect(a.w).toBe(b.w)
+    expect(a.h).toBe(b.h)
   })
 
   it("double digits keep +10% cell padding; the numeral centers on the yellow cell (single and double)", () => {
@@ -132,7 +148,7 @@ describe("buildSplitChipSvg geometry (single shared builder)", () => {
     // Single-digit geometry is untouched (historical box).
     const singleTextW = singleNumeralW + labelW + gap * 2 + SPLIT_DIVIDER_WIDTH
     expect(single.w - TOP_SHADOW_PAD * 2).toBe(singleTextW + px * 2)
-    // Optical centering: the numeral anchor is the YELLOW CELL center (the
+    // Optical centering: the numeral anchor is the accent cell center (the
     // padding inset is asymmetric) + the em-proportional ink-bearing
     // compensation; vertical anchor is the box center for both digit counts.
     const numeralPos = (svg: string) => {
@@ -189,12 +205,12 @@ describe("buildSplitChipSvg geometry (single shared builder)", () => {
 })
 
 describe("split through the existing dispatchers", () => {
-  it("rank: two-tone chip with numeral + period, fixed mockup yellow", () => {
+  it("rank: two-tone chip with numeral + period, accent-tinted cell", () => {
     const { svg } = buildHouseRankingSvg({ rank: 3, label: "Oggi", pw: 380, topLight: false, style: "split", accentColor: "#E50914" })
     expect(svg).toContain(">3</text>")
     expect(svg).toContain(">Oggi</text>")
-    expect(svg).toContain('fill="#FCD34D"')
-    expect(svg).toContain('fill="#1a1a1a"')
+    expect(svg).toContain('fill="#E50914"')
+    expect(svg).toContain('fill="#ffffff"')
     // Not the historic "#3 Oggi" single-run default plate.
     expect(svg).not.toContain("#3 Oggi")
     expect(svg).toContain('fill="url(#splg)"')
