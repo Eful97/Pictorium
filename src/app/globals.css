@@ -1963,8 +1963,7 @@ select:focus-visible {
   box-shadow: 0 10px 30px rgba(0,0,0,0.5);
 }
 .poster-wall-card.is-landscape { aspect-ratio: 16 / 9; }
-.poster-wall-card img { display: block; width: 100%; height: 100%; object-fit: cover; }
-@media (max-width: 640px) {
+.poster-wall-card img { display: block; width: 100%; height: 100%; object-fit: cover; }@media (max-width: 640px) {
   .poster-wall { height: 420px; }
   .poster-wall-tilt, .poster-wall-col { gap: 10px; }
   .poster-wall-col { width: 120px; }

@@ -39,6 +39,8 @@ export const CHANGELOG: ChangelogRelease[] = [
       { type: "fix", text: "Keep the thumbnail card previews in sync with the badge style and position chosen in the editor" },
       { type: "fix", text: "Refresh episode thumbnails right after an update instead of serving old cached images" },
       { type: "perf", text: "Render posters with badges faster under load" },
+      { type: "perf", text: "Load the home poster wall instantly from pre-made images, so opening the site no longer slows down your Stremio posters" },
+      { type: "feature", text: "Browse a refreshed home poster wall with 30 of the most popular films and series of the last decade" },
     ],
   },
   {
