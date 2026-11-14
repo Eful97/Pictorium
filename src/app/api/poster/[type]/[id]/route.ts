@@ -53,7 +53,7 @@ import { sanitizeEffectiveAccentMeta, type EffectiveAccentMeta } from "@/lib/eff
 import { msUntilPosterScheduledRefresh, userTagFragment } from "@/lib/cache"
 import { FormatOverloadError, runFormatConversion } from "@/lib/poster-format-gate"
 import { canonicalPosterLang, canonicalPosterQuality, resolveFinalRankWithListContext, sanitizePortraitBaseBackdropPath } from "@/lib/poster-params-hardening"
-import { DEMO_SAMPLE_GENRE, DEMO_SAMPLE_MOVIE_DATE, DEMO_SAMPLE_QUALITY, DEMO_SAMPLE_RANK, DEMO_SAMPLE_TV_DATE, mergeDemoSampleRatings, sampleDemoVideoFormats } from "@/lib/demo-samples"
+import { DEMO_SAMPLE_GENRE, DEMO_SAMPLE_MOVIE_DATE, DEMO_SAMPLE_RANK, DEMO_SAMPLE_TV_DATE, mergeDemoSampleRatings } from "@/lib/demo-samples"
 import {
   STD_H,
   fetchImg,
@@ -71,10 +71,7 @@ import { createLogger } from "@/lib/logger"
 import { resolvePosterRenderConfig, resolvePosterShape, resolveSeparateRatingsEnabled, resolveSeparateDisplayState } from "@/lib/poster-config"
 import { resolveAutoWordmark, resolveTextLogo } from "@/lib/text-logo"
 import { type StreamQualityResult } from "@/lib/stream-quality"
-import { applyMinQuality, type StreamQuality } from "@/lib/quality-tiers"
-import { lookupAVSpecs } from "@/lib/av-specs"
-import { isQualityMarkId } from "@/lib/quality-badge-pack"
-import { resolveEffectiveQualityMarks } from "@/lib/quality-marks-selection"
+import { type StreamQuality } from "@/lib/quality-tiers"
 import { computeVote } from "@/lib/rating-weights"
 import { createHash } from "node:crypto"
 import { resolveCustomRatingConfig, type RatingItem } from "@/lib/custom-rating"
@@ -94,6 +91,7 @@ import { buildPosterDebugJson } from "./debug"
 import { fetchRenderData } from "./fetch-render-data"
 import { prepareRenderBase } from "./render-base"
 import { resolveEphemeralPolicy, resolveFactCap } from "./freshness"
+import { resolveRenderQuality } from "./quality"
 import type { PosterArtwork, PosterTitleMeta } from "./sources"
 import { resolveAutoSources, resolveMappingSources, resolveQuerySources, type SourceResolutionContext } from "./resolve-sources"
 
@@ -1208,50 +1206,11 @@ export async function GET(req: NextRequest, { params }: { params: Promise<RouteP
     // avviene alla scadenza del TTL (6h non-mappati, 24h mappati).
     const applyPreRelease = preRelease && preReleaseDetected
 
-    // Database locale AV specs (prioritario per 4K e formati, zero rete):
-    const localSpec = lookupAVSpecs(titleMeta.imdbId)
-    // Soglia minima qualità all'uscita: la cache upstream (`resolveStreamQuality`)
-    // tiene sempre il raw — qui si sopprime solo il badge sotto soglia.
-    // Demo samples (Settings preview only): a demo tier only when no real
-    // source resolves one (formats are handled separately below).
-    const effectiveRawQuality = qQualityParam || localSpec?.quality || liveQuality || (demoSamples && badgeQuality ? DEMO_SAMPLE_QUALITY : null)
-    const finalQuality = applyMinQuality(
-      effectiveRawQuality as StreamQuality | null,
-      minQuality,
-    )
-
-    // Formati A/V built-in (dv, atmos, imax, hdr, hdr10plus): sempre
-    // automatici dalle specifiche reali del film (localSpec, poi JW live) — mai un logo che
-    // il titolo non possiede. I marchi del pack (`QualityMarkId` non built-in)
-    // non hanno dati per-titolo: entrano SOLO quando la selezione esplicita
-    // (query/mapping, o defaults non vuoti) li contiene, quindi l'assenza di
-    // selezione resta byte-identica allo storico.
-    // Precedenza come la qualità: DB locale (curato) > JustWatch live.
-    const availableFormats = localSpec?.formats ?? liveQualityResult.formats ?? []
-    const qFormatsRaw = req.nextUrl.searchParams.get("formats")
-    const qFormats = qFormatsRaw !== null
-      ? (qFormatsRaw === "none" || qFormatsRaw === "" ? [] : qFormatsRaw.split(",").map((s) => s.trim().toLowerCase()).filter(isQualityMarkId))
-      : null
-    const allowedFormats = earlyEffSd.videoFormats ?? sd.videoFormats
-    const requestedFormats = qFormats ?? earlyEffMapping?.videoFormats ?? null
-    const selectedFormats = requestedFormats ?? (allowedFormats && allowedFormats.length > 0 ? allowedFormats : null)
-    const cappedFormats = resolveEffectiveQualityMarks({
-      availableFormats,
-      requestedFormats,
-      allowedFormats,
-    })
-    // Demo samples (Settings preview only): every ENABLED mark is demoed, so a
-    // partial real spec (e.g. DV only) still shows the other enabled styles.
-    // The enabled selection is the only gate — `formats=none`/unchecked
-    // formats demo nothing, a restricted list demos exactly that list — and it
-    // applies to the real specs too. The renderer keeps its own precedence
-    // rules (HDR10+ replaces HDR, DV+Atmos merge into one lockup).
-    const sampledFormats = demoSamples
-      ? sampleDemoVideoFormats(availableFormats, selectedFormats)
-      : null
-    const finalVideoFormats = sampledFormats && sampledFormats.length > 0
-      ? sampledFormats
-      : (cappedFormats.length > 0 ? cappedFormats : null)
+    // Qualità + formati A/V (vedi quality.ts).
+    const { finalQuality, finalVideoFormats } = resolveRenderQuality({
+      req, sd, earlyEffSd, earlyEffMapping, qQualityParam, liveQuality, liveQualityResult,
+      minQuality, badgeQuality, demoSamples,
+    }, titleMeta)
 
     const locale = canonicalLang || mapping?.language || posterRegion.lang2
     // Formato data badge "in uscita": query `df` > default utente > `locale`
