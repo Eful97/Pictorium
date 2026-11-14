@@ -53,7 +53,6 @@ export interface PosterCacheIdentity {
   cacheKey: string
   needsVariant: boolean
   variantKey: string
-  etagBase: string
   immutablePoster: boolean
   refreshRequest: boolean
   isLive: boolean
@@ -129,7 +128,6 @@ export async function resolvePosterCacheIdentity(ctx: PosterCacheIdentityContext
   // Disk L1.5: after a restart/deploy the canonical render comes back from
   // disk (original timestamp → same TTL/SWR) instead of a cold render.
   await hydratePosterFromDisk(cacheKey)
-  const etagBase = hashKey(`v${RENDER_VERSION}:${mediaType}:${tmdbId}:reg${posterRegion.code}:r${cachedRank ?? "x"}:lr${preTrendRank ?? "x"}:la${preAnimeRank ?? "x"}:sd${sdHash}:${cacheParams.toString()}${configHash ? `:${configHash}` : ""}`)
   const currentMappingVersion = mappingVersionParam(mapping)
   // Rating dinamici: con provider abilitato niente cache immutable annuale
   // (i rating cambiano) — vale anche il display-aware locale: solo la riga
@@ -191,7 +189,6 @@ export async function resolvePosterCacheIdentity(ctx: PosterCacheIdentityContext
     cacheKey,
     needsVariant,
     variantKey,
-    etagBase,
     immutablePoster,
     refreshRequest,
     isLive,

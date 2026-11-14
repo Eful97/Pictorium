@@ -52,7 +52,6 @@ export interface SourceResolutionContext {
   readonly effMdblistKey: string | undefined
   readonly effSimklKey: string | undefined
   readonly reqRatingSources: string[]
-  readonly etagBase: string
   readonly renderAbort: AbortController
   readonly queryPoster: string | null
   readonly queryLogo: string | null
@@ -63,13 +62,11 @@ export interface SourceResolutionContext {
 }
 
 export interface ExplicitSourcesResult {
-  etag: string
   showBadges: boolean
   rankingBadges: boolean
 }
 
 export interface AutoSourcesResult {
-  etag: string
   aggregatedRating: ReturnType<typeof fetchAggregatedRating> | null
   ratingAbort: AbortController | null
 }
@@ -81,7 +78,7 @@ export function resolveQuerySources(
   titleMeta: PosterTitleMeta,
 ): ExplicitSourcesResult {
   const {
-    req, hardenedParams, mediaType, etagBase, queryPoster, queryLogo, queryBackdrop, queryGenre,
+    req, hardenedParams, mediaType, queryPoster, queryLogo, queryBackdrop, queryGenre,
     queryVote,
   } = ctx
   let showBadges = true
@@ -127,8 +124,7 @@ export function resolveQuerySources(
   titleMeta.imdbId = hardenedParams.get("imdbId") || titleMeta.imdbId
   showBadges = req.nextUrl.searchParams.get("badges") !== "0"
   rankingBadges = req.nextUrl.searchParams.get("ranking") !== "0"
-  const etag = `"p${etagBase}"`
-  return { etag, showBadges, rankingBadges }
+  return { showBadges, rankingBadges }
 }
 
 /** Ramo mapping: titolo salvato (base, logo/wordmark, backdrop, genere localizzato). */
@@ -140,7 +136,7 @@ export async function resolveMappingSources(
 ): Promise<ExplicitSourcesResult> {
   const {
     mediaType, tmdbId, autoWordmarkEnabled, canonicalLang, earlyEffMapping, effTmdbKey,
-    etagBase, isLandscape, queryBackdrop, queryGenre, queryLogo, queryPortraitBase, renderAbort,
+    isLandscape, queryBackdrop, queryGenre, queryLogo, queryPortraitBase, renderAbort,
   } = ctx
   let showBadges = true
   let rankingBadges = true
@@ -230,12 +226,11 @@ export async function resolveMappingSources(
   // IMDb ID salvato al save (il path `tt...` vince se presente): evita il
   // fallback getExternalIds che richiede una chiave TMDB assente in Stremio.
   titleMeta.imdbId = titleMeta.imdbId ?? mapping.imdbId ?? null
-  const etag = `"m${etagBase}:${mapping.updatedAt}"`
-  // Niente uscita 304 anticipata qui: il validatore sintetico non
-  // rappresenta i byte (rank live e altre dipendenze dinamiche) — la
+  // Niente uscita 304 anticipata qui: un validatore sintetico non
+  // rappresenterebbe i byte (rank live e altre dipendenze dinamiche) — la
   // decisione 304/200 avviene solo dopo aver risolto il contenuto
   // (hit fresca) o ri-renderizzato (audit freschezza, problemi 1–2).
-  return { etag, showBadges, rankingBadges }
+  return { showBadges, rankingBadges }
 }
 
 /**
@@ -253,7 +248,7 @@ export async function resolveAutoSources(
     req, sd, mediaType, tmdbId, configOverride, posterRegion, canonicalLang, isLandscape,
     autoWordmarkEnabled, portraitBackdropFallback, dynamicDayBucket,
     dynamicRotationIncludeNonClean, effTmdbKey, effMdblistKey, effSimklKey, reqRatingSources,
-    etagBase, renderAbort, queryBackdrop, queryLogo, queryPortraitBase,
+    renderAbort, queryBackdrop, queryLogo, queryPortraitBase,
   } = ctx
   let aggregatedRating: ReturnType<typeof fetchAggregatedRating> | null = null
   let ratingAbort: AbortController | null = null
@@ -737,6 +732,5 @@ export async function resolveAutoSources(
     artwork.autoFetchFailed = true
     log.error("Auto image fetch failed", { error: e instanceof Error ? e.message : String(e) })
   }
-  const etag = `"a${etagBase}"`
-  return { etag, aggregatedRating, ratingAbort }
+  return { aggregatedRating, ratingAbort }
 }
