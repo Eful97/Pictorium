@@ -30,6 +30,16 @@ export interface ChangelogRelease {
  *  (which bumps on every commit and would leave the dot permanently on). */
 export const CHANGELOG: ChangelogRelease[] = [
   {
+    version: "1.27.9",
+    date: "2026-11-14",
+    title: "Release 1.27.9",
+    items: [
+      { type: "feature", text: "See the split ranking badge in the poster's accent color instead of fixed yellow" },
+      { type: "fix", text: "Keep colored badge text more legible on beige, gray and light pastel fills" },
+      { type: "fix", text: "Pick light or dark badge text from the area right behind the badge, not the whole poster edge" },
+    ],
+  },
+  {
     version: "1.27.8",
     date: "2026-11-14",
     title: "Release 1.27.8",
