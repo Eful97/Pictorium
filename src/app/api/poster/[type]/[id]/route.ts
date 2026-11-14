@@ -79,7 +79,7 @@ import { normalizeGenreName } from "@/lib/genre-normalize"
 import { NON_CLEAN_BLUR_FADE, NON_CLEAN_GRADIENT_HEIGHT } from "@/lib/gradient-defaults"
 import { LAND_H, landscapeBackdropUrl, pillarboxLandscapeBase, cropBackdropToPortrait, fitPortraitBase, fitLandscapeBase } from "@/lib/image-utils"
 import { generatePosterBuffer, type GenerationInput, type NetworkGeometry, type BadgeGeometryReport } from "@/lib/poster-service"
-import { computeTopBadge, isNextEpisodeDisplayed } from "@/lib/poster-badge"
+import { isNextEpisodeDisplayed } from "@/lib/poster-badge"
 import { getUpcomingReleaseLabel, parseDateFormat } from "@/lib/release-badge"
 import { fetchPosterBaseWithCustom, customBaseAnalysisKey, resolveEffectiveCustomUrl, safeTmdbImgSrc, fetchValidatedCustomImage } from "@/lib/custom-poster-base"
 import { isCustomPosterUrl } from "@/lib/utils"
@@ -110,6 +110,7 @@ import {
 import { admitPosterRequest } from "./admission"
 import { POSTER_TMDB_TIMEOUT_MS, RATING_WAIT_MS, RENDER_TIMEOUT_MS } from "./constants"
 import { runRankingPreflight } from "./ranking-preflight"
+import { buildPosterDebugJson } from "./debug"
 import type { PosterArtwork, PosterTitleMeta } from "./sources"
 import { resolveAutoSources, resolveMappingSources, resolveQuerySources, type SourceResolutionContext } from "./resolve-sources"
 
@@ -1656,7 +1657,7 @@ export async function GET(req: NextRequest, { params }: { params: Promise<RouteP
     extraBadgeStyle,
       blurEnabled, blurHeight, blurIntensity, blurFade, blurDarkness, tintStrength, topShade, topShadeHeight,
       badgesEnabled, rankingEnabled,
-      badgeGenre, badgeYear, badgeRating, badgeQuality, ageBadge, ageCountry, ageBadgeStyle, awardBadgeStyle, minQuality, sashOrder,
+      badgeGenre, badgeYear, badgeRating, badgeQuality, ageBadge, ageBadgeStyle, awardBadgeStyle, minQuality, sashOrder,
       disabledContentTags, disabledNetworks,
       separateRatings, separateRatingsStyle,
       logoScale, logoOffsetX, logoOffsetY,
@@ -2090,166 +2091,17 @@ export async function GET(req: NextRequest, { params }: { params: Promise<RouteP
     // consumers. Normal poster responses are unchanged either way.
     let debugJson: Record<string, unknown> | null = null
     if (isDebug) {
-      const badgeInput = {
-        mediaType: mediaType as "movie" | "tv",
-        tmdbId,
-        digitalReleaseDate: preDigital ?? null,
-        releaseDate: titleMeta.releaseDate ?? null,
-        firstAirDate: titleMeta.firstAirDate ?? null,
-        lastAirDate: titleMeta.lastAirDate ?? null,
-        seasonCount: titleMeta.seasonCount ?? null,
-        nextEpisodeAirDate: titleMeta.nextEpisodeAirDate ?? null,
-        numberOfEpisodes: titleMeta.numberOfEpisodes ?? null,
-        originCountries: [...titleMeta.originCountries],
-        genreIds: titleMeta.genreIds ? [...titleMeta.genreIds] : null,
-        voteAverage: titleMeta.voteAverage ?? 0,
-        trendRank: finalRank,
-        animeRank: animeRankResult,
-        awards: wikidataResult.awards,
-        nominations: wikidataResult.nominations,
-        studios: titleMeta.tmdbStudios.length ? [...titleMeta.tmdbStudios] : [...titleMeta.productionCompanies, ...titleMeta.tmdbNetworks],
-        director: directorBadgeLabel(wikidataResult.director, t),
-        tvType: titleMeta.tvType ?? null,
-        tvStatus: titleMeta.tvStatus,
-        keywords: [...tmdbKeywords],
-        imdbTop250: !!imdbTop250,
-        whatsonFeatures: aggregated?.whatsonFeatures ?? null,
-        disabledContentTags: disabledContentTags ?? null,
-      }
-      const badgeComputed = computeTopBadge(badgeInput, t, locale, sashOrder, dateFormat)
-      log.info("Debug mode", { mediaType, tmdbId, imdbId: titleMeta.imdbId, imdbTop250: !!imdbTop250, badge: badgeComputed.badge?.label ?? "null", vote: titleMeta.voteAverage, genre: titleMeta.genreName, quality: finalQuality })
-      debugJson = {
-        meta: {
-          tmdbId,
-          mediaType,
-          locale,
-          region: posterRegion.code,
-          imdbId: titleMeta.imdbId,
-          imdbTop250: !!imdbTop250,
-          renderVersion: RENDER_VERSION,
-          shape: isLandscape ? "landscape" : "poster",
-          mappingId: mapping ? `${mediaType}:${tmdbId}` : null,
-        },
-        images: {
-          poster: artwork.posterPath,
-          logo: artwork.logoPath,
-          backdrop: artwork.backdropPath,
-        },
-        logoSelection: {
-          requestedLang: artwork.posterRequestedLang,
-          usedLang: artwork.logoChosenIso,
-          fallbackReason: artwork.logoFallbackReason,
-        },
-        cache: {
-          hit: !!cachedPoster.payload,
-          stale: !!cachedPoster.payload && cachedPoster.stale,
-        },
-        genre: { name: titleMeta.genreName, year: titleMeta.releaseDate?.slice(0, 4) },
-        vote: { average: titleMeta.voteAverage },
-        quality: {
-          value: finalQuality,
-          source: liveQualityResult.source,
-          status: liveQualityResult.status,
-          rawTokens: liveQualityResult.rawTokens ?? [],
-        },
-        // Badge età: impostazioni effettive + etichetta risolta (null =
-        // nascosto: disabilitato o paese senza dati; mai fallback).
-        age: {
-          enabled: ageBadge,
-          country: ageCountry,
-          style: ageBadgeStyle,
-          label: ageLabel,
-          degraded: ageEphemeral,
-        },
-        minQuality,
-        preRelease: { enabled: preRelease, detected: preReleaseDetected, applied: applyPreRelease, jwAvailable: preJw, digitalDate: preDigital, theatricalDate: titleMeta.releaseDate ?? mapping?.releaseDate ?? null },
-        rankings: {
-          justwatch: rankingResult,
-          anime: animeRankResult,
-          finalRank,
-          qRank: hardenedParams.get("rank") || null,
-          qLabel,
-        },
-        wikidata: {
-          awards: wikidataResult.awards,
-          nominations: wikidataResult.nominations,
-          studios: wikidataResult.studios,
-          director: wikidataResult.director,
-          directorLabel: directorBadgeLabel(wikidataResult.director, t),
-          degraded: wikidataResult.degraded ?? false,
-          timedOut: wikidataRaceTimedOut,
-        },
-        keywords: [...tmdbKeywords],
-        badge: {
-          computed: {
-            badge: badgeComputed.badge,
-            upcomingRelease: badgeComputed.upcomingRelease,
-            awardBadge: badgeComputed.awardBadge,
-            studioBadge: badgeComputed.studioBadge,
-            subGenreBadge: badgeComputed.subGenreBadge,
-            extraFallback: badgeComputed.extraFallback,
-          },
-          settings: {
-            badgesEnabled,
-            rankingEnabled,
-            badgeStyle,
-            rankingBadgeStyle,
-            badgeFont,
-            badgeGenre,
-            badgeYear,
-            badgeRating,
-            badgeQuality,
-            ageBadge,
-            ageCountry,
-            ageBadgeStyle,
-            separateRatings: useSeparate,
-            separateRatingsStyle,
-            bottomActive,
-            sashOrder,
-            customBadge: queryExtra,
-          },
-        },
-        timings: {
-          fetchMs: tFetchMs,
-          prepMs: Date.now() - startTime - tFetchMs,
-          totalMs: Date.now() - startTime,
-        },
-        appearance: {
-          topLight,
-          bottomLight,
-          blurEnabled,
-          blurHeight: effBlurHeight,
-          blurIntensity,
-          blurFade: effBlurFade,
-          blurDarkness,
-          gradientHeight: effBlurHeight,
-          topShade,
-          topShadeHeight,
-          accentColor: accentOverride?.genreColor || null,
-        },
-        logos: {
-          scale: logoScale,
-          offsetX: logoOffsetX,
-          offsetY: logoOffsetY,
-          networkLogo,
-          networkLogoFollowTitle,
-          networkFixedX: networkFixedX ?? null,
-          networkFixedY: networkFixedY ?? null,
-        },
-        topBadge: {
-          scale: topBadgeScale,
-          offsetX: topBadgeOffsetX,
-          offsetY: topBadgeOffsetY,
-        },
-        extraBadge: {
-          scale: extraBadgeScale ?? null,
-          offsetX: extraBadgeOffsetX ?? null,
-          offsetY: extraBadgeOffsetY ?? null,
-        },
-        genreBadge: {
-          scale: genreBadgeScale,
-        },
-      }
+      debugJson = buildPosterDebugJson({
+        tmdbId, mediaType, mapping, posterRegion, locale, t, dateFormat, isLandscape, hardenedParams,
+        artwork, titleMeta, renderConfig,
+        rankingResult, animeRankResult, wikidataResult, wikidataRaceTimedOut, tmdbKeywords, imdbTop250,
+        aggregated, liveQualityResult, preJw, preDigital, preReleaseDetected,
+        finalRank, finalQuality, qLabel, ageLabel, ageEphemeral, applyPreRelease, accentOverride,
+        topLight, bottomLight, bottomActive, useSeparate, effBlurHeight, effBlurFade,
+        cacheHit: !!cachedPoster.payload,
+        cacheStale: !!cachedPoster.payload && cachedPoster.stale,
+        startTime, tFetchMs,
+      })
       if (!wantNetGeo) {
         completePosterRender(null)
         return Response.json(debugJson)
