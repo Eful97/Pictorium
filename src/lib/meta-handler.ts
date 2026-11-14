@@ -472,6 +472,9 @@ async function applyEpisodeThumbnails(
       }
     }
     const params = new URLSearchParams({
+      // Render version first (same as poster URLs): a renderer change gets a
+      // new URL, so Stremio/browser caches never keep the old PNG.
+      rv: POSTER_URL_VERSION,
       still,
       w: String(EPISODE_THUMBNAIL_WIDTH),
       badges: EPISODE_THUMBNAIL_BADGES,

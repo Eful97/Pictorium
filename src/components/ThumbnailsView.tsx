@@ -6,6 +6,7 @@ import { usePSelector } from "@/lib/context"
 import { useT } from "@/lib/contexts/TranslationContext"
 import { http } from "@/lib/http"
 import { posterUrl } from "@/lib/utils"
+import { RENDER_VERSION } from "@/lib/render-version"
 import { toSearchResult } from "@/lib/types"
 import type { Mapping } from "@/lib/types"
 import { ThumbnailRotationSelector } from "@/components/settings/ThumbnailRotationSelector"
@@ -95,7 +96,7 @@ const ThumbnailCard = React.memo(function ThumbnailCard({
 
   const entries = stillEntries(mapping.episodeThumbnailStills)
   const first = entries[0]
-  const params = new URLSearchParams({ w: "480", badges: "vote" })
+  const params = new URLSearchParams({ rv: RENDER_VERSION, w: "480", badges: "vote" })
   if (first) params.set("still", first.still)
   if (currentUserId) params.set("u", currentUserId)
   const previewUrl = `/api/thumbnail/tv/${mapping.tmdbId}/season/${first?.season ?? 1}/episode/${first?.episode ?? 1}?${params.toString()}`
