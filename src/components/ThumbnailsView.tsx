@@ -7,6 +7,14 @@ import { useT } from "@/lib/contexts/TranslationContext"
 import { http } from "@/lib/http"
 import { posterUrl } from "@/lib/utils"
 import { RENDER_VERSION } from "@/lib/render-version"
+import { usePosterEditor } from "@/lib/contexts/PosterEditorContext"
+import {
+  clampThumbnailBadgeOffset,
+  clampThumbnailBadgeScale,
+  sanitizeThumbnailBadgeAnchor,
+  sanitizeThumbnailBadgeStyle,
+  sanitizeThumbnailVoteSource,
+} from "@/components/settings/thumbnail-preview"
 import { toSearchResult } from "@/lib/types"
 import type { Mapping } from "@/lib/types"
 import { ThumbnailRotationSelector } from "@/components/settings/ThumbnailRotationSelector"
@@ -57,6 +65,8 @@ interface CardProps {
   mapping: Mapping
   idx: number
   currentUserId: string | null | undefined
+  /** Editor Miniature choices (bstyle/anchor/ox/oy/bscale/source/blur) as a query string. */
+  visualQuery: string
   selectMode: boolean
   isSelected: boolean
   deleting: boolean
@@ -70,6 +80,7 @@ const ThumbnailCard = React.memo(function ThumbnailCard({
   mapping,
   idx,
   currentUserId,
+  visualQuery,
   selectMode,
   isSelected,
   deleting,
@@ -99,7 +110,10 @@ const ThumbnailCard = React.memo(function ThumbnailCard({
   const params = new URLSearchParams({ rv: RENDER_VERSION, w: "480", badges: "vote" })
   if (first) params.set("still", first.still)
   if (currentUserId) params.set("u", currentUserId)
-  const previewUrl = `/api/thumbnail/tv/${mapping.tmdbId}/season/${first?.season ?? 1}/episode/${first?.episode ?? 1}?${params.toString()}`
+  // Explicit visual params (WYSIWYG with the editor/settings preview): absent
+  // ones would fall back to the server-saved space defaults, which can lag the
+  // editor's local choice (e.g. `vetro` selected but rendered as `pill`).
+  const previewUrl = `/api/thumbnail/tv/${mapping.tmdbId}/season/${first?.season ?? 1}/episode/${first?.episode ?? 1}?${params.toString()}&${visualQuery}`
   const rotation = typeof mapping.thumbnailRotation === "boolean" ? mapping.thumbnailRotation : null
   const activate = () => { if (selectMode) onToggleSelect(key); else onOpen(mapping) }
   const itemCls = "w-full flex items-center gap-2.5 px-2.5 py-1.5 rounded-lg text-xs text-left text-zinc-200 hover:bg-white/[0.07] transition-colors cursor-pointer"
@@ -276,6 +290,19 @@ export function ThumbnailsView() {
   const loadMappings = usePSelector((v) => v.loadMappings)
   const navigateToPoster = usePSelector((v) => v.navigateToPoster)
   const lang = usePSelector((v) => v.lang)
+  const ed = usePosterEditor()
+  const visualQuery = useMemo(() => {
+    const q = new URLSearchParams({
+      bstyle: sanitizeThumbnailBadgeStyle(ed.thumbnailBadgeStyle),
+      anchor: sanitizeThumbnailBadgeAnchor(ed.thumbnailBadgeAnchor),
+      ox: String(clampThumbnailBadgeOffset(ed.thumbnailBadgeOffsetX)),
+      oy: String(clampThumbnailBadgeOffset(ed.thumbnailBadgeOffsetY)),
+      bscale: String(clampThumbnailBadgeScale(ed.thumbnailBadgeScale)),
+      source: sanitizeThumbnailVoteSource(ed.thumbnailVoteSource),
+    })
+    if (ed.thumbnailBlurEnabled === true) q.set("blur", "1")
+    return q.toString()
+  }, [ed.thumbnailBadgeStyle, ed.thumbnailBadgeAnchor, ed.thumbnailBadgeOffsetX, ed.thumbnailBadgeOffsetY, ed.thumbnailBadgeScale, ed.thumbnailVoteSource, ed.thumbnailBlurEnabled])
   const { t } = useT()
   const [filter, setFilter] = useState("")
   const [selectMode, setSelectMode] = useState(false)
@@ -512,6 +539,7 @@ export function ThumbnailsView() {
                   mapping={mapping}
                   idx={idx}
                   currentUserId={currentUserId}
+                  visualQuery={visualQuery}
                   selectMode={selectMode}
                   isSelected={selected.has(key)}
                   deleting={deleting}

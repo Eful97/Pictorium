@@ -72,7 +72,7 @@ describe("Thumbnails zone (top-level)", () => {
     const stillRow = screen.getByText("With Stills").closest("li") as HTMLLIElement
     const preview = stillRow.querySelector("img") as HTMLImageElement
     expect(preview.getAttribute("src")).toBe(
-      `/api/thumbnail/tv/2/season/1/episode/2?rv=${RENDER_VERSION}&w=480&badges=vote&still=%2Fstill-two.jpg`,
+      `/api/thumbnail/tv/2/season/1/episode/2?rv=${RENDER_VERSION}&w=480&badges=vote&still=%2Fstill-two.jpg&bstyle=pill&anchor=tr&ox=0&oy=0&bscale=100&source=imdb`,
     )
     expect(stillRow.querySelector('[data-testid="episode-rotation-inherit"]')).toBeNull()
 
