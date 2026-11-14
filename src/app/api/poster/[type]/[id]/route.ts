@@ -25,12 +25,9 @@ import {
   posterHeaders,
   posterNotModifiedHeaders,
   posterResponse,
-  convertPosterFormat,
-  convertToJpeg,
   variantEtagFor,
   dynamicPosterTtlSec,
   readCachedPoster,
-  readCompletedAccent,
   readPosterError,
   recordCompletedAccent,
   recordZombieRenderStart,
@@ -44,14 +41,12 @@ import {
   serverTimingValue,
   resolveImageFormat,
   DEFAULT_IMAGE_FORMAT,
-  httpRemainingSec,
   payloadHttpRemainingSec,
   type PosterCachePayload,
 } from "@/lib/poster-runtime-cache"
 import { capPosterTtlMs } from "@/lib/poster-freshness"
-import { sanitizeEffectiveAccentMeta, type EffectiveAccentMeta } from "@/lib/effective-accent"
+import { type EffectiveAccentMeta } from "@/lib/effective-accent"
 import { msUntilPosterScheduledRefresh, userTagFragment } from "@/lib/cache"
-import { FormatOverloadError, runFormatConversion } from "@/lib/poster-format-gate"
 import { canonicalPosterLang, canonicalPosterQuality, resolveFinalRankWithListContext, sanitizePortraitBaseBackdropPath } from "@/lib/poster-params-hardening"
 import { DEMO_SAMPLE_GENRE, DEMO_SAMPLE_MOVIE_DATE, DEMO_SAMPLE_RANK, DEMO_SAMPLE_TV_DATE, mergeDemoSampleRatings } from "@/lib/demo-samples"
 import {
@@ -92,6 +87,8 @@ import { fetchRenderData } from "./fetch-render-data"
 import { prepareRenderBase } from "./render-base"
 import { resolveEphemeralPolicy, resolveFactCap } from "./freshness"
 import { resolveRenderQuality } from "./quality"
+import { serveAccentMetaRequest } from "./accent-meta"
+import { createResponseVariantServer } from "./variant"
 import type { PosterArtwork, PosterTitleMeta } from "./sources"
 import { resolveAutoSources, resolveMappingSources, resolveQuerySources, type SourceResolutionContext } from "./resolve-sources"
 
@@ -369,215 +366,15 @@ export async function GET(req: NextRequest, { params }: { params: Promise<RouteP
   const ifNoneMatch = isPreview ? null : req.headers.get("If-None-Match")
   const isConditional = ifNoneMatch !== null
 
-  // Effective-accent metadata branch (`?accentmeta=1`, read-only, no-store).
-  // DIAGNOSTIC ONLY: the editor picker does NOT use this branch — it reads
-  // the `X-Pictorium-Accent` response header of the image itself (same XHR,
-  // same bytes, zero extra requests; see `posterHeaders` + `usePosterPreview`).
-  // Same authorized key as the image above (auth/namespace/mapping/shape/
-  // ranking-preflight all ran on the identical lines): fresh sidecar HIT →
-  // 200; stale sidecar ignored → overlapping inflight → bounded coalesced wait → 200 on settle (one
-  // render, two readers); late preview (inflight already deleted, no
-  // persisted entry) → 200 from the short-lived completed record; otherwise
-  // 202 honest unknown. NEVER renders, NEVER acquires a slot, NEVER writes
-  // negative cache. Format variants read the canonical entry (meta is
-  // format-independent fills, never a conversion); the JSON validator is
-  // derived from the meta body, never the PNG ETag.
-  if (wantAccentMeta) {
-    const serveAccentMeta = (meta: EffectiveAccentMeta | null): Response => {
-      const clean = sanitizeEffectiveAccentMeta(meta ?? null)
-      const body = clean
-        ? { status: "ready", ...clean }
-        : {
-            status: "unknown",
-            genreHex: null,
-            rankHex: null,
-            genrePaints: false,
-            topPaints: false,
-            topType: null,
-            provGenre: "unknown",
-            provRank: "unknown",
-            gradientHex: null,
-            gradientPaints: false,
-            provGradient: "unknown",
-          }
-      const json = JSON.stringify(body)
-      const jsonEtag = `"${hashKey(json)}"`
-      const headers: Record<string, string> = {
-        ...corsHeaders(),
-        "Content-Type": "application/json",
-        "Cache-Control": "no-store",
-        ETag: jsonEtag,
-      }
-      if (ifNoneMatch === jsonEtag) {
-        return new Response(null, { status: 304, headers })
-      }
-      return new Response(json, { status: clean ? 200 : 202, headers })
-    }
-    const metaHit = readCachedPoster(cacheKey)
-    // Fresh sidecar only: a stale entry may describe bytes a newer image
-    // render already replaced — fall through to the inflight / completed /
-    // 202 chain (read-only, never renders) instead of serving outdated hex.
-    if (metaHit.payload?.accentMeta && !metaHit.stale) {
-      return serveAccentMeta(metaHit.payload.accentMeta)
-    }
-    const metaPending = getPendingPoster(cacheKey)
-    if (metaPending) {
-      let coalesceTimer: ReturnType<typeof setTimeout> | undefined
-      const coalesceTimeout = new Promise<null>((resolve) => {
-        coalesceTimer = setTimeout(() => resolve(null), RENDER_SLOT_WAIT_MS)
-      })
-      const settled = await Promise.race([metaPending, coalesceTimeout])
-      if (coalesceTimer) clearTimeout(coalesceTimer)
-      // Write-then-complete ordering (success path below) guarantees the
-      // completed record exists before waiters resolve — check it too so a
-      // settled payload without meta still finds the late record.
-      const settledMeta = settled?.accentMeta ?? readCompletedAccent(cacheKey)
-      if (settledMeta) return serveAccentMeta(settledMeta)
-      return serveAccentMeta(null)
-    }
-    const lateMeta = readCompletedAccent(cacheKey)
-    if (lateMeta) return serveAccentMeta(lateMeta)
-    return serveAccentMeta(null)
-  }
+  // Effective-accent metadata branch (`?accentmeta=1`, read-only, no-store,
+  // never renders): see accent-meta.ts.
+  if (wantAccentMeta) return await serveAccentMetaRequest(cacheKey, ifNoneMatch)
 
-  // C3: risposta non-canonica da payload canonico (cache variante o conversione).
-  // opts (ttlMs/immutable) dal fresh render effimero; sulle HIT riuso record.
-  // Il chiamante garantisce un canonico fresco o appena renderizzato: una
-  // variante scaduta non viene MAI servita da qui (si riconverte e si
-  // sovrascrive); solo una variante fresca evita la conversione.
-  // Latency: measured to the terminal response, conversion encode included.
-  // "cached" when the caller serves from cache (fresh/stale canonical hits);
-  // "render" when the caller just rendered (fresh render, revalidation render
-  // — recorded here at terminal success so a failed conversion never counts
-  // as a served render); "skip" when the caller records for itself or the
-  // sample is excluded by contract (coalesced waiter: it awaited another
-  // request's render, never its own).
-  const serveResponseVariant = async (canonical: PosterCachePayload, opts?: { ttlMs?: number; immutable?: boolean; factCapped?: boolean; expiresAt?: number }, latencyOrigin: "cached" | "render" | "skip" = "skip"): Promise<Response> => {
-    const noteTerminalServe = (): void => {
-      if (latencyOrigin === "cached") recordPosterLatency("cached", Date.now() - startTime)
-      else if (latencyOrigin === "render") recordPosterLatency("render", Date.now() - startTime)
-    }
-    // Task D: carry the canonical absolute deadline — no variant may extend
-    // the canonical fact expiry. Canonical payload/read carries expiresAt +
-    // factCapped (HIT sidecar or fresh render); opts from a fresh render win
-    // when present. Variant TTL = min(canonical remaining, variant policy).
-    const nowVariantHit = Date.now()
-    const canonicalExpiresAt = opts?.expiresAt ?? canonical.expiresAt
-    const canonicalFactCapped = opts?.factCapped ?? canonical.factCapped ?? false
-    const canonicalRemainingMs =
-      canonicalExpiresAt !== undefined
-        ? canonicalExpiresAt - nowVariantHit
-        : canonical.ttlSec !== undefined
-          ? canonical.ttlSec * 1000
-          : null
-    if (opts?.ttlMs === undefined && canonical.ttlSec !== undefined) {
-      opts = { ...opts, ttlMs: canonical.ttlSec * 1000 }
-    }
-    // Clamp an explicit variant TTL to the canonical remaining so a stale
-    // full-TTL opt can never extend a nearly-expired canonical fact.
-    // Uncapped canonicals preserve the historical full variant TTL.
-    if (canonicalFactCapped && canonicalRemainingMs !== null && opts?.ttlMs !== undefined) {
-      const clamped = Math.min(opts.ttlMs, Math.max(0, canonicalRemainingMs))
-      if (clamped !== opts.ttlMs) opts = { ...opts, ttlMs: clamped }
-    }
-    if (canonicalFactCapped && (opts?.factCapped === undefined)) {
-      opts = { ...opts, factCapped: true as const }
-    }
-    if (canonicalExpiresAt !== undefined && opts?.expiresAt === undefined) {
-      opts = { ...opts, expiresAt: canonicalExpiresAt }
-    }
-    const variantHit = readCachedPoster(variantKey, nowVariantHit)
-    if (!wantNetGeo && variantHit.payload && !variantHit.stale) {
-      const variantHttpSec = httpRemainingSec(variantHit.remainingMs, variantHit.ttlSec ?? variantTtlSec, nowVariantHit, variantHit.expiresAt)
-      const variantCapped = variantHit.factCapped ?? canonicalFactCapped ?? false
-      if (isConditional && ifNoneMatch === variantHit.payload.etag) {
-        log.debug("Poster cache: 304 (variant)", { mediaType, tmdbId, ms: Date.now() - startTime })
-        noteTerminalServe()
-        return new Response(null, { status: 304, headers: posterNotModifiedHeaders(variantHit.payload.etag, variantHit.immutable ?? immutablePoster, dynamicPoster, variantHttpSec, isLive, variantHit.payload.accentMeta, variantCapped) })
-      }
-      noteTerminalServe()
-      return posterResponse(variantHit.payload, variantHit.immutable ?? immutablePoster, isPreview, dynamicPoster, outputFormat, variantHttpSec, undefined, isLive, variantCapped)
-    }
-    // Format gate: same-revision concurrent conversions share one native
-    // encode (key = variant + canonical ETag + format); distinct ones are
-    // bounded to 2 natives on a dedicated budget. Overload answers 503 here,
-    // never via the negative error cache. Cache hits above never convert.
-    const conversionKey = `${variantKey}:${canonical.etag}:${outputFormat}`
-    let converted: Buffer
-    try {
-      converted = canonicalFormat === "webp"
-        ? await runFormatConversion(conversionKey, () => convertToJpeg(canonical.buffer))
-        : await runFormatConversion(conversionKey, () => convertPosterFormat(canonical.buffer))
-    } catch (e) {
-      if (e instanceof FormatOverloadError) {
-        log.debug("Poster format gate overloaded", { mediaType, tmdbId, ms: Date.now() - startTime })
-        return posterErrorResponse(503)
-      }
-      throw e
-    }
-    // Conversion delay subtracts elapsed: recompute the canonical remaining
-    // AFTER the encode so a slow conversion can never extend the fact expiry.
-    const nowAfterConvert = Date.now()
-    const canonicalRemainingAfter =
-      canonicalExpiresAt !== undefined
-        ? canonicalExpiresAt - nowAfterConvert
-        : null
-    let variantTtlMs: number | undefined = opts?.ttlMs
-    if (canonicalFactCapped && canonicalRemainingAfter !== null) {
-      if (canonicalRemainingAfter <= 0) {
-        // Canonical fact expired during conversion: serve the bytes just built
-        // with max-age=0 and store nothing (304 below advertises 0 too — no
-        // browser TTL renewal, no rerender loop, no invalidation).
-        variantTtlMs = 0
-      } else if (variantTtlMs !== undefined) {
-        variantTtlMs = Math.min(variantTtlMs, canonicalRemainingAfter)
-      } else {
-        const variantPolicyMs = variantTtlSec !== undefined ? variantTtlSec * 1000 : undefined
-        variantTtlMs = variantPolicyMs !== undefined ? Math.min(variantPolicyMs, canonicalRemainingAfter) : canonicalRemainingAfter
-      }
-    }
-    const variantExpiresAt =
-      variantTtlMs !== undefined
-        ? (canonicalExpiresAt !== undefined && canonicalRemainingAfter !== null && canonicalRemainingAfter > 0
-            ? Math.min(nowAfterConvert + variantTtlMs, canonicalExpiresAt)
-            : nowAfterConvert + variantTtlMs)
-        : canonicalExpiresAt
-    const variantCappedFresh = (opts?.factCapped ?? canonicalFactCapped) || false
-    const variant: PosterCachePayload = {
-      buffer: converted,
-      etag: variantEtagFor(canonical.etag, outputFormat as "jpeg" | "webp"),
-      ...(variantTtlMs !== undefined && variantTtlMs > 0 ? { ttlSec: Math.floor(variantTtlMs / 1000) } : {}),
-      ...(variantExpiresAt !== undefined ? { expiresAt: variantExpiresAt } : {}),
-      ...(variantCappedFresh ? { factCapped: true as const } : {}),
-      // Accent fills are format-independent: the converted variant carries the
-      // canonical payload's meta, so its 200 serves the same display-sync
-      // header (and its cache entry round-trips the sidecar like canonical).
-      ...(canonical.accentMeta ? { accentMeta: canonical.accentMeta } : {}),
-    }
-    // Le preview editor (`preview=1`, ogni tick di slider) non sporcano lo
-    // storage: la chiave le separa già, ma scrivere ogni tick è flood.
-    // A 304 with remaining 0 stores nothing (no browser renewal extension).
-    const freshVariantHttpSec =
-      variantExpiresAt !== undefined
-        ? Math.max(0, Math.floor((variantExpiresAt - nowAfterConvert) / 1000))
-        : variantTtlMs !== undefined
-          ? Math.max(0, Math.floor(variantTtlMs / 1000))
-          : variantTtlSec
-    if (!isPreview && !(variantExpiresAt !== undefined && variantExpiresAt - nowAfterConvert <= 0)) {
-      writeCachedPoster(variantKey, variant, mappingTag, {
-        ...(variantTtlMs !== undefined ? { ttlMs: variantTtlMs } : {}),
-        immutable: opts?.immutable ?? immutablePoster,
-        ...(variantCappedFresh ? { factCapped: true as const } : {}),
-      })
-    }
-    if (isConditional && ifNoneMatch === variant.etag) {
-      log.debug("Poster cache: 304 (fresh variant)", { mediaType, tmdbId, ms: Date.now() - startTime })
-      noteTerminalServe()
-      return new Response(null, { status: 304, headers: posterNotModifiedHeaders(variant.etag, opts?.immutable ?? immutablePoster, dynamicPoster, freshVariantHttpSec, isLive, variant.accentMeta, variantCappedFresh) })
-    }
-    noteTerminalServe()
-    return posterResponse(variant, opts?.immutable ?? immutablePoster, isPreview, dynamicPoster, outputFormat, freshVariantHttpSec, undefined, isLive, variantCappedFresh)
-  }
+  // C3: risposta non-canonica da payload canonico (vedi variant.ts).
+  const serveResponseVariant = createResponseVariantServer({
+    mediaType, tmdbId, startTime, isPreview, isConditional, ifNoneMatch, isLive, wantNetGeo,
+    outputFormat, canonicalFormat, variantKey, variantTtlSec, mappingTag, dynamicPoster, immutablePoster,
+  })
 
   // 3. Memory cache check (lookup in phases.ts)
   const cacheLookupCtx: PosterCacheLookupContext = {
