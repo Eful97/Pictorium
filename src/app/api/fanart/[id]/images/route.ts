@@ -2,6 +2,7 @@ import { NextRequest } from "next/server"
 import { getFanartImages, FanartError } from "@/lib/fanart"
 import { fanartLandscapeBaseCandidates } from "@/lib/poster-config"
 import { resolveUserApiKeys } from "@/lib/tmdb"
+import { touchUserActivity } from "@/lib/user-activity"
 import { getScopedUserId, extractUserParam } from "@/lib/user-auth"
 import { rateLimit, rateLimitKey, rateLimitResponse } from "@/lib/rate-limit"
 import { cacheGet, cacheSet } from "@/lib/cache"
@@ -29,6 +30,8 @@ export async function GET(req: NextRequest, { params }: { params: Promise<RouteP
   }
   // Una sola risoluzione namespace per entrambe le kind (spazio > env).
   const userId = getScopedUserId(extractUserParam(req))
+  // Activity for the inactive/unused cleanup (only real spaces are persisted).
+  if (userId) touchUserActivity(userId)
   const resolved = await resolveUserApiKeys(req, userId)
   if (!resolved.fanart.key) {
     return Response.json(

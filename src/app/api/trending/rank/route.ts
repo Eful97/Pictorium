@@ -2,6 +2,7 @@ import { NextRequest } from "next/server"
 import { getJWRankings } from "@/lib/justwatch"
 import { getRegionDef, normalizeRegion, parseRegion, defaultRegionForLang, GLOBAL_REGION_CODE } from "@/lib/regions"
 import { getServerDefaults, getServerDefaultsForUser } from "@/lib/server-defaults"
+import { touchUserActivity } from "@/lib/user-activity"
 import { getScopedUserId, userExists } from "@/lib/user-auth"
 import { decodeConfig } from "@/lib/config-token"
 import { resolveUserApiKeys } from "@/lib/tmdb"
@@ -59,6 +60,8 @@ export async function GET(req: NextRequest) {
   const configParam = req.nextUrl.searchParams.get("config") ?? req.nextUrl.searchParams.get("c")
   let scopedUser = getScopedUserId(userParam)
   if (scopedUser && !(await userExists(scopedUser))) scopedUser = null
+  // Activity for the inactive/unused cleanup (throttled, fire-and-forget).
+  if (scopedUser) touchUserActivity(scopedUser)
   const tokenConfig = configParam ? decodeConfig(configParam) : null
   const namespaceDefaults = scopedUser ? await getServerDefaultsForUser(scopedUser) : getServerDefaults()
   const slot: RankingSlot = rawType === "movie" ? "movie" : "series"

@@ -38,6 +38,12 @@ function activityKvKey(userId: string): string {
   return `user:${userId}:activity`
 }
 
+/** Durable "this space has been used" marker (KV, no TTL). The activity key
+ * expires with the retention window, so its absence alone proves nothing. */
+function usedKvKey(userId: string): string {
+  return `user:${userId}:used`
+}
+
 async function persistActivity(userId: string, now: number): Promise<void> {
   // Solo spazi reali (v1.23.0): gli UUID inventati non devono creare
   // directory/chiavi orfane mai visibili al cleanup (crescita incontrollata).
@@ -49,6 +55,7 @@ async function persistActivity(userId: string, now: number): Promise<void> {
     // retention disabilitata (0) cap a 1 anno: i dati restano utili allo
     // status ma smettono di accumularsi per sempre.
     await getKv().set(activityKvKey(userId), payload, { ex: activityTtlSec() })
+    await getKv().set(usedKvKey(userId), "1")
     return
   }
   await fsp.mkdir(userDir(userId), { recursive: true })
@@ -118,6 +125,72 @@ async function userDirBytes(dir: string): Promise<number> {
     return total
   } catch {
     return 0
+  }
+}
+
+/**
+ * True when there is any evidence the space was ever read by the addon:
+ * the durable `used` marker or a live activity key (KV), or activity.json
+ * (file mode, no TTL). Throws on read errors other than "absent", so a
+ * degraded backend never makes a used space look unused.
+ */
+async function hasUsageEvidenceStrict(userId: string): Promise<boolean> {
+  if (isKvMode()) {
+    const kv = getKv()
+    const used = await kv.get<unknown>(usedKvKey(userId))
+    if (used !== null && used !== undefined) return true
+    const act = await kv.get<unknown>(activityKvKey(userId))
+    return act !== null && act !== undefined
+  }
+  try {
+    await fsp.stat(activityFile(userId))
+    return true
+  } catch (e) {
+    if (e instanceof Error && (e as NodeJS.ErrnoException).code === "ENOENT") return false
+    throw e
+  }
+}
+
+const UNUSED_ARMED_KV_KEY = "instance:unused-user-cleanup-armed-at"
+
+function unusedArmedFile(): string {
+  return path.join(DATA_DIR, "instance", "unused-user-cleanup-armed.json")
+}
+
+/**
+ * When the unused-space rule was first armed on this instance (ms), written on
+ * the first cleanup run that has it enabled. Spaces are only removed once the
+ * rule has been armed for a full grace period, so spaces that predate it (and
+ * were used only through routes that did not record activity before) get a
+ * full window to record usage. Null on any read/write error: skip this run.
+ */
+async function getUnusedRuleArmedAt(now: number): Promise<number | null> {
+  try {
+    if (isKvMode()) {
+      const kv = getKv()
+      const raw = await kv.get<unknown>(UNUSED_ARMED_KV_KEY)
+      if (raw !== null && raw !== undefined) {
+        const t = Date.parse(String(raw))
+        return Number.isFinite(t) ? t : null
+      }
+      await kv.set(UNUSED_ARMED_KV_KEY, new Date(now).toISOString())
+      return now
+    }
+    try {
+      const parsed = JSON.parse(await fsp.readFile(unusedArmedFile(), "utf-8")) as { armedAt?: unknown }
+      const t = typeof parsed.armedAt === "string" ? Date.parse(parsed.armedAt) : NaN
+      return Number.isFinite(t) ? t : null
+    } catch (e) {
+      if (!(e instanceof Error && (e as NodeJS.ErrnoException).code === "ENOENT")) return null
+    }
+    await fsp.mkdir(path.dirname(unusedArmedFile()), { recursive: true })
+    await atomicWriteFile(unusedArmedFile(), JSON.stringify({ armedAt: new Date(now).toISOString() }))
+    return now
+  } catch (e) {
+    log.warn("unused-user cleanup arm marker unavailable, skipping unused rule", {
+      error: e instanceof Error ? e.message : String(e),
+    })
+    return null
   }
 }
 
@@ -201,7 +274,7 @@ async function listUsersKv(): Promise<UserInfo[]> {
 
 // ── Wipe account (GDPR) ───────────────────────────────────────────────────
 
-const USER_KV_KEYS = ["auth", "keys", "activity", "trakt"] as const
+const USER_KV_KEYS = ["auth", "keys", "activity", "used", "trakt"] as const
 
 /** Cancella integralmente un namespace (dati + epoch). Ritorna i byte liberati (file) o -1 (KV). */
 export async function deleteUser(userId: string): Promise<number> {
@@ -307,8 +380,43 @@ export function activityTtlSec(retentionDays = getUserRetentionDays()): number {
   return (retentionDays > 0 ? retentionDays : 365) * 24 * 60 * 60
 }
 
+/**
+ * Grace period (days) after which a space that was never used is removed by
+ * the cleanup. "Never used" = no recorded addon activity (catalog, meta,
+ * poster) since creation AND no saved API keys. Env
+ * PICTORIUM_UNUSED_USER_GRACE_DAYS, default 14, `0` = never. The rule takes
+ * effect one grace period after the first cleanup run that has it enabled.
+ * Without this, KV spaces created and abandoned have no lastAccess and are
+ * kept forever, filling PICTORIUM_MAX_USERS on public instances.
+ */
+export function getUnusedUserGraceDays(): number {
+  const raw = envWithFallback("UNUSED_USER_GRACE_DAYS")
+  if (raw === undefined || raw.trim() === "") return 14
+  if (raw.trim() === "0") return 0
+  const n = parseInt(raw, 10)
+  return Number.isFinite(n) && n > 0 ? n : 14
+}
+
+/** True only when every check positively says the space was never used (fails safe). */
+async function isUnusedSpace(userId: string, createdCutoff: number): Promise<boolean> {
+  const { getUserCreatedAt } = await import("@/lib/user-auth")
+  const { hasStoredUserKeys } = await import("@/lib/user-keys")
+  const createdAt = await getUserCreatedAt(userId)
+  const created = createdAt ? Date.parse(createdAt) : NaN
+  if (!Number.isFinite(created) || created >= createdCutoff) return false
+  try {
+    if (await hasUsageEvidenceStrict(userId)) return false
+  } catch {
+    return false
+  }
+  if (await hasStoredUserKeys(userId)) return false
+  return true
+}
+
 export interface CleanupResult {
   removed: number
+  /** Subset of `removed`: spaces never used within the grace period. */
+  removedUnused: number
   kept: number
   disabled: boolean
   freedBytes: number
@@ -321,16 +429,24 @@ export interface CleanupResult {
  */
 export async function cleanupInactiveUsers(retentionDays = getUserRetentionDays()): Promise<CleanupResult> {
   if (!retentionDays || retentionDays <= 0) {
-    return { removed: 0, kept: 0, disabled: true, freedBytes: 0 }
+    return { removed: 0, removedUnused: 0, kept: 0, disabled: true, freedBytes: 0 }
   }
-  const cutoff = Date.now() - retentionDays * 24 * 60 * 60 * 1000
+  const now = Date.now()
+  const cutoff = now - retentionDays * 24 * 60 * 60 * 1000
+  const graceDays = getUnusedUserGraceDays()
+  const unusedCutoff = now - graceDays * 24 * 60 * 60 * 1000
+  const armedAt = graceDays > 0 ? await getUnusedRuleArmedAt(now) : null
+  const unusedRuleLive = armedAt !== null && armedAt < unusedCutoff
   const users = await listUsers()
   let removed = 0
+  let removedUnused = 0
   let kept = 0
   let freedBytes = 0
   for (const u of users) {
     const last = u.lastAccess ? Date.parse(u.lastAccess) : NaN
-    if (!Number.isFinite(last) || last >= cutoff) {
+    const inactive = Number.isFinite(last) && last < cutoff
+    const unused = !inactive && unusedRuleLive && (await isUnusedSpace(u.uuid, unusedCutoff))
+    if (!inactive && !unused) {
       kept++
       continue
     }
@@ -338,12 +454,17 @@ export async function cleanupInactiveUsers(retentionDays = getUserRetentionDays(
       const freed = await deleteUser(u.uuid)
       if (freed > 0) freedBytes += freed
       removed++
-      log.info("Inactive user cleaned up", { uuid: u.uuid, lastAccess: u.lastAccess })
+      if (unused) {
+        removedUnused++
+        log.info("Unused user cleaned up", { uuid: u.uuid })
+      } else {
+        log.info("Inactive user cleaned up", { uuid: u.uuid, lastAccess: u.lastAccess })
+      }
     } catch (e) {
       log.warn("user cleanup failed", { error: e instanceof Error ? e.message : String(e) })
       kept++
     }
   }
-  log.info("User cleanup done", { removed, kept, retentionDays })
-  return { removed, kept, disabled: false, freedBytes }
+  log.info("User cleanup done", { removed, removedUnused, kept, retentionDays, unusedGraceDays: graceDays })
+  return { removed, removedUnused, kept, disabled: false, freedBytes }
 }

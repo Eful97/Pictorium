@@ -2,6 +2,8 @@ import { NextRequest } from "next/server"
 import { getOriginFromRequest } from "@/lib/poster-public-url"
 import { rewriteMetasPosters, rewriteSingleMetaPoster, proxyDefaultsSignature, type StremioItemMeta } from "@/lib/addon-proxy"
 import { getServerDefaultsForUser } from "@/lib/server-defaults"
+import { touchUserActivity } from "@/lib/user-activity"
+import { getScopedUserId } from "@/lib/user-auth"
 import { rateLimit, rateLimitKey, rateLimitResponse } from "@/lib/rate-limit"
 import { createLogger } from "@/lib/logger"
 import { envWithFallback } from "@/lib/env-compat"
@@ -153,6 +155,9 @@ export async function GET(req: NextRequest, { params }: { params: Promise<{ path
   const searchParams = req.nextUrl.searchParams
   const rawTargetUrl = searchParams.get("target") || searchParams.get("url")
   const userUuid = searchParams.get("u") || searchParams.get("user") || null
+  // Activity for the inactive/unused cleanup (only real spaces are persisted).
+  const scopedProxyUser = getScopedUserId(userUuid)
+  if (scopedProxyUser) touchUserActivity(scopedProxyUser)
 
   if (!rawTargetUrl) {
     return Response.json({ error: "Missing target URL parameter (?url= or ?target=)" }, { status: 400, headers: corsHeaders() })
