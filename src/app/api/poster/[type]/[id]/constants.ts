@@ -38,3 +38,11 @@ export const RENDER_TIMEOUT_MS = (() => {
 // rank) e il refresh resta di proprietà delle route catalog/rank, che non
 // usano questo tetto.
 export const POSTER_PREFLIGHT_MS = 1500
+
+// Tetto della race Wikidata nel path poster. Lettura a module level (un cambio
+// env richiede restart, non hot-reload), coerente con gli altri cap.
+export const WIKIDATA_TIMEOUT = (() => {
+  const raw = process.env.WIKIDATA_TIMEOUT
+  const n = raw ? Number(raw) : 2500
+  return Number.isFinite(n) && n >= 300 && n <= 10000 ? n : 2500
+})()
