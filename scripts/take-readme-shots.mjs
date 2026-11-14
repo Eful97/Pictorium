@@ -261,9 +261,21 @@ try {
       { file: "layout-fresh", type: "tv", id: 1396, q: "layout=fresh&freshScope=all&ranking=1&rank=2" },
       ...["provider-glass", "nuvio", "stremio"]
         .map((layout) => ({ file: `card-${layout}`, type: "tv", id: 1396, q: `layout=${layout}&freshScope=all&ranking=1&rank=2` })),
+      // Miniature episodio (/api/thumbnail): voto dell'episodio nei 7 stili,
+      // su Breaking Bad S5E14 ("Ozymandias").
+      ...["pill", "bordo", "vetro", "branded", "naked", "score", "circle"]
+        .map((bstyle) => ({ file: `thumb-${bstyle}`, thumb: "1396/season/5/episode/14", q: `bstyle=${bstyle}`, width: 400 })),
+      // Classificazione anime canon/filler (fill passato esplicito: la resa
+      // non dipende dal dataset), Naruto Shippuden S1E1.
+      ...["manga", "anime", "filler", "mixed"]
+        .map((fill) => ({ file: `filler-${fill}`, thumb: "31910/season/1/episode/1", q: `fill=${fill}&fillStyle=corner&flang=en`, width: 400 })),
+      { file: "filler-strip", thumb: "31910/season/1/episode/1", q: "fill=filler&fillStyle=strip&flang=en", width: 400 },
     ]
     for (const s of shots) {
-      const url = `${APP_URL}/api/poster/${s.type}/${s.id}?${base}&${s.q}&preview=1&api_key=${encodeURIComponent(TMDB_KEY)}`
+      const key = `api_key=${encodeURIComponent(TMDB_KEY)}`
+      const url = s.thumb
+        ? `${APP_URL}/api/thumbnail/tv/${s.thumb}?${s.q}&languages=en,null&${key}`
+        : `${APP_URL}/api/poster/${s.type}/${s.id}?${base}&${s.q}&preview=1&${key}`
       const res = await fetch(url)
       if (!res.ok) throw new Error(`stile ${s.file} -> HTTP ${res.status}`)
       // Miniature leggere: il README le mostra a ~200px (landscape ~400px).

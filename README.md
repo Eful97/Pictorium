@@ -120,6 +120,40 @@ Beyond the classic poster: **Fresh** puts the rank and the info on the side, the
   </tr>
 </table>
 
+### Episode thumbnails
+
+Every episode gets its own thumbnail with **that episode's** rating, not the series average. 7 badge styles:
+
+<table align="center">
+  <tr>
+    <td align="center"><img src="public/Screen/styles/thumb-pill.webp" alt="Pill" width="200" /><br /><sub>Pill</sub></td>
+    <td align="center"><img src="public/Screen/styles/thumb-bordo.webp" alt="Border" width="200" /><br /><sub>Border</sub></td>
+    <td align="center"><img src="public/Screen/styles/thumb-vetro.webp" alt="Glass" width="200" /><br /><sub>Glass</sub></td>
+    <td align="center"><img src="public/Screen/styles/thumb-branded.webp" alt="Branded" width="200" /><br /><sub>Branded</sub></td>
+  </tr>
+  <tr>
+    <td align="center"><img src="public/Screen/styles/thumb-naked.webp" alt="Naked" width="200" /><br /><sub>Naked</sub></td>
+    <td align="center"><img src="public/Screen/styles/thumb-score.webp" alt="Score" width="200" /><br /><sub>Score</sub></td>
+    <td align="center"><img src="public/Screen/styles/thumb-circle.webp" alt="Circle" width="200" /><br /><sub>Circle</sub></td>
+  </tr>
+</table>
+
+### Anime: canon or filler?
+
+Anime episodes are tagged before you press play, as a corner label or a full-width strip.
+
+<table align="center">
+  <tr>
+    <td align="center"><img src="public/Screen/styles/filler-manga.webp" alt="Manga Canon" width="260" /><br /><sub>Manga Canon</sub></td>
+    <td align="center"><img src="public/Screen/styles/filler-anime.webp" alt="Anime Canon" width="260" /><br /><sub>Anime Canon</sub></td>
+    <td align="center"><img src="public/Screen/styles/filler-filler.webp" alt="Filler" width="260" /><br /><sub>Filler</sub></td>
+  </tr>
+  <tr>
+    <td align="center"><img src="public/Screen/styles/filler-mixed.webp" alt="Mixed" width="260" /><br /><sub>Mixed</sub></td>
+    <td align="center"><img src="public/Screen/styles/filler-strip.webp" alt="Strip layout" width="260" /><br /><sub>Strip layout</sub></td>
+  </tr>
+</table>
+
 ### …and more
 
 <table align="center">

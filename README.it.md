@@ -120,6 +120,40 @@ Oltre al poster classico: **Fresh** sposta classifica e info di lato, gli skin *
   </tr>
 </table>
 
+### Miniature degli episodi
+
+Ogni episodio ha la sua miniatura con il voto **di quell'episodio**, non la media della serie. 7 stili di badge:
+
+<table align="center">
+  <tr>
+    <td align="center"><img src="public/Screen/styles/thumb-pill.webp" alt="Pill" width="200" /><br /><sub>Pill</sub></td>
+    <td align="center"><img src="public/Screen/styles/thumb-bordo.webp" alt="Bordo" width="200" /><br /><sub>Bordo</sub></td>
+    <td align="center"><img src="public/Screen/styles/thumb-vetro.webp" alt="Vetro" width="200" /><br /><sub>Vetro</sub></td>
+    <td align="center"><img src="public/Screen/styles/thumb-branded.webp" alt="Branded" width="200" /><br /><sub>Branded</sub></td>
+  </tr>
+  <tr>
+    <td align="center"><img src="public/Screen/styles/thumb-naked.webp" alt="Naked" width="200" /><br /><sub>Naked</sub></td>
+    <td align="center"><img src="public/Screen/styles/thumb-score.webp" alt="Score" width="200" /><br /><sub>Score</sub></td>
+    <td align="center"><img src="public/Screen/styles/thumb-circle.webp" alt="Circle" width="200" /><br /><sub>Circle</sub></td>
+  </tr>
+</table>
+
+### Anime: canonico o filler?
+
+Gli episodi anime sono etichettati prima di premere play, con un'etichetta d'angolo o una striscia a tutta larghezza.
+
+<table align="center">
+  <tr>
+    <td align="center"><img src="public/Screen/styles/filler-manga.webp" alt="Manga Canon" width="260" /><br /><sub>Manga Canon</sub></td>
+    <td align="center"><img src="public/Screen/styles/filler-anime.webp" alt="Anime Canon" width="260" /><br /><sub>Anime Canon</sub></td>
+    <td align="center"><img src="public/Screen/styles/filler-filler.webp" alt="Filler" width="260" /><br /><sub>Filler</sub></td>
+  </tr>
+  <tr>
+    <td align="center"><img src="public/Screen/styles/filler-mixed.webp" alt="Misto" width="260" /><br /><sub>Misto</sub></td>
+    <td align="center"><img src="public/Screen/styles/filler-strip.webp" alt="Layout a striscia" width="260" /><br /><sub>Layout a striscia</sub></td>
+  </tr>
+</table>
+
 ### …e altro
 
 <table align="center">
