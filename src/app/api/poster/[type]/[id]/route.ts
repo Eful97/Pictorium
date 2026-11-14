@@ -29,13 +29,12 @@ import {
 } from "@/lib/poster-render-helpers"
 import { computeBottomLight } from "@/lib/accent-color"
 import { normalizeGenreName } from "@/lib/genre-normalize"
-import { NON_CLEAN_BLUR_FADE, NON_CLEAN_GRADIENT_HEIGHT } from "@/lib/gradient-defaults"
 import { LAND_H, landscapeBackdropUrl, cropBackdropToPortrait } from "@/lib/image-utils"
 import { generatePosterBuffer, type GenerationInput, type NetworkGeometry, type BadgeGeometryReport } from "@/lib/poster-service"
 import { parseDateFormat } from "@/lib/release-badge"
 import { isCustomPosterUrl } from "@/lib/utils"
 import { createLogger } from "@/lib/logger"
-import { resolvePosterRenderConfig, resolvePosterShape, resolveSeparateRatingsEnabled, resolveSeparateDisplayState } from "@/lib/poster-config"
+import { resolvePosterRenderConfig, resolvePosterShape, resolveSeparateRatingsEnabled } from "@/lib/poster-config"
 import { resolveAutoWordmark, resolveTextLogo } from "@/lib/text-logo"
 import { type StreamQualityResult } from "@/lib/stream-quality"
 import { type StreamQuality } from "@/lib/quality-tiers"
@@ -65,6 +64,7 @@ import { createResponseVariantServer } from "./variant"
 import { loadPosterRequestContext } from "./request-context"
 import { resolvePosterCacheIdentity } from "./cache-key"
 import { finalizePosterRender } from "./finalize"
+import { resolveRenderDisplay } from "./display-state"
 import type { PosterArtwork, PosterTitleMeta } from "./sources"
 import { resolveAutoSources, resolveMappingSources, resolveQuerySources, type SourceResolutionContext } from "./resolve-sources"
 
@@ -675,7 +675,7 @@ export async function GET(req: NextRequest, { params }: { params: Promise<RouteP
     const {
       badgeStyle, rankingBadgeStyle, qualityBadgeStyle, qualityGroupLayout, badgeFont,
     extraBadgeStyle,
-      blurEnabled, blurHeight, blurIntensity, blurFade, blurDarkness, tintStrength, topShade, topShadeHeight,
+      blurEnabled, blurIntensity, blurDarkness, tintStrength, topShade, topShadeHeight,
       badgesEnabled, rankingEnabled,
       badgeGenre, badgeYear, badgeRating, badgeQuality, ageBadge, ageBadgeStyle, awardBadgeStyle, minQuality, sashOrder,
       disabledContentTags, disabledNetworks,
@@ -694,61 +694,11 @@ export async function GET(req: NextRequest, { params }: { params: Promise<RouteP
       preRelease, posterShape, posterLayout, posterFreshScope, logoAlign, seasonalTheme, hideLogo,
     } = renderConfig
 
-    // Allineamento blur non-clean (Golden Rule col client): se il poster
-    // finale del ramo automatico ha testo incorporato, i default globali
-    // iniettati negli URL Stremio (30/50) non devono vincere sul profilo
-    // non-clean (20/80) — come fa il client. Solo Stremio unmapped: mai su
-    // preview (slider editor), poster esplicito o mapping (intento utente).
-    let effBlurHeight = blurHeight
-    let effBlurFade = blurFade
-    if (!isPreview && !mapping && !queryPoster && !artwork.autoPosterClean) {
-      effBlurHeight = NON_CLEAN_GRADIENT_HEIGHT
-      effBlurFade = NON_CLEAN_BLUR_FADE
-    }
-
-    // Rating separati: stato display centralizzato (resolveSeparateDisplayState).
-    // - colonna storica: attiva solo con badge voto visibili e almeno un
-    //   valore; sostituisce il segmento ★ nel badge genere (sostituire, non
-    //   sommare); senza valori → fallback media invariato (il custom provider
-    //   conserva la priorità storica sulla colonna, invariata);
-    // - bottom (bottom-bar/bottom-pills): attivo con badgesEnabled &&
-    //   badgeRating && sep && stile bottom, INDIPENDENTE dai valori (con voti
-    //   temporaneamente assenti nasconde comunque genere+anno+voto, senza
-    //   inventare valori); esclude la riga custom provider (mai duplicata).
-    // La soppressione è EFFETTIVA (solo render): mapping/defaults salvati
-    // (bg/by/br) non mutati — tornando a column si ripristinano.
-    const separateDisplay = resolveSeparateDisplayState({
-      badgesEnabled,
-      badgeGenre,
-      badgeYear,
-      badgeRating,
-      separateRatings,
-      separateRatingsStyle,
-      sepItemCount: sepItems.length,
-    })
-    const useSeparate = separateDisplay.useSeparate
-    const bottomActive = separateDisplay.bottomActive
-    const effectiveBadgeRating = separateDisplay.effectiveBadgeRating
-    const effectiveBadgeGenre = separateDisplay.effectiveBadgeGenre
-    const effectiveBadgeYear = separateDisplay.effectiveBadgeYear
-    // Reservation logo in bottom: geometria della colonna equivalente (stessi
-    // raw flag e sepItemCount, stile `column`) così il logo titolo resta alla
-    // stessa altezza anche a 0 provider o con genere/anno raw OFF. Solo
-    // geometria: nessun genere/anno/media disegnato in bottom.
-    const columnEquiv = bottomActive
-      ? resolveSeparateDisplayState({
-          badgesEnabled,
-          badgeGenre,
-          badgeYear,
-          badgeRating,
-          separateRatings,
-          separateRatingsStyle: "column",
-          sepItemCount: sepItems.length,
-        })
-      : null
-    const logoBadgeVisibility = bottomActive && columnEquiv
-      ? { genre: badgeGenre, year: badgeYear, rating: columnEquiv.effectiveBadgeRating }
-      : undefined
+    // Blur non-clean + stato display dei rating separati (display-state.ts).
+    const {
+      effBlurHeight, effBlurFade, separateDisplay, useSeparate, bottomActive,
+      effectiveBadgeRating, effectiveBadgeGenre, effectiveBadgeYear, logoBadgeVisibility,
+    } = resolveRenderDisplay({ renderConfig, isPreview, mapping, queryPoster, sepItems }, artwork)
 
     // TTL effimero per i render degradati (vedi freshness.ts).
     const ephemeral = resolveEphemeralPolicy({
