@@ -1,6 +1,6 @@
 import { createHash } from "node:crypto"
 import { NextRequest } from "next/server"
-import { getTVEpisodeDetails, getTVEpisodeImages, getExternalIds, resolveUserApiKeys } from "@/lib/tmdb"
+import { getDetails, getTVEpisodeDetails, getTVEpisodeImages, getExternalIds, resolveUserApiKeys } from "@/lib/tmdb"
 import { getScopedUserId, userExists } from "@/lib/user-auth"
 import { formatTvdbImageUrl, getTvdbEpisodesResult, getTvdbSeriesId } from "@/lib/tvdb"
 import { resolveImdbId } from "@/lib/imdb-cache"
@@ -637,6 +637,16 @@ export async function GET(req: NextRequest, { params }: { params: Promise<RouteP
           season: seasonNumber,
           episode: episodeNumber,
           signal,
+          // TMDB season split, so the provider can translate this TMDB S:E
+          // into IMDb numbering (Lupin: TMDB 10/7/8 vs IMDb 5/5/7/8).
+          loadSeasonEpisodeCounts: async () => {
+            const details = await getDetails("tv", seriesId, "en-US", apiKey, signal, 8000)
+            const counts = new Map<number, number>()
+            for (const s of details.seasons ?? []) {
+              if (typeof s.season_number === "number" && s.season_number > 0) counts.set(s.season_number, s.episode_count ?? 0)
+            }
+            return counts.size > 0 ? counts : null
+          },
         })
         if (typeof rating === "number" && Number.isFinite(rating) && rating > 0) {
           voteAverage = rating

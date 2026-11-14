@@ -90,6 +90,8 @@ const RENDER_FILES = [
   "src/lib/subgenres.ts",
   "src/lib/text-logo.ts",
   "src/lib/thumbnail-renderer.ts",
+  // The ★ value drawn on thumbnails (TMDB→IMDb episode mapping).
+  "src/lib/episode-ratings-provider.ts",
   "src/lib/types.ts",
   "src/lib/svg-badge.ts",
   "src/lib/wikidata-cache.ts",
