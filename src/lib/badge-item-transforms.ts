@@ -87,77 +87,6 @@ export interface BadgeItemTransform {
   readonly scale: number
   readonly offsetX: number
   readonly offsetY: number
-  /** Only on `anchor:<family>` entries: the chosen poster zone. */
-  readonly anchor?: BadgeAnchor
-}
-
-/**
- * GROUP ANCHORS (the "Spostamento" tab). A family can be pinned to one of
- * eight poster zones; the renderer then places the group's REAL box (its
- * width/height on this title) at that zone, so a wide and a narrow group
- * both end up centred / flush with the same edge. The family's existing
- * offsets stay margins on top of the anchor. Stored in the same `bit` map
- * under `anchor:<family>` (wire `anchor:quality=bc`) so every existing
- * transport (defaults, per-title, landscape profile, presets, cache key,
- * Stremio URL) carries it with no new param. Absent = automatic layout.
- * Fresh/Card compositors ignore anchors (fixed geometry).
- */
-export const BADGE_ANCHORS = ["tl", "tc", "tr", "ml", "mr", "bl", "bc", "br"] as const
-export type BadgeAnchor = (typeof BADGE_ANCHORS)[number]
-export const BADGE_ANCHOR_FAMILIES = ["top", "genre", "quality", "separate", "network", "logo"] as const
-export type BadgeAnchorFamily = (typeof BADGE_ANCHOR_FAMILIES)[number]
-
-const ANCHOR_PREFIX = "anchor:"
-
-export function badgeAnchorItemId(family: BadgeAnchorFamily): string {
-  return `${ANCHOR_PREFIX}${family}`
-}
-
-function isBadgeAnchor(raw: unknown): raw is BadgeAnchor {
-  return typeof raw === "string" && (BADGE_ANCHORS as readonly string[]).includes(raw)
-}
-
-function isAnchorItemId(id: string): boolean {
-  return id.startsWith(ANCHOR_PREFIX) && (BADGE_ANCHOR_FAMILIES as readonly string[]).includes(id.slice(ANCHOR_PREFIX.length))
-}
-
-/** The zone a family is pinned to (null = automatic layout). */
-export function badgeAnchorFor(map: BadgeItemTransformMap | null | undefined, family: BadgeAnchorFamily): BadgeAnchor | null {
-  const a = map?.[badgeAnchorItemId(family)]?.anchor
-  return isBadgeAnchor(a) ? a : null
-}
-
-/** Immutable write of a family anchor (null clears it). */
-export function withBadgeAnchor(
-  map: BadgeItemTransformMap | null | undefined,
-  family: BadgeAnchorFamily,
-  anchor: BadgeAnchor | null,
-): BadgeItemTransformMap {
-  const next: Record<string, BadgeItemTransform> = { ...(map ?? {}) }
-  const id = badgeAnchorItemId(family)
-  if (anchor && isBadgeAnchor(anchor)) next[id] = { ...BADGE_ITEM_NEUTRAL, anchor }
-  else delete next[id]
-  return next
-}
-
-/**
- * Top-left of a `w`×`h` box pinned to `anchor` on a `canvasW`×`canvasH`
- * poster, on the same 18px@380×570 margin grid as the network/quality corners.
- */
-export function anchoredBoxPosition(
-  anchor: BadgeAnchor,
-  w: number,
-  h: number,
-  canvasW: number,
-  canvasH: number,
-): { left: number; top: number } {
-  const mx = Math.round((18 * canvasW) / 380)
-  const my = Math.round((18 * canvasH) / 570)
-  const col = anchor[1] === "l" ? 0 : anchor[1] === "r" ? 2 : 1
-  const row = anchor[0] === "t" ? 0 : anchor[0] === "b" ? 2 : 1
-  const left = col === 0 ? mx : col === 2 ? canvasW - mx - w : (canvasW - w) / 2
-  const top = row === 0 ? my : row === 2 ? canvasH - my - h : (canvasH - h) / 2
-  return { left: Math.round(left), top: Math.round(top) }
 }
 
 /** Stored corrections by stable identity. */
@@ -331,7 +260,6 @@ function normalizeIdentityPart(raw: unknown): string | null {
 const ITEM_ID_RE = /^(rating|quality):[a-z0-9][a-z0-9:_.-]{0,47}$/
 
 export function isBadgeItemId(raw: unknown): raw is string {
-  if (typeof raw === "string" && isAnchorItemId(raw)) return true
   if (typeof raw !== "string" || !ITEM_ID_RE.test(raw)) return false
   // A slot identity is valid only inside 1..RATING_SLOT_MAX: `rating:slot:0`,
   // `rating:slot:` and `rating:slot:6` are dropped here, so an out-of-range
@@ -379,7 +307,6 @@ export function badgeItemTransform(map: BadgeItemTransformMap | null | undefined
 /** True when the correction is byte-identical to the automatic layout. */
 export function isNeutralBadgeItemTransform(t: BadgeItemTransform | null | undefined): boolean {
   if (!t) return true
-  if (t.anchor) return false
   return t.scale === 100 && t.offsetX === 0 && t.offsetY === 0
 }
 
@@ -466,7 +393,6 @@ export function withoutBadgeItemFamily(
   for (const id of Object.keys(next)) {
     if (family === "quality" ? isQualityItemId(id) : isRatingItemId(id)) delete next[id]
   }
-  delete next[badgeAnchorItemId(family)]
   return next
 }
 
@@ -483,7 +409,6 @@ export function serializeBadgeItemTransforms(map: BadgeItemTransformMap | null |
   return ids
     .map((id) => {
       const t = effective[id]
-      if (isAnchorItemId(id)) return `${id}=${t.anchor}`
       return `${id}=${t.scale},${t.offsetX},${t.offsetY}`
     })
     .join(";")
@@ -505,12 +430,6 @@ export function parseBadgeItemTransforms(raw: string | null | undefined): BadgeI
     if (eq <= 0) continue
     const id = part.slice(0, eq).trim()
     if (!isBadgeItemId(id)) continue
-    if (isAnchorItemId(id)) {
-      const anchor = part.slice(eq + 1).trim()
-      if (isBadgeAnchor(anchor)) out[id] = { ...BADGE_ITEM_NEUTRAL, anchor }
-      else delete out[id]
-      continue
-    }
     const triple = part.slice(eq + 1).split(",")
     if (triple.length !== 3) continue
     const nums = triple.map((v) => (v.trim() === "" ? Number.NaN : Number(v)))
@@ -542,7 +461,6 @@ const BADGE_ITEM_OFFSET_STEP = 5
 export function quantizeBadgeItemTransforms(map: BadgeItemTransformMap | null | undefined): BadgeItemTransformMap {
   const out: Record<string, BadgeItemTransform> = {}
   for (const [id, t] of Object.entries(effectiveBadgeItemTransforms(map))) {
-    if (t.anchor) { out[id] = t; continue }
     const quantized: BadgeItemTransform = {
       scale: clampBadgeItemScale(Math.round(t.scale / BADGE_ITEM_SCALE_STEP) * BADGE_ITEM_SCALE_STEP),
       offsetX: clampBadgeItemOffset(Math.round(t.offsetX / BADGE_ITEM_OFFSET_STEP) * BADGE_ITEM_OFFSET_STEP),

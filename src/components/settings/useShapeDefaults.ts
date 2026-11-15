@@ -16,11 +16,8 @@ import {
   parseBadgeItemTransforms,
   rejoinBadgeItems,
   serializeBadgeItemTransforms,
-  withBadgeAnchor,
   withBadgeItemTransform,
   withoutBadgeItemFamily,
-  type BadgeAnchor,
-  type BadgeAnchorFamily,
   withoutBadgeItemTransform,
   type BadgeItemTransform,
   type BadgeItemTransformMap,
@@ -701,21 +698,10 @@ export function useShapeBadgeGeometryDefaults(shape: "poster" | "landscape") {
     }
   }
 
-  /**
-   * Spostamento: pin a family to a poster zone (null = automatic layout).
-   * Picking a zone zeroes that family's offsets so the badge lands exactly on
-   * it; the offsets stay available afterwards as margins from the zone.
-   */
-  const setAnchor = (family: BadgeAnchorFamily, anchor: BadgeAnchor | null) => {
-    commitItemTransforms(withBadgeAnchor(itemTransforms, family, anchor))
-    if (anchor) applyFamilyMoves([{ family: family === "top" ? "rank" : family, offsetX: 0, offsetY: 0 }])
-  }
-
   return {
     isLandscape,
     itemTransforms,
     setItemTransform,
-    setAnchor,
     resetItem,
     topBadgeScale,
     topBadgeOffsetX,
