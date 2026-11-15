@@ -2,7 +2,7 @@
 
 import { useState } from "react"
 import { useT } from "@/lib/contexts/TranslationContext"
-import { DEFAULT_NOTCH_MATERIAL, notchMaterialOf, notchStyle, type ExtraBadgeStyle, type NotchMaterial, type RankingBadgeStyle } from "@/lib/badge-styles"
+import { notchMaterialOf, notchStyle, type ExtraBadgeStyle, type RankingBadgeStyle } from "@/lib/badge-styles"
 import { buildHouseRankingSvg } from "@/lib/badge-svg-shared"
 import { LayoutThumb } from "@/components/PosterLayoutSelector"
 import { isCardSkin, type CardSkin } from "@/lib/card-layout-skins"

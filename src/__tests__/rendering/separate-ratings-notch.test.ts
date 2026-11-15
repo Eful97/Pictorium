@@ -18,12 +18,10 @@ import {
   renderSeparateRatingsNotch,
   notchSeparateStepBodyHeight,
   notchSeparateStepText,
-  NOTCH_STEP_BOTTOM_H_FACTOR,
 } from "@/lib/separate-rating-renderer"
 import { generatePosterBuffer, LANDSCAPE_BOTTOM_PILLS_SHIFT_X, type GenerationInput } from "@/lib/poster-service"
 import { notchGlassVeilFill, notchStepPathD, notchPathD, NOTCH_GLASS_MIN_LC, TOP_SHADOW_PAD } from "@/lib/badge-svg-shared"
 import { apcaLc } from "@/lib/accent-color"
-import { genrePillHeight } from "@/lib/badge-svg-shared"
 import { formatSeparateValue } from "@/lib/ratings"
 import { resolveSeparateDisplayState } from "@/lib/poster-config"
 import { SEPARATE_STYLE_GROUPS, SEPARATE_VARIANT_LABELS } from "@/lib/badge-style-groups"

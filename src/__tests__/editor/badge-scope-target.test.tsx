@@ -236,7 +236,7 @@ describe("badge target scope", () => {
   it.each([
     { id: "bottom-mono", label: "ui.separateRatingsBottomMono" },
     { id: "bottom-color", label: "ui.separateRatingsBottomColor" },
-  ] as const)("portrait: $id writes the flat; column/bar/pills kept", async ({ id, label }) => {
+  ] as const)("portrait: $id writes the flat; column/bar/pills kept", async ({ id }) => {
     const { ctx } = renderBadge("portrait")
     await act(async () => {})
     const sepSwitch = badgeSwitch("ui.separateRatings")
@@ -254,7 +254,7 @@ describe("badge target scope", () => {
   it.each([
     { id: "bottom-mono", label: "ui.separateRatingsBottomMono" },
     { id: "bottom-color", label: "ui.separateRatingsBottomColor" },
-  ] as const)("landscape: $id writes the profile; flat stays column, preview emits sepstyle", async ({ id, label }) => {
+  ] as const)("landscape: $id writes the profile; flat stays column, preview emits sepstyle", async ({ id }) => {
     const { ctx } = renderSettings()
     await act(async () => {
       await vi.advanceTimersByTimeAsync(100)
