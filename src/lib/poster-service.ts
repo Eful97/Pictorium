@@ -49,7 +49,7 @@ import { renderCardPoster, aggregateCardRating, cardMetadataBand, type CardOverl
 import { cardLayoutGeometry, isCardRankDisplayable } from "./card-layout-geometry"
 import { isEffectiveCardLayout, type CardSkin } from "./card-layout-skins"
 import { resolveProviderGlassAccent } from "./provider-brand-palette"
-import { applyBadgeItemTransform, badgeItemTransform, effectiveBadgeItemTransforms, homeIdForPainted, isNeutralBadgeItemTransform, isQualityItemId, isRatingItemId, ratingSlotItemId, serializeBadgeItemTransforms, type BadgeItemTransformMap } from "./badge-item-transforms"
+import { anchoredBoxPosition, applyBadgeItemTransform, badgeAnchorFor, badgeItemTransform, effectiveBadgeItemTransforms, homeIdForPainted, isNeutralBadgeItemTransform, isQualityItemId, isRatingItemId, ratingSlotItemId, serializeBadgeItemTransforms, type BadgeItemTransformMap } from "./badge-item-transforms"
 import { type CornerRankRect, isCornerAnchoredStyle, resolveTopBadgeStyle, genreBadgeConsumesAccent, topBadgeConsumesAccent, cornerRankTop, cornerAnchoredLeft, isTopBadgeNumberRightCorner, numberSharesComingSoonCorner, type NetworkGeometry, type BadgeGeometryFamily, type BadgeGeometryLayout, type BadgeGeometryBox, type BadgeGeometryReport, type BadgeGeometryItem, NETWORK_LOGO_SHIFT_Y, cornerNetworkAboveTitle, stackNetworkBelowCornerRank, landscapeRightAnchorLeft } from "./badge-layout"
 import { type QualityBadgeGroupResult, renderQualityBadgeGroup } from "./quality-badges"
 export { type CornerRankRect, isCornerAnchoredStyle, resolveTopBadgeStyle, genreBadgeConsumesAccent, topBadgeConsumesAccent, cornerRankTop, cornerAnchoredLeft, isNumberRightCorner, isTopBadgeNumberRightCorner, numberSharesComingSoonCorner, type NetworkGeometry, type BadgeGeometryFamily, type BadgeGeometryLayout, type BadgeGeometryBox, type BadgeGeometryReport, type BadgeGeometryItem, NETWORK_LOGO_SHIFT_Y, type CornerNetworkAboveTitleInput, cornerNetworkAboveTitle, stackNetworkBelowCornerRank } from "./badge-layout"
@@ -1703,6 +1703,14 @@ export async function generatePosterBuffer(input: GenerationInput): Promise<Buff
   // only the corrections that can change its own bitmap. Empty = automatic
   // layout (the key segment stays the historic sentinel).
   const effectiveItemTransforms = effectiveBadgeItemTransforms(badgeItemTransforms)
+  // Spostamento: a pinned family is placed at its zone from its REAL box on
+  // this title (offsets stay margins on top). Fresh/Card keep fixed geometry.
+  // ponytail: an anchored family skips its auto anti-collision shrink; the
+  // zone is the user's explicit WYSIWYG choice.
+  const anchorOf = (family: "top" | "genre" | "quality" | "separate" | "network") =>
+    isFresh || isCard ? null : badgeAnchorFor(effectiveItemTransforms, family)
+  const anchorAt = (anchor: NonNullable<ReturnType<typeof anchorOf>>, w: number, h: number) =>
+    anchoredBoxPosition(anchor, w, h, CW, CH)
   const qualityItemKey = serializeBadgeItemTransforms(
     Object.fromEntries(Object.entries(effectiveItemTransforms).filter(([id]) => isQualityItemId(id))),
   ) ?? "items0"
@@ -1910,7 +1918,10 @@ export async function generatePosterBuffer(input: GenerationInput): Promise<Buff
       const styleLiftY = anchorRight && (badgeStyle === "shadow" || badgeStyle === "minimal") ? 10 : 0
       // In alto (slot libero): corpo sulla griglia superiore di network/qualità
       // (netBaseTop), offset utente applicati come in basso.
-      const genreTopFor = genreAtTop
+      const genreAnchor = anchorOf("genre")
+      const genreTopFor = genreAnchor
+        ? (h: number) => anchorAt(genreAnchor, 0, h).top + combinedGenreOY
+        : genreAtTop
         ? (h: number) => Math.round(Math.max(0, Math.min(CH - h, Math.round(18 * CH / 570) + combinedGenreOY)))
         : (h: number) => Math.round(Math.min(CH - h, CH - h - Math.max(0, Math.round(targetCenter - h / 2)) + combinedGenreOY - styleCornerShiftY - styleLiftY))
       // Separati attivi: il segmento ★ sparisce e la pill si restringe —
@@ -1933,7 +1944,9 @@ export async function generatePosterBuffer(input: GenerationInput): Promise<Buff
           sepCenterShift = Math.round(((fullW - genreBadgeResult.w) / 2) * (genreBadgeScale / 100))
         }
       }
-      const genreLeftFor = (w: number) => anchorRight
+      const genreLeftFor = (w: number) => genreAnchor
+        ? anchorAt(genreAnchor, w, 0).left + combinedGenreOX
+        : anchorRight
         ? landscapeRightAnchorLeft(w, CW, combinedGenreOX - sepCenterShift - styleCornerShiftX)
         : (isLandscapeLeft
           ? logoAlignPadX(CW) + combinedGenreOX
@@ -2086,6 +2099,12 @@ export async function generatePosterBuffer(input: GenerationInput): Promise<Buff
         })
       : pillTopGap
     finalRankTop = isCentered ? combinedTopOY + cornerTop : 0
+    const topAnchor = isCentered ? anchorOf("top") : null
+    if (topAnchor) {
+      const at = anchorAt(topAnchor, rankBody.w, rankBody.h)
+      finalRankLeft = at.left + combinedTopOX
+      finalRankTop = at.top + combinedTopOY
+    }
 
     // Il badge centrale resta invariato — la gestione overlap vive nei blocchi
     // network/qualità qui sotto (shrink dei laterali).
@@ -2500,8 +2519,10 @@ export async function generatePosterBuffer(input: GenerationInput): Promise<Buff
       // In fissa le coordinate sono già gli actual finali (shift e offset
       // inclusi al freeze): composite esatto. In storica restano gli offset
       // post-ancoraggio + shift editoriale.
-      const finalNetTop = isFixedNetwork ? top : top + networkLogoOffsetY + NETWORK_LOGO_SHIFT_Y
-      const finalNetLeft = isFixedNetwork ? left : left + networkLogoOffsetX
+      const netAnchor = anchorOf("network")
+      const netAt = netAnchor ? anchorAt(netAnchor, fittedRaw.w, fittedRaw.h) : null
+      const finalNetTop = netAt ? netAt.top + networkLogoOffsetY : isFixedNetwork ? top : top + networkLogoOffsetY + NETWORK_LOGO_SHIFT_Y
+      const finalNetLeft = netAt ? netAt.left + networkLogoOffsetX : isFixedNetwork ? left : left + networkLogoOffsetX
       if (isFixedNetwork) {
         // Il fondo effettivo alimenta lo stacking qualità (che resta); la
         // qualità non sposta mai il network.
@@ -2582,7 +2603,8 @@ export async function generatePosterBuffer(input: GenerationInput): Promise<Buff
       }
     }
 
-    if (topCenterRect) {
+    const qualityAnchor = anchorOf("quality")
+    if (topCenterRect && !qualityAnchor) {
       const rankL = topCenterRect.left
       const rankR = topCenterRect.left + topCenterRect.w
       const rankB = topCenterRect.top + topCenterRect.h
@@ -2614,6 +2636,7 @@ export async function generatePosterBuffer(input: GenerationInput): Promise<Buff
       }
     }
 
+    if (qualityAnchor) ({ left, top } = anchorAt(qualityAnchor, finalQualityBadge.w, finalQualityBadge.h))
     composites.push({
       input: finalQualityBadge.png,
       // Offset applicato DOPO lo shrink anti-overlap (che ragiona sulla
@@ -2752,7 +2775,8 @@ export async function generatePosterBuffer(input: GenerationInput): Promise<Buff
     // negativo (offset patologici) resta fuori scope: nessuna promessa di
     // zero overlap universale, si conserva la colonna leggibile.
     let stackFitted = fitted
-    if (stackFitted) {
+    const sepColAnchor = anchorOf("separate")
+    if (stackFitted && !sepColAnchor) {
       const intendedTop = Math.max(0, Math.min(Math.max(0, CH - 1), stackTop + sepOY))
       const bottomEdge = genreBadgeRect && !genreAtTop
         ? genreBadgeRect.top
@@ -2767,8 +2791,9 @@ export async function generatePosterBuffer(input: GenerationInput): Promise<Buff
         ? Math.round(qualityStackAnchor.centerX - stackFitted.w / 2)
         : (rightCorner ? netPadX : Math.round(CW - netPadX + 10 - stackFitted.w))
       // Clamp dentro il canvas come gli altri badge (a offset 0 identico allo storico).
-      const sepLeft = Math.max(0, Math.min(CW - stackFitted.w, leftPos + sepOX))
-      const sepTop = Math.max(0, Math.min(CH - stackFitted.h, stackTop + sepOY))
+      const sepAt = sepColAnchor ? anchorAt(sepColAnchor, stackFitted.w, stackFitted.h) : null
+      const sepLeft = Math.max(0, Math.min(CW - stackFitted.w, (sepAt ? sepAt.left : leftPos) + sepOX))
+      const sepTop = Math.max(0, Math.min(CH - stackFitted.h, (sepAt ? sepAt.top : stackTop) + sepOY))
       composites.push({ input: stackFitted.png, top: sepTop, left: sepLeft })
       badgeGeo.separate = { top: sepTop, left: sepLeft, w: stackFitted.w, h: stackFitted.h }
       // Per-item corrections of the single pills: the column keeps its
@@ -2894,8 +2919,10 @@ export async function generatePosterBuffer(input: GenerationInput): Promise<Buff
         const k = w / bottom.w
         return { left: inset * k, w: bodyW * k }
       }
-      const topFor = (h: number) => barFlush ? CH - h : CH - h - margin + (isLandscapePills ? LANDSCAPE_BOTTOM_PILLS_SHIFT_Y : 0) + (isPortraitPills ? PORTRAIT_SEPARATE_SHIFT_Y : 0)
+      const sepRowAnchor = barFlush ? null : anchorOf("separate")
+      const topFor = (h: number) => sepRowAnchor ? anchorAt(sepRowAnchor, 0, h).top : barFlush ? CH - h : CH - h - margin + (isLandscapePills ? LANDSCAPE_BOTTOM_PILLS_SHIFT_Y : 0) + (isPortraitPills ? PORTRAIT_SEPARATE_SHIFT_Y : 0)
       const leftFor = (w: number) => {
+        if (sepRowAnchor) return anchorAt(sepRowAnchor, w, 0).left
         if (barFlush && !isNotchStep) return 0
         if (isNotchStep) {
           const body = notchBody(w)

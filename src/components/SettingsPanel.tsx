@@ -11,6 +11,7 @@ import { TraktAccountSection } from "@/components/TraktAccountSection"
 import { BadgeDefaultsSection } from "@/components/settings/BadgeDefaultsSection"
 import { TagsNetworksSection } from "@/components/settings/TagsNetworksSection"
 import { TransformPanel } from "@/components/settings/TransformPanel"
+import { MovePanel } from "@/components/settings/MovePanel"
 import { DataPanel } from "@/components/settings/DataPanel"
 import { ApiKeysSection } from "@/components/settings/ApiKeysSection"
 import { PrefsPanel } from "@/components/settings/PrefsPanel"
@@ -26,6 +27,7 @@ import { consumeSettingsTab } from "@/lib/settings-tab"
 import {
   SlidersHorizontal,
   Move,
+  LayoutGrid,
   Database,
   X,
   KeyRound,
@@ -43,7 +45,7 @@ import { usePSelector } from "@/lib/context"
 import { usePreviewDemoMedia } from "@/lib/defaults-preview-media"
 import type { BackupExportOptions, BackupImportOptions } from "@/lib/useMappingsStore"
 
-type PrimaryTabId = "preset" | "information" | "badge" | "tags" | "transform"
+type PrimaryTabId = "preset" | "information" | "badge" | "tags" | "transform" | "move"
 type SecondaryTabId = "prefs" | "data" | "catalogs" | "spazio"
 type TabId = PrimaryTabId | SecondaryTabId
 
@@ -61,6 +63,7 @@ const PRIMARY_TABS: ReadonlyArray<{ id: PrimaryTabId; labelKey: string; icon: ty
   { id: "badge", labelKey: "ui.settingsTabBadge", icon: Palette },
   { id: "tags", labelKey: "ui.settingsTabTagsNetworks", icon: Tags },
   { id: "transform", labelKey: "ui.settingsTabTransform", icon: Move },
+  { id: "move", labelKey: "ui.settingsTabMove", icon: LayoutGrid },
 ]
 
 const SECONDARY_TABS: ReadonlyArray<{ id: SecondaryTabId; labelKey: string; icon: typeof SlidersHorizontal }> = [
@@ -81,6 +84,7 @@ function normalizeTab(tab: string | null): TabId | null {
     tab === "information" ||
     tab === "tags" ||
     tab === "trasforma" ||
+    tab === "move" ||
     tab === "prefs" ||
     tab === "data" ||
     tab === "catalogs" ||
@@ -892,6 +896,7 @@ export function SettingsPanel({ setSettingsOpen, exportData, importData, mobile,
             previewFamily={previewFamily}
             geometryOnly
           />
+          <MovePanel active={activeTab === "move" && !thumbnailTarget} previewShape={controlShape} />
           <ThumbnailSettingsSection active={thumbnailControlsActive} />
           <PrefsPanel active={activeTab === "prefs"} />
           <div

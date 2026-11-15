@@ -1033,6 +1033,27 @@ contrario), genere/metadati al centro o a destra in landscape, separati
 ancorati al fondo del box qualità, logo titolo in basso-centro (o
 `logoAlign=left`).
 
+### Spostamento: ancoraggi di gruppo (`anchor:<famiglia>` dentro `bit`)
+
+Tab Impostazioni **Spostamento** (dopo Trasforma): ogni famiglia (`top` =
+rank/extra, `genre`, `quality`, `separate`, `network`) può essere fissata a una
+di otto zone (`tl`,`tc`,`tr`,`ml`,`mr`,`bl`,`bc`,`br`; il centro esatto non
+esiste). Viaggia nello STESSO `bit` delle correzioni per-item (wire
+`anchor:quality=bc`, ordinato con gli altri id), quindi default, per-titolo,
+profilo landscape, preset, chiave cache e URL Stremio lo portano senza nuovi
+parametri. Assente = layout automatico (URL storici byte-identici).
+
+Il renderer (`anchoredBoxPosition` in `badge-item-transforms.ts`) posiziona il
+box REALE della famiglia su quel titolo (larghezza/altezza effettive, griglia
+18px@380×570): un gruppo largo e uno stretto finiscono sullo stesso centro o
+bordo. Gli offset della famiglia restano margini sopra l'ancoraggio; scegliere
+una zona azzera gli offset di quella famiglia (Automatico non li tocca). Una
+famiglia ancorata salta il proprio shrink anti-collisione automatico (scelta
+WYSIWYG dell'utente). Esclusi: nastro Netflix, barra/notch del genere e
+`bottom-bar` portrait dei separati (restano a filo); layout Fresh e Card
+ignorano gli ancoraggi. Il reset di famiglia qualità/separati rimuove anche
+il loro ancoraggio.
+
 ### Logo titolo: area massima, aspetto e anchor
 
 `computeLogoBox` (`logo-layout.ts`) fa un contain-fit dentro l'area massima del

@@ -121,6 +121,7 @@ describe("SettingsPanel five-tab navigation", () => {
       "ui.settingsTabBadge",
       "Tag e Network",
       "ui.settingsTabTransform",
+      "ui.settingsTabMove",
     ])
     // Fresh open (no deep link) lands on the Preferenze secondary tab.
     for (const tab of tabs) expect(tab).toHaveAttribute("aria-selected", "false")
@@ -141,7 +142,7 @@ describe("SettingsPanel five-tab navigation", () => {
   it("secondary Prefs/Data links live outside the primary tablist; Space only with content", async () => {
     const { container } = renderPanel()
     await screen.findByTestId("presets-panel")
-    expect(primaryTabs()).toHaveLength(5)
+    expect(primaryTabs()).toHaveLength(6)
     // Preferenze leads the secondary row, directly after the Transform primary tab.
     const secondaryIds = Array.from(
       container.querySelectorAll('[data-testid^="settings-secondary-"]'),
@@ -182,7 +183,7 @@ describe("SettingsPanel five-tab navigation", () => {
     renderPanel()
     await screen.findByTestId("presets-panel")
     const space = await screen.findByTestId("settings-secondary-spazio")
-    expect(primaryTabs()).toHaveLength(5)
+    expect(primaryTabs()).toHaveLength(6)
     fireEvent.click(space)
     expect(await screen.findByText("ui.userSpaceOr")).toBeInTheDocument()
     resetGuestGuardForTests()
@@ -198,7 +199,7 @@ describe("SettingsPanel five-tab navigation", () => {
     expect(groups).toEqual(["ui.settingsGroupPrimary", "ui.settingsGroupSecondary"])
     // Full navigation order: Preferenze directly after Transform, before Catalogs/Data.
     const values = Array.from(select.querySelectorAll("option")).map((o) => o.getAttribute("value"))
-    expect(values).toEqual(["preset", "information", "badge", "tags", "transform", "prefs", "catalogs", "data"])
+    expect(values).toEqual(["preset", "information", "badge", "tags", "transform", "move", "prefs", "catalogs", "data"])
   })
 
   it("does not render API key inputs", async () => {
