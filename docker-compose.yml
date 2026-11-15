@@ -44,6 +44,7 @@ services:
       - PICTORIUM_PUBLIC_STATS=${PICTORIUM_PUBLIC_STATS:-}
       - PICTORIUM_MULTI_USER_ALLOW_ENV_FALLBACK=${PICTORIUM_MULTI_USER_ALLOW_ENV_FALLBACK:-}
       - PICTORIUM_USER_RETENTION_DAYS=${PICTORIUM_USER_RETENTION_DAYS:-}
+      - PICTORIUM_UNUSED_USER_GRACE_DAYS=${PICTORIUM_UNUSED_USER_GRACE_DAYS:-}
       # ── Opzionali — Admin & Sicurezza ──
       # Admin fail-closed: senza ADMIN_TOKEN l'editor resta chiuso (401) e si
       # sblocca col token incollato in Impostazioni → Token admin (solo

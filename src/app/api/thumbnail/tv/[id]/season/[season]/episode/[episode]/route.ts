@@ -1,6 +1,7 @@
 import { createHash } from "node:crypto"
 import { NextRequest } from "next/server"
 import { getDetails, getTVEpisodeDetails, getTVEpisodeImages, getExternalIds, resolveUserApiKeys } from "@/lib/tmdb"
+import { touchUserActivity } from "@/lib/user-activity"
 import { getScopedUserId, userExists } from "@/lib/user-auth"
 import { formatTvdbImageUrl, getTvdbEpisodesResult, getTvdbSeriesId } from "@/lib/tvdb"
 import { resolveImdbId } from "@/lib/imdb-cache"
@@ -509,6 +510,8 @@ export async function GET(req: NextRequest, { params }: { params: Promise<RouteP
   const rawUser = sp.get("u") ?? sp.get("user")
   let scopedUser = getScopedUserId(rawUser)
   if (scopedUser && !(await userExists(scopedUser))) scopedUser = null
+  // Activity for the inactive/unused cleanup (throttled, fire-and-forget).
+  if (scopedUser) touchUserActivity(scopedUser)
   const effKeys = await resolveUserApiKeys(req, scopedUser)
   const apiKey = effKeys.tmdb.key
   const tvdbKey = effKeys.tvdb.key

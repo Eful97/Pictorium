@@ -287,6 +287,12 @@ export function __resetPwFailsForTests(): void {
   pwFails.clear()
 }
 
+/** Creation time of the space (ISO) from its auth record, or null if unknown/unreadable. */
+export async function getUserCreatedAt(userId: string): Promise<string | null> {
+  const record = await readAuthRecord(userId)
+  return record && typeof record.createdAt === "string" && record.createdAt ? record.createdAt : null
+}
+
 /** Imposta/sostituisce la password (richiede esistenza utente). */
 export async function setUserPassword(userId: string, password: unknown): Promise<void> {
   const normalized = normalizeUserPassword(password)
