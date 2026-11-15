@@ -1269,6 +1269,7 @@
   "ui.settingsTabMove": "Move",
   "ui.anchorAuto": "Automatic",
   "ui.anchorHint": "Pick a zone: the badge is placed there from its real width on every poster. Transform offsets stay as fine-tuning. Not applied to Fresh and Card layouts.",
+  "ui.anchorTitleLogo": "Title logo",
   "ui.anchor_tl": "Top left",
   "ui.anchor_tc": "Top center",
   "ui.anchor_tr": "Top right",

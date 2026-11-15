@@ -1269,6 +1269,7 @@
   "ui.settingsTabMove": "Spostamento",
   "ui.anchorAuto": "Automatico",
   "ui.anchorHint": "Scegli una zona: il badge viene messo lì in base alla sua larghezza reale su ogni poster. Gli offset di Trasforma restano come rifinitura. Non vale per i layout Fresh e Card.",
+  "ui.anchorTitleLogo": "Logo titolo",
   "ui.anchor_tl": "In alto a sinistra",
   "ui.anchor_tc": "In alto al centro",
   "ui.anchor_tr": "In alto a destra",

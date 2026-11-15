@@ -1267,6 +1267,7 @@
   "ui.settingsTabMove": "Di chuyển",
   "ui.anchorAuto": "Tự động",
   "ui.anchorHint": "Chọn một vùng: huy hiệu được đặt ở đó theo chiều rộng thực trên mỗi poster. Độ lệch trong Biến đổi vẫn dùng để tinh chỉnh. Không áp dụng cho bố cục Fresh và Card.",
+  "ui.anchorTitleLogo": "Logo tiêu đề",
   "ui.anchor_tl": "Trên cùng bên trái",
   "ui.anchor_tc": "Trên cùng ở giữa",
   "ui.anchor_tr": "Trên cùng bên phải",

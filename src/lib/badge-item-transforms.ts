@@ -104,7 +104,7 @@ export interface BadgeItemTransform {
  */
 export const BADGE_ANCHORS = ["tl", "tc", "tr", "ml", "mr", "bl", "bc", "br"] as const
 export type BadgeAnchor = (typeof BADGE_ANCHORS)[number]
-export const BADGE_ANCHOR_FAMILIES = ["top", "genre", "quality", "separate", "network"] as const
+export const BADGE_ANCHOR_FAMILIES = ["top", "genre", "quality", "separate", "network", "logo"] as const
 export type BadgeAnchorFamily = (typeof BADGE_ANCHOR_FAMILIES)[number]
 
 const ANCHOR_PREFIX = "anchor:"

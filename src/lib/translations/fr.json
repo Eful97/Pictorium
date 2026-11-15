@@ -1267,6 +1267,7 @@
   "ui.settingsTabMove": "Déplacement",
   "ui.anchorAuto": "Automatique",
   "ui.anchorHint": "Choisissez une zone : le badge y est placé selon sa largeur réelle sur chaque affiche. Les décalages de Transformer restent pour l'ajustement fin. Non appliqué aux mises en page Fresh et Card.",
+  "ui.anchorTitleLogo": "Logo du titre",
   "ui.anchor_tl": "En haut à gauche",
   "ui.anchor_tc": "En haut au centre",
   "ui.anchor_tr": "En haut à droite",

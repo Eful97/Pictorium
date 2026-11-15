@@ -1428,6 +1428,14 @@ export async function generatePosterBuffer(input: GenerationInput): Promise<Buff
           const resized = await resizeLogoCached(logoFetch, layout.width, layout.height, logoSrc)
           const aW = resized.w
           const aH = resized.h
+          // Spostamento: a pinned title logo lands on its zone from its real
+          // size; offsets stay margins. Network follow-title and the genre
+          // anti-collision read logoResult, so they follow it.
+          const logoAnchor = isFresh || isCard ? null : badgeAnchorFor(effectiveBadgeItemTransforms(badgeItemTransforms), "logo")
+          if (logoAnchor) {
+            const at = anchoredBoxPosition(logoAnchor, aW, aH, CW, CH)
+            return { input: resized.input, top: Math.max(0, at.top + uOy), left: at.left + uOx, w: aW, h: aH } as const
+          }
           return { input: resized.input, top: Math.max(0, Math.round(layout.top + (layout.height - aH))), left: Math.round(layout.left + ((layout.width - aW) / 2)), w: aW, h: aH } as const
         })()
       : Promise.resolve(null),

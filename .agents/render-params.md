@@ -1036,9 +1036,12 @@ ancorati al fondo del box qualità, logo titolo in basso-centro (o
 ### Spostamento: ancoraggi di gruppo (`anchor:<famiglia>` dentro `bit`)
 
 Tab Impostazioni **Spostamento** (dopo Trasforma): ogni famiglia (`top` =
-rank/extra, `genre`, `quality`, `separate`, `network`) può essere fissata a una
-di otto zone (`tl`,`tc`,`tr`,`ml`,`mr`,`bl`,`bc`,`br`; il centro esatto non
-esiste). Viaggia nello STESSO `bit` delle correzioni per-item (wire
+rank/extra, `genre`, `quality`, `separate`, `network`, `logo` = logo titolo)
+può essere fissata a una di otto zone (`tl`,`tc`,`tr`,`ml`,`mr`,`bl`,`bc`,`br`);
+la cella centrale della griglia UI è "Auto" (layout automatico, il centro
+esatto non è una zona). Il logo titolo ancorato ignora la calibrazione
+landscape; network "segui titolo" e anti-collisione genere leggono il box
+reale del logo, quindi lo seguono. Viaggia nello STESSO `bit` delle correzioni per-item (wire
 `anchor:quality=bc`, ordinato con gli altri id), quindi default, per-titolo,
 profilo landscape, preset, chiave cache e URL Stremio lo portano senza nuovi
 parametri. Assente = layout automatico (URL storici byte-identici).

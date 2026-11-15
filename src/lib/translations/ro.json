@@ -1267,6 +1267,7 @@
   "ui.settingsTabMove": "Mutare",
   "ui.anchorAuto": "Automat",
   "ui.anchorHint": "Alege o zonă: insigna este plasată acolo după lățimea ei reală pe fiecare poster. Decalajele din Transformare rămân pentru reglaj fin. Nu se aplică layout-urilor Fresh și Card.",
+  "ui.anchorTitleLogo": "Logo titlu",
   "ui.anchor_tl": "Sus stânga",
   "ui.anchor_tc": "Sus centru",
   "ui.anchor_tr": "Sus dreapta",

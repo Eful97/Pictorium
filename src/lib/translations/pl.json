@@ -1267,6 +1267,7 @@
   "ui.settingsTabMove": "Przesuwanie",
   "ui.anchorAuto": "Automatycznie",
   "ui.anchorHint": "Wybierz strefę: odznaka zostanie tam umieszczona według jej rzeczywistej szerokości na każdym plakacie. Przesunięcia z Przekształć służą do precyzyjnej korekty. Nie dotyczy układów Fresh i Card.",
+  "ui.anchorTitleLogo": "Logo tytułu",
   "ui.anchor_tl": "Lewy górny",
   "ui.anchor_tc": "Górny środek",
   "ui.anchor_tr": "Prawy górny",

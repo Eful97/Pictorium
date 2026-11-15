@@ -1267,6 +1267,7 @@
   "ui.settingsTabMove": "Verplaatsen",
   "ui.anchorAuto": "Automatisch",
   "ui.anchorHint": "Kies een zone: de badge wordt daar geplaatst op basis van de echte breedte op elke poster. De verschuivingen in Transformeren blijven voor fijnafstelling. Geldt niet voor de layouts Fresh en Card.",
+  "ui.anchorTitleLogo": "Titellogo",
   "ui.anchor_tl": "Linksboven",
   "ui.anchor_tc": "Midden boven",
   "ui.anchor_tr": "Rechtsboven",

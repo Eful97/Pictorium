@@ -1267,6 +1267,7 @@
   "ui.settingsTabMove": "הזזה",
   "ui.anchorAuto": "אוטומטי",
   "ui.anchorHint": "בחרו אזור: התג ימוקם שם לפי הרוחב האמיתי שלו בכל פוסטר. ההיסטים בשינוי צורה נשארים לכוונון עדין. לא חל על הפריסות Fresh ו-Card.",
+  "ui.anchorTitleLogo": "לוגו הכותר",
   "ui.anchor_tl": "למעלה משמאל",
   "ui.anchor_tc": "למעלה במרכז",
   "ui.anchor_tr": "למעלה מימין",

@@ -1267,6 +1267,7 @@
   "ui.settingsTabMove": "Flytta",
   "ui.anchorAuto": "Automatiskt",
   "ui.anchorHint": "Välj en zon: märket placeras där utifrån sin verkliga bredd på varje affisch. Förskjutningarna i Transformera finns kvar för finjustering. Gäller inte layouterna Fresh och Card.",
+  "ui.anchorTitleLogo": "Titellogga",
   "ui.anchor_tl": "Uppe till vänster",
   "ui.anchor_tc": "Uppe i mitten",
   "ui.anchor_tr": "Uppe till höger",

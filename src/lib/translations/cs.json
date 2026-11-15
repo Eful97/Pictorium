@@ -1267,6 +1267,7 @@
   "ui.settingsTabMove": "Přesun",
   "ui.anchorAuto": "Automaticky",
   "ui.anchorHint": "Vyberte zónu: odznak se tam umístí podle své skutečné šířky na každém plakátu. Posuny v Transformaci zůstávají pro jemné doladění. Neplatí pro rozvržení Fresh a Card.",
+  "ui.anchorTitleLogo": "Logo titulu",
   "ui.anchor_tl": "Vlevo nahoře",
   "ui.anchor_tc": "Nahoře uprostřed",
   "ui.anchor_tr": "Vpravo nahoře",

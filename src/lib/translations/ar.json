@@ -1267,6 +1267,7 @@
   "ui.settingsTabMove": "النقل",
   "ui.anchorAuto": "تلقائي",
   "ui.anchorHint": "اختر منطقة: توضع الشارة هناك وفق عرضها الفعلي في كل ملصق. تبقى إزاحات التحويل للضبط الدقيق. لا ينطبق على تخطيطي Fresh وCard.",
+  "ui.anchorTitleLogo": "شعار العنوان",
   "ui.anchor_tl": "أعلى اليسار",
   "ui.anchor_tc": "أعلى الوسط",
   "ui.anchor_tr": "أعلى اليمين",

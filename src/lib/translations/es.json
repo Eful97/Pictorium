@@ -1267,6 +1267,7 @@
   "ui.settingsTabMove": "Mover",
   "ui.anchorAuto": "Automático",
   "ui.anchorHint": "Elige una zona: la insignia se coloca allí según su ancho real en cada póster. Los desplazamientos de Transformar quedan para el ajuste fino. No se aplica a los diseños Fresh y Card.",
+  "ui.anchorTitleLogo": "Logo del título",
   "ui.anchor_tl": "Arriba a la izquierda",
   "ui.anchor_tc": "Arriba al centro",
   "ui.anchor_tr": "Arriba a la derecha",

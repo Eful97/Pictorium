@@ -1267,6 +1267,7 @@
   "ui.settingsTabMove": "Mover",
   "ui.anchorAuto": "Automático",
   "ui.anchorHint": "Escolha uma zona: o selo é colocado ali conforme a sua largura real em cada pôster. Os deslocamentos de Transformar ficam para o ajuste fino. Não se aplica aos layouts Fresh e Card.",
+  "ui.anchorTitleLogo": "Logo do título",
   "ui.anchor_tl": "Superior esquerdo",
   "ui.anchor_tc": "Superior central",
   "ui.anchor_tr": "Superior direito",

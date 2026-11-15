@@ -36,6 +36,10 @@ describe("anchor wire form", () => {
     }
     expect(anchoredBoxPosition("tr", 100, 30, 380, 570)).toEqual({ left: 380 - 18 - 100, top: 18 })
   })
+
+  it("accepts the title logo family", () => {
+    expect(badgeAnchorFor(parseBadgeItemTransforms("anchor:logo=tc"), "logo")).toBe("tc")
+  })
 })
 
 function input(overrides: Partial<GenerationInput>): GenerationInput {

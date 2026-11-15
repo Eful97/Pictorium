@@ -1267,6 +1267,7 @@
   "ui.settingsTabMove": "移動",
   "ui.anchorAuto": "自動",
   "ui.anchorHint": "ゾーンを選択：バッジは各ポスターで実際の幅に合わせてそこに配置されます。変形のオフセットは微調整用に残ります。Fresh と Card レイアウトには適用されません。",
+  "ui.anchorTitleLogo": "タイトルロゴ",
   "ui.anchor_tl": "左上",
   "ui.anchor_tc": "上中央",
   "ui.anchor_tr": "右上",
