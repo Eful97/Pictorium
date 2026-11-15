@@ -25,7 +25,7 @@ import {
   type RankBadgeVariant,
   type RankRibbonVariant,
 } from "@/components/RankingAppearanceSelector"
-import { notchMaterialOf, notchStyle, type ExtraBadgeStyle, type RankingBadgeStyle } from "@/lib/badge-styles"
+import { type ExtraBadgeStyle, type RankingBadgeStyle } from "@/lib/badge-styles"
 import type { SeasonalThemeChoice } from "@/lib/seasonal-theme"
 import { lookupAVSpecs } from "@/lib/av-specs"
 import { PACK_MARK_IDS, QUALITY_MARK_IDS, isPackMark, qualityMarkLabel } from "@/lib/quality-badge-pack"
@@ -38,7 +38,7 @@ import { isPrefixedKey, badgeKey } from "@/lib/i18n"
 import { getAllBadgeOptions, isMiniseriesType, isReturningStatus, NEXT_EPISODE_BADGE_KEY } from "@/lib/badge-priority"
 import { isManualAccent } from "@/lib/accent-color"
 import { resolveAccentPickerDisplay, useEffectiveAccent } from "@/lib/useEffectiveAccent"
-import { isBottomSeparateRatingsStyle, QUALITY_BADGE_STYLES, AGE_BADGE_STYLES } from "@/lib/badge-styles"
+import { isBottomSeparateRatingsStyle, isNotchSeparateRatingsStyle, QUALITY_BADGE_STYLES, AGE_BADGE_STYLES } from "@/lib/badge-styles"
 import { REGIONS } from "@/lib/regions"
 import { UI_RATING_SOURCES } from "@/lib/rating-weights"
 import { RatingSourceIcon } from "@/components/RatingSourceIcon"
@@ -166,8 +166,12 @@ export function BadgeControls() {
     : (autoPickerHex ?? autoAccentColor ?? "")
   // Bottom attivo: genere+anno soppressi a render (voto incluso) — i toggle
   // restano visibili ma disabilitati e i valori salvati intatti (tornando a
-  // Colonna si ripristinano, mai distrutti).
+  // Colonna si ripristinano, mai distrutti). Eccezione gradino (`notch-*`):
+  // genere/anno NON sono soppressi, vivono nel gradino alto → toggle attivi
+  // (solo il voto medio resta sostituito dai provider del gradino basso).
   const bottomActive = ed.globalBadges && ed.badgeRating && ed.separateRatings && isBottomSeparateRatingsStyle(ed.separateRatingsStyle)
+  const notchStepActive = bottomActive && isNotchSeparateRatingsStyle(ed.separateRatingsStyle)
+  const bottomMetaLocked = bottomActive && !notchStepActive
 
   // Single rank appearance (effective rendering, same contract as the
   // defaults panel): legacy default+ribbon reads Nastro, legacy default
@@ -330,13 +334,13 @@ export function BadgeControls() {
           {/* Sub-controlli Genere / Anno / Voto */}
           {ed.globalBadges && (
             <div className="pl-3 py-1 space-y-2 border-l-2 border-surface2 ml-1 animate-fade-in">
-              <div className={`flex items-center justify-between ${bottomActive ? "opacity-50" : ""}`} title={bottomActive ? t("ui.separateRatingsBottomHint") : undefined} aria-disabled={bottomActive || undefined}>
+              <div className={`flex items-center justify-between ${bottomMetaLocked ? "opacity-50" : ""}`} title={bottomMetaLocked ? t("ui.separateRatingsBottomHint") : undefined} aria-disabled={bottomMetaLocked || undefined}>
                 <span className="text-muted">{t("ui.badgeGenre")}</span>
-                <Toggle value={ed.badgeGenre} onChange={(v) => { if (!bottomActive) ed.setBadgeGenre(v) }} label={t("ui.badgeGenre")} disabled={bottomActive} />
+                <Toggle value={ed.badgeGenre} onChange={(v) => { if (!bottomMetaLocked) ed.setBadgeGenre(v) }} label={t("ui.badgeGenre")} disabled={bottomMetaLocked} />
               </div>
-              <div className={`flex items-center justify-between ${bottomActive ? "opacity-50" : ""}`} title={bottomActive ? t("ui.separateRatingsBottomHint") : undefined} aria-disabled={bottomActive || undefined}>
+              <div className={`flex items-center justify-between ${bottomMetaLocked ? "opacity-50" : ""}`} title={bottomMetaLocked ? t("ui.separateRatingsBottomHint") : undefined} aria-disabled={bottomMetaLocked || undefined}>
                 <span className="text-muted">{t("ui.badgeYear")}</span>
-                <Toggle value={ed.badgeYear} onChange={(v) => { if (!bottomActive) ed.setBadgeYear(v) }} label={t("ui.badgeYear")} disabled={bottomActive} />
+                <Toggle value={ed.badgeYear} onChange={(v) => { if (!bottomMetaLocked) ed.setBadgeYear(v) }} label={t("ui.badgeYear")} disabled={bottomMetaLocked} />
               </div>
               <div className="flex items-center justify-between">
                 <span className="text-muted">{t("ui.badgeRating")}</span>
@@ -356,7 +360,7 @@ export function BadgeControls() {
                     <p className="text-[10px] text-muted italic leading-tight">{t("ui.separateRatingsBarLandscapeHint")}</p>
                   )}
                   {bottomActive && (
-                    <p className="text-[10px] text-muted italic leading-tight">{t("ui.separateRatingsBottomHint")}</p>
+                    <p className="text-[10px] text-muted italic leading-tight">{notchStepActive ? t("ui.separateRatingsNotchHint") : t("ui.separateRatingsBottomHint")}</p>
                   )}
                 </div>
               )}

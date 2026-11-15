@@ -151,6 +151,7 @@
   "ui.separateRatingsBottomMono": "Đơn sắc",
   "ui.separateRatingsBottomColor": "Biểu tượng màu",
   "ui.separateRatingsBottomHint": "Bottom modes hide genre and year (kept) — they return with Column.",
+  "ui.separateRatingsNotchHint": "Bậc: thể loại và năm ở bậc trên; bậc dưới chỉ hiển thị nhà cung cấp.",
   "ui.separateRatingsBarLandscapeHint": "Bar is off in landscape — pills are used instead (portrait keeps the bar).",
   "ui.separateRatingsScaleHint": "100 = standard size (relative to the 130 default).",
   "ui.separateRatingsBarXDisabledHint": "The full-width bar can't move sideways — Y still moves it up and down.",

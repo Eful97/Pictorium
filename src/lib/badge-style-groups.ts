@@ -61,6 +61,7 @@ export const QUALITY_STYLE_GROUPS: readonly StyleGroup[] = [
 export const SEPARATE_STYLE_GROUPS: readonly StyleGroup[] = [
   { id: "column", labelKey: "ui.sepGroupColumn", members: ["column", "rings"] },
   { id: "bottom", labelKey: "ui.sepGroupBottom", members: ["bottom-bar", "bottom-pills", "bottom-mono", "bottom-color"] },
+  { id: "notch", labelKey: "ui.notch", members: ["notch-crema", "notch-vetro", "notch-inchiostro", "notch-sfumato"] },
 ]
 
 /** Etichetta della variante dentro la famiglia, quando quella dello stile ripeterebbe la famiglia. */
@@ -68,6 +69,7 @@ export const SEPARATE_VARIANT_LABELS: Readonly<Record<string, string>> = {
   column: "ui.sepVariantPills",
   "bottom-bar": "ui.sepVariantBar",
   "bottom-pills": "ui.sepVariantPills",
+  ...NOTCH_VARIANT_LABELS,
 }
 
 export type GroupedEntry =

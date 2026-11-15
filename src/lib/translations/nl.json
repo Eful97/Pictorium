@@ -150,6 +150,7 @@
   "ui.separateRatingsBottomMono": "Monochroom",
   "ui.separateRatingsBottomColor": "Gekleurde iconen",
   "ui.separateRatingsBottomHint": "Bottom modes hide genre and year (kept) — they return with Column.",
+  "ui.separateRatingsNotchHint": "Trede: genre en jaar staan in de bovenste trede; de onderste toont alleen de providers.",
   "ui.separateRatingsBarLandscapeHint": "Bar is off in landscape — pills are used instead (portrait keeps the bar).",
   "ui.separateRatingsScaleHint": "100 = standard size (relative to the 130 default).",
   "ui.separateRatingsBarXDisabledHint": "The full-width bar can't move sideways — Y still moves it up and down.",

@@ -150,6 +150,7 @@
   "ui.separateRatingsBottomMono": "أحادي اللون",
   "ui.separateRatingsBottomColor": "أيقونات ملونة",
   "ui.separateRatingsBottomHint": "Bottom modes hide genre and year (kept) — they return with Column.",
+  "ui.separateRatingsNotchHint": "الدرجة: النوع والسنة في الدرجة العليا؛ الدرجة السفلى تعرض المزوّدين فقط.",
   "ui.separateRatingsBarLandscapeHint": "Bar is off in landscape — pills are used instead (portrait keeps the bar).",
   "ui.separateRatingsScaleHint": "100 = standard size (relative to the 130 default).",
   "ui.separateRatingsBarXDisabledHint": "The full-width bar can't move sideways — Y still moves it up and down.",

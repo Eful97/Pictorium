@@ -1,10 +1,11 @@
 import fs from "node:fs"
 import path from "node:path"
 import sharp from "sharp"
-import { escSvg, estimateTextWidth, fontFamilyFor, normalizeBadgeFont, satinPillStops, badgeDropShadow } from "./badge-svg-shared"
+import { escSvg, estimateTextWidth, fontFamilyFor, normalizeBadgeFont, satinPillStops, badgeDropShadow, genrePillHeight, notchMaterialSkin, notchPathD, notchStepPathD, TOP_SHADOW_FILTER, TOP_SHADOW_PAD, applyFillOpacity } from "./badge-svg-shared"
 import { renderSVG } from "./svg-badge"
 import { formatSeparateValue, MAX_SEPARATE_RATINGS } from "./ratings"
-import type { BadgeFont, SeparateBottomVariant } from "./badge-styles"
+import type { BadgeFont, NotchMaterial, SeparateBottomVariant } from "./badge-styles"
+import { notchMaterialOf } from "./badge-styles"
 import {
   applyBadgeItemTransform,
   badgeItemTransform,
@@ -199,6 +200,13 @@ export interface SeparateRatingStack {
   readonly png: Buffer
   readonly w: number
   readonly h: number
+  /**
+   * Visible BODY box (silhouette, without the transparent fillet/shadow pads) in
+   * THIS bitmap's space. Consumers that anchor the INK — the notch step glued to
+   * the poster edge, like the genre notch pill — use it so the fillets can bleed
+   * off-canvas instead of insetting the visible plate.
+   */
+  readonly body?: { readonly left: number; readonly top: number; readonly w: number; readonly h: number }
   /**
    * Authoritative slot of every painted pill (px, in THIS bitmap's space), by
    * stable provider identity. `png` is present only when the pill is DETACHED
@@ -760,3 +768,263 @@ export async function renderSeparateRatingsBottom(
   const shrunk = await sharp(png).resize(outW, outH).toBuffer()
   return { png: shrunk, w: outW, h: outH, items: cellItems, slotGhosts }
 }
+
+// ---------------------------------------------------------------------------
+// Layout "gradino" (fase 2 della pillola a notch): due livelli in UNA sagoma,
+// a filo del bordo inferiore.
+// ---------------------------------------------------------------------------
+
+/** Altezza del gradino basso (rating) in em di `fs`: contenuto (logo/valore) + padding. */
+export const NOTCH_STEP_BOTTOM_H_FACTOR = 2.3
+/** Altezza del gradino alto (genere) in em di `fs`: basso e discreto, come il mockup (~0.6 del gradino basso). */
+export const NOTCH_STEP_TOP_H_FACTOR = 1.36
+/** Font dell'etichetta genere sul gradino alto, in frazione di `fs` (maiuscoletto spaziato). */
+export const NOTCH_STEP_LABEL_FS_FACTOR = 0.5
+/** Font dell'etichetta quando il gradino alto è da solo (0 rating): pillola singola leggibile. */
+export const NOTCH_STEP_SOLO_LABEL_FS_FACTOR = 0.7
+/** Spaziatura lettere dell'etichetta, in em del suo font. */
+export const NOTCH_STEP_LABEL_TRACKING = 0.24
+/** Apertura del raccordo alla giuntura, in frazione dell'altezza del gradino alto (morbido, mai uno scalino netto). */
+export const NOTCH_STEP_JOINT_FILLET_FACTOR = 0.6
+/** Apertura del raccordo al bordo poster, in frazione dell'altezza del gradino basso (come la pillola). */
+export const NOTCH_STEP_EDGE_FILLET_FACTOR = 0.8
+
+/** Font del gradino per canvas/scala (stessa base della riga bottom, 15 → 500). */
+export function notchStepFontSize(pw: number, scalePct: number): number {
+  const baseFs = Math.round(Math.max(15 * Math.max(1, pw) / 380, 11))
+  const scale = Number.isFinite(scalePct) ? Math.min(Math.max(Math.round(scalePct), 10), 200) : 130
+  return scale === 100 ? baseFs : Math.max(1, Math.round(baseFs * scale / 100))
+}
+
+/**
+ * Altezza d'inchiostro del gradino (senza il pad ombra): è la riserva vera che
+ * il logo titolo deve lasciare libera sul bordo basso in portrait. I due
+ * livelli si contano separatamente: con 0 rating resta il solo gradino alto,
+ * senza genere/anno il solo gradino basso.
+ */
+export function notchSeparateStepBodyHeight(
+  pw: number,
+  scalePct: number,
+  parts: { bottom: boolean; top: boolean },
+): number {
+  const fs = notchStepFontSize(pw, scalePct)
+  return (parts.bottom ? Math.round(fs * NOTCH_STEP_BOTTOM_H_FACTOR) : 0) + (parts.top ? notchStepTopHeight(fs, parts.bottom) : 0)
+}
+
+/** Font dell'etichetta del gradino alto (più piccolo sopra i rating, più grande da solo). */
+function notchStepLabelFs(fs: number, withBottom: boolean): number {
+  return Math.max(7, Math.round(fs * (withBottom ? NOTCH_STEP_LABEL_FS_FACTOR : NOTCH_STEP_SOLO_LABEL_FS_FACTOR)))
+}
+
+/** Altezza del gradino alto: basso sopra i rating, pillola genere piena da solo. */
+function notchStepTopHeight(fs: number, withBottom: boolean): number {
+  return withBottom ? Math.round(fs * NOTCH_STEP_TOP_H_FACTOR) : genrePillHeight(notchStepLabelFs(fs, false))
+}
+
+/** Contenuto del gradino alto: genere/anno con il punto medio (mai la stella). */
+export interface NotchSeparateStepLabel {
+  readonly genre?: string | null
+  readonly year?: string | null
+}
+
+/** Testo del gradino alto ("Genere • Anno", senza voto medio). */
+export function notchSeparateStepText(label: NotchSeparateStepLabel | null | undefined): string {
+  const parts: string[] = []
+  if (label?.genre) parts.push(label.genre)
+  if (label?.year) parts.push(label.year)
+  return parts.join(" • ")
+}
+
+/**
+ * Rating separati, layout "gradino" (stili `notch-*`): UNA bitmap, due livelli
+ * a filo del bordo inferiore.
+ *
+ * - gradino basso (largo): logo provider + voto per ogni rating (max 5) con
+ *   divisori sottili;
+ * - gradino alto (più stretto, appoggiato sopra): "Genere • Anno" (niente
+ *   stella, niente voto medio). Il gradino basso si allarga per contenerlo;
+ *   senza rating resta il solo gradino alto, senza testo resta il solo basso,
+ *   senza entrambi → `null`.
+ *
+ * Riuso esistente: `notchMaterialSkin`/`notchStepPathD` (stessa ricetta e
+ * stesso contorno della pillola), `loadSeparateRatingLogo`,
+ * `formatSeparateValue`, `estimateTextWidth`/`fontFamilyFor`, `sepscale` come
+ * font nativo. Vetro: nessuna ombra (il blur reale arriva dal service).
+ * Le correzioni per-item non si applicano a una sagoma unica (limite
+ * dichiarato): il bitmap non riporta `items`/`slotGhosts`.
+ */
+export async function renderSeparateRatingsNotch(
+  items: readonly { id: string; value: number }[],
+  pw: number,
+  variant: SeparateBottomVariant,
+  /** Font dei valori (default "inter"; i loghi provider restano invariati). */
+  font: BadgeFont = "inter",
+  /** Scala % del gruppo (default 130, stessi bound della riga bottom). */
+  scalePct: number = 130,
+  /** Larghezza massima del gruppo (canvas di consegna). Default `pw`. */
+  width?: number,
+  /**
+   * Polarità della banda (stessa convenzione del badge genere: fondo chiaro →
+   * velo/materiale per inchiostro chiaro). Default `true` = storico.
+   */
+  bottomLight: boolean = true,
+  /** Genere/anno del gradino alto (flag RAW dell'utente, mai quelli soppressi). */
+  label?: NotchSeparateStepLabel | null,
+  /** Tinta di scena per crema/inchiostro/sfumato (come la notch genere); null = palette neutra. */
+  accentColor: string | null = null,
+): Promise<SeparateRatingStack | null> {
+  const material: NotchMaterial = notchMaterialOf(variant) ?? "vetro"
+  const list = items.slice(0, MAX_SEPARATE_RATINGS)
+  const f = normalizeBadgeFont(font)
+  const labelText = notchSeparateStepText(label)
+  const labelUpper = labelText.toLocaleUpperCase()
+  if (list.length === 0 && !labelText) return null
+  const maxW = Math.max(1, Math.round(width ?? pw))
+  const baseFs = Math.round(Math.max(15 * Math.max(1, pw) / 380, 11))
+  const floorFs = Math.max(8, Math.round(baseFs * 0.55))
+
+  interface Row { logo: { png: Buffer; w: number; h: number }; display: string; textW: number; contentW: number; contentH: number; value: string }
+  const buildRows = async (fs: number): Promise<Row[]> => {
+    const logoH = Math.round(fs * 1.05)
+    const gap = Math.max(3, Math.round(fs * 0.35))
+    const out: Row[] = []
+    for (const item of list) {
+      const logo = await loadSeparateRatingLogo(item.id, logoH)
+      if (!logo) continue
+      const display = formatSeparateValue(item.id, item.value)
+      const textW = Math.max(estimateTextWidth(display, fs, f), 1)
+      out.push({ logo, display, textW, contentW: logo.w + gap + textW, contentH: Math.max(logo.h, fs), value: escSvg(display) })
+    }
+    return out
+  }
+  interface Geo {
+    fs: number
+    labelFs: number
+    rows: Row[]
+    /** Gradino basso dipinto (rating presenti). */
+    hasBottom: boolean
+    /** Gradino alto dipinto (genere/anno presenti). */
+    hasTop: boolean
+    bottomH: number
+    topH: number
+    topTextW: number
+    topW: number
+    /** Larghezza del corpo visibile a filo del bordo. */
+    bottomW: number
+    /** Altezza del corpo visibile a filo del bordo. */
+    bodyH: number
+    fr: number
+    frTop: number
+    renderW: number
+    renderH: number
+  }
+  const geometry = (fs: number, rows: Row[]): Geo => {
+    const hasBottom = rows.length > 0
+    const hasTop = labelText.length > 0
+    const bottomH = hasBottom ? Math.round(fs * NOTCH_STEP_BOTTOM_H_FACTOR) : 0
+    const topH = hasTop ? notchStepTopHeight(fs, hasBottom) : 0
+    const labelFs = notchStepLabelFs(fs, hasBottom)
+    const tracking = labelFs * NOTCH_STEP_LABEL_TRACKING
+    const topTextW = hasTop ? Math.max(estimateTextWidth(labelUpper, labelFs, f) + tracking * Math.max(0, [...labelUpper].length - 1), 1) : 0
+    const topPadX = hasTop ? Math.round(Math.max(labelFs * 1.6, (topH / 2) * 0.9)) : 0
+    const topW = hasTop ? topTextW + topPadX * 2 : 0
+    const padX = Math.round(fs * 0.7)
+    const dividerGap = Math.max(5, Math.round(fs * 0.45))
+    const dividerW = 1 + dividerGap * 2
+    const cellsW = rows.reduce((acc, r) => acc + r.contentW, 0) + dividerW * Math.max(0, rows.length - 1)
+    const natW = cellsW + padX * 2
+    const frTop = Math.round(topH * NOTCH_STEP_JOINT_FILLET_FACTOR)
+    // Con i rating il gradino basso contiene sempre il gradino alto (raccordi
+    // compresi): forma valida, mai due livelli che si staccano. Con 0 rating
+    // resta il solo gradino alto, che è una pillola notch singola (nessun
+    // corpo basso vuoto).
+    const minSide = Math.round(fs * 0.6)
+    const bottomW = hasBottom
+      ? Math.max(1, natW, hasTop ? topW + frTop * 2 + minSide * 2 : 0)
+      : Math.max(1, topW)
+    const bodyH = hasBottom ? bottomH : topH
+    const fr = Math.round(bodyH * NOTCH_STEP_EDGE_FILLET_FACTOR)
+    const P = TOP_SHADOW_PAD
+    return {
+      fs, labelFs, rows, hasBottom, hasTop, bottomH, topH, topTextW, topW, bottomW, bodyH, fr, frTop,
+      renderW: bottomW + fr * 2 + P * 2,
+      renderH: bottomH + topH + P,
+    }
+  }
+  let fs = notchStepFontSize(pw, scalePct)
+  let rows = await buildRows(fs)
+  if (rows.length === 0 && !labelText) return null
+  let geo = geometry(fs, rows)
+  for (let attempt = 0; attempt < 4 && geo.renderW > maxW && fs > floorFs; attempt++) {
+    fs = Math.max(floorFs, Math.round(fs * 0.85))
+    rows = await buildRows(fs)
+    if (rows.length === 0 && !labelText) return null
+    geo = geometry(fs, rows)
+  }
+  const { labelFs, hasBottom, hasTop, bottomH, topH, topW, topTextW, bottomW, bodyH, fr, frTop, renderW, renderH } = geo
+  const P = TOP_SHADOW_PAD
+  const x = P + fr
+  const topX = x + Math.round((bottomW - topW) / 2)
+  const Y = (v: number) => renderH - v
+  // UN solo materiale su tutta la sagoma (come il mockup): il gradino alto non
+  // si ridipinge, così la giuntura resta morbida e senza stacco di tono. I
+  // gradienti (rim vetro, sfumato) corrono dal bordo poster alla cima del gradino alto.
+  const skin = notchMaterialSkin({
+    material, accentColor, light: bottomLight,
+    yEdge: Y(0), yInner: Y(bottomH + topH), adaptiveVeil: material === "vetro",
+  })
+  const d = hasBottom && hasTop
+    ? notchStepPathD({ x, boxW: bottomW, boxH: bottomH, topX, topW, topH, fr, frTop, renderH })
+    : notchPathD({ x, boxW: bottomW, boxH: bodyH, fr, renderH, edge: "bottom" })
+
+  // Celle del gradino basso: spaziatura uniforme del contenuto nel corpo
+  // (un solo provider resta centrato, il genere largo non lo decentra).
+  const padX = Math.round(fs * 0.7)
+  const dividerGap = Math.max(5, Math.round(fs * 0.45))
+  const dividerW = 1 + dividerGap * 2
+  const cellsW = rows.reduce((acc, r) => acc + r.contentW, 0) + dividerW * Math.max(0, rows.length - 1)
+  const extra = Math.max(0, bottomW - padX * 2 - cellsW)
+  const extraPerGap = rows.length > 1 ? extra / (rows.length - 1) : 0
+  const midY = Y(bottomH / 2)
+  const cellParts: string[] = []
+  let cursor = rows.length > 1 ? x + padX : x + padX + Math.round(extra / 2)
+  rows.forEach((row, index) => {
+    cellParts.push(
+      `<image href="data:image/png;base64,${row.logo.png.toString("base64")}" x="${cursor}" y="${Math.round(midY - row.logo.h / 2)}" width="${row.logo.w}" height="${row.logo.h}"/>` +
+      `<text x="${cursor + row.logo.w + Math.max(3, Math.round(fs * 0.35)) + row.textW / 2}" y="${midY}" text-anchor="middle" dominant-baseline="central" font-family="${fontFamilyFor(row.display, f)}" font-weight="700" font-size="${fs}" fill="${skin.ink}" textLength="${row.textW}" lengthAdjust="spacingAndGlyphs">${row.value}</text>`,
+    )
+    cursor += row.contentW
+    if (index < rows.length - 1) {
+      const lineX = Math.round(cursor + (dividerW + extraPerGap) / 2)
+      const lineH = Math.max(2, Math.round(bottomH * 0.42))
+      cellParts.push(`<rect x="${lineX}" y="${Math.round(midY - lineH / 2)}" width="1" height="${lineH}" fill="${applyFillOpacity(skin.ink, 30)}"/>`)
+      cursor += dividerW + extraPerGap
+    }
+  })
+  // Gradino alto: etichetta in maiuscoletto spaziato, più piccola e attenuata
+  // dei voti (informazione secondaria, come il mockup).
+  const labelY = Y((hasBottom ? bottomH : 0) + topH / 2)
+  const labelEl = hasTop
+    ? `<text x="${x + bottomW / 2}" y="${labelY}" text-anchor="middle" dominant-baseline="central" font-family="${fontFamilyFor(labelUpper, f)}" font-weight="700" font-size="${labelFs}" fill="${skin.ink}" fill-opacity="${hasBottom ? 0.75 : 0.9}" textLength="${topTextW}" lengthAdjust="spacing">${escSvg(labelUpper)}</text>`
+    : ""
+  const svg =
+    `<svg xmlns="http://www.w3.org/2000/svg" width="${renderW}" height="${renderH}">` +
+    `<defs>${TOP_SHADOW_FILTER}${skin.defs}</defs>` +
+    `<path d="${d}" fill="${skin.fill}"${skin.stroke}${skin.filter}/>` +
+    cellParts.join("") +
+    labelEl +
+    `</svg>`
+  const png = await renderSVG(svg, renderW)
+  const fitScale = renderW > maxW ? maxW / renderW : 1
+  const body = {
+    left: Math.round((P + fr) * fitScale),
+    top: Math.round(P * fitScale),
+    w: Math.max(1, Math.round(bottomW * fitScale)),
+    h: Math.max(1, Math.round((bottomH + topH) * fitScale)),
+  }
+  if (fitScale === 1) return { png, w: renderW, h: renderH, body }
+  const outW = Math.max(1, Math.round(renderW * fitScale))
+  const outH = Math.max(1, Math.round(renderH * fitScale))
+  return { png: await sharp(png).resize(outW, outH).toBuffer(), w: outW, h: outH, body }
+}
+

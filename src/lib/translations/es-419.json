@@ -150,6 +150,7 @@
   "ui.separateRatingsBottomMono": "Monocromo",
   "ui.separateRatingsBottomColor": "Iconos de colores",
   "ui.separateRatingsBottomHint": "Los modos inferiores ocultan género y año (conservados) — vuelven con Columna.",
+  "ui.separateRatingsNotchHint": "Peldaño: género y año viven en el escalón superior; el inferior solo muestra los proveedores.",
   "ui.separateRatingsBarLandscapeHint": "La barra está desactivada en horizontal: se usan las píldoras (en vertical se mantiene).",
   "ui.separateRatingsScaleHint": "100 = tamaño estándar (relativo al valor 130).",
   "ui.separateRatingsBarXDisabledHint": "La barra de ancho completo no se mueve lateralmente: con Y se sube o se baja.",

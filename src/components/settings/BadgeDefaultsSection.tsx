@@ -21,7 +21,7 @@ import {
   type RankBadgeVariant,
   type RankRibbonVariant,
 } from "@/components/RankingAppearanceSelector"
-import { notchMaterialOf, notchStyle, type ExtraBadgeStyle, type RankingBadgeStyle } from "@/lib/badge-styles"
+import { type ExtraBadgeStyle, type RankingBadgeStyle } from "@/lib/badge-styles"
 import type { LandscapeServerDefaults } from "@/lib/server-defaults"
 import type { VisualPresetValues } from "@/lib/visual-presets"
 import { Toggle } from "@/components/Toggle"
@@ -34,7 +34,7 @@ import { BadgeStyleSelector, BadgeFontSelector, AwardBadgeModeSelector } from "@
 import { EXTRA_STYLE_GROUPS, QUALITY_STYLE_GROUPS } from "@/lib/badge-style-groups"
 import type { DefaultsPreviewFamily } from "@/lib/poster-url"
 import type { PosterElementId } from "@/components/settings/PosterElementNavigation"
-import { isBottomSeparateRatingsStyle, getSeparateRatingsStyleForShape, AGE_BADGE_STYLES, DEFAULT_BADGE_FONT, DEFAULT_QUALITY_BADGE_STYLE, DEFAULT_QUALITY_GROUP_LAYOUT, DEFAULT_SEPARATE_RATINGS_STYLE, EXTRA_BADGE_FOLLOW_RANK, DEFAULT_QUALITY_BADGE_OFFSET_X, DEFAULT_QUALITY_BADGE_OFFSET_Y, DEFAULT_QUALITY_BADGE_OFFSET_X_LANDSCAPE, DEFAULT_QUALITY_BADGE_OFFSET_Y_LANDSCAPE, getSeparateBadgeDefaultScale } from "@/lib/badge-styles"
+import { isBottomSeparateRatingsStyle, isNotchSeparateRatingsStyle, getSeparateRatingsStyleForShape, AGE_BADGE_STYLES, DEFAULT_BADGE_FONT, DEFAULT_QUALITY_BADGE_STYLE, DEFAULT_QUALITY_GROUP_LAYOUT, DEFAULT_SEPARATE_RATINGS_STYLE, EXTRA_BADGE_FOLLOW_RANK, DEFAULT_QUALITY_BADGE_OFFSET_X, DEFAULT_QUALITY_BADGE_OFFSET_Y, DEFAULT_QUALITY_BADGE_OFFSET_X_LANDSCAPE, DEFAULT_QUALITY_BADGE_OFFSET_Y_LANDSCAPE, getSeparateBadgeDefaultScale } from "@/lib/badge-styles"
 import { KNOWN_VIDEO_FORMATS } from "@/lib/av-specs"
 import { NATURAL_GRADIENT_DEFAULTS } from "@/lib/gradient-presets"
 import { QUICK_BADGE_PATCHES, quickTransformPatch as sharedQuickTransformPatch, withReadyPresetExtraStyleReset } from "@/lib/quick-visual-presets"
@@ -281,7 +281,7 @@ export function BadgeDefaultsSection({ active, shape, onPreviewFamilyChange, pre
   const [badgeQuality, setBadgeQuality] = scoped("badgeQuality", ed.defaultBadgeQuality, ed.setDefaultBadgeQuality)
   const [networkLogo, setNetworkLogo] = scoped("networkLogo", ed.defaultNetworkLogo, ed.setDefaultNetworkLogo)
   const [networkLogoPosition, setNetworkLogoPosition] = scoped("networkLogoPosition", ed.defaultNetworkLogoPosition, ed.setDefaultNetworkLogoPosition)
-  const [badgeStyle, setBadgeStyle] = scoped("badgeStyle", ed.defaultBadgeStyle, ed.setDefaultBadgeStyle)
+  const [badgeStyle] = scoped("badgeStyle", ed.defaultBadgeStyle, ed.setDefaultBadgeStyle)
   const [rankingBadgeStyle, setRankingBadgeStyle] = scoped("rankingBadgeStyle", ed.defaultRankingBadgeStyle, ed.setDefaultRankingBadgeStyle)
   const [extraBadgeStyle, setExtraBadgeStyle] = scoped("extraBadgeStyle", ed.defaultExtraBadgeStyle, ed.setDefaultExtraBadgeStyle)
   // Logo-block alignment is Auto-only (no selector anywhere): the staged
@@ -370,7 +370,9 @@ export function BadgeDefaultsSection({ active, shape, onPreviewFamilyChange, pre
         <p className="text-[10px] text-muted italic leading-tight">{t("ui.separateRatingsBarLandscapeHint")}</p>
       )}
       {globalBadges && badgeRating && separateRatings && isBottomSeparateRatingsStyle(separateRatingsStyle) && (
-        <p className="text-[10px] text-muted italic leading-tight">{t("ui.separateRatingsBottomHint")}</p>
+        <p className="text-[10px] text-muted italic leading-tight">
+          {isNotchSeparateRatingsStyle(separateRatingsStyle) ? t("ui.separateRatingsNotchHint") : t("ui.separateRatingsBottomHint")}
+        </p>
       )}
     </div>
   )
@@ -844,11 +846,15 @@ export function BadgeDefaultsSection({ active, shape, onPreviewFamilyChange, pre
 
   // Same as the per-title behavior: in bottom, genre/year defaults are
   // render-suppressed but kept (back to Column restores them, never lost).
+  // Gradino (`notch-*`): genere/anno NON sono soppressi (vivono nel gradino
+  // alto), quindi i controlli restano attivi — solo il voto medio è sostituito.
   const defaultBottomActive =
     globalBadges &&
     badgeRating &&
     separateRatings &&
     isBottomSeparateRatingsStyle(separateRatingsStyle)
+  const defaultNotchStep = defaultBottomActive && isNotchSeparateRatingsStyle(separateRatingsStyle)
+  const defaultBottomMetaLocked = defaultBottomActive && !defaultNotchStep
 
   // Quick preset apply: SINGLE atomic target-aware patch con helpers existing
   // (come Apple/personali). Portrait congela l'effettivo landscape ereditato,
@@ -1209,10 +1215,10 @@ export function BadgeDefaultsSection({ active, shape, onPreviewFamilyChange, pre
             type="button"
             data-testid="whattoshow-genre"
             aria-pressed={globalBadges && badgeGenre}
-            disabled={defaultBottomActive}
-            title={defaultBottomActive ? t("ui.separateRatingsBottomHint") : undefined}
-            onClick={() => { if (defaultBottomActive) return; if (globalBadges && badgeGenre) setBadgeGenre(false); else { setGlobalBadges(true); setBadgeGenre(true) } }}
-            className={`min-h-[44px] py-1.5 px-2 rounded-lg text-[11px] font-semibold transition duration-150 ${globalBadges && badgeGenre ? "bg-white/20 text-white shadow-sm" : "bg-white/5 text-muted hover:bg-white/10 hover:text-zinc-200"} ${defaultBottomActive ? "cursor-not-allowed opacity-40" : "cursor-pointer"}`}
+            disabled={defaultBottomMetaLocked}
+            title={defaultBottomMetaLocked ? t("ui.separateRatingsBottomHint") : undefined}
+            onClick={() => { if (defaultBottomMetaLocked) return; if (globalBadges && badgeGenre) setBadgeGenre(false); else { setGlobalBadges(true); setBadgeGenre(true) } }}
+            className={`min-h-[44px] py-1.5 px-2 rounded-lg text-[11px] font-semibold transition duration-150 ${globalBadges && badgeGenre ? "bg-white/20 text-white shadow-sm" : "bg-white/5 text-muted hover:bg-white/10 hover:text-zinc-200"} ${defaultBottomMetaLocked ? "cursor-not-allowed opacity-40" : "cursor-pointer"}`}
           >
             {t("ui.badgeGenre")}
           </button>
@@ -1220,10 +1226,10 @@ export function BadgeDefaultsSection({ active, shape, onPreviewFamilyChange, pre
             type="button"
             data-testid="whattoshow-year"
             aria-pressed={globalBadges && badgeYear}
-            disabled={defaultBottomActive}
-            title={defaultBottomActive ? t("ui.separateRatingsBottomHint") : undefined}
-            onClick={() => { if (defaultBottomActive) return; if (globalBadges && badgeYear) setBadgeYear(false); else { setGlobalBadges(true); setBadgeYear(true) } }}
-            className={`min-h-[44px] py-1.5 px-2 rounded-lg text-[11px] font-semibold transition duration-150 ${globalBadges && badgeYear ? "bg-white/20 text-white shadow-sm" : "bg-white/5 text-muted hover:bg-white/10 hover:text-zinc-200"} ${defaultBottomActive ? "cursor-not-allowed opacity-40" : "cursor-pointer"}`}
+            disabled={defaultBottomMetaLocked}
+            title={defaultBottomMetaLocked ? t("ui.separateRatingsBottomHint") : undefined}
+            onClick={() => { if (defaultBottomMetaLocked) return; if (globalBadges && badgeYear) setBadgeYear(false); else { setGlobalBadges(true); setBadgeYear(true) } }}
+            className={`min-h-[44px] py-1.5 px-2 rounded-lg text-[11px] font-semibold transition duration-150 ${globalBadges && badgeYear ? "bg-white/20 text-white shadow-sm" : "bg-white/5 text-muted hover:bg-white/10 hover:text-zinc-200"} ${defaultBottomMetaLocked ? "cursor-not-allowed opacity-40" : "cursor-pointer"}`}
           >
             {t("ui.badgeYear")}
           </button>
@@ -1568,27 +1574,27 @@ export function BadgeDefaultsSection({ active, shape, onPreviewFamilyChange, pre
           {/* Sub-controlli Genere / Anno / Voto */}
           {globalBadges && (
             <div className="pl-3 py-1 space-y-2 border-l-2 border-surface2 ml-1 animate-fade-in">
-              <fieldset disabled={defaultBottomActive} className="contents">
-              <div className="flex items-center justify-between" title={defaultBottomActive ? t("ui.separateRatingsBottomHint") : undefined} aria-disabled={defaultBottomActive || undefined}>
+              <fieldset disabled={defaultBottomMetaLocked} className="contents">
+              <div className="flex items-center justify-between" title={defaultBottomMetaLocked ? t("ui.separateRatingsBottomHint") : undefined} aria-disabled={defaultBottomMetaLocked || undefined}>
                 <span className="text-muted">{t("ui.badgeGenre")}</span>
                 <Toggle
                   value={badgeGenre}
                   onChange={(v) => {
-                    if (!defaultBottomActive) setBadgeGenre(v)
+                    if (!defaultBottomMetaLocked) setBadgeGenre(v)
                   }}
                   label={t("ui.badgeGenre")}
-                  disabled={defaultBottomActive}
+                  disabled={defaultBottomMetaLocked}
                 />
               </div>
-              <div className="flex items-center justify-between" title={defaultBottomActive ? t("ui.separateRatingsBottomHint") : undefined} aria-disabled={defaultBottomActive || undefined}>
+              <div className="flex items-center justify-between" title={defaultBottomMetaLocked ? t("ui.separateRatingsBottomHint") : undefined} aria-disabled={defaultBottomMetaLocked || undefined}>
                 <span className="text-muted">{t("ui.badgeYear")}</span>
                 <Toggle
                   value={badgeYear}
                   onChange={(v) => {
-                    if (!defaultBottomActive) setBadgeYear(v)
+                    if (!defaultBottomMetaLocked) setBadgeYear(v)
                   }}
                   label={t("ui.badgeYear")}
-                  disabled={defaultBottomActive}
+                  disabled={defaultBottomMetaLocked}
                 />
               </div>
               </fieldset>

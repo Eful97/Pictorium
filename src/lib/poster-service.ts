@@ -4,7 +4,7 @@ import { renderMultiRatings, MAX_CUSTOM_RATINGS } from "./multi-rating-renderer"
 import { resolveSeparateDisplayState } from "./poster-config"
 import type { SeparateRating } from "./ratings"
 import { MAX_SEPARATE_RATINGS } from "./ratings"
-import { renderSeparateRatingStack, renderSeparateRatingsBottom, type SeparateRatingStack } from "./separate-rating-renderer"
+import { renderSeparateRatingStack, renderSeparateRatingsBottom, renderSeparateRatingsNotch, notchSeparateStepBodyHeight, notchSeparateStepText, type SeparateRatingStack } from "./separate-rating-renderer"
 import { cacheGet, cacheSet } from "./cache"
 import { GENRE_FALLBACK, cinematicVignetteSVG, cinematicCornerGradientSVG, topShadeSVG } from "./badges"
 import { applyBlur } from "./blur"
@@ -38,7 +38,7 @@ import type { WikidataResult } from "./awards"
 import { directorBadgeLabel } from "./awards"
 import type { BadgeT } from "./poster-badge"
 import type { BadgeFont } from "./badge-styles"
-import { isRibbonRankingStyle, notchMaterialOf, isBottomSeparateRatingsStyle, isAgeBadgeStyle, isAwardBadgeMode, getSeparateRatingsStyleForShape, resolveNumberBadgeBaseOffsetX, normalizeExtraBadgeStyleForRender, resolveQualityGroupLayout, isMergedQualityStrip, DEFAULT_AGE_BADGE_STYLE, DEFAULT_AWARD_BADGE_MODE, type BadgeStyle, type RankingBadgeStyle, type ExtraBadgeStyle, type ExtraBadgeFollowRank, type SeparateRatingsStyle, type SeparateBottomVariant, type AgeBadgeStyle, type AwardBadgeMode, type QualityGroupLayout } from "./badge-styles"
+import { isRibbonRankingStyle, notchMaterialOf, isBottomSeparateRatingsStyle, isNotchSeparateRatingsStyle, isAgeBadgeStyle, isAwardBadgeMode, getSeparateRatingsStyleForShape, resolveNumberBadgeBaseOffsetX, normalizeExtraBadgeStyleForRender, resolveQualityGroupLayout, isMergedQualityStrip, DEFAULT_AGE_BADGE_STYLE, DEFAULT_AWARD_BADGE_MODE, type BadgeStyle, type RankingBadgeStyle, type ExtraBadgeStyle, type ExtraBadgeFollowRank, type SeparateRatingsStyle, type SeparateBottomVariant, type AgeBadgeStyle, type AwardBadgeMode, type QualityGroupLayout } from "./badge-styles"
 import { normalizeBadgeFont } from "./badge-svg-shared"
 import type { PosterImageFormat } from "@/lib/poster-runtime-cache"
 import { qualityBadgeIconPath } from "./quality-badge-styles"
@@ -149,6 +149,11 @@ export const LANDSCAPE_BOTTOM_PILLS_SHIFT_Y = -10
 // landscape toccato). Eccezione: bottom-bar portrait full-width a filo
 // (top = CH - h): il +5 sarebbe annullato dal clamp, resta a filo.
 export const PORTRAIT_SEPARATE_SHIFT_Y = 5
+
+// Fattore del sigma di sfocatura del vetro sul gradino dei rating separati
+// (`notch-vetro`): il gradino copre due livelli, quindi la sfocatura reale è
+// più forte del vetro standard (σ base = max(4, CW/40)) per restare leggibile.
+export const NOTCH_STEP_GLASS_SIGMA_BOOST = 1.6
 
 
 // TTL cache image-level (colori badge, resize logo/backdrop): le immagini TMDB
@@ -1167,6 +1172,9 @@ export async function generatePosterBuffer(input: GenerationInput): Promise<Buff
   const composites: PosterComposite[] = []
   // Placche `vetro` che ricevono lo sfondo sfocato reale (sezione 7).
   const glassLayers = new Set<PosterComposite>()
+  // Sigma extra per-layer della sfocatura vetro (solo il gradino: superficie a
+  // due livelli, più larga della pillola → blur più forte).
+  const glassBlurOverrides = new Map<PosterComposite, number>()
 
   // SOLO landscape: il backdrop storico è la base 16:9 ed è già full-bleed in
   // `posterBuf` per la route; in portrait non esiste un layer backdrop (la base
@@ -1245,6 +1253,9 @@ export async function generatePosterBuffer(input: GenerationInput): Promise<Buff
   // the corner tint stays automatic there too.
   const genrePaintsAccent = hasGenreBadge && !isFresh && !isCard && genreBadgeConsumesAccent(badgeStyle)
   const cardGenrePaints = isCard && badgesEnabled !== false && genreBadgeConsumesAccent(badgeStyle)
+  // Gradino dei rating separati: crema/inchiostro/sfumato si tingono con la
+  // scena come la notch genere (vetro no) — stessa banda bassa adattiva.
+  const stepPaintsAccent = !!bottomVariant && !isFresh && !isCard && isNotchSeparateRatingsStyle(bottomVariant) && genreBadgeConsumesAccent(bottomVariant)
   const topPaintsAccent = topBadgeConsumesAccent({
     topBadgeType: topBadge?.type ?? null,
     rankingBadgeStyle,
@@ -1254,6 +1265,7 @@ export async function generatePosterBuffer(input: GenerationInput): Promise<Buff
   const needsSceneTint =
     (blurEnabled && !accentOverride?.genreColor) ||
     (genrePaintsAccent && !accentOverride?.genreColor) ||
+    (stepPaintsAccent && !accentOverride?.genreColor) ||
     (cardGenrePaints && !accentOverride?.genreColor) ||
     (!!topBadge && !showComingSoon && topPaintsAccent && !accentOverride?.rankColor)
   const sceneTintHex = needsSceneTint
@@ -1282,7 +1294,7 @@ export async function generatePosterBuffer(input: GenerationInput): Promise<Buff
   // Fresh/Card adapts through this shared path. Provider-glass/neutral fixed
   // palettes never pass through here.
   const needsTopAdaptive = !!topBadge && !showComingSoon && topPaintsAccent && !accentOverride?.rankColor && !!sceneTintHex
-  const needsBottomAdaptive = genrePaintsAccent && !accentOverride?.genreColor && !!sceneTintHex
+  const needsBottomAdaptive = (genrePaintsAccent || stepPaintsAccent) && !accentOverride?.genreColor && !!sceneTintHex
   const [topBand, bottomBand] = await Promise.all([
     needsTopAdaptive
       ? topBandMeanRGB(posterBuf, {
@@ -1318,6 +1330,32 @@ export async function generatePosterBuffer(input: GenerationInput): Promise<Buff
 
   // Override esplicito `ac=` vince sempre; poi tinta di scena; rete di sicurezza: fallback genere
   const blurTintHex = accentOverride?.genreColor ?? sceneTintHex ?? (GENRE_FALLBACK[genreName || ""] || "#555555")
+
+  // Gradino dei rating separati (`notch-*`): genere/anno del gradino alto con i
+  // flag RAW dell'utente (la soppressione bottom vale solo per il badge genere
+  // standard), e riserva del logo titolo con l'altezza VERA dei due livelli —
+  // non quella della colonna equivalente: un gradino a filo del bordo coprirebbe
+  // un titolo basso (portrait). In landscape il gradino è ancorato a destra e il
+  // contenimento resta orizzontale (shrink della riga sul logo).
+  const notchStepRawGenre = input.freshRawBadgeGenre ?? badgeGenre
+  const notchStepRawYear = input.freshRawBadgeYear ?? badgeYear
+  const notchStepLabel = isNotchSeparateRatingsStyle(effBottomStyle)
+    ? notchSeparateStepText({
+        genre: notchStepRawGenre && genreName ? genreName : null,
+        year: notchStepRawYear && year ? year : null,
+      })
+    : ""
+  const notchStepReservePx = notchStepLabel.length > 0 || isNotchSeparateRatingsStyle(effBottomStyle)
+    ? notchSeparateStepBodyHeight(badgePw, separateBadgeScale, {
+        bottom: (input.separateRatings?.length ?? 0) > 0,
+        top: notchStepLabel.length > 0,
+      })
+    : 0
+  // `bottomMarginPct` = margine del fondo logo dal bordo canvas (il `topOffset`
+  // portrait abbassa il logo di altri 10px, quindi entra nella riserva).
+  const notchStepLogoMarginPct = notchStepReservePx > 0 && !isLandscape && !isFresh && !isCard
+    ? Math.max(12, Math.ceil(((notchStepReservePx + 6 + PORTRAIT_LOGO_TOP_OFFSET) * 100) / CH))
+    : null
 
   // Logo baked-in in entrambi i formati (hideLogo esplicito lo salta:
   // veicolo del banner Nuvio pulito). In landscape valgono i vincoli del
@@ -1365,7 +1403,7 @@ export async function generatePosterBuffer(input: GenerationInput): Promise<Buff
             // Fondo logo in linea col badge genere (~10px dal bordo, vedi
             // costanti landscape in logo-layout.ts). In portrait margine
             // maggiorato solo col badge genere (12% vs 10% storico).
-            bottomMarginPct: isLandscape ? LANDSCAPE_LOGO_BOTTOM_MARGIN_PCT : (logoHasBadges ? 12 : undefined),
+            bottomMarginPct: isLandscape ? LANDSCAPE_LOGO_BOTTOM_MARGIN_PCT : (notchStepLogoMarginPct ?? (logoHasBadges ? 12 : undefined)),
             // Vincoli logo per formato (stessi di context.tsx e
             // poster-fit-score.ts): portrait cap solo altezza + calibrazione
             // +10px; landscape contenuto 40% larghezza / 24% altezza.
@@ -2810,21 +2848,33 @@ export async function generatePosterBuffer(input: GenerationInput): Promise<Buff
   // extra = 0, opticalShift = 0: margine interno pieno 18*CW/380, senza il
   // +40 ottico del genere), non centrate sul canvas, con base geometrica
   // landscape -20 X / -10 Y (LANDSCAPE_BOTTOM_PILLS_SHIFT_*). Forma canvas invariata.
-  // Fresh/Card: nessun bitmap bottom storico (i valori sono nella colonna meta / banda card).
-  if (bottomItemCount > 0 && badgesEnabled && bottomVariant && !isFresh && !isCard) {
-    const items = input.separateRatings!.slice(0, MAX_SEPARATE_RATINGS)
+  // Gradino (`notch-*`): stesso ramo bottom ma bitmap a due livelli, a filo del
+  // bordo inferiore (top = CH - h), portrait centrato / landscape ancorato a
+  // destra come la notch genere, `sepox` attivo e `sepoy` ignorato (la sagoma è
+  // incollata al bordo). Con 0 rating resta il solo gradino alto (genere/anno).
+  const notchStepMaterial = bottomVariant ? notchMaterialOf(bottomVariant) : null
+  const bottomPaints = bottomItemCount > 0 || (!!notchStepMaterial && notchStepLabel.length > 0)
+  if (bottomPaints && badgesEnabled && bottomVariant && !isFresh && !isCard) {
+    const items = (input.separateRatings ?? []).slice(0, MAX_SEPARATE_RATINGS)
     const isBar = bottomVariant === "bottom-bar"
+    const isNotchStep = !!notchStepMaterial
     const availW = isBar && !isLandscape ? CW : (isLandscape ? CW - 80 : CW - 36)
-    const bottomKey = badgeCacheKey("separate-bottom", bottomVariant, items.map((i) => `${i.id}${i.value}`).join(","), CW, badgeFont, separateBadgeScaleEff, availW, effSepBottomLight ? "bl1" : "bl0", separateItemKey)
+    const notchStepAccent = isNotchStep && stepPaintsAccent ? accentColorGenre : null
+    const bottomKey = badgeCacheKey("separate-bottom", bottomVariant, items.map((i) => `${i.id}${i.value}`).join(","), isNotchStep ? notchStepLabel : undefined, isNotchStep ? (notchStepAccent ?? "na") : undefined, CW, badgeFont, separateBadgeScaleEff, availW, effSepBottomLight ? "bl1" : "bl0", separateItemKey)
     const cached = cacheGet<SeparateRatingStack>(bottomKey)
     const bottom = cached ?? await coalesceBadgeRender(bottomKey, () =>
-      renderSeparateRatingsBottom(items, badgePw, bottomVariant, badgeFont, separateBadgeScaleEff, availW, effSepBottomLight, itemTransformsForSeparate)
+      (isNotchStep
+        ? renderSeparateRatingsNotch(items, badgePw, bottomVariant, badgeFont, separateBadgeScaleEff, availW, effSepBottomLight, {
+            genre: notchStepRawGenre && genreName ? genreName : null,
+            year: notchStepRawYear && year ? year : null,
+          }, notchStepAccent)
+        : renderSeparateRatingsBottom(items, badgePw, bottomVariant, badgeFont, separateBadgeScaleEff, availW, effSepBottomLight, itemTransformsForSeparate))
         .then((r) => { if (r) cacheSet(bottomKey, r, ["badge"], BADGE_CACHE_TTL); return r })
     )
     const fitted = bottom ? await fitBadgeToCanvas(bottom, CW, CH) : null
     if (fitted) {
       const margin = Math.round(20 * CH / 570)
-      const barFlush = isBar && !isLandscape
+      const barFlush = (isBar && !isLandscape) || isNotchStep
       // Base righe non-bar in landscape: shift geometrico -20/-10 PRIMA di
       // offset utente (sepox/sepoy additivi dopo) e collision handling logo.
       // Portrait non-bar +5 Y (PORTRAIT_SEPARATE_SHIFT_Y) prima degli offset;
@@ -2832,15 +2882,46 @@ export async function generatePosterBuffer(input: GenerationInput): Promise<Buff
       // invariata (il +5 sarebbe annullato dal clamp); bottom-bar
       // normalizzata a pills coperta dallo stesso ramo (in landscape i bare
       // restano invariati, solo la barra normalizza).
-      const isLandscapePills = isLandscape && !isBar
-      const isPortraitPills = !isLandscape && !isBar
+      const isLandscapePills = isLandscape && !isBar && !isNotchStep
+      const isPortraitPills = !isLandscape && !isBar && !isNotchStep
+      // Gradino: l'ancoraggio segue il CORPO visibile (come la notch genere),
+      // non la bitmap con i pad trasparenti dei raccordi — così i raccordi
+      // possono sbordare dal canvas e la placca resta a filo del bordo.
+      const notchBody = (w: number) => {
+        const bodyW = bottom?.body?.w ?? 0
+        const inset = bottom?.body?.left ?? 0
+        if (!bottom || bottom.w <= 0 || bodyW <= 0) return null
+        const k = w / bottom.w
+        return { left: inset * k, w: bodyW * k }
+      }
       const topFor = (h: number) => barFlush ? CH - h : CH - h - margin + (isLandscapePills ? LANDSCAPE_BOTTOM_PILLS_SHIFT_Y : 0) + (isPortraitPills ? PORTRAIT_SEPARATE_SHIFT_Y : 0)
-      const leftFor = (w: number) => barFlush ? 0 : isLandscape ? landscapeRightAnchorLeft(w, CW, 0, 0) + (isLandscapePills ? LANDSCAPE_BOTTOM_PILLS_SHIFT_X : 0) : Math.round((CW - w) / 2)
+      const leftFor = (w: number) => {
+        if (barFlush && !isNotchStep) return 0
+        if (isNotchStep) {
+          const body = notchBody(w)
+          if (!body) return isLandscape ? landscapeRightAnchorLeft(w, CW, 0) : Math.round((CW - w) / 2)
+          const bodyLeft = isLandscape ? landscapeRightAnchorLeft(body.w, CW, 0) : Math.round((CW - body.w) / 2)
+          return bodyLeft - body.left
+        }
+        return isLandscape
+          ? landscapeRightAnchorLeft(w, CW, 0, 0) + (isLandscapePills ? LANDSCAPE_BOTTOM_PILLS_SHIFT_X : 0)
+          : Math.round((CW - w) / 2)
+      }
       // Offset sul gruppo intero con clamp dentro il canvas; la barra
       // portrait è full-width a filo: la X è ignorata esplicitamente (la UI
       // disabilita lo slider), la Y resta attiva. A offset 0 identico allo storico.
-      const topForOff = (h: number) => Math.max(0, Math.min(CH - h, topFor(h) + sepOY))
-      const leftForOff = (w: number) => barFlush ? 0 : Math.max(0, Math.min(CW - w, leftFor(w) + sepOX))
+      // Gradino: `sepox` attivo su entrambi i canvas, `sepoy` ignorato (sagoma
+      // incollata al bordo inferiore); il clamp tiene il CORPO dentro il canvas
+      // (i pad trasparenti possono sbordare, come i raccordi della notch genere).
+      const topForOff = (h: number) => Math.max(0, Math.min(CH - h, topFor(h) + (isNotchStep ? 0 : sepOY)))
+      const leftForOff = (w: number) => {
+        if (barFlush && !isNotchStep) return 0
+        if (isNotchStep) {
+          const body = notchBody(w)
+          if (body) return Math.max(-body.left, Math.min(CW - body.left - body.w, leftFor(w) + sepOX))
+        }
+        return Math.max(0, Math.min(CW - w, leftFor(w) + sepOX))
+      }
       // Righe non-bar in landscape + logo titolo a sinistra: se la riga copre
       // il logo si rimpicciolisce la riga (stessa regola del badge genere,
       // min 0.7 — mai il logo, scala utente esplicita). Solo non-bar in
@@ -2873,7 +2954,15 @@ export async function generatePosterBuffer(input: GenerationInput): Promise<Buff
       }
       const top = topForOff(rowBox.h)
       const left = leftForOff(rowBox.w)
-      composites.push({ input: rowBox.png, top, left })
+      const bottomLayer = { input: rowBox.png, top, left }
+      // Vetro reale anche sul gradino (la sagoma alfa è quella della notch):
+      // sfocatura più forte del vetro standard (gradino a due livelli, più
+      // superficie da leggere).
+      if (isNotchStep && notchStepMaterial === "vetro") {
+        glassLayers.add(bottomLayer)
+        glassBlurOverrides.set(bottomLayer, NOTCH_STEP_GLASS_SIGMA_BOOST)
+      }
+      composites.push(bottomLayer)
       // Per-item corrections of the single cells: the row keeps its automatic
       // anchor/offset/fit; a corrected cell is composited on its own.
       const rowItemScale = bottom && bottom.w > 0 ? rowBox.w / bottom.w : 1
@@ -3164,12 +3253,15 @@ export async function generatePosterBuffer(input: GenerationInput): Promise<Buff
     let cardBottomRow: { png: Buffer; w: number; h: number } | null = null
     if (cardShowSeparate && cardDisplay.bottomActive && bottomVariant) {
       const bottomItems = cardSeparates
-      const isBar = bottomVariant === "bottom-bar"
+      // Il gradino (`notch-*`) degrada a `bottom-pills` sul Card: la banda card
+      // non è il bordo del poster, la sagoma a filo resterebbe sospesa al centro.
+      const cardBottomVariant: SeparateBottomVariant = notchMaterialOf(bottomVariant) ? "bottom-pills" : bottomVariant
+      const isBar = cardBottomVariant === "bottom-bar"
       const availW = isBar && !isLandscape ? CW : (isLandscape ? CW - 80 : CW - 36)
-      const cardBottomKey = badgeCacheKey("separate-bottom", bottomVariant, bottomItems.map((i) => `${i.id}${i.value}`).join(","), CW, badgeFont, separateBadgeScaleEff, availW, effSepBottomLight ? "bl1" : "bl0")
+      const cardBottomKey = badgeCacheKey("separate-bottom", cardBottomVariant, bottomItems.map((i) => `${i.id}${i.value}`).join(","), CW, badgeFont, separateBadgeScaleEff, availW, effSepBottomLight ? "bl1" : "bl0")
       const cachedBottom = cacheGet<{ png: Buffer; w: number; h: number }>(cardBottomKey)
       cardBottomRow = cachedBottom ?? await coalesceBadgeRender(cardBottomKey, () =>
-        renderSeparateRatingsBottom(bottomItems, badgePw, bottomVariant, badgeFont, separateBadgeScaleEff, availW, effSepBottomLight)
+        renderSeparateRatingsBottom(bottomItems, badgePw, cardBottomVariant, badgeFont, separateBadgeScaleEff, availW, effSepBottomLight)
           .then((r) => { if (r) cacheSet(cardBottomKey, r, ["badge"], BADGE_CACHE_TTL); return r }),
       )
     }
@@ -3631,7 +3723,7 @@ export async function generatePosterBuffer(input: GenerationInput): Promise<Buff
     pipeline = pipeline.blur(PRE_RELEASE_BLUR_SIGMA)
   }
 
-  if (glassLayers.size > 0) await insertFrostedGlassUnderlays(pipeline, layers, glassLayers, CW, CH)
+  if (glassLayers.size > 0) await insertFrostedGlassUnderlays(pipeline, layers, glassLayers, CW, CH, glassBlurOverrides)
 
   pipeline = pipeline.composite(layers)
 

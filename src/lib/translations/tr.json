@@ -150,6 +150,7 @@
   "ui.separateRatingsBottomMono": "Tek renk",
   "ui.separateRatingsBottomColor": "Renkli simgeler",
   "ui.separateRatingsBottomHint": "Bottom modes hide genre and year (kept) — they return with Column.",
+  "ui.separateRatingsNotchHint": "Basamak: tür ve yıl üst basamakta; alt basamak yalnızca sağlayıcıları gösterir.",
   "ui.separateRatingsBarLandscapeHint": "Bar is off in landscape — pills are used instead (portrait keeps the bar).",
   "ui.separateRatingsScaleHint": "100 = standard size (relative to the 130 default).",
   "ui.separateRatingsBarXDisabledHint": "The full-width bar can't move sideways — Y still moves it up and down.",

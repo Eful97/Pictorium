@@ -390,9 +390,9 @@ pillola col lato dritto incollato al bordo del poster, fondo tondo e due
 raccordi concavi verso il bordo (apertura `0.8 × boxH`, profondità `boxH/2`).
 Il materiale è codificato nel valore (`notchMaterialOf`/`notchStyle` in
 `badge-styles.ts`): nessun parametro URL nuovo, validazione/cache/mapping
-derivano dagli enum. La UI mostra una sola voce "Pillola" e un selettore
-materiale unico (`NotchMaterialPicker` in `src/components/ui/NotchPill.tsx`)
-che riscrive tutte le famiglie in notch.
+derivano dagli enum. In UI è la famiglia "Notch" (`NOTCH_GROUP` in
+`badge-style-groups.ts`) di ogni selettore: ogni badge sceglie il proprio
+materiale come variante, con mini anteprima dal builder condiviso.
 
 | Aspetto | Resa (`buildNotchSvg` in `badge-svg-shared.ts`) |
 |---|---|
@@ -404,6 +404,20 @@ che riscrive tutte le famiglie in notch.
 | `sfumato` | gradiente dal colore della banda sul lato bordo (0.9) a una versione scurita/schiarita sul fondo tondo; inchiostro `textColorForBg` |
 | Accent | crema/inchiostro/sfumato consumano l'accent (`genreBadgeConsumesAccent`/`topBadgeConsumesAccent`), vetro no |
 | Card | la banda Card non è un bordo: il genere notch si rende come `pill` |
+
+**Gradino dei rating separati** (`sepstyle=notch-<materiale>`, `renderSeparateRatingsNotch` in `separate-rating-renderer.ts`): stile bottom (sopprime badge genere standard e riga custom) con UNA sagoma a due livelli a filo `CH - h` (`notchStepPathD`).
+
+| Aspetto | Resa |
+|---|---|
+| Gradino basso | logo provider + voto (max 5) con divisori; `fs` = font della riga bottom (`notchStepFontSize`, scala `sepscale`), altezza `2.3 × fs`; si allarga sempre per contenere il gradino alto + raccordi |
+| Gradino alto | `GENERE • ANNO` (flag RAW `bg`/`by` dalla route, mai la ★) in maiuscoletto: font `0.5 × fs`, spaziatura `0.24em` via `textLength`/`lengthAdjust="spacing"`, opacità 0.75, altezza `1.36 × fs`; raccordo concavo alla giuntura `0.6 × topH` |
+| Casi limite | 0 rating → solo pillola genere (font `0.7 × fs`, altezza `genrePillHeight`); genere/anno spenti o assenti → solo gradino basso; niente → null |
+| Materiale | UNA ricetta (`notchMaterialSkin`) su tutta la sagoma, gradienti dal bordo poster alla cima del gradino alto; crema/inchiostro/sfumato tinti con `accentColorGenre` (banda bassa adattiva, `stepPaintsAccent` accende l'estrazione); vetro con velo APCA (`notchGlassVeilFill`, \|Lc\| ≥ 60 sulle bande chiare) e blur `× NOTCH_STEP_GLASS_SIGMA_BOOST` |
+| Posizione | portrait centrato sul corpo, landscape `landscapeRightAnchorLeft`; `sepox` attivo, `sepoy` ignorato; nessuna normalizzazione in landscape |
+| Logo titolo | portrait: `bottomMarginPct` dall'altezza vera del gradino (`notchSeparateStepBodyHeight`), non dalla colonna equivalente; Fresh/Card esclusi |
+| Card / Fresh | Card degrada a `bottom-pills`; Fresh invariato; miniature escluse |
+| Cache | chiave `separate-bottom` + etichetta gradino + accent |
+| UI | famiglia "Notch" nel selettore rating separati; con il gradino i toggle genere/anno restano attivi (hint `ui.separateRatingsNotchHint`) |
 
 **Miniature episodio** (`fillStyle=notch`, `thumbnail-renderer.ts`): il filler notch è centrato a `y = 0` con `notchPathD` (edge top, stesso contorno di `buildNotchSvg`) e sposta uno stack `tl`/`tr` sotto sé solo se gli span orizzontali si toccano (altezza notch + gap). Il voto ★ delle miniature non ha lo stile notch.
 

@@ -297,11 +297,21 @@ export function isBadgeFont(v: string | null | undefined): v is BadgeFont {
  * modalità bottom ("bottom-bar" barra piena / "bottom-pills" pill singole /
  * "bottom-mono" icone tonde + voti monocolore senza contenitore /
  * "bottom-color" icone tonde brand + voti senza contenitore, max 5 provider
- * con genere+anno soppressi). Catena come gli altri visuali:
+ * con genere+anno soppressi) oppure "rings" (colonna ad anelli).
+ *
+ * `notch-*` è il layout "gradino" (fase 2 della pillola a notch): UNA sagoma a
+ * due livelli a filo del bordo inferiore — gradino basso con logo+voto dei
+ * provider, gradino alto più stretto con "Genere • Anno" — nel materiale
+ * codificato nel valore (`notch-<materiale>`: crema/vetro/inchiostro/sfumato).
+ * Nessun parametro URL nuovo: validazione, hardening, cache, mapping e UI
+ * derivano dall'enum. Sono stili BOTTOM (sopprimono il badge genere standard e
+ * la riga custom), ma il genere/anno sopravvissuto vive nel gradino alto.
+ *
+ * Catena come gli altri visuali:
  * query `sepstyle` > mapping per-titolo > config token > server defaults >
  * "column". Assente o non valido → column (URL e mapping esistenti invariati).
  */
-export const SEPARATE_RATINGS_STYLES = ["column", "bottom-bar", "bottom-pills", "bottom-mono", "bottom-color", "rings"] as const
+export const SEPARATE_RATINGS_STYLES = ["column", "bottom-bar", "bottom-pills", "bottom-mono", "bottom-color", "rings", "notch-crema", "notch-vetro", "notch-inchiostro", "notch-sfumato"] as const
 export type SeparateRatingsStyle = (typeof SEPARATE_RATINGS_STYLES)[number]
 
 export const DEFAULT_SEPARATE_RATINGS_STYLE: SeparateRatingsStyle = "column"
@@ -311,10 +321,19 @@ export function isSeparateRatingsStyle(v: string | null | undefined): v is Separ
 }
 
 /**
+ * True per il layout "gradino" (`notch-crema|vetro|inchiostro|sfumato`): è un
+ * layout bottom con due livelli, quindi il genere/anno raw NON viene
+ * soppresso dai toggle UI — vive nel gradino alto.
+ */
+export function isNotchSeparateRatingsStyle(v: string | null | undefined): boolean {
+  return notchMaterialOf(v) !== null
+}
+
+/**
  * Default scala rating separati UNICO per tutti gli stili (decisione utente):
- * `column`/`bottom-bar`/`bottom-pills` → 130. Niente moltiplicatori nel
- * renderer. Qualsiasi valore esplicito (query/mapping/token/default salvato,
- * incluso 100) vince sempre su questo default — vale solo nel ramo
+ * `column`/`bottom-bar`/`bottom-pills`/`notch-*` → 130. Niente moltiplicatori
+ * nel renderer. Qualsiasi valore esplicito (query/mapping/token/default
+ * salvato, incluso 100) vince sempre su questo default — vale solo nel ramo
  * fallthrough "tutto assente". La firma resta per stile per non fare churn
  * dei consumer (helper single source).
  */
@@ -382,6 +401,10 @@ export function isBottomSeparateRatingsStyle(v: string | null | undefined): v is
  * `column` resta fail-closed a monte. Single source riusata da poster-config
  * (server), poster-service (difesa per chiamanti diretti), preview/Stremio
  * URL e selettori UI.
+ *
+ * Il gradino (`notch-*`) NON si normalizza in landscape: è ancorato come la
+ * notch genere (destra) e ha un renderer proprio per entrambi i canvas. Solo
+ * il Card lo degrada a `bottom-pills` (la banda card non è un bordo poster).
  */
 export function getSeparateRatingsStyleForShape(
   style: SeparateRatingsStyle,

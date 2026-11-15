@@ -1,6 +1,6 @@
 import type { BadgeStyle, RankingBadgeStyle, BadgeFont, NotchMaterial } from "./badge-styles"
 import { isBadgeFont, notchMaterialOf } from "./badge-styles"
-import { isWarmGoldAccent, textColorForBg } from "./accent-color"
+import { apcaLc, isWarmGoldAccent, textColorForBg } from "./accent-color"
 import { AV_PLATE_RADIUS_FACTOR, AV_PLATE_STROKE_WIDTH, COLOR_MARK_GLYPH, COLOR_MARK_PLATE_BG, COLOR_MARK_PLATE_STROKE, GRADIENT_PLATE_BG, GRADIENT_PLATE_STROKE, PREMIUM_PLATE_BG, PREMIUM_PLATE_STROKE, premiumAccentHex } from "./quality-badge-styles"
 
 const TEXT_SAFE_PAD = 1.15
@@ -719,6 +719,148 @@ export function notchPathD(o: { x: number; boxW: number; boxH: number; fr: numbe
 }
 
 /**
+ * Contorno del gradino (rating separati `notch-*`): UNA sagoma con due livelli
+ * appoggiati sul bordo basso del poster. Il corpo basso (rating) è a filo del
+ * bordo con gli stessi raccordi concavi della pillola; il corpo alto (genere •
+ * anno) è più stretto, poggia sulla linea superiore del corpo basso e si
+ * raccorda a lei con due raccordi concavi invertiti (gradino pulito, mai due
+ * pillole sovrapposte).
+ *
+ * `x`/`boxW`/`boxH` = corpo basso, `topX`/`topW`/`topH` = corpo alto,
+ * `fr` = apertura del raccordo al bordo poster, `frTop` = apertura del raccordo
+ * alla giuntura. Le coordinate sono canvas-relative con il bordo poster a
+ * `renderH` (il pad ombra resta sopra, come `notchPathD`).
+ */
+export function notchStepPathD(o: {
+  x: number
+  boxW: number
+  boxH: number
+  topX: number
+  topW: number
+  topH: number
+  fr: number
+  frTop: number
+  renderH: number
+}): string {
+  const { x, boxW, boxH, topX, topW, topH, fr, frTop, renderH } = o
+  const Y = (v: number) => renderH - v
+  const Rb = boxH / 2
+  const Rt = topH / 2
+  const inner = boxH + topH
+  return [
+    `M ${x - fr},${Y(0)}`,
+    `Q ${x},${Y(0)} ${x},${Y(Rb)}`,
+    `A ${Rb},${Rb} 0 0 1 ${x + Rb},${Y(boxH)}`,
+    `L ${topX - frTop},${Y(boxH)}`,
+    `Q ${topX},${Y(boxH)} ${topX},${Y(boxH + frTop)}`,
+    `L ${topX},${Y(inner - Rt)}`,
+    `A ${Rt},${Rt} 0 0 1 ${topX + Rt},${Y(inner)}`,
+    `L ${topX + topW - Rt},${Y(inner)}`,
+    `A ${Rt},${Rt} 0 0 1 ${topX + topW},${Y(inner - Rt)}`,
+    `L ${topX + topW},${Y(boxH + frTop)}`,
+    `Q ${topX + topW},${Y(boxH)} ${topX + topW + frTop},${Y(boxH)}`,
+    `L ${x + boxW - Rb},${Y(boxH)}`,
+    `A ${Rb},${Rb} 0 0 1 ${x + boxW},${Y(Rb)}`,
+    `Q ${x + boxW},${Y(0)} ${x + boxW + fr},${Y(0)}`,
+    `Z`,
+  ].join(" ")
+}
+
+/** Materiale risolto della pillola a notch (fill/ink + defs propri). */
+export interface NotchSkin {
+  readonly fill: string
+  readonly ink: string
+  readonly starFill?: string
+  /** Gradienti del materiale (`nrim`/`nfade`), già con l'id del suffisso. */
+  readonly defs: string
+  readonly stroke: string
+  readonly filter: string
+}
+
+/**
+ * Velo del vetro notch sui fondi CHIARI: alpha nero minimo che porta
+ * l'inchiostro bianco a |Lc| APCA >= `NOTCH_GLASS_MIN_LC` sul fondo stimato
+ * della banda (stima a due bande come l'accent adattivo, mai un campione
+ * pixel). Sui fondi scuri il velo chiaro storico resta invariato.
+ */
+export const NOTCH_GLASS_MIN_LC = 60
+/** Luminanza sRGB stimata della banda chiara sotto la placca vetro. */
+export const NOTCH_GLASS_LIGHT_BAND = 232
+
+export function notchGlassVeilFill(light: boolean): string {
+  if (!light) return "rgba(255,255,255,0.14)"
+  const white: [number, number, number] = [255, 255, 255]
+  for (let a = 0.1; a <= 0.8; a += 0.01) {
+    const v = Math.round(NOTCH_GLASS_LIGHT_BAND * (1 - a))
+    if (Math.abs(apcaLc(white, [v, v, v])) >= NOTCH_GLASS_MIN_LC) return `rgba(0,0,0,${Math.round(a * 100) / 100})`
+  }
+  return "rgba(0,0,0,0.8)"
+}
+
+/**
+ * Ricetta del materiale notch (UNICA fonte: `buildNotchSvg` e il gradino dei
+ * rating separati). `yEdge`/`yInner` sono le y canvas del lato bordo e del lato
+ * interno del corpo per i gradienti in userSpace; `idSuffix` distingue i defs
+ * quando più corpi vivono nello stesso SVG (fase 1 = suffisso vuoto,
+ * byte-identica). `adaptiveVeil` alza il velo vetro con l'APCA (solo gradino).
+ */
+export function notchMaterialSkin(args: {
+  material: NotchMaterial
+  accentColor?: string | null
+  light: boolean
+  yEdge: number
+  yInner: number
+  idSuffix?: string
+  adaptiveVeil?: boolean
+}): NotchSkin {
+  const { material, accentColor, light, yEdge, yInner } = args
+  const suffix = args.idSuffix ?? ""
+  const a = usableAccent(accentColor)
+  if (material === "crema") {
+    return {
+      fill: a ? mixHex(a, 0.86) : "#F4EFE6",
+      ink: a ? mixHex(a, -0.85) : "#1A1A1C",
+      starFill: a ? mixHex(a, -0.85) : "#1A1A1C", // l'oro annega sulla crema
+      defs: "",
+      stroke: "",
+      filter: ` filter="url(#tds)"`,
+    }
+  }
+  if (material === "vetro") {
+    // Il blur reale arriva da insertFrostedGlassUnderlays (service): niente
+    // ombra, altrimenti l'alone allargherebbe la sagoma del vetro (soglia 24).
+    return {
+      fill: args.adaptiveVeil ? notchGlassVeilFill(light) : (light ? "rgba(0,0,0,0.24)" : "rgba(255,255,255,0.14)"),
+      ink: "rgba(255,255,255,0.95)",
+      defs: `<linearGradient id="nrim${suffix}" gradientUnits="userSpaceOnUse" x1="0" y1="${yEdge}" x2="0" y2="${yInner}"><stop offset="0.4" stop-color="#ffffff" stop-opacity="0"/><stop offset="1" stop-color="#ffffff" stop-opacity="0.55"/></linearGradient>`,
+      stroke: ` stroke="url(#nrim${suffix})" stroke-width="1.2"`,
+      filter: "",
+    }
+  }
+  if (material === "inchiostro") {
+    return {
+      fill: a ? mixHex(a, -0.82) : "#0C0D11",
+      ink: "rgba(255,255,255,0.92)",
+      defs: "",
+      stroke: "",
+      filter: ` filter="url(#tds)"`,
+    }
+  }
+  // sfumato: il lato bordo riprende la tinta della banda (la giuntura sparisce),
+  // il fondo tondo scurisce (banda scura) o schiarisce (banda chiara).
+  const edgeC = a ?? (light ? "#E8E8E8" : "#20232A")
+  const innerC = light ? mixHex(edgeC, 0.6) : mixHex(edgeC, -0.55)
+  return {
+    fill: `url(#nfade${suffix})`,
+    ink: textColorForBg(innerC, "#ffffff", "rgba(0,0,0,0.85)"),
+    starFill: light ? textColorForBg(innerC, "#ffffff", "rgba(0,0,0,0.85)") : undefined,
+    defs: `<linearGradient id="nfade${suffix}" gradientUnits="userSpaceOnUse" x1="0" y1="${yEdge}" x2="0" y2="${yInner}"><stop offset="0" stop-color="${edgeC}" stop-opacity="0.9"/><stop offset="1" stop-color="${innerC}" stop-opacity="0.97"/></linearGradient>`,
+    stroke: "",
+    filter: ` filter="url(#tds)"`,
+  }
+}
+
+/**
  * Pillola a notch: fondo tondo + due raccordi concavi verso il bordo del
  * poster (edge "top" = appesa al bordo alto, "bottom" = sale dal bordo basso).
  * Canvas = corpo + TOP_SHADOW_PAD sui lati e sul lato interno; il lato bordo è
@@ -738,35 +880,9 @@ export function buildNotchSvg(genreName: string, voteStr: string, yearStr: strin
   const top = edge === "top"
   const Y = (v: number) => (top ? v : renderH - v)
   const d = notchPathD({ x, boxW, boxH, fr, renderH, edge })
-  const a = usableAccent(accentColor)
-  let fill: string, ink: string, starFill: string | undefined, extraDefs = "", stroke = "", filter = ` filter="url(#tds)"`
-  if (material === "crema") {
-    fill = a ? mixHex(a, 0.86) : "#F4EFE6"
-    ink = a ? mixHex(a, -0.85) : "#1A1A1C"
-    starFill = ink // l'oro annega sulla crema
-  } else if (material === "vetro") {
-    // Il blur reale arriva da insertFrostedGlassUnderlays (service): niente ombra,
-    // altrimenti l'alone allargherebbe la sagoma del vetro (soglia alpha 24).
-    fill = light ? "rgba(0,0,0,0.24)" : "rgba(255,255,255,0.14)"
-    ink = "rgba(255,255,255,0.95)"
-    extraDefs = `<linearGradient id="nrim" gradientUnits="userSpaceOnUse" x1="0" y1="${Y(0)}" x2="0" y2="${Y(boxH)}"><stop offset="0.4" stop-color="#ffffff" stop-opacity="0"/><stop offset="1" stop-color="#ffffff" stop-opacity="0.55"/></linearGradient>`
-    stroke = ` stroke="url(#nrim)" stroke-width="1.2"`
-    filter = ""
-  } else if (material === "inchiostro") {
-    fill = a ? mixHex(a, -0.82) : "#0C0D11"
-    ink = "rgba(255,255,255,0.92)"
-  } else {
-    // sfumato: il lato bordo riprende la tinta della banda (la giuntura sparisce),
-    // il fondo tondo scurisce (banda scura) o schiarisce (banda chiara).
-    const edgeC = a ?? (light ? "#E8E8E8" : "#20232A")
-    const innerC = light ? mixHex(edgeC, 0.6) : mixHex(edgeC, -0.55)
-    extraDefs = `<linearGradient id="nfade" gradientUnits="userSpaceOnUse" x1="0" y1="${Y(0)}" x2="0" y2="${Y(boxH)}"><stop offset="0" stop-color="${edgeC}" stop-opacity="0.9"/><stop offset="1" stop-color="${innerC}" stop-opacity="0.97"/></linearGradient>`
-    fill = "url(#nfade)"
-    ink = textColorForBg(innerC, "#ffffff", "rgba(0,0,0,0.85)")
-    if (light) starFill = ink
-  }
-  const textParts = buildGenreTextFlow({ genreName, voteStr, yearStr, fs, centerX: x + boxW / 2, y: Y(boxH / 2), parts, starFill, font })
-  const svg = `<svg xmlns="http://www.w3.org/2000/svg" width="${renderW}" height="${renderH}" viewBox="0 0 ${renderW} ${renderH}"><defs>${STAR_GRADIENT_DEF}${extraDefs}${TOP_SHADOW_FILTER}</defs><path d="${d}" fill="${fill}"${stroke}${filter}/><g fill="${ink}">${textParts}</g></svg>`
+  const skin = notchMaterialSkin({ material, accentColor, light, yEdge: Y(0), yInner: Y(boxH) })
+  const textParts = buildGenreTextFlow({ genreName, voteStr, yearStr, fs, centerX: x + boxW / 2, y: Y(boxH / 2), parts, starFill: skin.starFill, font })
+  const svg = `<svg xmlns="http://www.w3.org/2000/svg" width="${renderW}" height="${renderH}" viewBox="0 0 ${renderW} ${renderH}"><defs>${STAR_GRADIENT_DEF}${skin.defs}${TOP_SHADOW_FILTER}</defs><path d="${d}" fill="${skin.fill}"${skin.stroke}${skin.filter}/><g fill="${skin.ink}">${textParts}</g></svg>`
   return { svg, w: renderW, h: renderH }
 }
 

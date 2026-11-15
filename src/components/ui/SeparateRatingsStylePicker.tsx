@@ -1,7 +1,9 @@
 "use client"
 
 import { useState } from "react"
-import { getSeparateRatingsStyleForShape } from "@/lib/badge-styles"
+import { getSeparateRatingsStyleForShape, notchMaterialOf } from "@/lib/badge-styles"
+import type { NotchMaterial } from "@/lib/badge-styles"
+import { buildNotchSvg } from "@/lib/badge-svg-shared"
 import { SEPARATE_STYLE_GROUPS, SEPARATE_VARIANT_LABELS, groupOf } from "@/lib/badge-style-groups"
 import { enabledFamilyMember, familyMember } from "@/components/ui/style-family"
 
@@ -15,6 +17,15 @@ const MEMBER_LABELS: Readonly<Record<string, string>> = {
   "bottom-mono": "ui.separateRatingsBottomMono",
   "bottom-color": "ui.separateRatingsBottomColor",
   rings: "ui.sepRings",
+}
+
+/**
+ * Mini anteprima di un materiale notch: lo STESSO builder condiviso del poster
+ * (notch a filo del bordo basso, lettere neutre), come lo swatch della pillola
+ * in BadgeStyleSelector — nessun secondo renderer.
+ */
+function notchSwatchUri(material: NotchMaterial): string {
+  return `data:image/svg+xml,${encodeURIComponent(buildNotchSvg("Aa", "", "", 9, null, false, material, "bottom").svg)}`
 }
 
 const CHIP_ON = "bg-white/20 text-white shadow-sm"
@@ -83,6 +94,12 @@ export function SeparateRatingsStylePicker({
                 onClick={() => { if (!barOff) pick(m, active.id) }}
                 className={`flex-1 min-w-[56px] py-1 px-1 rounded-lg text-[10px] font-semibold transition duration-150 ${checked ? CHIP_ON : CHIP_OFF} ${barOff ? "cursor-not-allowed opacity-50" : "cursor-pointer"}`}
               >
+                {notchMaterialOf(m) && (
+                  <span className="inline-flex items-center justify-center mr-1 align-middle">
+                    {/* eslint-disable-next-line @next/next/no-img-element -- SVG del builder condiviso (singola fonte col renderer) */}
+                    <img src={notchSwatchUri(notchMaterialOf(m) as NotchMaterial)} alt="" className="w-7 h-4 object-contain" />
+                  </span>
+                )}
                 {t(SEPARATE_VARIANT_LABELS[m] ?? MEMBER_LABELS[m])}
               </button>
             )

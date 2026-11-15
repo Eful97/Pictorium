@@ -19,7 +19,9 @@ import {
   DEFAULT_SEPARATE_RATINGS_STYLE,
   isSeparateRatingsStyle,
   isBottomSeparateRatingsStyle,
+  isNotchSeparateRatingsStyle,
   getSeparateRatingsStyleForShape,
+  getSeparateBadgeDefaultScale,
 } from "@/lib/badge-styles"
 import {
   resolvePosterRenderConfig,
@@ -88,7 +90,10 @@ afterEach(() => {
 describe("separateRatingsStyle enum", () => {
   it("default column, additive styles, guards", () => {
     expect(DEFAULT_SEPARATE_RATINGS_STYLE).toBe("column")
-    expect([...SEPARATE_RATINGS_STYLES].sort()).toEqual(["bottom-bar", "bottom-color", "bottom-mono", "bottom-pills", "column", "rings"])
+    expect([...SEPARATE_RATINGS_STYLES].sort()).toEqual([
+      "bottom-bar", "bottom-color", "bottom-mono", "bottom-pills", "column",
+      "notch-crema", "notch-inchiostro", "notch-sfumato", "notch-vetro", "rings",
+    ])
     expect(isSeparateRatingsStyle("column")).toBe(true)
     expect(isSeparateRatingsStyle("bottom-bar")).toBe(true)
     expect(isSeparateRatingsStyle("bottom-pills")).toBe(true)
@@ -102,6 +107,16 @@ describe("separateRatingsStyle enum", () => {
       expect(isBottomSeparateRatingsStyle(style)).toBe(true)
       expect(getSeparateRatingsStyleForShape(style, "landscape")).toBe(style)
     }
+    // Gradino (`notch-*`): stile bottom, mai normalizzato in landscape.
+    for (const style of ["notch-crema", "notch-vetro", "notch-inchiostro", "notch-sfumato"] as const) {
+      expect(isSeparateRatingsStyle(style)).toBe(true)
+      expect(isBottomSeparateRatingsStyle(style)).toBe(true)
+      expect(isNotchSeparateRatingsStyle(style)).toBe(true)
+      expect(getSeparateRatingsStyleForShape(style, "landscape")).toBe(style)
+      expect(getSeparateBadgeDefaultScale(style)).toBe(130)
+    }
+    expect(isNotchSeparateRatingsStyle("bottom-pills")).toBe(false)
+    expect(isNotchSeparateRatingsStyle("column")).toBe(false)
     expect(isBottomSeparateRatingsStyle("column")).toBe(false)
     expect(isBottomSeparateRatingsStyle("garbage")).toBe(false)
   })

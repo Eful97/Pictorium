@@ -150,6 +150,7 @@
   "ui.separateRatingsBottomMono": "מונוכרום",
   "ui.separateRatingsBottomColor": "סמלים צבעוניים",
   "ui.separateRatingsBottomHint": "מצבי התצוגה התחתונים מסתירים את הז׳אנר והשנה (הם נשמרים) — והם חוזרים עם מצב העמודה.",
+  "ui.separateRatingsNotchHint": "מדרגה: ז'אנר ושנה במדרגה העליונה; התחתונה מציגה רק ספקים.",
   "ui.separateRatingsBarLandscapeHint": "הסרגל כבוי בתצוגה לרוחב — במקומו נעשה שימוש בכמוסות (בתצוגה לאורך הסרגל נשמר).",
   "ui.separateRatingsScaleHint": "100 = גודל רגיל (ביחס לברירת המחדל, 130).",
   "ui.separateRatingsBarXDisabledHint": "אי אפשר להזיז הצידה את הסרגל ברוחב מלא — ציר Y עדיין מזיז אותו למעלה ולמטה.",

@@ -207,14 +207,21 @@ export async function insertFrostedGlassUnderlays<L extends { input: Buffer; top
   glass: ReadonlySet<PosterComposite>,
   CW: number,
   CH: number,
+  /**
+   * Sigma per-layer (moltiplicatore del sigma base): i consumer che vogliono
+   * una sfocatura più forte su una placca specifica lo dichiarano qui. Assente
+   * = sigma storico (vetro invariato byte per byte).
+   */
+  sigmaBoost?: ReadonlyMap<PosterComposite, number>,
 ): Promise<void> {
   const targets = layers.filter((l) => glass.has(l as unknown as PosterComposite))
   if (targets.length === 0) return
   const firstIdx = Math.min(...targets.map((t) => layers.indexOf(t)))
   const pre = await base.clone().composite(layers.slice(0, firstIdx)).removeAlpha().raw().toBuffer({ resolveWithObject: true })
-  const sigma = Math.max(4, Math.round(CW / 40))
+  const baseSigma = Math.max(4, Math.round(CW / 40))
   for (const layer of targets) {
     try {
+      const sigma = Math.max(1, Math.round(baseSigma * (sigmaBoost?.get(layer as unknown as PosterComposite) ?? 1)))
       const meta = await sharp(layer.input).metadata()
       const lw = meta.width ?? 0
       const lh = meta.height ?? 0

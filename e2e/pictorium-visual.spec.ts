@@ -1214,6 +1214,29 @@ test.describe("poster API — visual regression", () => {
     await expect(poster).toHaveScreenshot("poster-separate-bottom-pills.png", { maxDiffPixelRatio: 0.02 })
   })
 
+  // Gradino (`sepstyle=notch-*`): rating sul gradino basso, GENERE • ANNO sul
+  // gradino alto, una sola sagoma a filo del bordo per ciascun materiale.
+  for (const material of ["crema", "vetro", "inchiostro", "sfumato"] as const) {
+    test(`separate ratings notch step ${material} portrait — screenshot`, async ({ page }) => {
+      const url = posterUrl({ genreName: "Action", voteAverage: "7.8", year: "2024", badges: "1", ranking: "0", bg: "1", by: "1", bq: "0", imdbId: "tt0133093", sep: "1", sepstyle: `notch-${material}`, rsrc: "imdb,tmdb,tomatoes" })
+      const poster = await renderPoster(page, url)
+      await expect(poster).toHaveScreenshot(`poster-separate-notch-${material}.png`, { maxDiffPixelRatio: 0.02 })
+    })
+  }
+
+  test("separate ratings notch step landscape — screenshot", async ({ page }) => {
+    const url = posterUrl({ backdrop: "/mocked/backdrop.jpg", shape: "landscape", genreName: "Action", voteAverage: "7.8", year: "2024", badges: "1", ranking: "0", bg: "1", by: "1", bq: "0", imdbId: "tt0133093", sep: "1", sepstyle: "notch-vetro", rsrc: "imdb,tmdb,tomatoes" })
+    const poster = await renderPoster(page, url)
+    await expect(poster).toHaveScreenshot("poster-separate-notch-vetro-landscape.png", { maxDiffPixelRatio: 0.02 })
+  })
+
+  test("separate ratings notch step, genre wider than ratings — screenshot", async ({ page }) => {
+    // Un solo provider e genere lungo: il gradino basso si allarga per contenere quello alto.
+    const url = posterUrl({ genreName: "Documentary", voteAverage: "7.8", year: "1999", badges: "1", ranking: "0", bg: "1", by: "1", bq: "0", imdbId: "tt0133093", sep: "1", sepstyle: "notch-crema", rsrc: "imdb" })
+    const poster = await renderPoster(page, url)
+    await expect(poster).toHaveScreenshot("poster-separate-notch-wide-genre.png", { maxDiffPixelRatio: 0.02 })
+  })
+
   test("separate ratings bottom-bar landscape normalizes to pills (byte-identical)", async ({ request }) => {
     // Barra disattivata in 16:9: lo stesso URL con sepstyle=bottom-bar rende
     // byte-identico a bottom-pills (normalizzazione DOPO cascata, stessa

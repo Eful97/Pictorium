@@ -40,6 +40,7 @@ import { parseDateFormat } from "@/lib/release-badge"
 import { isCustomPosterUrl } from "@/lib/utils"
 import { createLogger } from "@/lib/logger"
 import { resolvePosterRenderConfig, resolvePosterShape, resolveSeparateRatingsEnabled } from "@/lib/poster-config"
+import { isNotchSeparateRatingsStyle } from "@/lib/badge-styles"
 import { resolveAutoWordmark, resolveTextLogo } from "@/lib/text-logo"
 import { type StreamQualityResult } from "@/lib/stream-quality"
 import { type StreamQuality } from "@/lib/quality-tiers"
@@ -872,7 +873,7 @@ export async function GET(req: NextRequest, { params }: { params: Promise<RouteP
       qualityBadgeStyle,
       qualityGroupLayout,
       videoFormats: finalVideoFormats,
-      separateRatings: (useSeparate || (bottomActive && sepItems.length > 0)) ? sepItems : undefined,
+      separateRatings: (useSeparate || (bottomActive && (sepItems.length > 0 || isNotchSeparateRatingsStyle(separateRatingsStyle)))) ? sepItems : undefined,
       separateRatingsStyle,
       // Toggle raw (pre-suppressione) per la colonna meta fresh: fresh
       // applica gli stessi gate condivisi sui valori raw — con i soli flag

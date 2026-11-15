@@ -150,6 +150,7 @@
   "ui.separateRatingsBottomMono": "Monocrom",
   "ui.separateRatingsBottomColor": "Pictograme colorate",
   "ui.separateRatingsBottomHint": "Bottom modes hide genre and year (kept) — they return with Column.",
+  "ui.separateRatingsNotchHint": "Treaptă: genul și anul stau în treapta de sus; cea de jos arată doar furnizorii.",
   "ui.separateRatingsBarLandscapeHint": "Bar is off in landscape — pills are used instead (portrait keeps the bar).",
   "ui.separateRatingsScaleHint": "100 = standard size (relative to the 130 default).",
   "ui.separateRatingsBarXDisabledHint": "The full-width bar can't move sideways — Y still moves it up and down.",

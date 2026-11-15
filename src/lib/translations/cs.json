@@ -150,6 +150,7 @@
   "ui.separateRatingsBottomMono": "Monochromatický",
   "ui.separateRatingsBottomColor": "Barevné ikony",
   "ui.separateRatingsBottomHint": "Bottom modes hide genre and year (kept) — they return with Column.",
+  "ui.separateRatingsNotchHint": "Stupeň: žánr a rok jsou v horním stupni; dolní ukazuje jen poskytovatele.",
   "ui.separateRatingsBarLandscapeHint": "Bar is off in landscape — pills are used instead (portrait keeps the bar).",
   "ui.separateRatingsScaleHint": "100 = standard size (relative to the 130 default).",
   "ui.separateRatingsBarXDisabledHint": "The full-width bar can't move sideways — Y still moves it up and down.",
