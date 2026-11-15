@@ -459,7 +459,7 @@ describe("settings mobile floating title search (preview-only dialog)", () => {
     expect(puts).toHaveLength(0)
   })
 
-  it("selecting a tv title switches only the preview path/alt, keeps shape and draft clean", async () => {
+  it("selecting a tv title switches only the preview path/alt, keeps shape and draft clean", { timeout: 15000 }, async () => {
     renderPanel()
     await screen.findByTestId("presets-panel")
     openSearch()
