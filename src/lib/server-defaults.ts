@@ -10,6 +10,7 @@ import type { QualityMarkId } from "@/lib/quality-badge-pack"
 import { isQualityMarkId } from "@/lib/quality-badge-pack"
 import { isBadgeStyle, isRankingBadgeStyle, isQualityBadgeStyle, isBadgeFont, isAwardBadgeMode, type QualityGroupLayout } from "@/lib/badge-styles"
 import type { DateFormat } from "@/lib/release-badge"
+import type { ImageQuality } from "@/lib/image-quality"
 import type { RetiredBadgeFamilyBindings } from "@/lib/types"
 import { normalizeRegion } from "@/lib/regions"
 import { envWithFallback } from "@/lib/env-compat"
@@ -382,6 +383,14 @@ export interface ServerDefaults {
   region?: string
   /** Formato data badge "in uscita" (default `locale` = segue la lingua). */
   dateFormat?: DateFormat
+  /**
+   * Qualità di compressione per poster verticali, orizzontali e miniature
+   * episodio. Lette solo con PICTORIUM_IMAGE_QUALITY_OPTION=1 su istanze
+   * private (`effectiveImageQuality`); assente = `medium`.
+   */
+  imageQualityPortrait?: ImageQuality
+  imageQualityLandscape?: ImageQuality
+  imageQualityThumbnail?: ImageQuality
   /** Portrait: genere/voto nello slot alto quando non c'è badge superiore (default false). */
   genreTopWhenFree?: boolean
   /**
@@ -511,6 +520,10 @@ const CATALOG_ONLY_DEFAULTS = [
   "seasonalHalloweenKeywords",
   "seasonalChristmasKeywords",
   "badgePresets",
+  // Raw choices: the poster/thumbnail keys carry the EFFECTIVE quality (`:q`, env-gated).
+  "imageQualityPortrait",
+  "imageQualityLandscape",
+  "imageQualityThumbnail",
 ] as const satisfies readonly (keyof ServerDefaults)[]
 
 const CATALOG_ONLY_DEFAULT_KEYS: ReadonlySet<string> = new Set(CATALOG_ONLY_DEFAULTS)

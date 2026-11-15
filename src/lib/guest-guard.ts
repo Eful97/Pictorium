@@ -149,6 +149,8 @@ export async function shouldSkipServerSync(): Promise<boolean> {
 export interface ServerStatus {
   readonly multiUser: boolean
   readonly hostedBy: "elfhosted" | null
+  /** Scelta qualità immagini nelle Preferenze (istanza privata + env). */
+  readonly imageQualityOption: boolean
 }
 
 let serverStatusCache: Promise<ServerStatus> | null = null
@@ -161,6 +163,7 @@ export function fetchServerStatus(): Promise<ServerStatus> {
       .then((d): ServerStatus => ({
         multiUser: d?.multiUser === true,
         hostedBy: d?.hostedBy === "elfhosted" ? "elfhosted" : null,
+        imageQualityOption: d?.imageQualityOption === true,
       }))
     serverStatusCache.catch(() => {
       serverStatusCache = null

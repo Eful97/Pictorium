@@ -6,6 +6,9 @@ import type { NetworkLogoPosition, PosterLayout, PosterFreshScope, PosterShape }
 import { isNetworkLogoPosition, isPosterLayout, isPosterFreshScope, isPosterShape } from "./types"
 import type { LandscapeServerDefaults } from "./server-defaults"
 import { parseDateFormat, type DateFormat } from "./release-badge"
+import { DEFAULT_IMAGE_QUALITY, isImageQuality, type ImageQuality } from "./image-quality"
+
+const pickImageQuality = (v: unknown): ImageQuality => (isImageQuality(v) ? v : DEFAULT_IMAGE_QUALITY)
 import { normalizeRegion } from "./regions"
 import { DEFAULT_AGE_COUNTRY, normalizeCertificationCountry } from "./certification"
 import { isProfilelessOnMultiUser, notifyProfilelessOnce, shouldSkipServerSync } from "./guest-guard"
@@ -210,6 +213,10 @@ export interface DefaultsState {
   defaultRegion: string
   /** Formato data badge "in uscita" (default `locale` = segue la lingua). */
   defaultDateFormat: DateFormat
+  /** Qualità immagini per forma (solo istanze private con l'opzione abilitata). */
+  defaultImageQualityPortrait: ImageQuality
+  defaultImageQualityLandscape: ImageQuality
+  defaultImageQualityThumbnail: ImageQuality
   /** Portrait: genere/voto nello slot alto libero (default false). */
   defaultGenreTopWhenFree: boolean
   region: string
@@ -407,6 +414,9 @@ const DEFAULT_FLAT_DEFAULTS: Omit<DefaultsState, "landscape"> = {
   defaultThumbnailFillerBadge: false,
   defaultThumbnailFillerStyle: "corner",
   defaultDateFormat: "locale",
+  defaultImageQualityPortrait: DEFAULT_IMAGE_QUALITY,
+  defaultImageQualityLandscape: DEFAULT_IMAGE_QUALITY,
+  defaultImageQualityThumbnail: DEFAULT_IMAGE_QUALITY,
   defaultGenreTopWhenFree: false,
   defaultRegion: "IT",
   region: "IT",
@@ -682,6 +692,12 @@ interface StoredDefaults {
   defaultDateFormat?: DateFormat
   /** Chiave server/local piatta (saveDefaults/defaultsToPayload): fallback di lettura. */
   dateFormat?: DateFormat
+  defaultImageQualityPortrait?: ImageQuality
+  imageQualityPortrait?: ImageQuality
+  defaultImageQualityLandscape?: ImageQuality
+  imageQualityLandscape?: ImageQuality
+  defaultImageQualityThumbnail?: ImageQuality
+  imageQualityThumbnail?: ImageQuality
   defaultGenreTopWhenFree?: boolean
   genreTopWhenFree?: boolean
   defaultRegion?: string
@@ -1089,6 +1105,9 @@ function buildFromStored(d: StoredDefaults | null): DefaultsState {
       d.defaultThumbnailFillerStyle ?? d.thumbnailFillerStyle,
     ),
     defaultDateFormat: parseDateFormat(d.defaultDateFormat ?? d.dateFormat) ?? "locale",
+    defaultImageQualityPortrait: pickImageQuality(d.defaultImageQualityPortrait ?? d.imageQualityPortrait),
+    defaultImageQualityLandscape: pickImageQuality(d.defaultImageQualityLandscape ?? d.imageQualityLandscape),
+    defaultImageQualityThumbnail: pickImageQuality(d.defaultImageQualityThumbnail ?? d.imageQualityThumbnail),
     defaultGenreTopWhenFree: (d.defaultGenreTopWhenFree ?? d.genreTopWhenFree) === true,
     defaultRegion: normalizeRegion(d.defaultRegion ?? d.region),
     region: normalizeRegion(d.region ?? d.defaultRegion),
@@ -1312,6 +1331,9 @@ export function defaultsToPayload(d: DefaultsState): Record<string, unknown> {
     thumbnailFillerStyle: d.defaultThumbnailFillerStyle,
     region: d.defaultRegion,
     dateFormat: d.defaultDateFormat,
+    imageQualityPortrait: d.defaultImageQualityPortrait,
+    imageQualityLandscape: d.defaultImageQualityLandscape,
+    imageQualityThumbnail: d.defaultImageQualityThumbnail,
     genreTopWhenFree: d.defaultGenreTopWhenFree,
     videoFormats: d.defaultVideoFormats,
     logoScale: d.defaultLogoScale ?? null,

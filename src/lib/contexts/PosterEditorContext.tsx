@@ -22,6 +22,7 @@ import { canonicalizeBadgeItemTransforms, resolveShapeBadgeItemTransforms } from
 import { TEXT_LOGO_DEFAULT_FONT } from "@/lib/text-logo"
 import { resolveNetworkEffectiveView } from "@/lib/network-follow"
 import { cloneShapeDraft, type ShapeDraftShape } from "@/lib/shape-draft"
+import type { ImageQuality } from "@/lib/image-quality"
 import type { ActivePresetBaseline, ActivePresetMeta } from "@/lib/active-preset-baseline"
 
 /**
@@ -483,6 +484,13 @@ export interface PosterEditorCtx {
   /** Formato data badge "in uscita" (default `locale` = segue la lingua). */
   defaultDateFormat: DateFormat
   setDefaultDateFormat: (v: DateFormat | ((prev: DateFormat) => DateFormat)) => void
+  /** Qualità immagini per forma (solo istanze private con l'opzione abilitata). */
+  defaultImageQualityPortrait: ImageQuality
+  setDefaultImageQualityPortrait: (v: ImageQuality) => void
+  defaultImageQualityLandscape: ImageQuality
+  setDefaultImageQualityLandscape: (v: ImageQuality) => void
+  defaultImageQualityThumbnail: ImageQuality
+  setDefaultImageQualityThumbnail: (v: ImageQuality) => void
   /** Portrait: genere/voto nello slot alto libero (default false). */
   defaultGenreTopWhenFree: boolean
   setDefaultGenreTopWhenFree: (v: boolean) => void
@@ -914,7 +922,7 @@ export function PosterEditorProvider({
     defaultThumbnailRotation,
     defaultThumbnailFillerBadge,
     defaultThumbnailFillerStyle,
-    region, defaultRegion, defaultDateFormat, defaultGenreTopWhenFree,
+    region, defaultRegion, defaultDateFormat, defaultImageQualityPortrait, defaultImageQualityLandscape, defaultImageQualityThumbnail, defaultGenreTopWhenFree,
     loadDefaultsToState, update,
   } = defaults
   const { defaultSyncStatus, retryDefaultSync, saveStagedDefaults } = defaults
@@ -1890,6 +1898,12 @@ export function PosterEditorProvider({
       const next = typeof v === "function" ? v(defaultDateFormat) : v
       update({ defaultDateFormat: next })
     }, [defaultDateFormat, update])
+  const setDefaultImageQualityPortrait = useCallback(
+    (v: ImageQuality) => update({ defaultImageQualityPortrait: v }), [update])
+  const setDefaultImageQualityLandscape = useCallback(
+    (v: ImageQuality) => update({ defaultImageQualityLandscape: v }), [update])
+  const setDefaultImageQualityThumbnail = useCallback(
+    (v: ImageQuality) => update({ defaultImageQualityThumbnail: v }), [update])
   const setDefaultGenreTopWhenFree = useCallback(
     (v: boolean) => update({ defaultGenreTopWhenFree: v }), [update])
 
@@ -2406,6 +2420,12 @@ export function PosterEditorProvider({
       setDefaultRegion,
       defaultDateFormat,
       setDefaultDateFormat,
+      defaultImageQualityPortrait,
+      setDefaultImageQualityPortrait,
+      defaultImageQualityLandscape,
+      setDefaultImageQualityLandscape,
+      defaultImageQualityThumbnail,
+      setDefaultImageQualityThumbnail,
       defaultGenreTopWhenFree,
       setDefaultGenreTopWhenFree,
       loadDefaultsToState,
@@ -2602,6 +2622,9 @@ export function PosterEditorProvider({
       region, setRegion,
       defaultRegion, setDefaultRegion,
       defaultDateFormat, setDefaultDateFormat,
+      defaultImageQualityPortrait, setDefaultImageQualityPortrait,
+      defaultImageQualityLandscape, setDefaultImageQualityLandscape,
+      defaultImageQualityThumbnail, setDefaultImageQualityThumbnail,
       defaultGenreTopWhenFree, setDefaultGenreTopWhenFree,
 
       // Defaults

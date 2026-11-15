@@ -20,6 +20,7 @@ import { sanitizeDisabledContentTags } from "./content-tags"
 import { sanitizeDisabledNetworks } from "./network-keys"
 import { canonicalizeBadgeItemTransforms } from "./badge-item-transforms"
 import { normalizeLogoFont, sanitizeLogoText } from "./text-logo"
+import { DEFAULT_IMAGE_QUALITY, POSTER_ENCODE_QUALITY, type ImageQuality } from "./image-quality"
 
 const log = createLogger("poster-cache")
 
@@ -534,16 +535,16 @@ export function resolveImageFormat(acceptHeader?: string | null, queryFmt?: stri
 // di render. ~20-50ms contro ~2-8s di re-render completo.
 // Con PICTORIUM_IMAGE_FORMAT=webp il verso si inverte (canonico webp,
 // variante jpeg): vedi convertToJpeg sotto.
-export async function convertPosterFormat(jpeg: Buffer): Promise<Buffer> {
+export async function convertPosterFormat(jpeg: Buffer, quality: ImageQuality = DEFAULT_IMAGE_QUALITY): Promise<Buffer> {
   const sharp = (await import("sharp")).default
-  return sharp(jpeg).webp({ quality: 85, effort: 2 }).toBuffer()
+  return sharp(jpeg).webp({ quality: POSTER_ENCODE_QUALITY[quality].webp, effort: 2 }).toBuffer()
 }
 
 /** Conversione inversa (canonico webp → variante jpeg): stesse opzioni
- *  dell'encode jpeg diretto in poster-service (q82 + mozjpeg). */
-export async function convertToJpeg(webp: Buffer): Promise<Buffer> {
+ *  dell'encode jpeg diretto in poster-service (q82 + mozjpeg a medium). */
+export async function convertToJpeg(webp: Buffer, quality: ImageQuality = DEFAULT_IMAGE_QUALITY): Promise<Buffer> {
   const sharp = (await import("sharp")).default
-  return sharp(webp).jpeg({ quality: 82, mozjpeg: true }).toBuffer()
+  return sharp(webp).jpeg({ quality: POSTER_ENCODE_QUALITY[quality].jpeg, mozjpeg: true }).toBuffer()
 }
 
 /** ETag deterministico della variante derivato da quello canonico. Il default

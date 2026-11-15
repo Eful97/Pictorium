@@ -16,6 +16,8 @@ import { resolveImageFormat, DEFAULT_IMAGE_FORMAT, isImmutablePosterRequest, isP
 import { RENDER_VERSION } from "@/lib/render-version"
 import { mappingVersionParam } from "@/lib/stremio-poster-url"
 import { userTagFragment } from "@/lib/cache"
+import { effectiveImageQuality } from "@/lib/poster-params-hardening"
+import type { ImageQuality } from "@/lib/image-quality"
 import type { PosterAdmission } from "./admission"
 
 /** Valori della richiesta che entrano in chiave/policy di cache. */
@@ -50,6 +52,7 @@ export interface PosterCacheIdentity {
   outputFormat: PosterImageFormat
   legacyAvif: boolean
   canonicalFormat: "jpeg" | "webp" | "avif"
+  imageQuality: ImageQuality
   cacheKey: string
   needsVariant: boolean
   variantKey: string
@@ -113,6 +116,13 @@ export async function resolvePosterCacheIdentity(ctx: PosterCacheIdentityContext
   // (stessa chiave + formato diverso = buffer col Content-Type sbagliato).
   const legacyAvif = outputFormat === "avif"
   const canonicalFormat = legacyAvif ? "avif" : DEFAULT_IMAGE_FORMAT
+  // Qualità di codifica (Preferenze, solo istanze private con
+  // PICTORIUM_IMAGE_QUALITY_OPTION=1): valore EFFETTIVO in chiave, così il
+  // flip dell'env non serve byte dell'altra qualità. `medium` = chiave storica.
+  // Preview: `iq=` porta la scelta staged delle impostazioni (stesso gate).
+  const previewQuality = isPreview ? req.nextUrl.searchParams.get("iq") : null
+  const imageQuality = effectiveImageQuality(previewQuality ?? (earlyLandscape ? sd.imageQualityLandscape : sd.imageQualityPortrait))
+  const qualityKey = imageQuality === "medium" ? "" : `:q${imageQuality}`
   const formatKey = legacyAvif ? ":fmtavif" : canonicalFormat === "webp" ? ":fmtwebp" : ""
   // Base portrait congelata (`portraitBackdropPath`): il path del backdrop è un
   // input di render, quindi entra esplicitamente nella chiave. `mapVersion`
@@ -122,7 +132,7 @@ export async function resolvePosterCacheIdentity(ctx: PosterCacheIdentityContext
   const portraitBaseKey = !earlyLandscape && mapping?.portraitBackdropPath && !hardenedParams.get("poster")
     ? `:pbp${mapping.portraitBackdropPath}`
     : ""
-  const cacheKey = `poster:v${RENDER_VERSION}:${mediaType}:${tmdbId}:reg${posterRegion.code}:r${cachedRank ?? "x"}:lr${preTrendRank ?? "x"}:la${preAnimeRank ?? "x"}:sd${sdHash}:${cacheParams.toString()}${rotateKey}${mapVersion}${dynamicBucketKey}${portraitBaseKey}${configHash ? `:cfg${configHash}` : ""}${formatKey}`
+  const cacheKey = `poster:v${RENDER_VERSION}:${mediaType}:${tmdbId}:reg${posterRegion.code}:r${cachedRank ?? "x"}:lr${preTrendRank ?? "x"}:la${preAnimeRank ?? "x"}:sd${sdHash}:${cacheParams.toString()}${rotateKey}${mapVersion}${dynamicBucketKey}${portraitBaseKey}${configHash ? `:cfg${configHash}` : ""}${formatKey}${qualityKey}`
   const needsVariant = !legacyAvif && outputFormat !== canonicalFormat
   const variantKey = needsVariant ? `${cacheKey}:fmt${outputFormat}` : cacheKey
   // Disk L1.5: after a restart/deploy the canonical render comes back from
@@ -186,6 +196,7 @@ export async function resolvePosterCacheIdentity(ctx: PosterCacheIdentityContext
     outputFormat,
     legacyAvif,
     canonicalFormat,
+    imageQuality,
     cacheKey,
     needsVariant,
     variantKey,

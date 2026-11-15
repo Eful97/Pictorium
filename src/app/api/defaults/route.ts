@@ -219,6 +219,11 @@ const defaultsSchema = z.object({
   thumbnailFillerStyle: z.enum(["corner", "strip", "notch"]).optional(),
   region: z.string().max(32).optional(),
   dateFormat: z.enum(["locale", "dmy", "mdy", "iso"]).optional(),
+  // Qualità immagini (Preferenze): salvata sempre, applicata solo se
+  // PICTORIUM_IMAGE_QUALITY_OPTION=1 su istanza privata.
+  imageQualityPortrait: z.enum(["low", "medium", "high"]).optional(),
+  imageQualityLandscape: z.enum(["low", "medium", "high"]).optional(),
+  imageQualityThumbnail: z.enum(["low", "medium", "high"]).optional(),
   genreTopWhenFree: z.boolean().optional(),
   /**
    * Additive clear contract (transport only, never stored): profile keys to

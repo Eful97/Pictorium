@@ -53,7 +53,10 @@ import type { ThumbnailBadgeAnchor, ThumbnailBadgeStyle, ThumbnailFillerStatus, 
 import { getServerDefaultsForUser } from "@/lib/server-defaults"
 import { getCatalogEpoch } from "@/lib/catalog-epoch"
 import { baseLangCode, createT } from "@/lib/i18n-server"
-import { canonicalPosterLang, isPublicPosterInstance } from "@/lib/poster-params-hardening"
+import { canonicalPosterLang, effectiveImageQuality, isPublicPosterInstance } from "@/lib/poster-params-hardening"
+import { resolveImageFormat } from "@/lib/poster-runtime-cache"
+import { POSTER_ENCODE_QUALITY, type ImageQuality } from "@/lib/image-quality"
+import sharp from "sharp"
 
 type RouteParams = { id: string; season: string; episode: string }
 
@@ -164,8 +167,33 @@ function storedThumbnailFillerStyle(raw: unknown): ThumbnailFillerStyle {
   return parseThumbnailFillerStyle(raw) ?? "corner"
 }
 
+/**
+ * Codifica della miniatura (render PNG lossless → WebP/JPEG, stessa
+ * negoziazione dei poster via `resolveImageFormat`: formato di default
+ * PICTORIUM_IMAGE_FORMAT (webp salvo `jpeg`), `?fmt=` esplicito vince; avif → webp; `?fmt=png` = render lossless invariato,
+ * per diagnostica/confronti pixel). Qualità dalle Preferenze (istanze private
+ * con PICTORIUM_IMAGE_QUALITY_OPTION=1), altrimenti medium.
+ */
+async function encodeThumbnail(png: Buffer, format: ThumbnailImageFormat, quality: ImageQuality): Promise<Buffer> {
+  if (format === "png") return png
+  const q = POSTER_ENCODE_QUALITY[quality]
+  const pipeline = sharp(png)
+  return format === "webp"
+    ? pipeline.webp({ quality: q.webp, effort: 2 }).toBuffer()
+    : pipeline.jpeg({ quality: q.jpeg, mozjpeg: true }).toBuffer()
+}
+
+type ThumbnailImageFormat = "webp" | "jpeg" | "png"
+
+const THUMBNAIL_CONTENT_TYPE: Record<ThumbnailImageFormat, string> = {
+  webp: "image/webp",
+  jpeg: "image/jpeg",
+  png: "image/png",
+}
+
 function imageResponse(
-  png: Buffer,
+  body: Buffer,
+  format: ThumbnailImageFormat,
   etag: string,
   notModified: boolean,
   voteSource?: EpisodeVoteProvenance,
@@ -175,6 +203,8 @@ function imageResponse(
     "Cache-Control": CACHE_CONTROL,
     "Access-Control-Allow-Origin": "*",
     "Access-Control-Allow-Headers": "*",
+    // Formato negoziato sull'Accept: le cache condivise devono distinguerlo.
+    Vary: "Accept",
   }
   // Provenance of the ★ value actually drawn: `imdb` = per-episode IMDb poll
   // (ShowGrid by default), `tmdb` = the fail-open episode `vote_average`
@@ -184,9 +214,9 @@ function imageResponse(
   // source is observable without re-rendering or inferring it from the pixels.
   if (voteSource) headers["X-Pictorium-Vote-Source"] = voteSource
   if (notModified) return new Response(null, { status: 304, headers })
-  return new Response(new Uint8Array(png), {
+  return new Response(new Uint8Array(body), {
     status: 200,
-    headers: { ...headers, "Content-Type": "image/png" },
+    headers: { ...headers, "Content-Type": THUMBNAIL_CONTENT_TYPE[format] },
   })
 }
 
@@ -598,12 +628,20 @@ export async function GET(req: NextRequest, { params }: { params: Promise<RouteP
     : null
   const effectiveStill = rotation?.still ?? still
   const thumbnailEpoch = await getCatalogEpoch(scopedUser)
-  const cacheKey = thumbnailCacheKey({ seriesId, seasonNumber, episodeNumber, still: effectiveStill, width, badges: badgeMode, badgeStyle, anchor: badgeAnchor, offsetX, offsetY, badgeScale, languages, blur, voteSource, provider: providerSelection.provider, stills: stillsSource, rotationBucket: rotation?.rotationBucket ?? undefined, epoch: thumbnailEpoch, filler: queryFill ?? undefined, fillerStyle: queryFill ? fillerStyle : undefined, fillerLang: fillerLanguage ?? undefined })
+  const fmtParam = sp.get("fmt")
+  const outputFormat: ThumbnailImageFormat = fmtParam?.toLowerCase() === "png"
+    ? "png"
+    : resolveImageFormat(req.headers.get("accept"), fmtParam) === "jpeg" ? "jpeg" : "webp"
+  // `iq=` = scelta staged dell'anteprima impostazioni (3 valori, stesso gate).
+  const imageQuality = effectiveImageQuality(sp.get("iq") ?? spaceDefaults.imageQualityThumbnail)
+  // Formato + qualità in coda all'identità: stessa miniatura, byte diversi.
+  const cacheKey = `${thumbnailCacheKey({ seriesId, seasonNumber, episodeNumber, still: effectiveStill, width, badges: badgeMode, badgeStyle, anchor: badgeAnchor, offsetX, offsetY, badgeScale, languages, blur, voteSource, provider: providerSelection.provider, stills: stillsSource, rotationBucket: rotation?.rotationBucket ?? undefined, epoch: thumbnailEpoch, filler: queryFill ?? undefined, fillerStyle: queryFill ? fillerStyle : undefined, fillerLang: fillerLanguage ?? undefined })}:f${outputFormat}:q${imageQuality}`
   if (!wantsGeometry) {
-    const cached = cacheGet<{ png: Buffer; etag: string; voteSource?: ThumbnailVoteSource }>(cacheKey)
+    const cached = cacheGet<{ body: Buffer; etag: string; voteSource?: ThumbnailVoteSource }>(cacheKey)
     if (cached) {
       return imageResponse(
-        cached.png,
+        cached.body,
+        outputFormat,
         cached.etag,
         req.headers.get("if-none-match") === cached.etag,
         resolveEpisodeVoteProvenance(providerSelection, cached.voteSource ?? voteSource),
@@ -765,16 +803,18 @@ export async function GET(req: NextRequest, { params }: { params: Promise<RouteP
     return jsonGzip(thumbnailBadgeGeometryReport(result), 200, undefined, acceptEncoding)
   }
 
-  const etag = `"${createHash("sha256").update(result.png).digest("hex")}"`
+  const body = await encodeThumbnail(result.png, outputFormat, imageQuality)
+  const etag = `"${createHash("sha256").update(body).digest("hex")}"`
   // The cache stores the renderer's provenance (`imdb`/`tmdb`); the response
   // header additionally discloses an opt-in provider that resolved through
   // Cinemeta (`imdb-fallback`), computed per request so a shared cache entry
   // stays honest for both callers.
   const voteProvenance = resolveEpisodeVoteProvenance(providerSelection, effectiveVoteSource)
   // Failures never reach this point, so only successful composites are cached.
-  cacheSet(cacheKey, { png: result.png, etag, voteSource: effectiveVoteSource }, CACHE_TAGS, CACHE_TTL_MS)
+  cacheSet(cacheKey, { body, etag, voteSource: effectiveVoteSource }, CACHE_TAGS, CACHE_TTL_MS)
   return imageResponse(
-    result.png,
+    body,
+    outputFormat,
     etag,
     req.headers.get("if-none-match") === etag,
     voteProvenance,

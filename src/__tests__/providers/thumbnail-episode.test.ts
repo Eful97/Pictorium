@@ -282,8 +282,14 @@ function cinemetaCalls(spy: ReturnType<typeof mockUpstream>): number {
   }).length
 }
 
+// Pixel-level assertions need the lossless render: `fmt=png` skips the
+// WebP/JPEG encode the route applies by default.
+function withPng(query: string): string {
+  return `${query}${query.includes("?") ? "&" : "?"}fmt=png`
+}
+
 function thumbRequest(query: string, headers: Record<string, string> = {}): NextRequest {
-  return new NextRequest(`http://localhost:3000/api/thumbnail/tv/${SERIES}/season/${SEASON}/episode/${EPISODE}${query}`, {
+  return new NextRequest(`http://localhost:3000/api/thumbnail/tv/${SERIES}/season/${SEASON}/episode/${EPISODE}${withPng(query)}`, {
     headers: { "x-api-key": "test-key", ...headers },
   })
 }
@@ -308,7 +314,7 @@ function cacheKey(overrides: {
   fill?: "manga" | "anime" | "filler" | "mixed"
   fillerLang?: string
 } = {}) {
-  return thumbnailCacheKey({
+  return `${thumbnailCacheKey({
     seriesId: SERIES,
     seasonNumber: SEASON,
     episodeNumber: EPISODE,
@@ -327,7 +333,7 @@ function cacheKey(overrides: {
     rotationBucket: overrides.rotationBucket,
     filler: overrides.fill,
     fillerLang: overrides.fillerLang,
-  })
+  })}:fpng:qmedium`
 }
 
 interface RegionStats {
@@ -1397,6 +1403,21 @@ describe("GET /api/thumbnail/tv/[id]/season/[season]/episode/[episode]", () => {
     }
   })
 
+  it("delivers WebP by default and JPEG on fmt=jpeg, with Vary: Accept", async () => {
+    mockUpstream()
+    const path = `http://localhost:3000/api/thumbnail/tv/${SERIES}/season/${SEASON}/episode/${EPISODE}?still=${STILL}&w=320`
+    const webp = await GET(new NextRequest(path, { headers: { "x-api-key": "test-key" } }), thumbParams())
+    expect(webp.status).toBe(200)
+    expect(webp.headers.get("content-type")).toBe("image/webp")
+    expect(webp.headers.get("vary")).toBe("Accept")
+    expect((await sharp(Buffer.from(await webp.arrayBuffer())).metadata()).format).toBe("webp")
+
+    const jpeg = await GET(new NextRequest(`${path}&fmt=jpeg`, { headers: { "x-api-key": "test-key" } }), thumbParams())
+    expect(jpeg.headers.get("content-type")).toBe("image/jpeg")
+    expect((await sharp(Buffer.from(await jpeg.arrayBuffer())).metadata()).format).toBe("jpeg")
+    expect(jpeg.headers.get("etag")).not.toBe(webp.headers.get("etag"))
+  })
+
   it("works with AIO's Episode Thumbnail URL Pattern substitution", async () => {
     mockUpstream()
     // Pattern copied from the docs. AIO's addon/lib/metaArt.ts substitutes the
@@ -1422,8 +1443,9 @@ describe("GET /api/thumbnail/tv/[id]/season/[season]/episode/[episode]", () => {
 
     expect(url.pathname).toBe(`/api/thumbnail/tv/${SERIES}/season/${SEASON}/episode/${EPISODE}`)
     expect(res.status).toBe(200)
-    // The URL collapsed onto the historical path + the blur identity.
-    expect(cacheGet(cacheKey({ blur: true }))).not.toBeNull()
+    // The URL collapsed onto the historical path + the blur identity
+    // (no Accept/fmt: WebP, the default delivered format).
+    expect(cacheGet(cacheKey({ blur: true }).replace(":fpng:", ":fwebp:"))).not.toBeNull()
   })
 
   it("serves the AIO localhost pattern only when the poster template's API key is inherited", async () => {

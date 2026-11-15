@@ -54,7 +54,7 @@ vi.mock("@/lib/thumbnail-renderer", async (importOriginal) => {
   return {
     ...mod,
     renderEpisodeThumbnail: vi.fn(async (input: { voteSource?: string }) => ({
-      png: Buffer.from("fake-png"),
+      png: Buffer.from("iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mNkYPhfDwAChwGA60e6kgAAAABJRU5ErkJggg==", "base64"), // 1x1 PNG reale: la route ora la ricodifica
       w: 320,
       h: 180,
       rendered: true,

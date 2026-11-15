@@ -180,7 +180,7 @@ export async function GET(req: NextRequest, { params }: { params: Promise<RouteP
   // debug (cache-key.ts). Idrata la entry canonica dal disco.
   const {
     dynamicDayBucket, dynamicRotationIncludeNonClean, dynamicCutTtlMs, outputFormat, legacyAvif,
-    canonicalFormat, cacheKey, needsVariant, variantKey, immutablePoster, refreshRequest,
+    canonicalFormat, imageQuality, cacheKey, needsVariant, variantKey, immutablePoster, refreshRequest,
     isLive, isDebug, wantNetGeo, wantBadgeGhosts, dynamicPoster, mappingTag, dynamicTtlSec,
     variantTtlSec, ifNoneMatch, isConditional,
   } = await resolvePosterCacheIdentity({
@@ -197,6 +197,7 @@ export async function GET(req: NextRequest, { params }: { params: Promise<RouteP
   const serveResponseVariant = createResponseVariantServer({
     mediaType, tmdbId, startTime, isPreview, isConditional, ifNoneMatch, isLive, wantNetGeo,
     outputFormat, canonicalFormat, variantKey, variantTtlSec, mappingTag, dynamicPoster, immutablePoster,
+    imageQuality,
   })
 
   // 3. Memory cache check (lookup in phases.ts)
@@ -938,6 +939,7 @@ export async function GET(req: NextRequest, { params }: { params: Promise<RouteP
       // C3: render sempre canonico (jpeg storico, webp con
       // PICTORIUM_IMAGE_FORMAT=webp; avif solo ?fmt=avif legacy esplicito).
       format: legacyAvif ? outputFormat : canonicalFormat,
+      imageQuality,
     }
     if (renderAbort.signal.aborted) {
       throw new Error("Render deadline exceeded before poster compositing")

@@ -30,6 +30,7 @@ import { ANIME_RANK_MAX, parseSashOrder } from "./badge-priority"
 import { MAX_QUALITY_MARKS, isQualityMarkId } from "./quality-badge-pack"
 import { normalizeLogoFont, sanitizeLogoText } from "./text-logo"
 import { canonicalizeBadgeItemTransforms } from "./badge-item-transforms"
+import { DEFAULT_IMAGE_QUALITY, THUMBNAIL_BASE_WIDTH, THUMBNAIL_QUALITY_WIDTH, isImageQuality, type ImageQuality } from "./image-quality"
 
 // Env a module level (convenzione del repo: un cambio richiede restart).
 const POSTER_PARAMS_MODE = (envWithFallback("POSTER_PARAMS") || "").toLowerCase().trim()
@@ -64,6 +65,30 @@ if (
  */
 export function isPublicPosterInstance(): boolean {
   return HOSTED_BY === "elfhosted" || MULTI_USER
+}
+
+const IMAGE_QUALITY_OPTION = envWithFallback("IMAGE_QUALITY_OPTION") === "1"
+
+/**
+ * Scelta qualità immagini nelle Preferenze: solo con
+ * PICTORIUM_IMAGE_QUALITY_OPTION=1 e mai su istanze condivise (ElfHosted,
+ * MULTI_USER=1), dove la qualità resta quella di default.
+ */
+export function isImageQualityOptionEnabled(): boolean {
+  return IMAGE_QUALITY_OPTION && !isPublicPosterInstance()
+}
+
+/** Qualità effettiva: il valore salvato solo se l'opzione è abilitata. */
+export function effectiveImageQuality(saved: unknown): ImageQuality {
+  return isImageQualityOptionEnabled() && isImageQuality(saved) ? saved : DEFAULT_IMAGE_QUALITY
+}
+
+/**
+ * Larghezza delle miniature in `/meta`: per qualità solo con l'opzione
+ * abilitata, altrimenti la storica 320 (nessun cambio senza opt-in).
+ */
+export function thumbnailDeliveryWidth(saved: unknown): number {
+  return isImageQualityOptionEnabled() ? THUMBNAIL_QUALITY_WIDTH[effectiveImageQuality(saved)] : THUMBNAIL_BASE_WIDTH
 }
 
 /**

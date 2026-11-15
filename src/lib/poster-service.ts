@@ -41,6 +41,7 @@ import type { BadgeFont } from "./badge-styles"
 import { isRibbonRankingStyle, notchMaterialOf, isBottomSeparateRatingsStyle, isNotchSeparateRatingsStyle, isAgeBadgeStyle, isAwardBadgeMode, getSeparateRatingsStyleForShape, resolveNumberBadgeBaseOffsetX, normalizeExtraBadgeStyleForRender, resolveQualityGroupLayout, isMergedQualityStrip, DEFAULT_AGE_BADGE_STYLE, DEFAULT_AWARD_BADGE_MODE, type BadgeStyle, type RankingBadgeStyle, type ExtraBadgeStyle, type ExtraBadgeFollowRank, type SeparateRatingsStyle, type SeparateBottomVariant, type AgeBadgeStyle, type AwardBadgeMode, type QualityGroupLayout } from "./badge-styles"
 import { normalizeBadgeFont } from "./badge-svg-shared"
 import type { PosterImageFormat } from "@/lib/poster-runtime-cache"
+import { DEFAULT_IMAGE_QUALITY, POSTER_ENCODE_QUALITY, type ImageQuality } from "@/lib/image-quality"
 import { qualityBadgeIconPath } from "./quality-badge-styles"
 import type { QualityBadgeStyle } from "./badge-styles"
 import { isRankKey } from "./i18n"
@@ -470,6 +471,8 @@ export interface GenerationInput {
   analysisKey?: string | null
   /** Formato di output negoziazione Accept (jpeg | webp | avif). Default: jpeg. */
   format?: PosterImageFormat
+  /** Qualità di codifica (Preferenze, istanze private). Default: medium = storico. */
+  imageQuality?: ImageQuality
   /** Path sorgente del logo (cache image-level). Assente → niente cache. */
   logoSrc?: string | null
   /** Path sorgente del backdrop (cache image-level). Assente → niente cache. */
@@ -3727,11 +3730,12 @@ export async function generatePosterBuffer(input: GenerationInput): Promise<Buff
 
   pipeline = pipeline.composite(layers)
 
+  const q = POSTER_ENCODE_QUALITY[input.imageQuality ?? DEFAULT_IMAGE_QUALITY]
   if (input.format === "avif") {
-    return await pipeline.avif({ quality: 75, effort: 2 }).toBuffer()
+    return await pipeline.avif({ quality: q.avif, effort: 2 }).toBuffer()
   }
   if (input.format === "webp") {
-    return await pipeline.webp({ quality: 85, effort: 2 }).toBuffer()
+    return await pipeline.webp({ quality: q.webp, effort: 2 }).toBuffer()
   }
-  return await pipeline.jpeg({ quality: 82, mozjpeg: true }).toBuffer()
+  return await pipeline.jpeg({ quality: q.jpeg, mozjpeg: true }).toBuffer()
 }

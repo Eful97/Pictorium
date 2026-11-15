@@ -3,6 +3,7 @@ import { NextRequest } from "next/server"
 import { rateLimit, rateLimitKey, rateLimitResponse } from "@/lib/rate-limit"
 import { cacheGetShared, cacheSet, hashUserFragment } from "@/lib/cache"
 import { getServerDefaultsChecked, getServerDefaultsForUser, type ServerDefaults } from "@/lib/server-defaults"
+import { thumbnailDeliveryWidth } from "@/lib/poster-params-hardening"
 import { POSTER_URL_VERSION } from "@/lib/render-version"
 import { getById } from "@/lib/store"
 import { decodeConfig, type PictoriumUserConfig } from "@/lib/config-token"
@@ -158,6 +159,8 @@ interface EpisodeThumbnailOptions {
   voteSource: ThumbnailVoteSource
   /** Daily still rotation (`rotate`): default OFF (fixed still). */
   rotation: boolean
+  /** Canvas width (`w`): 320 historic, per image quality when the option is on. */
+  width: number
   /**
    * Anime filler classification banner (`fill=`): default OFF. When ON the
    * compositor URL carries the language-neutral code (`manga` | `anime` |
@@ -342,6 +345,7 @@ async function resolveEpisodeThumbnailOptions(
     badgeScale: pickScale("bscale", config?.thumbnailBadgeScale, defaults.thumbnailBadgeScale),
     blur: pickBlur(),
     rotation: pickRotation(),
+    width: thumbnailDeliveryWidth(defaults.imageQualityThumbnail),
     fillerBadge: pickFillerBadge(),
     fillerStyle: pickFillerStyle(),
     voteSource: pick(
@@ -379,7 +383,9 @@ function thumbnailOptionsCacheFragment(options: EpisodeThumbnailOptions): string
   // Only a non-default layout changes the composed URLs (and therefore the
   // body): corner stays the historical fragment.
   const fillerStyleFragment = options.fillerBadge && options.fillerStyle !== "corner" ? `:fs${options.fillerStyle}` : ""
-  return `:tb${options.badgeStyle}:ta${options.anchor}:tx${options.offsetX}:ty${options.offsetY}:sc${options.badgeScale}:tv${options.voteSource}:tz${options.blur ? 1 : 0}${stillsFragment}${rotationFragment}${fillerFragment}${fillerStyleFragment}${THUMBNAIL_URL_SHAPE_FRAGMENT}`
+  // Image quality width: only a non-historical width changes the URLs.
+  const widthFragment = options.width === EPISODE_THUMBNAIL_WIDTH ? "" : `:tw${options.width}`
+  return `:tb${options.badgeStyle}:ta${options.anchor}:tx${options.offsetX}:ty${options.offsetY}:sc${options.badgeScale}:tv${options.voteSource}:tz${options.blur ? 1 : 0}${stillsFragment}${rotationFragment}${fillerFragment}${fillerStyleFragment}${widthFragment}${THUMBNAIL_URL_SHAPE_FRAGMENT}`
 }
 
 /**
@@ -476,15 +482,17 @@ async function applyEpisodeThumbnails(
       // new URL, so Stremio/browser caches never keep the old PNG.
       rv: POSTER_URL_VERSION,
       still,
-      w: String(EPISODE_THUMBNAIL_WIDTH),
+      w: String(options.width),
       badges: EPISODE_THUMBNAIL_BADGES,
       // Persisted Miniature choices (same contract/order as the settings
       // preview): style, corner, offsets and vote source are always explicit
       // so /meta and the WYSIWYG preview produce the same request.
       bstyle: options.badgeStyle,
       anchor: options.anchor,
-      ox: String(options.offsetX),
-      oy: String(options.offsetY),
+      // Offsets are px on the 320 preview canvas: scale them with the
+      // delivered width so a larger thumbnail keeps the previewed layout.
+      ox: String(Math.round((options.offsetX * options.width) / EPISODE_THUMBNAIL_WIDTH)),
+      oy: String(Math.round((options.offsetY * options.width) / EPISODE_THUMBNAIL_WIDTH)),
       bscale: String(options.badgeScale),
       source: options.voteSource,
     })

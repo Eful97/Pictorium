@@ -16,6 +16,7 @@ import {
   type PosterCachePayload,
   type PosterImageFormat,
 } from "@/lib/poster-runtime-cache"
+import type { ImageQuality } from "@/lib/image-quality"
 import { FormatOverloadError, runFormatConversion } from "@/lib/poster-format-gate"
 import { posterErrorResponse, type ServeResponseVariant } from "./phases"
 
@@ -39,6 +40,8 @@ export interface ResponseVariantContext {
   readonly mappingTag: string | undefined
   readonly dynamicPoster: boolean
   readonly immutablePoster: boolean
+  /** Qualità di codifica effettiva (stessa del render canonico). */
+  readonly imageQuality: ImageQuality
 }
 
 // C3: risposta non-canonica da payload canonico (cache variante o conversione).
@@ -57,6 +60,7 @@ export function createResponseVariantServer(ctx: ResponseVariantContext): ServeR
   const {
     mediaType, tmdbId, startTime, isPreview, isConditional, ifNoneMatch, isLive, wantNetGeo,
     outputFormat, canonicalFormat, variantKey, variantTtlSec, mappingTag, dynamicPoster, immutablePoster,
+    imageQuality,
   } = ctx
   return async (canonical: PosterCachePayload, opts?: { ttlMs?: number; immutable?: boolean; factCapped?: boolean; expiresAt?: number }, latencyOrigin: "cached" | "render" | "skip" = "skip"): Promise<Response> => {
   const noteTerminalServe = (): void => {
@@ -112,8 +116,8 @@ export function createResponseVariantServer(ctx: ResponseVariantContext): ServeR
   let converted: Buffer
   try {
     converted = canonicalFormat === "webp"
-      ? await runFormatConversion(conversionKey, () => convertToJpeg(canonical.buffer))
-      : await runFormatConversion(conversionKey, () => convertPosterFormat(canonical.buffer))
+      ? await runFormatConversion(conversionKey, () => convertToJpeg(canonical.buffer, imageQuality))
+      : await runFormatConversion(conversionKey, () => convertPosterFormat(canonical.buffer, imageQuality))
   } catch (e) {
     if (e instanceof FormatOverloadError) {
       log.debug("Poster format gate overloaded", { mediaType, tmdbId, ms: Date.now() - startTime })

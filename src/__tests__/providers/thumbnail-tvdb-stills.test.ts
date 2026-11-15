@@ -143,9 +143,15 @@ function callCount(spy: ReturnType<typeof mockUpstream>, needle: string): number
   }).length
 }
 
+// Pixel-level assertions need the lossless render: `fmt=png` skips the
+// WebP/JPEG encode the route applies by default.
+function withPng(query: string): string {
+  return `${query}${query.includes("?") ? "&" : "?"}fmt=png`
+}
+
 function thumbRequest(query: string): NextRequest {
   return new NextRequest(
-    `http://localhost:3000/api/thumbnail/tv/${SERIES}/season/${SEASON}/episode/${EPISODE}${query}`,
+    `http://localhost:3000/api/thumbnail/tv/${SERIES}/season/${SEASON}/episode/${EPISODE}${withPng(query)}`,
     { headers: { "x-api-key": "test-key" } },
   )
 }
@@ -189,7 +195,7 @@ function key(
   badges: "both" | "vote" = "vote",
   voteSource: "tmdb" | "imdb" = "tmdb",
 ) {
-  return thumbnailCacheKey({
+  return `${thumbnailCacheKey({
     seriesId: SERIES,
     seasonNumber: SEASON,
     episodeNumber: EPISODE,
@@ -200,7 +206,7 @@ function key(
     blur: false,
     voteSource,
     stills,
-  })
+  })}:fpng:qmedium`
 }
 
 beforeEach(() => {

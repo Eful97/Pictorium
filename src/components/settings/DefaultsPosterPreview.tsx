@@ -13,6 +13,7 @@ import { PosterBadgeDragLayer } from "@/components/settings/PosterBadgeDragLayer
 import { readBadgeDragEnabled, writeBadgeDragEnabled } from "@/lib/badge-drag-pref"
 import { previewRequestHeaders } from "@/lib/user-token"
 import { DefaultsPreviewTitleSearch } from "@/components/settings/DefaultsPreviewTitleSearch"
+import { ImageQualitySelector, withPreviewImageQuality } from "@/components/settings/ImageQualitySelector"
 import {
   buildThumbnailPreviewUrl,
   demoTvSeriesId,
@@ -466,8 +467,14 @@ export function DefaultsPosterPreview({ compact, floating, suspended, previewSha
           draftDefaults: draftDefaultsRef.current ?? undefined,
         })
 
+    // Qualità della forma in anteprima (staged): `iq=` la rende subito visibile.
+    const previewIsLandscapeShape = previewShape === "landscape" || (previewShape == null && ed.defaultPosterShape === "landscape")
+    const quality = isThumbnail
+      ? ed.defaultImageQualityThumbnail
+      : previewIsLandscapeShape ? ed.defaultImageQualityLandscape : ed.defaultImageQualityPortrait
+    const qualityUrl = withPreviewImageQuality(url, quality)
     const timer = setTimeout(() => {
-      setDebouncedUrl(url)
+      setDebouncedUrl(qualityUrl)
     }, 200)
 
     return () => clearTimeout(timer)
@@ -691,6 +698,9 @@ export function DefaultsPosterPreview({ compact, floating, suspended, previewSha
   // Aspect conforme all'URL (stessa shape effettiva del builder): switch
   // immediato, senza mixing durante il debounce (l'immagine precedente resta
   // in buffer finché la nuova non è pronta).
+  const qualityTarget = isThumbnail
+    ? "thumbnail"
+    : previewShape === "landscape" || (previewShape == null && ed.defaultPosterShape === "landscape") ? "landscape" : "portrait"
   const isLandscape =
     isThumbnail ||
     previewShape === "landscape" ||
@@ -1090,6 +1100,7 @@ export function DefaultsPosterPreview({ compact, floating, suspended, previewSha
             )}
           </div>
         </div>
+        <ImageQualitySelector target={qualityTarget} />
         {searchRow}
         </div>
         {zoomModal}
@@ -1334,6 +1345,7 @@ export function DefaultsPosterPreview({ compact, floating, suspended, previewSha
         )}
       </div>
 
+      <ImageQualitySelector target={qualityTarget} />
       <div className="w-full mt-1 shrink-0">
         {searchRow}
       </div>

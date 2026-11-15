@@ -7,6 +7,7 @@ import { getTmdbInflightSize } from "@/lib/tmdb"
 import { getStoreInflightSize } from "@/lib/store"
 import { isUserKeysEncryptionAvailable } from "@/lib/user-keys"
 import { envWithFallback } from "@/lib/env-compat"
+import { isImageQualityOptionEnabled } from "@/lib/poster-params-hardening"
 import { requireAdminToken } from "@/lib/auth"
 
 /**
@@ -63,6 +64,7 @@ export async function GET(req: NextRequest) {
     return Response.json({
       multiUser,
       hostedBy: resolveHostedBy(req),
+      imageQualityOption: isImageQualityOptionEnabled(),
       timestamp: new Date().toISOString(),
     }, { headers: NO_STORE })
   }
@@ -85,6 +87,7 @@ export async function GET(req: NextRequest) {
     // un upstream/KV è appeso e i cataloghi stanno per svuotarsi.
     inflight: { tmdb: getTmdbInflightSize(), store: getStoreInflightSize() },
     hostedBy: resolveHostedBy(req),
+    imageQualityOption: isImageQualityOptionEnabled(),
     timestamp: new Date().toISOString(),
   }, { headers: NO_STORE })
 }
