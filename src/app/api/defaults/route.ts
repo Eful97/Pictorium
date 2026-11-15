@@ -216,7 +216,7 @@ const defaultsSchema = z.object({
   thumbnailFillerBadge: z.boolean().optional(),
   // Banner layout for composed episode thumbnails: `corner` (default compact
   // chip, absent render) or `strip` (full-width top plate). Display-only, flat.
-  thumbnailFillerStyle: z.enum(["corner", "strip"]).optional(),
+  thumbnailFillerStyle: z.enum(["corner", "strip", "notch"]).optional(),
   region: z.string().max(32).optional(),
   dateFormat: z.enum(["locale", "dmy", "mdy", "iso"]).optional(),
   genreTopWhenFree: z.boolean().optional(),

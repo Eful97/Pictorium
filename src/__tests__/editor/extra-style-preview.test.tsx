@@ -126,11 +126,24 @@ function openBadgeGroup(...ids: Array<"style" | "base" | "overlay" | "quality">)
 
 /** Style option buttons inside an extra-style card, keyed by i18n label. */
 function extraOptionButtons(wrap: HTMLElement): HTMLElement[] {
-  return within(wrap).getAllByRole("button")
+  // Family tiles are buttons, the variants row chips are radios.
+  return [...within(wrap).getAllByRole("button"), ...within(wrap).queryAllByRole("radio")]
 }
 
+/** Two-level extra picker: a member lives in its family's variants row, so pick the family tile first when needed. */
+const EXTRA_FAMILY: Record<string, string> = {
+  "ui.bsDefault": "ui.styleGroupPlate", "ui.colored": "ui.styleGroupPlate",
+  "ui.pill": "ui.styleGroupPill", "ui.tinta": "ui.styleGroupPill",
+  "ui.bordo": "ui.styleGroupFrame", "ui.vetro": "ui.styleGroupFrame", "ui.sfumato": "ui.styleGroupFrame",
+}
 function extraOption(wrap: HTMLElement, labelKey: string): HTMLElement {
-  const hit = extraOptionButtons(wrap).find((b) => b.textContent?.includes(labelKey))
+  const find = () => extraOptionButtons(wrap).find((b) => b.textContent?.includes(labelKey))
+  let hit = find()
+  if (!hit && EXTRA_FAMILY[labelKey]) {
+    const tile = extraOptionButtons(wrap).find((b) => b.textContent?.includes(EXTRA_FAMILY[labelKey]))
+    if (tile) fireEvent.click(tile)
+    hit = find()
+  }
   expect(hit, `extra option ${labelKey}`).toBeTruthy()
   return hit!
 }
@@ -265,7 +278,9 @@ describe("extra style card reports the extra family (pointer + keyboard)", () =>
     await act(async () => {})
     const storedBefore = localStorage.getItem("badgeDefaults")
     const wrap = screen.getByTestId("badge-extra-style-wrap")
-    const btn = extraOption(wrap, "ui.vetro")
+    // Focus only (no click): the Cornice family tile, never a write.
+    const btn = extraOptionButtons(wrap).find((b) => b.textContent?.includes("ui.styleGroupFrame"))!
+    expect(btn).toBeTruthy()
     btn.focus()
     fireEvent.focus(btn)
     expect(spy).toHaveBeenCalledWith("extra")
@@ -310,28 +325,28 @@ describe("colored is always offered in both extra style selectors", () => {
     openBadgeGroup("style")
     await act(async () => {})
     const wrap = screen.getByTestId("badge-extra-style-wrap")
-    const labels = extraOptionButtons(wrap).map((b) => b.textContent ?? "")
-    expect(labels.some((t) => t.includes("ui.colored"))).toBe(true)
-    expect(extraOptionButtons(wrap)).toHaveLength(9)
-    // Every offered option is a canonical renderer-supported style.
-    for (const b of extraOptionButtons(wrap)) {
-      const key = (b.textContent ?? "").replace(/^Aa/, "")
-      const style = (
-        {
-          "ui.bsDefault": "default",
-          "ui.pill": "pill",
-          "ui.corner": "corner",
-          "ui.vetro": "vetro",
-          "ui.bordo": "bordo",
-          "ui.colored": "colored",
-          "ui.tinta": "tinta",
-          "ui.sfumato": "sfumato",
-          "ui.editoriale": "editoriale",
-        } as Record<string, string>
-      )[key]
-      expect(style, key).toBeTruthy()
-      expect((EXTRA_BADGE_STYLES as readonly string[]).includes(style)).toBe(true)
+    // Two-level picker: top tiles are families or singles; open every family
+    // and collect its variants. The offered set must be exactly the
+    // renderer-supported subset, every entry canonical.
+    const LABEL_TO_STYLE: Record<string, string> = {
+      "ui.bsDefault": "default", "ui.pill": "pill", "ui.corner": "corner", "ui.vetro": "vetro",
+      "ui.bordo": "bordo", "ui.colored": "colored", "ui.tinta": "tinta", "ui.sfumato": "sfumato",
+      "ui.editoriale": "editoriale", "ui.notchCrema": "notch-crema", "ui.notchVetro": "notch-vetro",
+      "ui.notchInchiostro": "notch-inchiostro", "ui.notchSfumato": "notch-sfumato",
     }
+    const offered = new Set<string>()
+    for (const tile of within(wrap).getAllByRole("button")) {
+      const key = (tile.textContent ?? "").replace(/^Aa/, "")
+      if (LABEL_TO_STYLE[key]) { offered.add(LABEL_TO_STYLE[key]); continue }
+      fireEvent.click(tile)
+      for (const chip of within(wrap).getAllByRole("radio")) {
+        const style = LABEL_TO_STYLE[chip.getAttribute("aria-label") ?? ""]
+        expect(style, chip.getAttribute("aria-label") ?? "").toBeTruthy()
+        offered.add(style)
+      }
+    }
+    expect(offered.has("colored")).toBe(true)
+    expect([...offered].sort()).toEqual([...EXTRA_BADGE_STYLES].sort())
   })
 
   it("defaults appearance tab (five-tab) also offers colored", async () => {

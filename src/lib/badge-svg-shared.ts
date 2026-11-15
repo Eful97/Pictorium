@@ -1,5 +1,5 @@
-import type { BadgeStyle, RankingBadgeStyle, BadgeFont } from "./badge-styles"
-import { isBadgeFont } from "./badge-styles"
+import type { BadgeStyle, RankingBadgeStyle, BadgeFont, NotchMaterial } from "./badge-styles"
+import { isBadgeFont, notchMaterialOf } from "./badge-styles"
 import { isWarmGoldAccent, textColorForBg } from "./accent-color"
 import { AV_PLATE_RADIUS_FACTOR, AV_PLATE_STROKE_WIDTH, COLOR_MARK_GLYPH, COLOR_MARK_PLATE_BG, COLOR_MARK_PLATE_STROKE, GRADIENT_PLATE_BG, GRADIENT_PLATE_STROKE, PREMIUM_PLATE_BG, PREMIUM_PLATE_STROKE, premiumAccentHex } from "./quality-badge-styles"
 
@@ -700,6 +700,73 @@ export function buildGenreGradientBorderSvg(genreName: string, voteStr: string, 
   const defs = `<defs>${STAR_GRADIENT_DEF}<linearGradient id="gsf" x1="0" y1="0" x2="1" y2="1"><stop offset="0" stop-color="${edge}" stop-opacity="0.9"/><stop offset="0.5" stop-color="${a}"/><stop offset="1" stop-color="${edge}" stop-opacity="0.25"/></linearGradient>${TOP_SHADOW_FILTER}</defs>`
   const body = `<rect x="${ox + 0.8}" y="${oy + 0.8}" width="${boxW - 1.6}" height="${boxH - 1.6}" rx="${boxH / 2}" fill="${plate}" stroke="url(#gsf)" stroke-width="1.6" filter="url(#tds)"/>`
   const svg = `<svg xmlns="http://www.w3.org/2000/svg" width="${renderW}" height="${renderH}" viewBox="0 0 ${renderW} ${renderH}">${defs}${body}<g fill="${ink}">${textParts}</g></svg>`
+  return { svg, w: renderW, h: renderH }
+}
+
+/**
+ * Contorno della pillola a notch (unica fonte, usata da buildNotchSvg e dal
+ * filler notch delle miniature). `x` = bordo sinistro del corpo dritto, `fr` =
+ * apertura orizzontale dei raccordi concavi; il lato bordo è a filo (y=0 per
+ * top, y=renderH per bottom), l'altro lato è arrotondato.
+ */
+export function notchPathD(o: { x: number; boxW: number; boxH: number; fr: number; renderH: number; edge: "top" | "bottom" }): string {
+  const { x, boxW, boxH, fr, renderH } = o
+  const R = boxH / 2
+  const top = o.edge === "top"
+  const Y = (v: number) => (top ? v : renderH - v)
+  const sw = top ? 0 : 1
+  return `M ${x - fr},${Y(0)} Q ${x},${Y(0)} ${x},${Y(R)} A ${R},${R} 0 0,${sw} ${x + R},${Y(boxH)} L ${x + boxW - R},${Y(boxH)} A ${R},${R} 0 0,${sw} ${x + boxW},${Y(R)} Q ${x + boxW},${Y(0)} ${x + boxW + fr},${Y(0)} Z`
+}
+
+/**
+ * Pillola a notch: fondo tondo + due raccordi concavi verso il bordo del
+ * poster (edge "top" = appesa al bordo alto, "bottom" = sale dal bordo basso).
+ * Canvas = corpo + TOP_SHADOW_PAD sui lati e sul lato interno; il lato bordo è
+ * a filo (y=0 per top, y=h per bottom) così il service la compone a filo.
+ */
+export function buildNotchSvg(genreName: string, voteStr: string, yearStr: string, fs: number, accentColor: string | null | undefined, light: boolean, material: NotchMaterial, edge: "top" | "bottom", parts?: GenreParts, font: BadgeFont = "inter") {
+  const dims = genreBadgeSvgDims(fs, genreName, voteStr, yearStr, parts, undefined, font)
+  const boxH = genrePillHeight(fs)
+  const R = boxH / 2
+  const padX = Math.round(Math.max(fs * GENRE_PILL_PAD_X_FACTOR, R * 0.9))
+  const boxW = dims.textContentW + padX * 2
+  const fr = Math.round(boxH * 0.8) // apertura orizzontale del raccordo
+  const P = TOP_SHADOW_PAD
+  const renderW = boxW + fr * 2 + P * 2
+  const renderH = boxH + P
+  const x = P + fr
+  const top = edge === "top"
+  const Y = (v: number) => (top ? v : renderH - v)
+  const d = notchPathD({ x, boxW, boxH, fr, renderH, edge })
+  const a = usableAccent(accentColor)
+  let fill: string, ink: string, starFill: string | undefined, extraDefs = "", stroke = "", filter = ` filter="url(#tds)"`
+  if (material === "crema") {
+    fill = a ? mixHex(a, 0.86) : "#F4EFE6"
+    ink = a ? mixHex(a, -0.85) : "#1A1A1C"
+    starFill = ink // l'oro annega sulla crema
+  } else if (material === "vetro") {
+    // Il blur reale arriva da insertFrostedGlassUnderlays (service): niente ombra,
+    // altrimenti l'alone allargherebbe la sagoma del vetro (soglia alpha 24).
+    fill = light ? "rgba(0,0,0,0.24)" : "rgba(255,255,255,0.14)"
+    ink = "rgba(255,255,255,0.95)"
+    extraDefs = `<linearGradient id="nrim" gradientUnits="userSpaceOnUse" x1="0" y1="${Y(0)}" x2="0" y2="${Y(boxH)}"><stop offset="0.4" stop-color="#ffffff" stop-opacity="0"/><stop offset="1" stop-color="#ffffff" stop-opacity="0.55"/></linearGradient>`
+    stroke = ` stroke="url(#nrim)" stroke-width="1.2"`
+    filter = ""
+  } else if (material === "inchiostro") {
+    fill = a ? mixHex(a, -0.82) : "#0C0D11"
+    ink = "rgba(255,255,255,0.92)"
+  } else {
+    // sfumato: il lato bordo riprende la tinta della banda (la giuntura sparisce),
+    // il fondo tondo scurisce (banda scura) o schiarisce (banda chiara).
+    const edgeC = a ?? (light ? "#E8E8E8" : "#20232A")
+    const innerC = light ? mixHex(edgeC, 0.6) : mixHex(edgeC, -0.55)
+    extraDefs = `<linearGradient id="nfade" gradientUnits="userSpaceOnUse" x1="0" y1="${Y(0)}" x2="0" y2="${Y(boxH)}"><stop offset="0" stop-color="${edgeC}" stop-opacity="0.9"/><stop offset="1" stop-color="${innerC}" stop-opacity="0.97"/></linearGradient>`
+    fill = "url(#nfade)"
+    ink = textColorForBg(innerC, "#ffffff", "rgba(0,0,0,0.85)")
+    if (light) starFill = ink
+  }
+  const textParts = buildGenreTextFlow({ genreName, voteStr, yearStr, fs, centerX: x + boxW / 2, y: Y(boxH / 2), parts, starFill, font })
+  const svg = `<svg xmlns="http://www.w3.org/2000/svg" width="${renderW}" height="${renderH}" viewBox="0 0 ${renderW} ${renderH}"><defs>${STAR_GRADIENT_DEF}${extraDefs}${TOP_SHADOW_FILTER}</defs><path d="${d}" fill="${fill}"${stroke}${filter}/><g fill="${ink}">${textParts}</g></svg>`
   return { svg, w: renderW, h: renderH }
 }
 
@@ -2296,7 +2363,8 @@ export function buildHouseGenreSvg(input: HouseGenreInput): { svg: string; w: nu
     safePad = genreBadgeSafePad(finalFs)
   }
 
-  const isPillStyle = s === "pill" || s === "colored" || s === "tinta" || s === "sfumato" || s === "split"
+  const notch = notchMaterialOf(s)
+  const isPillStyle = s === "pill" || s === "colored" || s === "tinta" || s === "sfumato" || s === "split" || notch !== null
   if (isPillStyle) {
     // Cap anti-sprawl sulla larghezza totale della pill (stesso padX del
     // builder, zero safePad): il bound resta sul totale textContentW + padX*2.
@@ -2334,7 +2402,9 @@ export function buildHouseGenreSvg(input: HouseGenreInput): { svg: string; w: nu
     : (isPill ? "rgba(255,255,255,0.80)" : "rgba(0,0,0,0.80)")
 
   let result: { svg: string; w: number; h: number }
-  if (s === "tinta") {
+  if (notch) {
+    result = buildNotchSvg(genreName, voteStr, yearStr, fs, accentColor, !!bottomLight, notch, "bottom", parts, font)
+  } else if (s === "tinta") {
     result = buildGenreTintSvg(genreName, voteStr, yearStr, fs, accentColor, !!bottomLight, parts, font)
   } else if (s === "sfumato") {
     result = buildGenreGradientBorderSvg(genreName, voteStr, yearStr, fs, accentColor, !!bottomLight, parts, font)
@@ -2544,6 +2614,7 @@ export function buildHouseRankingSvg(input: HouseRankingInput): { svg: string; w
   }
 
   const fs = Math.round(finalFs)
+  const notch = notchMaterialOf(s)
   const isColored = s === "colored"
   const ribbonOn = input.ribbon ?? true
   // Legacy `netflix-color` is ribbon-SHAPED for the anchor
@@ -2604,6 +2675,8 @@ export function buildHouseRankingSvg(input: HouseRankingInput): { svg: string; w
     // rank text; top shadow pad like the pill so the plate floats.
     const build = s === "tinta" ? buildGenreTintSvg : buildGenreGradientBorderSvg
     return build(fullText, "", "", fs, accentColor, !!topLight, TOP_TEXT_ONLY, font, TOP_SHADOW_PAD)
+  } else if (notch) {
+    return buildNotchSvg(fullText, "", "", fs, accentColor, !!topLight, notch, "top", TOP_TEXT_ONLY, font)
   } else if (s === "vetro") {
     return buildRankingGlassSvg(fullText, fs, fg, bg, !!topLight, font)
   } else if (s === "bordo") {
@@ -2650,6 +2723,7 @@ export function buildHouseExtraSvg(input: HouseExtraInput): { svg: string; w: nu
   // so nothing is migrated and no extra-side style changes.
   const rawStyle = input.style || "default"
   const s = rawStyle === "split" ? "default" : rawStyle
+  const notch = notchMaterialOf(s)
   const f = normalizeBadgeFont(input.font)
   // Cap estetico per gli stili compatti: oltre il 65% di pw il testo si
   // rimpicciolisce (le label corte restano invariate).
@@ -2692,6 +2766,8 @@ export function buildHouseExtraSvg(input: HouseExtraInput): { svg: string; w: nu
   } else if (s === "tinta" || s === "sfumato") {
     const build = s === "tinta" ? buildGenreTintSvg : buildGenreGradientBorderSvg
     result = build(input.label, "", "", fs, input.accentColor, !!input.topLight, TOP_TEXT_ONLY, f, TOP_SHADOW_PAD)
+  } else if (notch) {
+    result = buildNotchSvg(input.label, "", "", fs, input.accentColor, !!input.topLight, notch, "top", TOP_TEXT_ONLY, f)
   } else if (isGlass) {
     result = buildExtraGlassSvg(input.label, fs, fg, bg, !!input.topLight, f)
   } else if (s === "bordo") {

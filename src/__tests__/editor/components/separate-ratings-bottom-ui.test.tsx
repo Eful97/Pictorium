@@ -46,6 +46,19 @@ function yearSwitch() {
   return screen.getByRole("switch", { name: "ui.badgeYear" })
 }
 
+// Two-level separate-ratings picker: family tile (Column / Bottom), then the member chip in the variants row.
+const SEP_TILE_TOP: Record<string, [string, string | null]> = {
+  "ui.separateRatingsColumn": ["ui.sepGroupColumn", null],
+  "ui.separateRatingsBottomBar": ["ui.sepGroupBottom", "ui.sepVariantBar"],
+  "ui.separateRatingsBottomPills": ["ui.sepGroupBottom", "ui.sepVariantPills"],
+}
+function sepButton(key: string) {
+  const [family, member] = SEP_TILE_TOP[key]
+  if (member === null) return screen.getByRole("button", { name: family })
+  if (!screen.queryByRole("radio", { name: member })) fireEvent.click(screen.getByRole("button", { name: family }))
+  return screen.getByRole("radio", { name: member })
+}
+
 describe("BadgeControls bottom: toggle genere/anno disabilitati, valori salvi", () => {
   it("in bottom-bar genere/anno disabilitati coi valori salvati intatti", () => {
     seedDefaults({ ...SEP_BOTTOM, badgeGenre: false, badgeYear: true })
@@ -67,7 +80,7 @@ describe("BadgeControls bottom: toggle genere/anno disabilitati, valori salvi", 
     seedDefaults({ ...SEP_BOTTOM, badgeGenre: false, badgeYear: true })
     renderWithCtx(<BadgeControls />, { selected: SELECTED as never })
     expect(genreSwitch()).toBeDisabled()
-    fireEvent.click(screen.getByRole("button", { name: "ui.separateRatingsColumn" }))
+    fireEvent.click(screen.getByRole("button", { name: "ui.sepGroupColumn" }))
     const genre = genreSwitch()
     const year = yearSwitch()
     expect(genre).not.toBeDisabled()
@@ -103,8 +116,17 @@ describe("BadgeControls landscape: barra disabilitata, pills attiva, raw intatto
     badgeYear: true,
   }
 
+  // Two-level picker: family tile (Column / Bottom) then the member chip in the variants row.
+  const SEP_TILE: Record<string, [string, string | null]> = {
+    "ui.separateRatingsColumn": ["ui.sepGroupColumn", null],
+    "ui.separateRatingsBottomBar": ["ui.sepGroupBottom", "ui.sepVariantBar"],
+    "ui.separateRatingsBottomPills": ["ui.sepGroupBottom", "ui.sepVariantPills"],
+  }
   function styleButton(key: string) {
-    return screen.getByRole("button", { name: key })
+    const [family, member] = SEP_TILE[key]
+    if (member === null) return screen.getByRole("button", { name: family })
+    if (!screen.queryByRole("radio", { name: member })) fireEvent.click(screen.getByRole("button", { name: family }))
+    return screen.getByRole("radio", { name: member })
   }
 
   it("con barra salvata in landscape: barra disabilitata mai selezionata, pills attiva", () => {
@@ -115,9 +137,9 @@ describe("BadgeControls landscape: barra disabilitata, pills attiva, raw intatto
     const column = styleButton("ui.separateRatingsColumn")
     // Barra visibile ma disabilitata (mai nascosta, mai selezionata).
     expect(bar).toBeDisabled()
-    expect(bar).toHaveAttribute("aria-pressed", "false")
+    expect(bar).toHaveAttribute("aria-checked", "false")
     // Selezione sullo stile normalizzato: pills attiva.
-    expect(pills).toHaveAttribute("aria-pressed", "true")
+    expect(pills).toHaveAttribute("aria-checked", "true")
     expect(column).toHaveAttribute("aria-pressed", "false")
     expect(column).not.toBeDisabled()
     expect(pills).not.toBeDisabled()
@@ -133,8 +155,8 @@ describe("BadgeControls landscape: barra disabilitata, pills attiva, raw intatto
     renderWithCtx(<BadgeControls />, { selected: SELECTED as never })
     fireEvent.click(styleButton("ui.separateRatingsBottomBar"))
     // Nulla cambia: pills resta l'attiva normalizzata.
-    expect(styleButton("ui.separateRatingsBottomPills")).toHaveAttribute("aria-pressed", "true")
-    expect(styleButton("ui.separateRatingsBottomBar")).toHaveAttribute("aria-pressed", "false")
+    expect(styleButton("ui.separateRatingsBottomPills")).toHaveAttribute("aria-checked", "true")
+    expect(styleButton("ui.separateRatingsBottomBar")).toHaveAttribute("aria-checked", "false")
     expect(genreSwitch()).toBeDisabled()
   })
 
@@ -142,7 +164,7 @@ describe("BadgeControls landscape: barra disabilitata, pills attiva, raw intatto
     seedDefaults(LANDSCAPE_BAR)
     renderWithCtx(<BadgeControls />, { selected: SELECTED as never })
     fireEvent.click(styleButton("ui.separateRatingsBottomPills"))
-    expect(styleButton("ui.separateRatingsBottomPills")).toHaveAttribute("aria-pressed", "true")
+    expect(styleButton("ui.separateRatingsBottomPills")).toHaveAttribute("aria-checked", "true")
     expect(genreSwitch()).toBeDisabled()
     expect(yearSwitch()).toBeDisabled()
   })
@@ -152,13 +174,13 @@ describe("BadgeControls landscape: barra disabilitata, pills attiva, raw intatto
     renderWithCtx(<BadgeControls />, { selected: SELECTED as never })
     const bar = styleButton("ui.separateRatingsBottomBar")
     expect(bar).not.toBeDisabled()
-    expect(bar).toHaveAttribute("aria-pressed", "true")
+    expect(bar).toHaveAttribute("aria-checked", "true")
     expect(screen.queryByText("ui.separateRatingsBarLandscapeHint")).not.toBeInTheDocument()
     // Roundtrip colonna → barra: valori genere/anno preservati.
     fireEvent.click(styleButton("ui.separateRatingsColumn"))
     expect(genreSwitch()).not.toBeDisabled()
-    fireEvent.click(bar)
-    expect(bar).toHaveAttribute("aria-pressed", "true")
+    fireEvent.click(styleButton("ui.separateRatingsBottomBar"))
+    expect(styleButton("ui.separateRatingsBottomBar")).toHaveAttribute("aria-checked", "true")
     expect(genreSwitch()).toBeDisabled()
     expect(genreSwitch()).toHaveAttribute("aria-checked", "false")
     expect(yearSwitch()).toHaveAttribute("aria-checked", "true")
@@ -185,11 +207,11 @@ describe("BadgeDefaultsSection Orizzontale: barra disabilitata (edit target)", (
     seedDefaults(DEFAULTS_LANDSCAPE_BAR)
     renderWithCtx(<BadgeDefaultsSection active shape="landscape" />)
     openRatings()
-    const bar = screen.getByRole("button", { name: "ui.separateRatingsBottomBar" })
-    const pills = screen.getByRole("button", { name: "ui.separateRatingsBottomPills" })
+    const bar = sepButton("ui.separateRatingsBottomBar")
+    const pills = sepButton("ui.separateRatingsBottomPills")
     expect(bar).toBeDisabled()
-    expect(bar).toHaveAttribute("aria-pressed", "false")
-    expect(pills).toHaveAttribute("aria-pressed", "true")
+    expect(bar).toHaveAttribute("aria-checked", "false")
+    expect(pills).toHaveAttribute("aria-checked", "true")
     expect(screen.getByText("ui.separateRatingsBarLandscapeHint")).toBeInTheDocument()
   })
 
@@ -197,9 +219,9 @@ describe("BadgeDefaultsSection Orizzontale: barra disabilitata (edit target)", (
     seedDefaults({ ...DEFAULTS_LANDSCAPE_BAR, defaultPosterShape: "poster" })
     renderWithCtx(<BadgeDefaultsSection active shape="portrait" />)
     openRatings()
-    const bar = screen.getByRole("button", { name: "ui.separateRatingsBottomBar" })
+    const bar = sepButton("ui.separateRatingsBottomBar")
     expect(bar).not.toBeDisabled()
-    expect(bar).toHaveAttribute("aria-pressed", "true")
+    expect(bar).toHaveAttribute("aria-checked", "true")
     expect(screen.queryByText("ui.separateRatingsBarLandscapeHint")).not.toBeInTheDocument()
   })
 
@@ -207,8 +229,8 @@ describe("BadgeDefaultsSection Orizzontale: barra disabilitata (edit target)", (
     seedDefaults(DEFAULTS_LANDSCAPE_BAR)
     renderWithCtx(<BadgeDefaultsSection active />)
     openRatings()
-    const bar = screen.getByRole("button", { name: "ui.separateRatingsBottomBar" })
+    const bar = sepButton("ui.separateRatingsBottomBar")
     expect(bar).not.toBeDisabled()
-    expect(bar).toHaveAttribute("aria-pressed", "true")
+    expect(bar).toHaveAttribute("aria-checked", "true")
   })
 })

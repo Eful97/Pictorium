@@ -166,12 +166,12 @@ interface EpisodeThumbnailOptions {
    */
   fillerBadge: boolean
   /**
-   * Layout of the classification banner (`fillStyle`): `corner`/`strip`.
+   * Layout of the classification banner (`fillStyle`): `corner`/`strip`/`notch`.
    * Display-only, resolved token > defaults > corner. `corner` is omitted from
    * the compositor URL (it is the absent render), so pre-style URLs stay
-   * byte-identical; `strip` is emitted only when a classification is drawn.
+   * byte-identical; `strip`/`notch` are emitted only when a classification is drawn.
    */
-  fillerStyle: "corner" | "strip"
+  fillerStyle: "corner" | "strip" | "notch"
   /**
    * Base still provider: `tvdb` when the space resolves episode metadata from
    * TheTVDB (the compositor's `?stills=` contract), `tmdb` otherwise.
@@ -294,9 +294,9 @@ async function resolveEpisodeThumbnailOptions(
   // Banner layout: token > space default > corner. Only the non-default
   // `strip` travels on the compositor URL (corner is the absent render), so a
   // space that never chose a style keeps byte-identical URLs.
-  const pickFillerStyle = (): "corner" | "strip" => {
+  const pickFillerStyle = (): "corner" | "strip" | "notch" => {
     for (const candidate of [config?.thumbnailFillerStyle, defaults.thumbnailFillerStyle]) {
-      if (candidate === "strip" || candidate === "corner") return candidate
+      if (candidate === "strip" || candidate === "corner" || candidate === "notch") return candidate
     }
     return "corner"
   }
@@ -378,7 +378,7 @@ function thumbnailOptionsCacheFragment(options: EpisodeThumbnailOptions): string
   const fillerFragment = options.fillerBadge ? ":fi1" : ""
   // Only a non-default layout changes the composed URLs (and therefore the
   // body): corner stays the historical fragment.
-  const fillerStyleFragment = options.fillerBadge && options.fillerStyle === "strip" ? ":fsstrip" : ""
+  const fillerStyleFragment = options.fillerBadge && options.fillerStyle !== "corner" ? `:fs${options.fillerStyle}` : ""
   return `:tb${options.badgeStyle}:ta${options.anchor}:tx${options.offsetX}:ty${options.offsetY}:sc${options.badgeScale}:tv${options.voteSource}:tz${options.blur ? 1 : 0}${stillsFragment}${rotationFragment}${fillerFragment}${fillerStyleFragment}${THUMBNAIL_URL_SHAPE_FRAGMENT}`
 }
 
@@ -510,7 +510,7 @@ async function applyEpisodeThumbnails(
           // resolves an absent `fillStyle` from the same space defaults, but
           // token-only spaces have no namespace for that fallback, so emitting
           // it here is what keeps their Stremio thumbnails WYSIWYG.
-          if (options.fillerStyle === "strip") params.set("fillStyle", "strip")
+          if (options.fillerStyle !== "corner") params.set("fillStyle", options.fillerStyle)
         }
       }
     }

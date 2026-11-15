@@ -405,7 +405,8 @@ describe("BadgeDefaultsSection per-shape age UI", () => {
     expect(ctx().landscape.ageCountry).toBe("IT")
 
     const label = screen.getByText("ui.ageBadgeStyle")
-    fireEvent.click(within(label.parentElement!).getByRole("button", { name: "ui.qbsKnockout" }))
+    fireEvent.click(within(label.parentElement!).getByRole("button", { name: /ui\.styleGroupPlates/ }))
+    fireEvent.click(within(label.parentElement!).getByRole("radio", { name: "ui.qbsKnockout" }))
     expect(ctx().defaultAgeBadgeStyle).toBe("knockout")
     expect(ctx().landscape.ageBadgeStyle).toBe("standard")
   })
@@ -422,7 +423,8 @@ describe("BadgeDefaultsSection per-shape age UI", () => {
     expect(ctx().defaultAgeCountry).toBe("IT")
 
     const label = screen.getByText("ui.ageBadgeStyle")
-    fireEvent.click(within(label.parentElement!).getByRole("button", { name: "ui.qbsKnockout" }))
+    fireEvent.click(within(label.parentElement!).getByRole("button", { name: /ui\.styleGroupPlates/ }))
+    fireEvent.click(within(label.parentElement!).getByRole("radio", { name: "ui.qbsKnockout" }))
     expect(ctx().landscape.ageBadgeStyle).toBe("knockout")
     expect(ctx().defaultAgeBadgeStyle).toBe("standard")
   })

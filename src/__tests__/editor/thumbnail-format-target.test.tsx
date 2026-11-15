@@ -283,7 +283,7 @@ describe("settings format target: thumbnail", () => {
 
     // Layout selector: strip is reflected in the session and on the URL.
     const styleSelect = screen.getByTestId("thumbnail-filler-style-select")
-    expect(within(styleSelect).getAllByRole("option")).toHaveLength(2)
+    expect(within(styleSelect).getAllByRole("option")).toHaveLength(3)
     fireEvent.change(styleSelect, { target: { value: "strip" } })
     await settle()
     expect(styleSelect).toHaveValue("strip")

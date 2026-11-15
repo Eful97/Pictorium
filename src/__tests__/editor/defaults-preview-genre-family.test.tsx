@@ -10,6 +10,7 @@
  *   (`defaultSeparateBadgeOffsetX/Y` in the URL memo deps); landscape
  *   overrides keep winning per shape without touching the other shape.
  */
+import { QUALITY_STYLE_GROUPS, groupStyleOptions } from "@/lib/badge-style-groups"
 import { beforeEach, describe, expect, it, vi } from "vitest"
 import { act, fireEvent, screen } from "@testing-library/react"
 import { createElement } from "react"
@@ -126,11 +127,14 @@ describe("genre family wiring (press reports, no writes)", () => {
       ),
     )
     await act(async () => {})
-    const premium = screen.getByRole("button", { name: /ui\.qbsPremium/ })
-    // Griglia derivata dall'enum: una voce per stile, nessuna lista duplicata.
-    expect(premium.closest("div.grid")!.querySelectorAll(":scope > button").length).toBe(
-      QUALITY_BADGE_STYLES.length,
+    // Griglia per famiglie (derivata dall'enum + QUALITY_STYLE_GROUPS): premium
+    // vive nella riga varianti della famiglia Icone.
+    const icons = screen.getByRole("button", { name: /ui\.styleGroupIcons/ })
+    expect(icons.closest("div.grid")!.querySelectorAll(":scope > button").length).toBe(
+      groupStyleOptions(QUALITY_BADGE_STYLES, QUALITY_STYLE_GROUPS).length,
     )
+    fireEvent.click(icons)
+    const premium = screen.getByRole("radio", { name: /ui\.qbsPremium/ })
     fireEvent.click(premium)
     expect(ctx().defaultQualityBadgeStyle).toBe("premium")
   })

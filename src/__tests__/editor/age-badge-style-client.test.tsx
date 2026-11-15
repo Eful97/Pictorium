@@ -22,6 +22,7 @@ import { createElement } from "react"
 import type { NextRequest } from "next/server"
 import { renderHook } from "@testing-library/react"
 import { useDefaults } from "@/lib/useDefaults"
+import { groupStyleOptions, QUALITY_STYLE_GROUPS } from "@/lib/badge-style-groups"
 import { shouldSkipServerSync } from "@/lib/guest-guard"
 import { saveDefaults } from "@/lib/save-defaults"
 import { usePosterEditor, type PosterEditorCtx } from "@/lib/contexts/PosterEditorContext"
@@ -65,6 +66,14 @@ function createStorageStub() {
 }
 
 type StorageStub = ReturnType<typeof createStorageStub>
+
+/** Two-level age picker: family tile, then the member chip in the variants row (when not already shown). */
+function pickFam(scope: HTMLElement, family: string, member: string) {
+  if (!within(scope).queryByRole("radio", { name: member })) {
+    fireEvent.click(within(scope).getByText(family).closest("button") as HTMLElement)
+  }
+  return within(scope).getByRole("radio", { name: member })
+}
 
 describe("useDefaults age style persistence", () => {
   let putBodies: Record<string, unknown>[]
@@ -272,13 +281,13 @@ describe("BadgeDefaultsSection age style selector", () => {
     const block = ageStyleBlock()
     // Same quality vocabulary as the quality selector (independent control):
     // one button per style (derived enum, no hardcoded count).
-    expect(within(block).getAllByRole("button")).toHaveLength(AGE_BADGE_STYLES.length)
-    fireEvent.click(within(block).getByRole("button", { name: "ui.qbsKnockout" }))
+    expect(within(block).getAllByRole("button")).toHaveLength(groupStyleOptions(AGE_BADGE_STYLES, QUALITY_STYLE_GROUPS).length)
+    fireEvent.click(pickFam(block, "ui.styleGroupPlates", "ui.qbsKnockout"))
     expect(ctx().defaultAgeBadgeStyle).toBe("knockout")
     expect(JSON.parse(localStorage.getItem("badgeDefaults") ?? "{}").ageBadgeStyle).toBe("knockout")
     // The "standard" swatch is the shared neutral pill (image, empty alt), so
     // the accessible name is just the label.
-    fireEvent.click(within(block).getByRole("button", { name: "ui.qbsStandard" }))
+    fireEvent.click(pickFam(block, "ui.styleGroupTextPill", "ui.qbsStandard"))
     expect(ctx().defaultAgeBadgeStyle).toBe("standard")
   })
 
@@ -287,9 +296,10 @@ describe("BadgeDefaultsSection age style selector", () => {
     await act(async () => {})
     fireEvent.click(screen.getByRole("switch", { name: "ui.ageBadge" }))
     const block = ageStyleBlock()
+    const AGE_FAMILY: Record<string, string> = { standard: "ui.styleGroupTextPill", outline: "ui.styleGroupTextPill", mono: "ui.styleGroupIcons", color: "ui.styleGroupIcons", premium: "ui.styleGroupIcons", knockout: "ui.styleGroupPlates", nova: "ui.styleGroupPlates", gradient: "ui.styleGroupPlates" }
     const labelOf = (style: string) => style === "mono" ? "Mono" : style === "color" ? "Color" : style === "knockout" ? "Knockout" : style === "standard" ? "Standard" : "Premium"
     for (const style of ["standard", "mono", "color", "premium", "knockout"] as const) {
-      const btn = within(block).getByRole("button", { name: new RegExp(`ui\.qbs${labelOf(style)}`) })
+      const btn = pickFam(block, AGE_FAMILY[style], `ui.qbs${labelOf(style)}`)
       // The age swatch is the shared builder output as a data URI: the dynamic
       // label is a render parameter, so no quality `4K` numeric asset leaks in.
       const img = btn.querySelector("img")
@@ -310,7 +320,7 @@ describe("BadgeDefaultsSection age style selector", () => {
     const { ctx } = renderBadge("landscape")
     await act(async () => {})
     fireEvent.click(screen.getByRole("switch", { name: "ui.ageBadge" }))
-    fireEvent.click(within(ageStyleBlock()).getByRole("button", { name: "ui.qbsMono" }))
+    fireEvent.click(pickFam(ageStyleBlock(), "ui.styleGroupIcons", "ui.qbsMono"))
     expect((ctx().landscape as Record<string, unknown>).ageBadgeStyle).toBe("mono")
     expect(ctx().defaultAgeBadgeStyle).toBe("standard")
     expect(JSON.parse(localStorage.getItem("badgeDefaults") ?? "{}").landscape.ageBadgeStyle).toBe("mono")
@@ -320,7 +330,7 @@ describe("BadgeDefaultsSection age style selector", () => {
     const { ctx } = renderBadge("landscape")
     await act(async () => {})
     fireEvent.click(screen.getByRole("switch", { name: "ui.ageBadge" }))
-    fireEvent.click(within(ageStyleBlock()).getByRole("button", { name: "ui.qbsKnockout" }))
+    fireEvent.click(pickFam(ageStyleBlock(), "ui.styleGroupPlates", "ui.qbsKnockout"))
     // Landscape target: profile override set, portrait flat untouched.
     expect((ctx().landscape as Record<string, unknown>).ageBadge).toBe(true)
     expect((ctx().landscape as Record<string, unknown>).ageBadgeStyle).toBe("knockout")

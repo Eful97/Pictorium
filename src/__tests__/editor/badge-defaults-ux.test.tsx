@@ -73,6 +73,19 @@ function clickRadio(group: HTMLElement, name: string) {
   fireEvent.click(within(group).getByRole("radio", { name }))
 }
 
+/** Two-level badge styles: pick a family tile, then its member in the variants row (when not already shown). */
+function pickStyle(scope: HTMLElement, family: string, member: string) {
+  if (!within(scope).queryByRole("radio", { name: member })) {
+    fireEvent.click(within(scope).getAllByText(family)[0].closest("button") as HTMLElement)
+  }
+  fireEvent.click(within(scope).getByRole("radio", { name: member }))
+}
+
+/** Badge rank selector scope: the family row and its variants row share this parent. */
+function rankScope(): HTMLElement {
+  return screen.getByRole("radiogroup", { name: "ui.styleRankingDefault" }).parentElement as HTMLElement
+}
+
 describe("rank bucket toggle", () => {
   it("rank OFF keeps new/extra buckets and the master ON", async () => {
     const { ctx } = renderBadge("portrait")
@@ -193,15 +206,15 @@ describe("single rank appearance", () => {
     await act(async () => {})
     const group = appearanceGroup()
     clickRadio(group, "ui.badgeSection")
-    const variants = screen.getByRole("radiogroup", { name: "ui.styleRankingDefault" })
-    fireEvent.click(within(variants).getByRole("radio", { name: "ui.colored" }))
+    const variants = rankScope()
+    pickStyle(variants, "ui.styleGroupPlate", "ui.colored")
     expect(ctx().defaultRankingBadgeStyle).toBe("colored")
     expect(ctx().defaultRibbonEnabled).toBe(false)
     expect(resolveRankingAppearance({ rankingBadgeStyle: "colored", ribbonEnabled: false })).toBe("badge")
-    fireEvent.click(within(variants).getByRole("radio", { name: "ui.qbsStandard" }))
+    pickStyle(variants, "ui.styleGroupPlate", "ui.qbsStandard")
     expect(ctx().defaultRankingBadgeStyle).toBe("default")
     expect(ctx().defaultRibbonEnabled).toBe(false)
-    fireEvent.click(within(variants).getByRole("radio", { name: "ui.pill" }))
+    pickStyle(variants, "ui.styleGroupPill", "ui.pill")
     expect(ctx().defaultRankingBadgeStyle).toBe("pill")
     expect(ctx().defaultRibbonEnabled).toBe(true)
   })
@@ -211,9 +224,9 @@ describe("single rank appearance", () => {
     renderBadge("portrait")
     await act(async () => {})
     expect(appearanceGroup()).toBeInTheDocument()
-    const variants = screen.getByRole("radiogroup", { name: "ui.styleRankingDefault" })
+    const variants = rankScope()
     expect(within(variants).getByRole("radio", { name: "ui.qbsStandard" })).toHaveAttribute("aria-checked", "true")
-    expect(within(variants).getByRole("radio", { name: "ui.pill" })).toHaveAttribute("aria-checked", "false")
+    expect(within(variants).getByRole("radio", { name: "ui.styleGroupPill" })).toHaveAttribute("aria-checked", "false")
   })
 
   it("side control is Posizione Sinistra/Destra, never Nuvio/Stremio", async () => {
@@ -241,7 +254,7 @@ describe("extra style independence + legacy freeze", () => {
     expect(screen.getByText("ui.inherited", { exact: false })).toBeInTheDocument()
     // Explicit user choice persists independently from rs.
     const extraBlock = screen.getByText("ui.extraBadgeStyle").closest("div") as HTMLElement
-    fireEvent.click(within(extraBlock).getByText("ui.vetro"))
+    pickStyle(extraBlock, "ui.styleGroupFrame", "ui.vetro")
     expect(ctx().defaultExtraBadgeStyle).toBe("vetro")
     clickRadio(appearanceGroup(), "ui.number")
     expect(ctx().defaultRankingBadgeStyle).toBe("number")
@@ -632,7 +645,7 @@ describe("nastro standard/colorato (U1)", () => {
     expect(ctx().defaultRankingBadgeStyle).toBe("colored")
     expect(ctx().defaultExtraBadgeStyle).toBe(legacyExtraStyleForRank("default"))
     const extraBlock = screen.getByText("ui.extraBadgeStyle").closest("div") as HTMLElement
-    fireEvent.click(within(extraBlock).getByText("ui.vetro"))
+    pickStyle(extraBlock, "ui.styleGroupFrame", "ui.vetro")
     expect(ctx().defaultExtraBadgeStyle).toBe("vetro")
     fireEvent.click(ribbonRadio(ribbonGroup(), "ui.qbsStandard"))
     expect(ctx().defaultRankingBadgeStyle).toBe("netflix")

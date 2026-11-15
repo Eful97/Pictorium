@@ -73,6 +73,19 @@ beforeEach(() => {
   vi.stubGlobal("fetch", vi.fn(async () => ({ ok: true, json: async () => ({}) })))
 })
 
+/** Two-level badge styles: pick a family tile, then its member in the variants row (when not already shown). */
+function pickStyle(scope: HTMLElement, family: string, member: string) {
+  if (!within(scope).queryByRole("radio", { name: member })) {
+    fireEvent.click(within(scope).getAllByText(family)[0].closest("button") as HTMLElement)
+  }
+  fireEvent.click(within(scope).getByRole("radio", { name: member }))
+}
+
+/** Badge rank selector scope: the family row and its variants row share this parent. */
+function rankScope(): HTMLElement {
+  return screen.getByRole("radiogroup", { name: "ui.styleRankingDefault" }).parentElement as HTMLElement
+}
+
 describe("master top badge + rank/title-info split", () => {
   it("master is Badge superiore (single topBadge): no sash, no classifica-only framing", async () => {
     const { ctx } = renderTitle({})
@@ -130,12 +143,12 @@ describe("master top badge + rank/title-info split", () => {
     expect(ctx().rankingBadgeStyle).toBe("pill")
     expect(ctx().ribbonEnabled).toBe(true)
     // Variants: renderer truth (colored/standard switch ribbon off).
-    const variants = screen.getByRole("radiogroup", { name: "ui.styleRankingDefault" })
-    fireEvent.click(within(variants).getByRole("radio", { name: "ui.colored" }))
+    const variants = rankScope()
+    pickStyle(variants, "ui.styleGroupPlate", "ui.colored")
     expect(ctx().rankingBadgeStyle).toBe("colored")
     expect(ctx().ribbonEnabled).toBe(false)
     expect(resolveRankingAppearance({ rankingBadgeStyle: "colored", ribbonEnabled: false })).toBe("badge")
-    fireEvent.click(within(variants).getByRole("radio", { name: "ui.qbsStandard" }))
+    pickStyle(variants, "ui.styleGroupPlate", "ui.qbsStandard")
     expect(ctx().rankingBadgeStyle).toBe("default")
     expect(ctx().ribbonEnabled).toBe(false)
     // Pure helpers (actual branches): standard = default+ribbon false, numero true.
@@ -165,7 +178,7 @@ describe("extra independence + legacy freeze on click only", () => {
     expect(ctx().extraBadgeStyle).toBe(legacyExtraStyleForRank("default"))
     // Explicit extra choice sticks independently from later rs changes.
     const extraBlock = screen.getByText("ui.extraBadgeStyle").closest("div") as HTMLElement
-    fireEvent.click(within(extraBlock).getByText("ui.vetro"))
+    pickStyle(extraBlock, "ui.styleGroupFrame", "ui.vetro")
     expect(ctx().extraBadgeStyle).toBe("vetro")
     clickRadio(appearanceGroup(), "ui.number")
     expect(ctx().rankingBadgeStyle).toBe("number")
@@ -206,8 +219,8 @@ describe("side is global-only (no per-title side control)", () => {
     clickRadio(group, "ui.number")
     clickRadio(group, "ui.ribbon")
     clickRadio(group, "ui.badgeSection")
-    const variants = screen.getByRole("radiogroup", { name: "ui.styleRankingDefault" })
-    fireEvent.click(within(variants).getByRole("radio", { name: "ui.colored" }))
+    const variants = rankScope()
+    pickStyle(variants, "ui.styleGroupPlate", "ui.colored")
     expect(ctx().ribbonSide).toBe("left")
     expect(ctx().defaultRibbonSide).toBe("left")
   })
@@ -531,7 +544,7 @@ describe("nastro standard/colorato per-title (U1)", () => {
     expect(ctx().rankingBadgeStyle).toBe("colored")
     expect(ctx().extraBadgeStyle).toBe(legacyExtraStyleForRank("default"))
     const extraBlock = screen.getByText("ui.extraBadgeStyle").closest("div") as HTMLElement
-    fireEvent.click(within(extraBlock).getByText("ui.vetro"))
+    pickStyle(extraBlock, "ui.styleGroupFrame", "ui.vetro")
     expect(ctx().extraBadgeStyle).toBe("vetro")
     fireEvent.click(ribbonRadio(ribbonGroup(), "ui.qbsStandard"))
     expect(ctx().rankingBadgeStyle).toBe("netflix")

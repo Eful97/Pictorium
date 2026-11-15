@@ -488,7 +488,7 @@ export async function GET(req: NextRequest, { params }: { params: Promise<RouteP
   const rawFillStyle = sp.get("fillStyle")
   const queryFillStyle = parseThumbnailFillerStyle(rawFillStyle)
   if (queryFillStyle === null && rawFillStyle !== null && rawFillStyle.trim() !== "") {
-    return jsonError("Invalid fillStyle: must be corner or strip", 400, acceptEncoding)
+    return jsonError("Invalid fillStyle: must be corner, strip or notch", 400, acceptEncoding)
   }
   const fillerLanguage = queryFill
     ? resolveThumbnailFillerLanguage(sp.get("flang"), req.headers.get("accept-language"))

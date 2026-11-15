@@ -251,7 +251,7 @@ export const configTokenSchema = z.object({
   thumbnailFillerBadge: z.boolean().optional(),
   // Layout of the filler banner (meta-only, flat): `corner` is the historical
   // compact chip and also the absent default; `strip` is the full-width plate.
-  thumbnailFillerStyle: z.enum(["corner", "strip"]).optional(),
+  thumbnailFillerStyle: z.enum(["corner", "strip", "notch"]).optional(),
   hubMode: z.enum(["all", "catalogs", "search"]).optional(),
   // Regione classifiche (codice JW "IT"/"US"... o slug FlixPatrol): validazione
   // lasca di proposito, la normalizzazione fail-closed avviene in risoluzione.

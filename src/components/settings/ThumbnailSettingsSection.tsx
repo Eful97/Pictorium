@@ -188,7 +188,7 @@ export function ThumbnailSettingsSection({ active }: { active: boolean }) {
             >
               {THUMBNAIL_FILLER_STYLES.map((style) => (
                 <option key={style} value={style}>
-                  {t(style === "strip" ? "ui.thumbnailFillerStyleStrip" : "ui.thumbnailFillerStyleCorner")}
+                  {t(style === "notch" ? "ui.notch" : style === "strip" ? "ui.thumbnailFillerStyleStrip" : "ui.thumbnailFillerStyleCorner")}
                 </option>
               ))}
             </select>

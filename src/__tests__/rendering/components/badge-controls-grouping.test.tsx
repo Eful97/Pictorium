@@ -13,6 +13,7 @@ import { fireEvent, screen, within } from "@testing-library/react"
 import { BadgeControls } from "@/components/BadgeControls"
 import { renderWithCtx } from "@/__tests__/test-utils"
 import { QUALITY_BADGE_STYLES } from "@/lib/badge-styles"
+import { QUALITY_STYLE_GROUPS, groupStyleOptions } from "@/lib/badge-style-groups"
 
 vi.mock("next/navigation", () => ({
   useRouter: () => ({ push: vi.fn(), replace: vi.fn(), back: vi.fn() }),
@@ -148,13 +149,14 @@ describe("BadgeControls families: six groups, each control exactly once", () => 
   it("quality style selector offers every enum style, premium included", () => {
     renderEditor()
     const quality = family("badge-family-quality")
-    const premium = within(quality).getByRole("button", { name: /ui\.qbsPremium/ })
-    expect(premium).toBeInTheDocument()
-    // La griglia che contiene premium offre esattamente gli stili dell'enum
-    // (derivata, non una lista duplicata in UI): nessuno stile resta fuori.
-    const grid = premium.closest("div.grid")
+    // Griglia per famiglie derivata dall'enum (QUALITY_STYLE_GROUPS): premium
+    // vive nella riga varianti della famiglia Icone.
+    const icons = within(quality).getByRole("button", { name: /ui\.styleGroupIcons/ })
+    const grid = icons.closest("div.grid")
     expect(grid).not.toBeNull()
-    expect(grid!.querySelectorAll(":scope > button").length).toBe(QUALITY_BADGE_STYLES.length)
+    expect(grid!.querySelectorAll(":scope > button").length).toBe(groupStyleOptions(QUALITY_BADGE_STYLES, QUALITY_STYLE_GROUPS).length)
+    fireEvent.click(icons)
+    expect(within(quality).getByRole("radio", { name: /ui\.qbsPremium/ })).toBeInTheDocument()
   })
 })
 

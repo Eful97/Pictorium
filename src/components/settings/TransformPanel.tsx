@@ -1,6 +1,7 @@
 "use client"
 
 import { useState, useRef } from "react"
+import { SeparateRatingsStylePicker } from "@/components/ui/SeparateRatingsStylePicker"
 import { useT } from "@/lib/contexts/TranslationContext"
 import { usePosterEditor } from "@/lib/contexts/PosterEditorContext"
 import { usePSelector } from "@/lib/context"
@@ -1217,40 +1218,7 @@ export function TransformPanel({ active, previewShape, onPreviewShapeChange, onP
         {!element && !geometryOnly && (
         <div className="space-y-1.5 pt-1" title={t("ui.separateRatingsHint")}>
           <span className="text-[11px] text-muted font-medium block">{t("ui.separateRatingsStyle")}</span>
-          <div className="grid grid-cols-3 gap-1">
-            {([
-              { id: "column", labelKey: "ui.separateRatingsColumn" },
-              { id: "bottom-bar", labelKey: "ui.separateRatingsBottomBar" },
-              { id: "bottom-pills", labelKey: "ui.separateRatingsBottomPills" },
-              { id: "bottom-mono", labelKey: "ui.separateRatingsBottomMono" },
-              { id: "bottom-color", labelKey: "ui.separateRatingsBottomColor" },
-              { id: "rings", labelKey: "ui.sepRings" },
-            ] as const).map((opt) => {
-              // Portrait target always allows the bar (landscape normalizes
-              // it to pills); the raw value is kept, never hidden.
-              const barOff = false
-              const pressed = getSeparateRatingsStyleForShape(
-                separateRatingsStyle, "poster",
-              ) === opt.id
-              return (
-                <button
-                  key={opt.id}
-                  type="button"
-                  onClick={() => { if (!barOff) setSeparateRatingsStyle(opt.id) }}
-                  aria-pressed={pressed}
-                  disabled={barOff}
-                  title={barOff ? t("ui.separateRatingsBarLandscapeHint") : undefined}
-                  className={`flex-1 py-1 px-1 rounded-lg text-[11px] font-semibold transition duration-150 ${
-                    pressed
-                      ? "bg-white/20 text-white shadow-sm"
-                      : "bg-white/5 text-muted hover:bg-white/10 hover:text-zinc-200"
-                  } ${barOff ? "cursor-not-allowed opacity-50" : "cursor-pointer"}`}
-                >
-                  {t(opt.labelKey)}
-                </button>
-              )
-            })}
-          </div>
+          <SeparateRatingsStylePicker value={separateRatingsStyle} landscape={false} onChange={setSeparateRatingsStyle} t={t} />
           {ed.defaultGlobalBadges && ed.defaultBadgeRating && ed.defaultSeparateRatings && isBottomSeparateRatingsStyle(separateRatingsStyle) && (
             <p className="text-[10px] text-muted italic leading-tight">{t("ui.separateRatingsBottomHint")}</p>
           )}

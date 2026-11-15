@@ -17,8 +17,30 @@
  * shared 3D shadow filter (`TOP_SHADOW_FILTER`). Appended last so no existing
  * style order/identifier changes (client selects hardcode their own lists).
  */
-export const BADGE_STYLES = ["shadow", "pill", "bar", "colored", "bordo", "vetro", "minimal", "ink", "tinta", "sfumato", "split", "editoriale"] as const
+export const BADGE_STYLES = ["shadow", "pill", "bar", "colored", "bordo", "vetro", "minimal", "ink", "tinta", "sfumato", "split", "editoriale", "notch-crema", "notch-vetro", "notch-inchiostro", "notch-sfumato"] as const
 export type BadgeStyle = (typeof BADGE_STYLES)[number]
+
+/**
+ * Pillola a notch (genere, classifica, extra): un solo stile visivo — corpo a
+ * fondo tondo che si raccorda al bordo del poster con due curve concave — in
+ * quattro materiali. Il materiale è codificato nel valore dello stile
+ * (`notch-<materiale>`), così validazione, hardening, cache e mapping derivano
+ * dagli enum esistenti senza un parametro URL nuovo. La UI mostra una sola
+ * scelta "Pillola" e un selettore materiale unico che riscrive tutte le
+ * famiglie in notch (un materiale per tutto il poster).
+ */
+export const NOTCH_MATERIALS = ["crema", "vetro", "inchiostro", "sfumato"] as const
+export type NotchMaterial = (typeof NOTCH_MATERIALS)[number]
+export const DEFAULT_NOTCH_MATERIAL: NotchMaterial = "vetro"
+/** Materiale di uno stile notch, `null` per ogni altro stile. */
+export function notchMaterialOf(style: string | null | undefined): NotchMaterial | null {
+  if (typeof style !== "string" || !style.startsWith("notch-")) return null
+  const m = style.slice(6)
+  return (NOTCH_MATERIALS as readonly string[]).includes(m) ? (m as NotchMaterial) : null
+}
+export function notchStyle(material: NotchMaterial): `notch-${NotchMaterial}` {
+  return `notch-${material}`
+}
 
 /**
  * Ranking (top) badge styles. `split` is additive and RANKING-ONLY (appended
@@ -30,7 +52,7 @@ export type BadgeStyle = (typeof BADGE_STYLES)[number]
  * ribbon (squeezes it). Single builder (`buildSplitChipSvg` in
  * badge-svg-shared.ts) behind the existing dispatcher, no second renderer.
  */
-export const RANKING_BADGE_STYLES = ["default", "colored", "pill", "bordo", "vetro", "netflix", "netflix-color", "corner", "number", "split", "tinta", "sfumato", "editoriale"] as const
+export const RANKING_BADGE_STYLES = ["default", "colored", "pill", "bordo", "vetro", "netflix", "netflix-color", "corner", "number", "split", "tinta", "sfumato", "editoriale", "notch-crema", "notch-vetro", "notch-inchiostro", "notch-sfumato"] as const
 export type RankingBadgeStyle = (typeof RANKING_BADGE_STYLES)[number]
 /**
  * Standalone extra-badge style (`xbs` query): subset of the existing names —
@@ -43,7 +65,7 @@ export type RankingBadgeStyle = (typeof RANKING_BADGE_STYLES)[number]
  * like any invalid input; a legacy `rs=split` fallback degrades the extra to
  * the historic default plate in `buildHouseExtraSvg`, never a migration).
  */
-export const EXTRA_BADGE_STYLES = ["default", "pill", "colored", "bordo", "vetro", "corner", "tinta", "sfumato", "editoriale"] as const
+export const EXTRA_BADGE_STYLES = ["default", "pill", "colored", "bordo", "vetro", "corner", "tinta", "sfumato", "editoriale", "notch-crema", "notch-vetro", "notch-inchiostro", "notch-sfumato"] as const
 export type ExtraBadgeStyle = (typeof EXTRA_BADGE_STYLES)[number]
 
 /**

@@ -377,7 +377,7 @@ export interface ServerDefaults {
    * top plate). Flat/display-only: never a poster render parameter.
    * Unknown values fail closed to `corner` at every read.
    */
-  thumbnailFillerStyle?: "corner" | "strip"
+  thumbnailFillerStyle?: "corner" | "strip" | "notch"
   /** Regione classifiche JustWatch/FlixPatrol + lingua titoli (codice JW, es. "IT"). */
   region?: string
   /** Formato data badge "in uscita" (default `locale` = segue la lingua). */

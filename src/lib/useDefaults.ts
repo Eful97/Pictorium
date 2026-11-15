@@ -877,7 +877,7 @@ function hydrateLandscapeBadgePresets(
 }
 
 const THUMBNAIL_BADGE_STYLE_VALUES = ["pill", "bordo", "vetro", "branded", "naked", "score", "circle"] as const
-const THUMBNAIL_FILLER_STYLE_VALUES = ["corner", "strip"] as const
+const THUMBNAIL_FILLER_STYLE_VALUES = ["corner", "strip", "notch"] as const
 const THUMBNAIL_ANCHOR_VALUES = ["tl", "tr", "bl", "br"] as const
 const THUMBNAIL_VOTE_SOURCE_VALUES = ["imdb", "tmdb"] as const
 const THUMBNAIL_OFFSET_LIMIT = 2000

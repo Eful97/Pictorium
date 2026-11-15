@@ -4,9 +4,10 @@ import { Palette } from "lucide-react"
 import { useT } from "@/lib/contexts/TranslationContext"
 import { usePosterEditor } from "@/lib/contexts/PosterEditorContext"
 import { BadgeStyleSelector, VideoFormatSelector, BadgeFontSelector } from "@/components/ui"
+import { GENRE_STYLE_GROUPS, QUALITY_STYLE_GROUPS } from "@/lib/badge-style-groups"
 import { QualityGroupLayoutSelector } from "@/components/PosterLayoutSelector"
 import { KNOWN_VIDEO_FORMATS } from "@/lib/av-specs"
-import { QUALITY_BADGE_STYLES } from "@/lib/badge-styles"
+import { QUALITY_BADGE_STYLES, notchMaterialOf, notchStyle } from "@/lib/badge-styles"
 import { useShapeBadgeDefaults, type BadgeShapeTarget } from "@/components/settings/useShapeDefaults"
 import type { DefaultsPreviewFamily } from "@/lib/poster-url"
 
@@ -19,6 +20,9 @@ export function GenreStyleSection({ shape, onPreviewFamilyChange, styleDisabled,
   const { scoped } = useShapeBadgeDefaults(shape)
   const [badgeStyle, setBadgeStyle] = scoped("badgeStyle", ed.defaultBadgeStyle, ed.setDefaultBadgeStyle)
   const [badgeFont, setBadgeFont] = scoped("badgeFont", ed.defaultBadgeFont, ed.setDefaultBadgeFont)
+  // Ranking/extra are read here only for the shared Pillola material (one poster-wide material).
+  const [rankingBadgeStyle, setRankingBadgeStyle] = scoped("rankingBadgeStyle", ed.defaultRankingBadgeStyle, ed.setDefaultRankingBadgeStyle)
+  const [extraBadgeStyle, setExtraBadgeStyle] = scoped("extraBadgeStyle", ed.defaultExtraBadgeStyle, ed.setDefaultExtraBadgeStyle)
   const famAttrs = (family: DefaultsPreviewFamily) => ({
     "data-preview-family": family,
     onFocusCapture: () => onPreviewFamilyChange?.(family),
@@ -37,8 +41,9 @@ export function GenreStyleSection({ shape, onPreviewFamilyChange, styleDisabled,
         </label>
         <fieldset disabled={styleDisabled} className="contents">
         <BadgeStyleSelector
+          groups={GENRE_STYLE_GROUPS}
           value={badgeStyle}
-          options={["shadow", "pill", "bar", "colored", "bordo", "vetro", "minimal", "ink", "tinta", "sfumato", "split", "editoriale"]}
+          options={["shadow", "pill", "bar", "colored", "bordo", "vetro", "minimal", "ink", "tinta", "sfumato", "split", "editoriale", "notch-crema", "notch-vetro", "notch-inchiostro", "notch-sfumato"]}
           onChange={(v) => {
             setBadgeStyle(v)
           }}
@@ -91,6 +96,7 @@ export function QualityStyleSection({ shape, qualityEnabled, onPreviewFamilyChan
           {t("ui.qualityBadgeStyle")}
         </label>
         <BadgeStyleSelector
+          groups={QUALITY_STYLE_GROUPS}
           value={qualityBadgeStyle}
           options={QUALITY_BADGE_STYLES}
           onChange={(v) => {

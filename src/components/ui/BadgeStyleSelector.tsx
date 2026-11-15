@@ -1,10 +1,13 @@
 "use client"
 
-import { useId } from "react"
+import { useId, useState } from "react"
 import { textColorForBg } from "@/lib/accent-color"
 import { PREMIUM_PLATE_BG, PREMIUM_PLATE_STROKE, GRADIENT_MARK_STOPS, GRADIENT_TIER_INK, premiumAccentHex } from "@/lib/quality-badge-styles"
-import { buildAgeEmphasisSvg, buildAgeKnockoutSvg, buildEditorialMarkSvg, buildGenreEditorialSvg, buildGenreGradientBorderSvg, buildGenreInkSvg, buildGenreSplitSvg, buildGenreTintSvg, buildGradientMarkSvg, buildQualityBadgeSvg, buildQualityNakedSvg, buildStripBadgeSvg } from "@/lib/badge-svg-shared"
+import { buildNotchSvg, buildAgeEmphasisSvg, buildAgeKnockoutSvg, buildEditorialMarkSvg, buildGenreEditorialSvg, buildGenreGradientBorderSvg, buildGenreInkSvg, buildGenreSplitSvg, buildGenreTintSvg, buildGradientMarkSvg, buildQualityBadgeSvg, buildQualityNakedSvg, buildStripBadgeSvg } from "@/lib/badge-svg-shared"
 import type { AgeEmphasisStyle } from "@/lib/badge-svg-shared"
+import { groupStyleOptions, NOTCH_VARIANT_LABELS, type GroupedEntry, type StyleGroup } from "@/lib/badge-style-groups"
+import { notchMaterialOf } from "@/lib/badge-styles"
+import { enabledFamilyMember, familyMember } from "@/components/ui/style-family"
 
 /**
  * Swatch family of the selector: `quality` keeps the historic quality
@@ -87,6 +90,13 @@ function BadgePreview({ style, accentColor, family = "quality" }: { style: strin
       return <BuilderStylePreview base={base} svg={buildGenreGradientBorderSvg(AGE_SWATCH_LABEL, "", "", AGE_SWATCH_FS, ac, false).svg} />
     case "split":
       return <BuilderStylePreview base={base} svg={buildGenreSplitSvg(AGE_SWATCH_LABEL, "8", "", AGE_SWATCH_FS, ac, false, { showGenre: true, showYear: false, showRating: true }).svg} />
+    case "notch-crema":
+    case "notch-vetro":
+    case "notch-inchiostro":
+    case "notch-sfumato":
+      // Notch material: the SAME shared builder the poster renders with (neutral
+      // letters, edge follows the family: genre bottom, top elsewhere).
+      return <BuilderStylePreview base={base} svg={buildNotchSvg(AGE_SWATCH_LABEL, "", "", AGE_SWATCH_FS, ac, false, notchMaterialOf(style) ?? "vetro", family === "genre" ? "bottom" : "top").svg} />
     case "editoriale":
       if (family === "age" || family === "quality") {
         return <BuilderStylePreview base={base} svg={buildEditorialMarkSvg(family === "quality" ? QUALITY_SWATCH_LABEL : AGE_SWATCH_LABEL, AGE_SWATCH_FS, false).svg} />
@@ -214,6 +224,127 @@ function BadgePreview({ style, accentColor, family = "quality" }: { style: strin
   }
 }
 
+/** Label of one style (shared by the flat tiles and the variants row). */
+function styleLabel(s: string, t: (k: string) => string): string {
+  if (NOTCH_VARIANT_LABELS[s]) return t(NOTCH_VARIANT_LABELS[s])
+  return s === "shadow" ? t("ui.shadow") : s === "pill" ? t("ui.pill") : s === "bar" ? t("ui.bar") : s === "default" ? t("ui.bsDefault") : s === "colored" ? t("ui.colored") : s === "bordo" ? t("ui.bordo") : s === "vetro" ? t("ui.vetro") : s === "minimal" ? t("ui.minimal") : s === "ink" ? t("ui.ink") : s === "tinta" ? t("ui.tinta") : s === "sfumato" ? t("ui.sfumato") : s === "split" ? t("ui.split") : s === "editoriale" ? t("ui.editoriale") : s === "netflix" ? t("ui.netflix") : s === "corner" ? t("ui.corner") : s === "number" ? t("ui.number") : s === "standard" ? t("ui.qbsStandard") : s === "mono" ? t("ui.qbsMono") : s === "color" ? t("ui.qbsColor") : s === "knockout" ? t("ui.qbsKnockout") : s === "premium" ? t("ui.qbsPremium") : s === "nova" ? t("ui.qbsNova") : s === "gradient" ? t("ui.qbsGradient") : s === "outline" ? t("ui.qbsOutline") : s === "strip" ? t("ui.qbsStrip") : s === "naked" ? t("ui.qbsNaked") : s
+}
+
+function tileClass(isDisabled: boolean, isActive: boolean): string {
+  return `flex flex-col items-center justify-center gap-0.5 w-full py-1.5 px-1 rounded-lg border transition duration-150 ${
+    isDisabled
+      ? "bg-white/5 text-zinc-600 cursor-not-allowed opacity-50 border-transparent"
+      : isActive
+        ? "bg-accent-orange/15 text-accent-orange border-accent-orange/25"
+        : "bg-white/5 text-muted hover:bg-white/10 hover:text-zinc-200 border-transparent"
+  }`
+}
+
+type GroupedProps<S extends string> = {
+  value: S
+  options: readonly S[]
+  onChange: (v: S) => void
+  t: (k: string) => string
+  accentColor?: string | null
+  disabled?: readonly S[]
+  family?: BadgeSwatchFamily
+  groups: readonly StyleGroup[]
+}
+
+/**
+ * Families on top (one tile each). The variants row shows the family the user
+ * last clicked in this mount, else the family of the active value. A click on a
+ * family tile reports/writes its representative as before.
+ */
+function GroupedStyleSelector<S extends string>({ value, options, onChange, t, accentColor, disabled, family = "quality", groups }: GroupedProps<S>) {
+  const [memory, setMemory] = useState<Record<string, string>>({})
+  const [openGroupId, setOpenGroupId] = useState<string | null>(null)
+  const swatchFamily: SwatchFamily = (options as readonly string[]).includes("shadow") ? "genre" : family
+  const entries = groupStyleOptions(options, groups)
+  const count = entries.length
+  const gridCols = count <= 3 ? "grid-cols-3" : count <= 5 ? "grid-cols-3 sm:grid-cols-5" : count <= 6 ? "grid-cols-3 sm:grid-cols-6" : count <= 7 ? "grid-cols-3 sm:grid-cols-4 md:grid-cols-7" : count <= 8 ? "grid-cols-4 sm:grid-cols-4 md:grid-cols-8" : "grid-cols-4 sm:grid-cols-5"
+  const pick = (member: string, groupId: string) => {
+    setMemory((m) => ({ ...m, [groupId]: member }))
+    onChange(member as S)
+  }
+  const openEntry = entries.find((e): e is Extract<GroupedEntry, { kind: "group" }> =>
+    e.kind === "group" && (openGroupId ? e.group.id === openGroupId : e.members.includes(value)))
+  const disabledList = disabled as readonly string[] | undefined
+  return (
+    <div className="space-y-1.5 w-full">
+      <div className={`grid ${gridCols} gap-1.5 w-full`}>
+        {entries.map((e) => {
+          if (e.kind === "single") {
+            const s = e.value as S
+            const isActive = value === s
+            const isDisabled = disabled?.includes(s) ?? false
+            return (
+              <button key={s} type="button" onClick={() => { if (!isDisabled) { setOpenGroupId(null); onChange(s) } }} className={tileClass(isDisabled, isActive)}>
+                <span className="badge-style-preview inline-flex items-center justify-center rounded-md">
+                  <BadgePreview style={s} accentColor={accentColor} family={swatchFamily} />
+                </span>
+                <span className="text-[10px] font-semibold leading-tight truncate max-w-full">{styleLabel(s, t)}</span>
+              </button>
+            )
+          }
+          const g: StyleGroup = { id: e.group.id, labelKey: e.group.labelKey, members: e.members }
+          const rep = familyMember(g, value, memory)
+          const target = enabledFamilyMember(g, rep, disabledList)
+          const isActive = e.members.includes(value)
+          return (
+            <button
+              key={g.id}
+              type="button"
+              disabled={target === null}
+              aria-pressed={isActive}
+              onClick={() => { setOpenGroupId(g.id); if (target !== null) pick(target, g.id) }}
+              className={tileClass(target === null, isActive)}
+            >
+              <span className="badge-style-preview inline-flex items-center justify-center rounded-md">
+                <BadgePreview style={rep} accentColor={accentColor} family={swatchFamily} />
+              </span>
+              <span className="text-[10px] font-semibold leading-tight truncate max-w-full">{t(g.labelKey)}</span>
+            </button>
+          )
+        })}
+      </div>
+      {openEntry && (
+        <div className="space-y-1" data-testid="badge-style-variants">
+          <span className="text-[10px] text-muted font-medium block">{t("ui.styleVariants")}</span>
+          <div className="flex flex-wrap gap-1" role="radiogroup" aria-label={t("ui.styleVariants")}>
+            {openEntry.members.map((m) => {
+              const s = m as S
+              const isDisabled = disabled?.includes(s) ?? false
+              const checked = value === s
+              return (
+                <button
+                  key={m}
+                  type="button"
+                  role="radio"
+                  aria-checked={checked}
+                  aria-label={styleLabel(m, t)}
+                  disabled={isDisabled}
+                  onClick={() => { if (!isDisabled) pick(m, openEntry.group.id) }}
+                  className={`flex items-center gap-1 py-1 px-1.5 rounded-lg border text-[10px] font-semibold transition duration-150 ${isDisabled ? "bg-white/5 text-zinc-600 cursor-not-allowed opacity-50 border-transparent" : checked ? "bg-accent-orange/15 text-accent-orange border-accent-orange/25" : "bg-white/5 text-muted hover:bg-white/10 hover:text-zinc-200 border-transparent"}`}
+                >
+                  <span className="badge-style-preview inline-flex items-center justify-center rounded-md">
+                    <BadgePreview style={m} accentColor={accentColor} family={swatchFamily} />
+                  </span>
+                  <span className="leading-tight truncate">{styleLabel(m, t)}</span>
+                </button>
+              )
+            })}
+          </div>
+        </div>
+      )}
+    </div>
+  )
+}
+
+/**
+ * Generic style selector. Without `groups` a flat grid of one tile per option;
+ * with `groups` the two-level family grid (see GroupedStyleSelector).
+ */
 export function BadgeStyleSelector<S extends string>({
   value,
   options,
@@ -222,6 +353,7 @@ export function BadgeStyleSelector<S extends string>({
   accentColor,
   disabled,
   family = "quality",
+  groups,
 }: {
   value: S
   options: readonly S[]
@@ -230,15 +362,13 @@ export function BadgeStyleSelector<S extends string>({
   accentColor?: string | null
   disabled?: readonly S[]
   family?: BadgeSwatchFamily
+  groups?: readonly StyleGroup[]
 }) {
-  // Colonne esatte per conteggio (classi letterali: Tailwind le genera solo se scritte per esteso):
-  // 5 opzioni in 6 colonne lascerebbero un buco a destra e pulsanti di larghezza
-  // diversa dalla riga da 7 — ogni riga riempie la larghezza con i suoi pulsanti.
-  // 10 quality styles (the naked tier added last) fill two even rows of five
-  // instead of the 8-column branch that would leave a 8+2 gap; 8 or fewer
-  // keeps the historical layout byte-identically.
+  if (groups) return <GroupedStyleSelector value={value} options={options} onChange={onChange} t={t} accentColor={accentColor} disabled={disabled} family={family} groups={groups} />
+  // Colonne esatte per conteggio (classi letterali: Tailwind le genera solo se scritte per esteso).
   const swatchFamily: SwatchFamily = (options as readonly string[]).includes("shadow") ? "genre" : family
-  const gridCols = options.length <= 3 ? "grid-cols-3" : options.length <= 5 ? "grid-cols-3 sm:grid-cols-5" : options.length <= 6 ? "grid-cols-3 sm:grid-cols-6" : options.length <= 7 ? "grid-cols-3 sm:grid-cols-4 md:grid-cols-7" : options.length <= 8 ? "grid-cols-4 sm:grid-cols-4 md:grid-cols-8" : "grid-cols-4 sm:grid-cols-5"
+  const count = options.length
+  const gridCols = count <= 3 ? "grid-cols-3" : count <= 5 ? "grid-cols-3 sm:grid-cols-5" : count <= 6 ? "grid-cols-3 sm:grid-cols-6" : count <= 7 ? "grid-cols-3 sm:grid-cols-4 md:grid-cols-7" : count <= 8 ? "grid-cols-4 sm:grid-cols-4 md:grid-cols-8" : "grid-cols-4 sm:grid-cols-5"
   return (
     <div className={`grid ${gridCols} gap-1.5 w-full`}>
       {options.map((s) => {
@@ -260,9 +390,7 @@ export function BadgeStyleSelector<S extends string>({
             <span className="badge-style-preview inline-flex items-center justify-center rounded-md">
               <BadgePreview style={s} accentColor={accentColor} family={swatchFamily} />
             </span>
-            <span className="text-[10px] font-semibold leading-tight truncate max-w-full">
-              {s === "shadow" ? t("ui.shadow") : s === "pill" ? t("ui.pill") : s === "bar" ? t("ui.bar") : s === "default" ? t("ui.bsDefault") : s === "colored" ? t("ui.colored") : s === "bordo" ? t("ui.bordo") : s === "vetro" ? t("ui.vetro") : s === "minimal" ? t("ui.minimal") : s === "ink" ? t("ui.ink") : s === "tinta" ? t("ui.tinta") : s === "sfumato" ? t("ui.sfumato") : s === "split" ? t("ui.split") : s === "editoriale" ? t("ui.editoriale") : s === "netflix" ? t("ui.netflix") : s === "corner" ? t("ui.corner") : s === "number" ? t("ui.number") : s === "standard" ? t("ui.qbsStandard") : s === "mono" ? t("ui.qbsMono") : s === "color" ? t("ui.qbsColor") : s === "knockout" ? t("ui.qbsKnockout") : s === "premium" ? t("ui.qbsPremium") : s === "nova" ? t("ui.qbsNova") : s === "gradient" ? t("ui.qbsGradient") : s === "outline" ? t("ui.qbsOutline") : s === "strip" ? t("ui.qbsStrip") : s === "naked" ? t("ui.qbsNaked") : s}
-            </span>
+            <span className="text-[10px] font-semibold leading-tight truncate max-w-full">{styleLabel(s, t)}</span>
           </button>
         )
       })}

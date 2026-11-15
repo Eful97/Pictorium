@@ -50,6 +50,10 @@ describe("split style enum", () => {
       "tinta",
       "sfumato",
       "editoriale",
+      "notch-crema",
+      "notch-vetro",
+      "notch-inchiostro",
+      "notch-sfumato",
     ])
   })
 })

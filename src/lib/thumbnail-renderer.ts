@@ -3,7 +3,7 @@ import sharp from "sharp"
 import { renderGenreBadge, renderSVG } from "@/lib/svg-badge"
 import { renderMultiRatings } from "@/lib/multi-rating-renderer"
 import { loadSeparateRatingLogo, renderSeparateRatingsBottom } from "@/lib/separate-rating-renderer"
-import { TOP_SHADOW_FILTER, escSvg, estimateTextWidth, fontFamilyFor } from "@/lib/badge-svg-shared"
+import { TOP_SHADOW_FILTER, TOP_SHADOW_PAD, escSvg, estimateTextWidth, fontFamilyFor, notchPathD } from "@/lib/badge-svg-shared"
 import { formatSeparateValue } from "@/lib/ratings"
 import { badgeBody, badgeCanvasForBody, fitBadgeToCanvas, insertFrostedGlassUnderlays, scaleBadgeBleed } from "@/lib/poster-render-helpers"
 import type { PosterComposite } from "@/lib/poster-render-helpers"
@@ -250,9 +250,10 @@ export type ThumbnailFillerStatus = (typeof THUMBNAIL_FILLER_STATUSES)[number]
 /**
  * Layout of the classification banner (`?fillStyle`). `corner` is the
  * historical compact chip (default, and the exact pre-style render when the
- * parameter is absent); `strip` is the full-width top banner.
+ * parameter is absent); `strip` is the full-width top banner; `notch` is the
+ * shared notch pill hanging from the top edge, centred horizontally.
  */
-export const THUMBNAIL_FILLER_STYLES = ["corner", "strip"] as const
+export const THUMBNAIL_FILLER_STYLES = ["corner", "strip", "notch"] as const
 export type ThumbnailFillerStyle = (typeof THUMBNAIL_FILLER_STYLES)[number]
 export const DEFAULT_THUMBNAIL_FILLER_STYLE: ThumbnailFillerStyle = "corner"
 
@@ -454,6 +455,60 @@ async function renderFillerStrip(
     `</svg>`
   const png = await renderSVG(svg, width)
   return { png, w: width, h: stripH }
+}
+
+/**
+ * Notch filler (`?fillStyle=notch`): the corner chip's label rules, fit loop,
+ * ink, tracking and accent, drawn as the shared notch pill hanging from the top
+ * edge (`notchPathD`, edge "top") and centred horizontally. `w`/`h` are the
+ * VISIBLE body (fillets included) and `left` its canvas x, so a top-anchored
+ * stack can move below it when their spans meet. The bitmap carries
+ * TOP_SHADOW_PAD on the sides and bottom (the flush edge is at y=0).
+ */
+async function renderFillerNotch(
+  status: ThumbnailFillerStatus,
+  width: ThumbnailWidth,
+  label?: string | null,
+): Promise<ThumbnailBadge & { readonly left: number }> {
+  const boxH = thumbnailFillerBannerHeight(width)
+  const text = ((label ?? "").trim() || FILLER_BANNER_FALLBACK_LABELS[status]).toUpperCase()
+  const R = boxH / 2
+  const fr = Math.round(boxH * 0.8)
+  const padX = Math.max(6, Math.round(boxH * FILLER_CHIP_PAD_X_FACTOR), Math.round(R * 0.9))
+  const maxChipW = Math.max(padX * 2 + 1, Math.round(width * FILLER_CHIP_MAX_WIDTH_FACTOR))
+  const maxTextW = Math.max(1, maxChipW - padX * 2)
+  let fs = Math.max(FILLER_BANNER_MIN_FONT, Math.round(boxH * 0.52))
+  const glyphs = [...text].length
+  const measure = (candidateFs: number): number => {
+    const tracking = candidateFs * FILLER_BANNER_LABEL_TRACKING
+    return Math.max(
+      1,
+      Math.round(estimateTextWidth(text, candidateFs, "inter") + tracking * Math.max(0, glyphs - 1)),
+    )
+  }
+  let textW = measure(fs)
+  for (let i = 0; i < 3 && textW > maxTextW && fs > FILLER_BANNER_MIN_FONT; i++) {
+    fs = Math.max(FILLER_BANNER_MIN_FONT, Math.floor((fs * maxTextW) / textW))
+    textW = measure(fs)
+  }
+  textW = Math.min(textW, maxTextW)
+  const boxW = padX * 2 + textW
+  const tracking = fs * FILLER_BANNER_LABEL_TRACKING
+  const P = TOP_SHADOW_PAD
+  const renderW = boxW + fr * 2 + P * 2
+  const renderH = boxH + P
+  const x = P + fr
+  const visibleLeft = Math.round((width - (boxW + fr * 2)) / 2)
+  const svg =
+    `<svg xmlns="http://www.w3.org/2000/svg" width="${renderW}" height="${renderH}" viewBox="0 0 ${renderW} ${renderH}">` +
+    `<defs>${TOP_SHADOW_FILTER}</defs>` +
+    `<path d="${notchPathD({ x, boxW, boxH, fr, renderH, edge: "top" })}" fill="${FILLER_BANNER_ACCENTS[status]}" filter="url(#tds)"/>` +
+    `<text x="${x + boxW / 2}" y="${boxH / 2}" text-anchor="middle" dominant-baseline="central" ` +
+    `font-family="${fontFamilyFor(text, "inter")}" font-weight="700" font-size="${fs}" fill="${FILLER_BANNER_INK}" ` +
+    `letter-spacing="${tracking.toFixed(1)}" textLength="${textW}" lengthAdjust="spacingAndGlyphs">${escSvg(text)}</text>` +
+    `</svg>`
+  const png = await renderSVG(svg, renderW)
+  return { png, w: boxW + fr * 2, h: boxH, left: visibleLeft }
 }
 
 /**
@@ -1643,8 +1698,13 @@ export async function renderEpisodeThumbnail(input: RenderEpisodeThumbnailInput)
   // when the classification travels on the URL. Absent = zero extra pixels and
   // the historical render byte-identical. `corner` is the compact chip (the
   // pre-style default); `strip` is the full-width top plate.
-  const fillerStyle = input.fillerStyle === "strip" ? "strip" : "corner"
-  const fillerBanner = input.filler
+  const fillerStyle: ThumbnailFillerStyle = input.fillerStyle === "strip" || input.fillerStyle === "notch" ? input.fillerStyle : "corner"
+  // The notch is centred (not a corner plate), so it has its own return shape:
+  // `left` is the visible body x used by the collision check below.
+  const fillerNotch = input.filler && fillerStyle === "notch"
+    ? await renderFillerNotch(input.filler, width, input.fillerLabel ?? FILLER_BANNER_FALLBACK_LABELS[input.filler])
+    : null
+  const fillerBanner = input.filler && fillerStyle !== "notch"
     ? fillerStyle === "strip"
       ? await renderFillerStrip(
           input.filler,
@@ -1657,6 +1717,11 @@ export async function renderEpisodeThumbnail(input: RenderEpisodeThumbnailInput)
           input.fillerLabel ?? FILLER_BANNER_FALLBACK_LABELS[input.filler],
         )
     : null
+  if (fillerNotch) {
+    // The bitmap starts TOP_SHADOW_PAD left of the visible body.
+    composites.push({ input: fillerNotch.png, left: fillerNotch.left - TOP_SHADOW_PAD, top: 0 })
+    rendered.filler = true
+  }
   if (fillerBanner) {
     composites.push({ input: fillerBanner.png, left: 0, top: 0 })
     rendered.filler = true
@@ -1693,20 +1758,27 @@ export async function renderEpisodeThumbnail(input: RenderEpisodeThumbnailInput)
     fillerStyle === "corner" && anchor === "tr" && topStackBody
       ? cornerChipWidth + THUMBNAIL_BADGE_GAP > width - safeMarginX - topStackBody.w
       : false
+  const maxOffsetX = Math.max(0, width - safeMarginX * 2 - widestBody)
+  const offsetX = anchorRight
+    ? Math.max(-maxOffsetX, Math.min(0, rawOffsetX))
+    : Math.max(0, Math.min(maxOffsetX, rawOffsetX))
+  // Notch filler: a top stack moves below it only when the two horizontal spans
+  // (fillets included, plus the gap) meet. Bottom anchors never move.
+  const stackLeftX = (anchorRight ? width - safeMarginX - widestBody : safeMarginX) + offsetX
+  const notchFillerHit = fillerNotch !== null && !anchorBottom
+    && stackLeftX < fillerNotch.left + fillerNotch.w + THUMBNAIL_BADGE_GAP
+    && stackLeftX + widestBody > fillerNotch.left - THUMBNAIL_BADGE_GAP
+  const notchShift = fillerNotch && notchFillerHit ? fillerNotch.h + THUMBNAIL_BADGE_GAP : 0
   const bannerShift = fillerBanner && !anchorBottom
     ? fillerStyle === "strip"
       ? fillerBanner.h + THUMBNAIL_BADGE_GAP
       : anchor === "tl" || trCollides
         ? thumbnailFillerBannerHeight(width) + THUMBNAIL_BADGE_GAP
         : 0
-    : 0
-  const maxOffsetX = Math.max(0, width - safeMarginX * 2 - widestBody)
+    : notchShift
   // A shifted top stack starts below the chip, so its downward range loses
   // exactly that inset; every other anchor keeps the historical range.
   const maxOffsetY = Math.max(0, height - safeMarginY * 2 - stackH - bannerShift)
-  const offsetX = anchorRight
-    ? Math.max(-maxOffsetX, Math.min(0, rawOffsetX))
-    : Math.max(0, Math.min(maxOffsetX, rawOffsetX))
   const offsetY = anchorBottom
     ? Math.max(-maxOffsetY, Math.min(0, rawOffsetY))
     : Math.max(0, Math.min(maxOffsetY, rawOffsetY))

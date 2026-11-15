@@ -1,6 +1,7 @@
 "use client"
 
 import { useEffect, useState, useId, type ReactNode } from "react"
+import { SeparateRatingsStylePicker } from "@/components/ui/SeparateRatingsStylePicker"
 import { ArrowUpToLine, ChevronDown, Flame, Layers, Menu, Palette, SlidersHorizontal, Sparkles, Star, Trophy, Tv } from "lucide-react"
 import { useT } from "@/lib/contexts/TranslationContext"
 import { usePosterEditor } from "@/lib/contexts/PosterEditorContext"
@@ -20,7 +21,7 @@ import {
   type RankBadgeVariant,
   type RankRibbonVariant,
 } from "@/components/RankingAppearanceSelector"
-import { type ExtraBadgeStyle, type RankingBadgeStyle } from "@/lib/badge-styles"
+import { notchMaterialOf, notchStyle, type ExtraBadgeStyle, type RankingBadgeStyle } from "@/lib/badge-styles"
 import type { LandscapeServerDefaults } from "@/lib/server-defaults"
 import type { VisualPresetValues } from "@/lib/visual-presets"
 import { Toggle } from "@/components/Toggle"
@@ -30,6 +31,7 @@ import { REGIONS } from "@/lib/regions"
 import { PosterLayoutSelector } from "@/components/PosterLayoutSelector"
 import { isCardSkin, type CardSkin } from "@/lib/card-layout-skins"
 import { BadgeStyleSelector, BadgeFontSelector, AwardBadgeModeSelector } from "@/components/ui"
+import { EXTRA_STYLE_GROUPS, QUALITY_STYLE_GROUPS } from "@/lib/badge-style-groups"
 import type { DefaultsPreviewFamily } from "@/lib/poster-url"
 import type { PosterElementId } from "@/components/settings/PosterElementNavigation"
 import { isBottomSeparateRatingsStyle, getSeparateRatingsStyleForShape, AGE_BADGE_STYLES, DEFAULT_BADGE_FONT, DEFAULT_QUALITY_BADGE_STYLE, DEFAULT_QUALITY_GROUP_LAYOUT, DEFAULT_SEPARATE_RATINGS_STYLE, EXTRA_BADGE_FOLLOW_RANK, DEFAULT_QUALITY_BADGE_OFFSET_X, DEFAULT_QUALITY_BADGE_OFFSET_Y, DEFAULT_QUALITY_BADGE_OFFSET_X_LANDSCAPE, DEFAULT_QUALITY_BADGE_OFFSET_Y_LANDSCAPE, getSeparateBadgeDefaultScale } from "@/lib/badge-styles"
@@ -279,7 +281,7 @@ export function BadgeDefaultsSection({ active, shape, onPreviewFamilyChange, pre
   const [badgeQuality, setBadgeQuality] = scoped("badgeQuality", ed.defaultBadgeQuality, ed.setDefaultBadgeQuality)
   const [networkLogo, setNetworkLogo] = scoped("networkLogo", ed.defaultNetworkLogo, ed.setDefaultNetworkLogo)
   const [networkLogoPosition, setNetworkLogoPosition] = scoped("networkLogoPosition", ed.defaultNetworkLogoPosition, ed.setDefaultNetworkLogoPosition)
-  const [badgeStyle] = scoped("badgeStyle", ed.defaultBadgeStyle, ed.setDefaultBadgeStyle)
+  const [badgeStyle, setBadgeStyle] = scoped("badgeStyle", ed.defaultBadgeStyle, ed.setDefaultBadgeStyle)
   const [rankingBadgeStyle, setRankingBadgeStyle] = scoped("rankingBadgeStyle", ed.defaultRankingBadgeStyle, ed.setDefaultRankingBadgeStyle)
   const [extraBadgeStyle, setExtraBadgeStyle] = scoped("extraBadgeStyle", ed.defaultExtraBadgeStyle, ed.setDefaultExtraBadgeStyle)
   // Logo-block alignment is Auto-only (no selector anywhere): the staged
@@ -341,7 +343,7 @@ export function BadgeDefaultsSection({ active, shape, onPreviewFamilyChange, pre
   // EXTRA_BADGE_STYLES order preserved: colored always offered, never gated
   // on the current value — the renderer already handles every entry).
   // Hoisted above the shared cards (same values, same callbacks).
-  const extraOptions: ExtraBadgeStyle[] = ["default", "pill", "corner", "vetro", "bordo", "colored", "tinta", "sfumato", "editoriale"]
+  const extraOptions: ExtraBadgeStyle[] = ["default", "pill", "corner", "vetro", "bordo", "colored", "tinta", "sfumato", "editoriale", "notch-crema", "notch-vetro", "notch-inchiostro", "notch-sfumato"]
   const EXTRA_STYLE_LABELS: Record<ExtraBadgeStyle, string> = {
     default: "ui.bsDefault",
     pill: "ui.pill",
@@ -352,6 +354,10 @@ export function BadgeDefaultsSection({ active, shape, onPreviewFamilyChange, pre
     tinta: "ui.tinta",
     sfumato: "ui.sfumato",
     editoriale: "ui.editoriale",
+    "notch-crema": "ui.notchCrema",
+    "notch-vetro": "ui.notchVetro",
+    "notch-inchiostro": "ui.notchInchiostro",
+    "notch-sfumato": "ui.notchSfumato",
   }
   // Shared separate-style picker (single implementation, reused callbacks):
   // the appearance tab owns it in a dedicated wrapper; standalone keeps the
@@ -359,38 +365,7 @@ export function BadgeDefaultsSection({ active, shape, onPreviewFamilyChange, pre
   const separateStylePicker = (
     <div className="pt-1 space-y-1.5" title={t("ui.separateRatingsHint")} data-testid="badge-separate-style-picker">
       <span className="text-[11px] text-muted font-medium block">{t("ui.separateRatingsStyle")}</span>
-      <div className="grid grid-cols-3 gap-1">
-        {([
-          { id: "column", labelKey: "ui.separateRatingsColumn" },
-          { id: "bottom-bar", labelKey: "ui.separateRatingsBottomBar" },
-          { id: "bottom-pills", labelKey: "ui.separateRatingsBottomPills" },
-          { id: "bottom-mono", labelKey: "ui.separateRatingsBottomMono" },
-          { id: "bottom-color", labelKey: "ui.separateRatingsBottomColor" },
-          { id: "rings", labelKey: "ui.sepRings" },
-        ] as const).map((opt) => {
-          const barOff = opt.id === "bottom-bar" && targetShape === "landscape"
-          const pressed = getSeparateRatingsStyleForShape(
-            separateRatingsStyle, targetShape === "landscape" ? "landscape" : "poster",
-          ) === opt.id
-          return (
-            <button
-              key={opt.id}
-              type="button"
-              onClick={() => { if (!barOff) setSeparateRatingsStyle(opt.id) }}
-              aria-pressed={pressed}
-              disabled={barOff}
-              title={barOff ? t("ui.separateRatingsBarLandscapeHint") : undefined}
-              className={`flex-1 py-1 px-1 rounded-lg text-[11px] font-semibold transition duration-150 ${
-                pressed
-                  ? "bg-white/20 text-white shadow-sm"
-                  : "bg-white/5 text-muted hover:bg-white/10 hover:text-zinc-200"
-              } ${barOff ? "cursor-not-allowed" : "cursor-pointer"}`}
-            >
-              {t(opt.labelKey)}
-            </button>
-          )
-        })}
-      </div>
+      <SeparateRatingsStylePicker value={separateRatingsStyle} landscape={targetShape === "landscape"} onChange={setSeparateRatingsStyle} t={t} />
       {targetShape === "landscape" && (
         <p className="text-[10px] text-muted italic leading-tight">{t("ui.separateRatingsBarLandscapeHint")}</p>
       )}
@@ -415,6 +390,7 @@ export function BadgeDefaultsSection({ active, shape, onPreviewFamilyChange, pre
           </p>
         )}
         <BadgeStyleSelector
+          groups={EXTRA_STYLE_GROUPS}
           value={extraBadgeStyle === "follow-rank" ? legacyExtraStyleForRank(rankingBadgeStyle) : (extraBadgeStyle ?? legacyExtraStyleForRank(rankingBadgeStyle))}
           options={extraOptions}
           onChange={(v) => {
@@ -1519,22 +1495,23 @@ export function BadgeDefaultsSection({ active, shape, onPreviewFamilyChange, pre
       {mode === "appearance" ? (
         <>
           {orderActiveFirst([
-            {
-              active: genreStyleActive,
-              value: (
-                <div key="genre" hidden={hideFor("genre")} data-testid="badge-genre-style-wrap">
-                  <AvailabilityGate active name={t("ui.styleGenreBadge")} hint="" testId="badge-genre-style">
-                    <GenreStyleSection shape={targetShape} onPreviewFamilyChange={onPreviewFamilyChange} styleDisabled={!genreStyleActive} showFont={false} />
-                  </AvailabilityGate>
-                </div>
-              ),
-            },
+            // Ordine: Classifica (card sopra) -> extra -> genere/rating/anno -> layout rating separati.
             {
               active: extraStyleActive,
               value: (
                 <div key="extra" hidden={hideFor("info")} data-testid="badge-extra-style-wrap">
                   <AvailabilityGate active name={t("ui.extraBadgeStyle")} hint="" testId="badge-extra-style">
                     {extraStyleCard}
+                  </AvailabilityGate>
+                </div>
+              ),
+            },
+            {
+              active: genreStyleActive,
+              value: (
+                <div key="genre" hidden={hideFor("genre")} data-testid="badge-genre-style-wrap">
+                  <AvailabilityGate active name={t("ui.styleGenreBadge")} hint="" testId="badge-genre-style">
+                    <GenreStyleSection shape={targetShape} onPreviewFamilyChange={onPreviewFamilyChange} styleDisabled={!genreStyleActive} showFont={false} />
                   </AvailabilityGate>
                 </div>
               ),
@@ -1548,11 +1525,11 @@ export function BadgeDefaultsSection({ active, shape, onPreviewFamilyChange, pre
         </>
       ) : (
         <>
-          <div hidden={hideFor("genre") || modeHide("appearance")} data-testid="badge-genre-style-wrap">
-            <GenreStyleSection shape={targetShape} onPreviewFamilyChange={onPreviewFamilyChange} />
-          </div>
           <div hidden={hideFor("info") || modeHide("appearance")} data-testid="badge-extra-style-wrap">
             {extraStyleCard}
+          </div>
+          <div hidden={hideFor("genre") || modeHide("appearance")} data-testid="badge-genre-style-wrap">
+            <GenreStyleSection shape={targetShape} onPreviewFamilyChange={onPreviewFamilyChange} />
           </div>
         </>
       )}
@@ -2050,6 +2027,7 @@ export function BadgeDefaultsSection({ active, shape, onPreviewFamilyChange, pre
                   {t("ui.ageBadgeStyle")}
                 </label>
                 <BadgeStyleSelector
+                  groups={QUALITY_STYLE_GROUPS}
                   value={ageBadgeStyle}
                   options={AGE_BADGE_STYLES}
                   family="age"
@@ -2067,6 +2045,7 @@ export function BadgeDefaultsSection({ active, shape, onPreviewFamilyChange, pre
                 {t("ui.ageBadgeStyle")}
               </label>
               <BadgeStyleSelector
+                groups={QUALITY_STYLE_GROUPS}
                 value={ageBadgeStyle}
                 options={AGE_BADGE_STYLES}
                 family="age"

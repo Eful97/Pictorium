@@ -1,10 +1,13 @@
 "use client"
 
+import { useState } from "react"
 import { useT } from "@/lib/contexts/TranslationContext"
-import type { ExtraBadgeStyle, RankingBadgeStyle } from "@/lib/badge-styles"
+import { DEFAULT_NOTCH_MATERIAL, notchMaterialOf, notchStyle, type ExtraBadgeStyle, type NotchMaterial, type RankingBadgeStyle } from "@/lib/badge-styles"
 import { buildHouseRankingSvg } from "@/lib/badge-svg-shared"
 import { LayoutThumb } from "@/components/PosterLayoutSelector"
 import { isCardSkin, type CardSkin } from "@/lib/card-layout-skins"
+import { RANK_VARIANT_GROUPS, groupStyleOptions, type GroupedEntry, type StyleGroup } from "@/lib/badge-style-groups"
+import { familyMember } from "@/components/ui/style-family"
 
 export type RankingAppearance = "nastro" | "numero" | "badge"
 
@@ -12,7 +15,7 @@ export type RankingAppearance = "nastro" | "numero" | "badge"
 export type RankingPresentation = RankingAppearance | "fresh" | "card"
 
 /** Badge variants for the Badge appearance (`standard` = centered default plate). */
-export const RANK_BADGE_VARIANTS = ["pill", "colored", "bordo", "vetro", "corner", "standard", "split", "tinta", "sfumato", "editoriale"] as const
+export const RANK_BADGE_VARIANTS = ["pill", "colored", "bordo", "vetro", "corner", "standard", "split", "tinta", "sfumato", "editoriale", "notch-crema", "notch-vetro", "notch-inchiostro", "notch-sfumato"] as const
 export type RankBadgeVariant = (typeof RANK_BADGE_VARIANTS)[number]
 
 /**
@@ -42,6 +45,7 @@ export function resolveRankingAppearance(args: {
  */
 export function resolveRankVariant(rs: string | null | undefined): RankBadgeVariant {
   if (rs === "pill" || rs === "colored" || rs === "bordo" || rs === "vetro" || rs === "corner" || rs === "split" || rs === "tinta" || rs === "sfumato" || rs === "editoriale") return rs
+  if (notchMaterialOf(rs)) return rs as RankBadgeVariant
   return "standard"
 }
 
@@ -110,6 +114,8 @@ export function rankVariantValue(variant: RankBadgeVariant): RankVariantValue {
  * default plate — same pixels the extra badge already renders today.
  */
 export function legacyExtraStyleForRank(rs: string | null | undefined): ExtraBadgeStyle {
+  const notch = notchMaterialOf(rs)
+  if (notch) return notchStyle(notch)
   if (rs === "corner" || rs === "number") return "corner"
   if (rs === "pill" || rs === "colored" || rs === "bordo" || rs === "vetro" || rs === "tinta" || rs === "sfumato" || rs === "editoriale") return rs
   return "default"
@@ -146,6 +152,10 @@ const VARIANT_LABELS: Record<RankBadgeVariant, string> = {
   tinta: "ui.tinta",
   sfumato: "ui.sfumato",
   editoriale: "ui.editoriale",
+  "notch-crema": "ui.notchCrema",
+  "notch-vetro": "ui.notchVetro",
+  "notch-inchiostro": "ui.notchInchiostro",
+  "notch-sfumato": "ui.notchSfumato",
 }
 
 /** Demo accent for the mini previews (same fallback as the badge style selector). */
@@ -167,6 +177,10 @@ const BADGE_VARIANT_SWATCH: Record<RankBadgeVariant, { style: RankingBadgeStyle;
   tinta: { style: "tinta", ribbon: true },
   sfumato: { style: "sfumato", ribbon: true },
   editoriale: { style: "editoriale", ribbon: true },
+  "notch-crema": { style: "notch-crema", ribbon: true },
+  "notch-vetro": { style: "notch-vetro", ribbon: true },
+  "notch-inchiostro": { style: "notch-inchiostro", ribbon: true },
+  "notch-sfumato": { style: "notch-sfumato", ribbon: true },
 }
 /** Ribbon rows → the same canonical pairs `ribbonVariantValue` writes. */
 const RIBBON_VARIANT_SWATCH: Record<RankRibbonVariant, { style: RankingBadgeStyle; ribbon: boolean }> = {
@@ -211,6 +225,37 @@ function RankSwatch({
   )
 }
 
+function RankVariantRadio({
+  checked,
+  onClick,
+  swatch,
+  label,
+  previewLabel,
+}: {
+  checked: boolean
+  onClick: () => void
+  swatch: { style: RankingBadgeStyle; ribbon: boolean }
+  label: string
+  previewLabel: string
+}) {
+  return (
+    <button
+      type="button"
+      role="radio"
+      aria-checked={checked}
+      onClick={onClick}
+      className={`flex flex-1 min-w-[56px] flex-col items-center justify-center gap-0.5 py-1 px-1 rounded-lg text-[10px] font-semibold transition duration-150 cursor-pointer ${
+        checked
+          ? "bg-white/20 text-white shadow-sm"
+          : "bg-white/5 text-muted hover:bg-white/10 hover:text-zinc-200"
+      }`}
+    >
+      <RankSwatch {...swatch} label={previewLabel} />
+      <span className="leading-tight truncate max-w-full">{label}</span>
+    </button>
+  )
+}
+
 /**
  * Single rank-appearance control (Nastro/Numero/Badge + variants + side).
  * `side`/`onSide` are optional: omit them where the side is not persistable
@@ -248,6 +293,17 @@ export function RankingAppearanceSelector({
   onCardSkin?: (s: CardSkin) => void
 }) {
   const { t } = useT()
+  const today = t("badge.today")
+  // Badge families: one radio per family on top; the active family's members in a variants row.
+  const [rankMemory, setRankMemory] = useState<Record<string, string>>({})
+  const [rankOpenId, setRankOpenId] = useState<string | null>(null)
+  const rankEntries = groupStyleOptions(RANK_BADGE_VARIANTS, RANK_VARIANT_GROUPS)
+  const activeRankGroup = rankEntries.find((e): e is Extract<GroupedEntry, { kind: "group" }> =>
+    e.kind === "group" && (rankOpenId ? e.group.id === rankOpenId : e.members.includes(variant)))
+  const pickRank = (member: RankBadgeVariant, groupId: string) => {
+    setRankMemory((m) => ({ ...m, [groupId]: member }))
+    onVariant(member)
+  }
   const unified = onPresentation !== undefined && presentation !== undefined
   // Variant/side rows follow the effective look (presentation when unified).
   const look: RankingAppearance | "fresh" | "card" = unified ? presentation : appearance
@@ -347,24 +403,32 @@ export function RankingAppearanceSelector({
         </div>
       )}
       {look === "badge" && (
-        <div className="flex flex-wrap gap-1" role="radiogroup" aria-label={t("ui.styleRankingDefault")}>
-          {RANK_BADGE_VARIANTS.map((v) => (
-            <button
-              key={v}
-              type="button"
-              role="radio"
-              aria-checked={variant === v}
-              onClick={() => onVariant(v)}
-              className={`flex flex-1 min-w-[56px] flex-col items-center justify-center gap-0.5 py-1 px-1 rounded-lg text-[10px] font-semibold transition duration-150 cursor-pointer ${
-                variant === v
-                  ? "bg-white/20 text-white shadow-sm"
-                  : "bg-white/5 text-muted hover:bg-white/10 hover:text-zinc-200"
-              }`}
-            >
-              <RankSwatch {...BADGE_VARIANT_SWATCH[v]} label={t("badge.today")} />
-              <span className="leading-tight truncate max-w-full">{t(VARIANT_LABELS[v])}</span>
-            </button>
-          ))}
+        <div className="space-y-1.5">
+          <div className="flex flex-wrap gap-1" role="radiogroup" aria-label={t("ui.styleRankingDefault")}>
+            {rankEntries.map((e) => {
+              if (e.kind === "single") {
+                const v = e.value as RankBadgeVariant
+                return (
+                  <RankVariantRadio key={v} checked={variant === v} onClick={() => { setRankOpenId(null); onVariant(v) }} swatch={BADGE_VARIANT_SWATCH[v]} label={t(VARIANT_LABELS[v])} previewLabel={today} />
+                )
+              }
+              const g: StyleGroup = { id: e.group.id, labelKey: e.group.labelKey, members: e.members }
+              const rep = familyMember(g, variant, rankMemory) as RankBadgeVariant
+              return (
+                <RankVariantRadio key={g.id} checked={e.members.includes(variant)} onClick={() => { setRankOpenId(g.id); pickRank(rep, g.id) }} swatch={BADGE_VARIANT_SWATCH[rep]} label={t(g.labelKey)} previewLabel={today} />
+              )
+            })}
+          </div>
+          {activeRankGroup && (
+            <div className="space-y-1">
+              <span className="text-[10px] text-muted font-medium block">{t("ui.styleVariants")}</span>
+              <div className="flex flex-wrap gap-1" role="radiogroup" aria-label={t("ui.styleVariants")}>
+                {(activeRankGroup.members as RankBadgeVariant[]).map((m) => (
+                  <RankVariantRadio key={m} checked={variant === m} onClick={() => pickRank(m, activeRankGroup.group.id)} swatch={BADGE_VARIANT_SWATCH[m]} label={t(VARIANT_LABELS[m])} previewLabel={today} />
+                ))}
+              </div>
+            </div>
+          )}
         </div>
       )}
       {(unified ? (look === "nastro" || look === "numero") : appearance !== "badge") && onSide && (

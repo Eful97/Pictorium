@@ -1,6 +1,7 @@
 "use client"
 
 import { useEffect, useId, useState } from "react"
+import { SeparateRatingsStylePicker } from "@/components/ui/SeparateRatingsStylePicker"
 import { ChevronDown, Star, Trophy, Tv, Sparkles, Palette, Layers, Cloud, RotateCcw } from "lucide-react"
 import { usePSelector } from "@/lib/context"
 import { useT } from "@/lib/contexts/TranslationContext"
@@ -8,6 +9,7 @@ import { usePosterEditor } from "@/lib/contexts/PosterEditorContext"
 import { Toggle } from "@/components/Toggle"
 import { isCardSkin, type CardSkin } from "@/lib/card-layout-skins"
 import { BadgeStyleSelector, BadgeFontSelector, AwardBadgeModeSelector, VideoFormatSelector } from "@/components/ui"
+import { GENRE_STYLE_GROUPS, EXTRA_STYLE_GROUPS, QUALITY_STYLE_GROUPS } from "@/lib/badge-style-groups"
 import { QualityGroupLayoutSelector } from "@/components/PosterLayoutSelector"
 import {
   RankingAppearanceSelector,
@@ -23,7 +25,7 @@ import {
   type RankBadgeVariant,
   type RankRibbonVariant,
 } from "@/components/RankingAppearanceSelector"
-import type { ExtraBadgeStyle, RankingBadgeStyle } from "@/lib/badge-styles"
+import { notchMaterialOf, notchStyle, type ExtraBadgeStyle, type RankingBadgeStyle } from "@/lib/badge-styles"
 import type { SeasonalThemeChoice } from "@/lib/seasonal-theme"
 import { lookupAVSpecs } from "@/lib/av-specs"
 import { PACK_MARK_IDS, QUALITY_MARK_IDS, isPackMark, qualityMarkLabel } from "@/lib/quality-badge-pack"
@@ -36,7 +38,7 @@ import { isPrefixedKey, badgeKey } from "@/lib/i18n"
 import { getAllBadgeOptions, isMiniseriesType, isReturningStatus, NEXT_EPISODE_BADGE_KEY } from "@/lib/badge-priority"
 import { isManualAccent } from "@/lib/accent-color"
 import { resolveAccentPickerDisplay, useEffectiveAccent } from "@/lib/useEffectiveAccent"
-import { isBottomSeparateRatingsStyle, getSeparateRatingsStyleForShape, QUALITY_BADGE_STYLES, AGE_BADGE_STYLES } from "@/lib/badge-styles"
+import { isBottomSeparateRatingsStyle, QUALITY_BADGE_STYLES, AGE_BADGE_STYLES } from "@/lib/badge-styles"
 import { REGIONS } from "@/lib/regions"
 import { UI_RATING_SOURCES } from "@/lib/rating-weights"
 import { RatingSourceIcon } from "@/components/RatingSourceIcon"
@@ -254,7 +256,7 @@ export function BadgeControls() {
   // Extra style options: the full renderer-supported subset (same order as
   // the defaults panel — colored always offered, never gated on the current
   // value; the renderer already handles every entry).
-  const extraOptions: ExtraBadgeStyle[] = ["default", "pill", "corner", "vetro", "bordo", "colored", "tinta", "sfumato", "editoriale"]
+  const extraOptions: ExtraBadgeStyle[] = ["default", "pill", "corner", "vetro", "bordo", "colored", "tinta", "sfumato", "editoriale", "notch-crema", "notch-vetro", "notch-inchiostro", "notch-sfumato"]
   const EXTRA_STYLE_LABELS: Record<ExtraBadgeStyle, string> = {
     default: "ui.bsDefault",
     pill: "ui.pill",
@@ -265,6 +267,10 @@ export function BadgeControls() {
     tinta: "ui.tinta",
     sfumato: "ui.sfumato",
     editoriale: "ui.editoriale",
+    "notch-crema": "ui.notchCrema",
+    "notch-vetro": "ui.notchVetro",
+    "notch-inchiostro": "ui.notchInchiostro",
+    "notch-sfumato": "ui.notchSfumato",
   }
 
   const pane = (s: BadgeSection) => (section === s ? "" : " hidden")
@@ -345,43 +351,7 @@ export function BadgeControls() {
               {ed.badgeRating && ed.separateRatings && (
                 <div className="pt-1 space-y-1.5" title={t("ui.separateRatingsHint")}>
                   <span className="text-[11px] text-muted font-medium block">{t("ui.separateRatingsStyle")}</span>
-                  <div className="grid grid-cols-3 gap-1">
-                    {([
-                      { id: "column", labelKey: "ui.separateRatingsColumn" },
-                      { id: "bottom-bar", labelKey: "ui.separateRatingsBottomBar" },
-                      { id: "bottom-pills", labelKey: "ui.separateRatingsBottomPills" },
-                      { id: "bottom-mono", labelKey: "ui.separateRatingsBottomMono" },
-                      { id: "bottom-color", labelKey: "ui.separateRatingsBottomColor" },
-                      { id: "rings", labelKey: "ui.sepRings" },
-                    ] as const).map((opt) => {
-                      // Barra disattivata in landscape (il server normalizza
-                      // a pills): bottone visibile ma disabilitato e mai
-                      // selezionato — il raw salvato resta intatto e in
-                      // portrait torna selezionabile. Selezione mostrata
-                      // sullo stile normalizzato (bar salvata = pills attiva).
-                      const barOff = opt.id === "bottom-bar" && ed.posterShape === "landscape"
-                      const pressed = getSeparateRatingsStyleForShape(
-                        ed.separateRatingsStyle, ed.posterShape === "landscape" ? "landscape" : "poster",
-                      ) === opt.id
-                      return (
-                        <button
-                          key={opt.id}
-                          type="button"
-                          onClick={() => { if (!barOff) ed.setSeparateRatingsStyle(opt.id) }}
-                          aria-pressed={pressed}
-                          disabled={barOff}
-                          title={barOff ? t("ui.separateRatingsBarLandscapeHint") : undefined}
-                          className={`flex-1 py-1 px-1 rounded-lg text-[11px] font-semibold transition duration-150 ${
-                            pressed
-                              ? "bg-white/20 text-white shadow-sm"
-                              : "bg-white/5 text-muted hover:bg-white/10 hover:text-zinc-200"
-                          } ${barOff ? "cursor-not-allowed opacity-50" : "cursor-pointer"}`}
-                        >
-                          {t(opt.labelKey)}
-                        </button>
-                      )
-                    })}
-                  </div>
+                  <SeparateRatingsStylePicker value={ed.separateRatingsStyle} landscape={ed.posterShape === "landscape"} onChange={(v) => ed.setSeparateRatingsStyle(v)} t={t} />
                   {ed.posterShape === "landscape" && (
                     <p className="text-[10px] text-muted italic leading-tight">{t("ui.separateRatingsBarLandscapeHint")}</p>
                   )}
@@ -494,8 +464,9 @@ export function BadgeControls() {
         <div className="pt-2 border-t border-surface2/50 space-y-1.5">
           <span className="text-[11px] text-muted font-medium block">{t("ui.styleGenreBadge")}</span>
           <BadgeStyleSelector
+            groups={GENRE_STYLE_GROUPS}
             value={ed.badgeStyle}
-            options={["shadow", "pill", "bar", "colored", "bordo", "vetro", "minimal", "ink", "tinta", "sfumato", "split", "editoriale"]}
+            options={["shadow", "pill", "bar", "colored", "bordo", "vetro", "minimal", "ink", "tinta", "sfumato", "split", "editoriale", "notch-crema", "notch-vetro", "notch-inchiostro", "notch-sfumato"]}
             // Stile "bar" non disponibile in landscape: il server lo degrada
             // a shadow (stesso endpoint, preview WYSIWYG garantita).
             disabled={ed.posterShape === "landscape" ? ["bar"] : []}
@@ -713,6 +684,7 @@ export function BadgeControls() {
             </p>
           )}
           <BadgeStyleSelector
+            groups={EXTRA_STYLE_GROUPS}
             value={ed.extraBadgeStyle === "follow-rank" ? legacyExtraStyleForRank(ed.rankingBadgeStyle) : (ed.extraBadgeStyle ?? legacyExtraStyleForRank(ed.rankingBadgeStyle))}
             options={extraOptions}
             onChange={(v) => ed.setExtraBadgeStyle(v)}
@@ -750,6 +722,7 @@ export function BadgeControls() {
               <div>
                 <label className="text-[11px] text-muted font-medium block mb-1">{t("ui.qualityBadgeStyle")}</label>
                 <BadgeStyleSelector
+                  groups={QUALITY_STYLE_GROUPS}
                   value={ed.qualityBadgeStyle}
                   options={QUALITY_BADGE_STYLES}
                   onChange={ed.setQualityBadgeStyle}
@@ -841,6 +814,7 @@ export function BadgeControls() {
                     {t("ui.ageBadgeStyle")}
                   </label>
                   <BadgeStyleSelector
+                    groups={QUALITY_STYLE_GROUPS}
                     value={ed.ageBadgeStyle}
                     options={AGE_BADGE_STYLES}
                     family="age"

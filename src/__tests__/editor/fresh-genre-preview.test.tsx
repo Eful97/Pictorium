@@ -118,9 +118,21 @@ function visibleGenreWrap(): HTMLElement {
   return hit!
 }
 
+/** Two-level genre picker: a member lives in its family's variants row, so pick the family tile first when needed. */
+const GENRE_FAMILY: Record<string, string> = {
+  "ui.shadow": "ui.styleGroupText", "ui.minimal": "ui.styleGroupText", "ui.ink": "ui.styleGroupText", "ui.editoriale": "ui.styleGroupText",
+  "ui.pill": "ui.styleGroupPill", "ui.colored": "ui.styleGroupPill", "ui.tinta": "ui.styleGroupPill", "ui.split": "ui.styleGroupPill",
+  "ui.bordo": "ui.styleGroupFrame", "ui.vetro": "ui.styleGroupFrame", "ui.sfumato": "ui.styleGroupFrame",
+}
 function genreOption(wrap: HTMLElement, labelKey: string): HTMLElement {
-  const btns = within(wrap).getAllByRole("button")
-  const hit = btns.find((b) => b.textContent?.includes(labelKey))
+  // Family tiles are buttons, the variants row chips are radios.
+  const find = () => [...within(wrap).getAllByRole("button"), ...within(wrap).queryAllByRole("radio")].find((b) => b.textContent?.includes(labelKey))
+  let hit = find()
+  if (!hit && GENRE_FAMILY[labelKey]) {
+    const tile = within(wrap).getAllByRole("button").find((b) => b.textContent?.includes(GENRE_FAMILY[labelKey]))
+    if (tile) fireEvent.click(tile)
+    hit = find()
+  }
   expect(hit, `genre option ${labelKey}`).toBeTruthy()
   return hit!
 }

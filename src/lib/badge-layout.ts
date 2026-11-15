@@ -102,10 +102,12 @@ export function resolveTopBadgeStyle(params: {
  * (`buildHouseGenreSvg` / `buildGenreInkSvg`); every other style
  * (shadow/pill/bar/minimal/vetro/bordo) ignores it, so those styles must
  * neither trigger scene-tint extraction / band sampling nor carry the
- * adaptive tint in their badge cache key.
+ * adaptive tint in their badge cache key. Notch crema/inchiostro/sfumato
+ * paint the accent; notch vetro is neutral glass and does not.
  */
 export function genreBadgeConsumesAccent(style: BadgeStyle | string | null | undefined): boolean {
   return style === "colored" || style === "ink" || style === "tinta" || style === "sfumato" || style === "split"
+    || style === "notch-crema" || style === "notch-inchiostro" || style === "notch-sfumato"
 }
 
 /**
@@ -119,6 +121,7 @@ export function genreBadgeConsumesAccent(style: BadgeStyle | string | null | und
  * - `number` paints only for extra badges (degraded to the corner pill);
  *   rank numerals are bare digits and ignore the accent;
  * - `default` paints only with `accentFill` (colored degraded by ribbon off);
+ * - notch crema/inchiostro/sfumato paint the accent; notch vetro does not;
  * - every other style (pill/bordo/vetro/netflix/netflix-color) ignores it.
  * The extra `follow-rank`/absent sentinel resolves through the same legacy
  * `rs` fallback as the renderer, so the gate never invents a new path.
@@ -134,6 +137,7 @@ export function topBadgeConsumesAccent(params: {
     ? (normalizeExtraBadgeStyleForRender(params.extraBadgeStyle) ?? (rankingBadgeAccent ? "colored" : rankingBadgeStyle))
     : rankingBadgeStyle
   if (eff === "colored" || eff === "corner" || eff === "tinta" || eff === "sfumato") return true
+  if (eff === "notch-crema" || eff === "notch-inchiostro" || eff === "notch-sfumato") return true
   if (eff === "split") return topBadgeType === "rank"
   if (eff === "number") return topBadgeType === "extra"
   if (eff === "default") return topBadgeType === "rank" && rankingBadgeAccent === true

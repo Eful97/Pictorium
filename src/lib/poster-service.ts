@@ -38,7 +38,7 @@ import type { WikidataResult } from "./awards"
 import { directorBadgeLabel } from "./awards"
 import type { BadgeT } from "./poster-badge"
 import type { BadgeFont } from "./badge-styles"
-import { isRibbonRankingStyle, isBottomSeparateRatingsStyle, isAgeBadgeStyle, isAwardBadgeMode, getSeparateRatingsStyleForShape, resolveNumberBadgeBaseOffsetX, normalizeExtraBadgeStyleForRender, resolveQualityGroupLayout, isMergedQualityStrip, DEFAULT_AGE_BADGE_STYLE, DEFAULT_AWARD_BADGE_MODE, type BadgeStyle, type RankingBadgeStyle, type ExtraBadgeStyle, type ExtraBadgeFollowRank, type SeparateRatingsStyle, type SeparateBottomVariant, type AgeBadgeStyle, type AwardBadgeMode, type QualityGroupLayout } from "./badge-styles"
+import { isRibbonRankingStyle, notchMaterialOf, isBottomSeparateRatingsStyle, isAgeBadgeStyle, isAwardBadgeMode, getSeparateRatingsStyleForShape, resolveNumberBadgeBaseOffsetX, normalizeExtraBadgeStyleForRender, resolveQualityGroupLayout, isMergedQualityStrip, DEFAULT_AGE_BADGE_STYLE, DEFAULT_AWARD_BADGE_MODE, type BadgeStyle, type RankingBadgeStyle, type ExtraBadgeStyle, type ExtraBadgeFollowRank, type SeparateRatingsStyle, type SeparateBottomVariant, type AgeBadgeStyle, type AwardBadgeMode, type QualityGroupLayout } from "./badge-styles"
 import { normalizeBadgeFont } from "./badge-svg-shared"
 import type { PosterImageFormat } from "@/lib/poster-runtime-cache"
 import { qualityBadgeIconPath } from "./quality-badge-styles"
@@ -1649,7 +1649,7 @@ export async function generatePosterBuffer(input: GenerationInput): Promise<Buff
   // (`rankBadgeKey` nullo) + nessun nastro Coming Soon. Sopra il badge legge
   // la polarità della banda alta (`topLight`), come i badge superiori.
   const genreAtTop = input.genreTopWhenFree === true && shape !== "landscape" && !isFresh && !isCard
-    && badgeStyle !== "bar" && !topBadge && !showComingSoon
+    && badgeStyle !== "bar" && !notchMaterialOf(badgeStyle) && !topBadge && !showComingSoon
   const genreLight = genreAtTop ? topBadgeLight : genreBadgeLight
   const genreBadgeKey = hasGenreBadge
     ? badgeCacheKey("genre", genreName, voteAverage, CW, year, badgeStyle, badgeFont, genreStdAccent, genreLight, badgeGenre, badgeYear, badgeRating, genreBadgeScale)
@@ -1828,7 +1828,21 @@ export async function generatePosterBuffer(input: GenerationInput): Promise<Buff
     const anchorRight = shape === "landscape"
     const anchorShiftX = anchorRight ? 40 : 0
     const rightPadX = Math.round(18 * CW / 380)
-    if (badgeStyle === "bar") {
+    const notchMaterial = notchMaterialOf(badgeStyle)
+    if (notchMaterial) {
+      // Notch: pillola a filo del bordo basso (come `bar`, Y tuning e shrink
+      // anti-logo non si applicano). Portrait centrata, landscape a destra.
+      const notchBody = badgeBody(safeGenreBadgeResult)
+      const notchLeft = anchorRight
+        ? landscapeRightAnchorLeft(notchBody.w, CW, combinedGenreOX)
+        : Math.round((CW - notchBody.w) / 2) + combinedGenreOX
+      const notchTop = CH - notchBody.h
+      genreBadgeRect = { top: notchTop, left: notchLeft, w: notchBody.w, h: notchBody.h }
+      const notchCanvas = badgeCanvasForBody(notchLeft, notchTop, safeGenreBadgeResult)
+      const notchLayer = { input: safeGenreBadgeResult.png, top: notchCanvas.top, left: notchCanvas.left }
+      if (notchMaterial === "vetro") glassLayers.add(notchLayer)
+      composites.push(notchLayer)
+    } else if (badgeStyle === "bar") {
       // In landscape la barra è resa a badgePw (non full-width): col banner
       // va a destra come gli altri stili; altrimenti (portrait) resta
       // full-width ancorata a sinistra. (Nel ramo false shape è di certo
@@ -1935,7 +1949,7 @@ export async function generatePosterBuffer(input: GenerationInput): Promise<Buff
     const row = customRowBitmap
     if (row) {
       const legacyTop = safeGenreBadgeResult && !genreAtTop
-        ? (badgeStyle === "bar" ? CH - safeGenreBadgeResult.h
+        ? (badgeStyle === "bar" || notchMaterialOf(badgeStyle) ? CH - safeGenreBadgeResult.h
           : CH - safeGenreBadgeResult.h - Math.max(0, Math.round(targetCenter - safeGenreBadgeResult.h / 2)) + combinedGenreOY)
         : CH - 20
       composites.push({
@@ -2051,7 +2065,7 @@ export async function generatePosterBuffer(input: GenerationInput): Promise<Buff
     // La tela segue l'ancora del corpo: il bleed resta complanare, mai un salto.
     const rankCanvas = badgeCanvasForBody(finalRankLeft, finalRankTop, finalRankBadge)
     const rankLayer = { input: finalRankBadge.png, top: rankCanvas.top, left: rankCanvas.left }
-    if (topBadgeStyle === "vetro") glassLayers.add(rankLayer)
+    if (topBadgeStyle === "vetro" || topBadgeStyle === "notch-vetro") glassLayers.add(rankLayer)
     composites.push(rankLayer)
   }
   // Nastro Coming Soon: angolo in alto (a sinistra; a destra con side="right"), sopra il badge centrale
@@ -3119,7 +3133,9 @@ export async function generatePosterBuffer(input: GenerationInput): Promise<Buff
         showRating: cardRawBadgeRating,
         badgePw,
         CW,
-        badgeStyle,
+        // Card: la banda non è un bordo poster, la pillola a notch resterebbe
+        // sospesa a metà → si rende come pill classica.
+        badgeStyle: notchMaterialOf(badgeStyle) ? "pill" : badgeStyle,
         accentColor: accentColorGenre,
         bottomLight,
         badgeFont,

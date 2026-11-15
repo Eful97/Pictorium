@@ -57,7 +57,7 @@ export type ThumbnailBadgeAnchor = "tl" | "tr" | "bl" | "br"
 export type ThumbnailVoteSource = "imdb" | "tmdb"
 
 /** Filler banner layout (mirrors the renderer `fillStyle` contract; default corner). */
-export type ThumbnailFillerStyle = "corner" | "strip"
+export type ThumbnailFillerStyle = "corner" | "strip" | "notch"
 
 export interface LandscapeBlurState {
   gradientHeight: number

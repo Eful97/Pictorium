@@ -40,7 +40,7 @@ export const EPISODE_FILLER_STATUSES = ["manga", "anime", "filler", "mixed"] as 
 export type EpisodeFillerStatus = (typeof EPISODE_FILLER_STATUSES)[number]
 
 /** Banner layout codes accepted by the compositor `fillStyle` parameter. */
-export const EPISODE_FILLER_STYLES = ["corner", "strip"] as const
+export const EPISODE_FILLER_STYLES = ["corner", "strip", "notch"] as const
 export type EpisodeFillerStyle = (typeof EPISODE_FILLER_STYLES)[number]
 
 

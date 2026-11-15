@@ -172,11 +172,12 @@ describe("filler status parsing", () => {
     expect(thumbnailFillerBannerHeight(1280)).toBe(96)
   })
 
-  it("parses the two banner layouts, defaulting to the corner chip", () => {
-    expect(THUMBNAIL_FILLER_STYLES).toEqual(["corner", "strip"])
+  it("parses the banner layouts, defaulting to the corner chip", () => {
+    expect(THUMBNAIL_FILLER_STYLES).toEqual(["corner", "strip", "notch"])
     expect(DEFAULT_THUMBNAIL_FILLER_STYLE).toBe("corner")
     expect(parseThumbnailFillerStyle("corner")).toBe("corner")
     expect(parseThumbnailFillerStyle(" STRIP ")).toBe("strip")
+    expect(parseThumbnailFillerStyle("notch")).toBe("notch")
     expect(parseThumbnailFillerStyle("ribbon")).toBeNull()
     expect(parseThumbnailFillerStyle(null)).toBeNull()
     expect(parseThumbnailFillerStyle("")).toBeNull()

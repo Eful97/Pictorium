@@ -383,6 +383,30 @@ cambia; validazione/hardening/cache derivano dagli enum di `badge-styles.ts`).
   centro, logo provider (fs × 1.05) sotto. Chiave cache stack + segmento `rings`.
   Negli URL Stremio `sepstyle=rings` è emesso esplicito (non è il default).
 
+## Pillola a notch (`notch-crema|vetro|inchiostro|sfumato`)
+
+Stile additivo per genere (`bs`), classifica (`rs`) ed extra (`xbs`): una
+pillola col lato dritto incollato al bordo del poster, fondo tondo e due
+raccordi concavi verso il bordo (apertura `0.8 × boxH`, profondità `boxH/2`).
+Il materiale è codificato nel valore (`notchMaterialOf`/`notchStyle` in
+`badge-styles.ts`): nessun parametro URL nuovo, validazione/cache/mapping
+derivano dagli enum. La UI mostra una sola voce "Pillola" e un selettore
+materiale unico (`NotchMaterialPicker` in `src/components/ui/NotchPill.tsx`)
+che riscrive tutte le famiglie in notch.
+
+| Aspetto | Resa (`buildNotchSvg` in `badge-svg-shared.ts`) |
+|---|---|
+| Metriche | `boxH = genrePillHeight(fs)`, `padX = max(fs × GENRE_PILL_PAD_X_FACTOR, 0.9 × boxH/2)`; canvas = corpo + raccordi + `TOP_SHADOW_PAD` su lati e lato interno, lato bordo a filo |
+| Posizione | top (rank/extra): a filo `y = 0`, centrata, `pillTopGap` 0; genere: a filo `CH - h`, centrato (landscape `landscapeRightAnchorLeft`), offset Y e shrink anti-logo ignorati come `bar`; non conta come genere "in alto" (`genreAtTop`) |
+| `crema` | accent schiarito `mixHex(a, 0.86)` (senza accent `#F4EFE6`), testo e stella `mixHex(a, -0.85)` |
+| `vetro` | velo `rgba(255,255,255,0.14)` (banda chiara `rgba(0,0,0,0.24)`) + filo luce sul lato interno; blur reale da `insertFrostedGlassUnderlays` (layer in `glassLayers`); niente ombra (allargherebbe la sagoma del vetro) |
+| `inchiostro` | accent scurito `mixHex(a, -0.82)` (senza accent `#0C0D11`), testo bianco 0.92, stella oro |
+| `sfumato` | gradiente dal colore della banda sul lato bordo (0.9) a una versione scurita/schiarita sul fondo tondo; inchiostro `textColorForBg` |
+| Accent | crema/inchiostro/sfumato consumano l'accent (`genreBadgeConsumesAccent`/`topBadgeConsumesAccent`), vetro no |
+| Card | la banda Card non è un bordo: il genere notch si rende come `pill` |
+
+**Miniature episodio** (`fillStyle=notch`, `thumbnail-renderer.ts`): il filler notch è centrato a `y = 0` con `notchPathD` (edge top, stesso contorno di `buildNotchSvg`) e sposta uno stack `tl`/`tr` sotto sé solo se gli span orizzontali si toccano (altezza notch + gap). Il voto ★ delle miniature non ha lo stile notch.
+
 ## Badge contenuto: vera storia / libro / prossimo episodio / soli N episodi
 
 Quattro badge automatici opt-out via bucket `sash` (nessun nuovo parametro

@@ -103,9 +103,10 @@ export const DEFAULT_THUMBNAIL_BADGE_ANCHOR: ThumbnailBadgeAnchor = "tr"
 
 /**
  * Filler banner layouts (renderer `fillStyle` contract). `corner` is the
- * historical compact chip and the default; `strip` is the full-width top plate.
+ * historical compact chip and the default; `strip` is the full-width top plate;
+ * `notch` is the centred notch pill hanging from the top edge.
  */
-export const THUMBNAIL_FILLER_STYLES = ["corner", "strip"] as const
+export const THUMBNAIL_FILLER_STYLES = ["corner", "strip", "notch"] as const
 export const DEFAULT_THUMBNAIL_FILLER_STYLE: ThumbnailFillerStyle = "corner"
 
 export function sanitizeThumbnailFillerStyle(raw: unknown): ThumbnailFillerStyle {

@@ -132,6 +132,21 @@ async function saveStaged() {
   })
 }
 
+/** Separate ratings: family tile (Column / Bottom), then the member in the variants row. */
+const SEP_FAMILY: Record<string, [string, string]> = {
+  column: ["ui.sepGroupColumn", "ui.sepVariantPills"],
+  "bottom-bar": ["ui.sepGroupBottom", "ui.sepVariantBar"],
+  "bottom-pills": ["ui.sepGroupBottom", "ui.sepVariantPills"],
+  "bottom-mono": ["ui.sepGroupBottom", "ui.separateRatingsBottomMono"],
+  "bottom-color": ["ui.sepGroupBottom", "ui.separateRatingsBottomColor"],
+}
+
+function pickSep(id: string) {
+  const [family, member] = SEP_FAMILY[id]
+  fireEvent.click(screen.getByText(family).closest("button") as HTMLElement)
+  fireEvent.click(screen.getByRole("radio", { name: member }))
+}
+
 describe("badge target scope", () => {
   it("landscape toggle writes only the profile; flat and preview follow", async () => {
     const { ctx } = renderSettings()
@@ -205,7 +220,7 @@ describe("badge target scope", () => {
     fireEvent.click(badgeSwitch("ui.separateRatings"))
     // The separate-style picker lives on the Badge (appearance) tab.
     fireEvent.click(screen.getByRole("tab", { name: "ui.settingsTabBadge" }))
-    fireEvent.click(screen.getByText("ui.separateRatingsBottomPills"))
+    pickSep("bottom-pills")
     await saveStaged()
     expect(ctx().landscape.separateRatingsStyle).toBe("bottom-pills")
     expect(ctx().defaultSeparateRatingsStyle).toBe("column")
@@ -227,20 +242,13 @@ describe("badge target scope", () => {
     const sepSwitch = badgeSwitch("ui.separateRatings")
     if (sepSwitch.getAttribute("aria-checked") !== "true") fireEvent.click(sepSwitch)
     // Tutte e 5 le voci restano selezionabili (nessuna rimozione legacy).
-    for (const legacy of [
-      "ui.separateRatingsColumn",
-      "ui.separateRatingsBottomBar",
-      "ui.separateRatingsBottomPills",
-      "ui.separateRatingsBottomMono",
-      "ui.separateRatingsBottomColor",
-    ]) {
-      expect(screen.getByText(legacy)).toBeTruthy()
-    }
-    fireEvent.click(screen.getByText(label))
+    expect(screen.getByText("ui.sepGroupColumn")).toBeTruthy()
+    expect(screen.getByText("ui.sepGroupBottom")).toBeTruthy()
+    pickSep(id)
     expect(ctx().defaultSeparateRatingsStyle).toBe(id)
     // 3B1: the inherited key freezes the pre-edit flat instead of following it.
     expect(ctx().landscape.separateRatingsStyle).toBe("column")
-    expect(screen.getByText(label).getAttribute("aria-pressed")).toBe("true")
+    expect(screen.getByRole("radio", { name: SEP_FAMILY[id][1] })).toHaveAttribute("aria-checked", "true")
   })
 
   it.each([
@@ -257,18 +265,11 @@ describe("badge target scope", () => {
     if (sepSwitch.getAttribute("aria-checked") !== "true") fireEvent.click(sepSwitch)
     // The separate-style picker lives on the Badge (appearance) tab.
     fireEvent.click(screen.getByRole("tab", { name: "ui.settingsTabBadge" }))
-    for (const legacy of [
-      "ui.separateRatingsColumn",
-      "ui.separateRatingsBottomBar",
-      "ui.separateRatingsBottomPills",
-      "ui.separateRatingsBottomMono",
-      "ui.separateRatingsBottomColor",
-    ]) {
-      expect(screen.getByText(legacy)).toBeTruthy()
-    }
+    expect(screen.getByText("ui.sepGroupColumn")).toBeTruthy()
+    expect(screen.getByText("ui.sepGroupBottom")).toBeTruthy()
     // Le nuove voci bare restano abilitate in landscape (solo la barra è off).
-    expect(screen.getByText(label).hasAttribute("disabled")).toBe(false)
-    fireEvent.click(screen.getByText(label))
+    pickSep(id)
+    expect(screen.getByRole("radio", { name: SEP_FAMILY[id][1] }).hasAttribute("disabled")).toBe(false)
     // Staged session: the explicit Save installs the draft into outer truth.
     await saveStaged()
     expect(ctx().landscape.separateRatingsStyle).toBe(id)
