@@ -37,6 +37,7 @@ export const CHANGELOG: ChangelogRelease[] = [
       { type: "feature", text: "See the split ranking badge in the poster's accent color instead of fixed yellow" },
       { type: "fix", text: "Keep colored badge text more legible on beige, gray and light pastel fills" },
       { type: "fix", text: "Pick light or dark badge text from the area right behind the badge, not the whole poster edge" },
+      { type: "fix", text: "Free up space slots: the admin cleanup now removes spaces never used within 14 days (thanks @funkypenguin)" },
     ],
   },
   {
