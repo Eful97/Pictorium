@@ -30,6 +30,21 @@ export interface ChangelogRelease {
  *  (which bumps on every commit and would leave the dot permanently on). */
 export const CHANGELOG: ChangelogRelease[] = [
   {
+    version: "1.28.0",
+    date: "2026-11-16",
+    title: "Release 1.28.0",
+    items: [
+      { type: "feature", text: "Add the Notch badge style for genre, ranking and extra badges, in Cream, Glass, Ink and Gradient materials" },
+      { type: "feature", text: "Add a Notch step layout for separate ratings, with genre and year on the upper step" },
+      { type: "feature", text: "Add a Notch banner style to episode thumbnails" },
+      { type: "feature", text: "Group badge style pickers into families with a variants row, remembering your last choice per family" },
+      { type: "feature", text: "Choose low, medium or high image quality for posters and thumbnails on private instances" },
+      { type: "perf", text: "Deliver episode thumbnails as WebP or JPEG instead of PNG for lighter downloads" },
+      { type: "feature", text: "Refresh the home page: a larger poster with a before and after slider, style chips, and the poster wall behind the hero" },
+      { type: "fix", text: "Show the Ko-fi label next to its icon in the mobile header" },
+    ],
+  },
+  {
     version: "1.27.9",
     date: "2026-11-14",
     title: "Release 1.27.9",
