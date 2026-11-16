@@ -70,6 +70,18 @@ Stesso titolo, look diverso. Ogni stile è a un clic nell'editor e può diventar
     <td align="center"><img src="public/Screen/styles/badge-minimal.webp" alt="Minimal" width="180" /><br /><sub>Minimal</sub></td>
     <td align="center"><img src="public/Screen/styles/badge-ink.webp" alt="Ink" width="180" /><br /><sub>Ink</sub></td>
   </tr>
+  <tr>
+    <td align="center"><img src="public/Screen/styles/badge-tinta.webp" alt="Tinta" width="180" /><br /><sub>Tinta</sub></td>
+    <td align="center"><img src="public/Screen/styles/badge-sfumato.webp" alt="Sfumato" width="180" /><br /><sub>Sfumato</sub></td>
+    <td align="center"><img src="public/Screen/styles/badge-split.webp" alt="Split" width="180" /><br /><sub>Split</sub></td>
+    <td align="center"><img src="public/Screen/styles/badge-editoriale.webp" alt="Editoriale" width="180" /><br /><sub>Editoriale</sub></td>
+  </tr>
+  <tr>
+    <td align="center"><img src="public/Screen/styles/badge-notch-crema.webp" alt="Notch · Crema" width="180" /><br /><sub>Notch · Crema</sub></td>
+    <td align="center"><img src="public/Screen/styles/badge-notch-vetro.webp" alt="Notch · Vetro" width="180" /><br /><sub>Notch · Vetro</sub></td>
+    <td align="center"><img src="public/Screen/styles/badge-notch-inchiostro.webp" alt="Notch · Inchiostro" width="180" /><br /><sub>Notch · Inchiostro</sub></td>
+    <td align="center"><img src="public/Screen/styles/badge-notch-sfumato.webp" alt="Notch · Sfumato" width="180" /><br /><sub>Notch · Sfumato</sub></td>
+  </tr>
 </table>
 
 ### Classifiche Top 10 dal vivo
@@ -82,6 +94,15 @@ I badge di classifica seguono le classifiche reali (Netflix, JustWatch, FlixPatr
     <td align="center"><img src="public/Screen/styles/rank-number.webp" alt="Numero" width="180" /><br /><sub>Numero</sub></td>
     <td align="center"><img src="public/Screen/styles/rank-corner.webp" alt="Angolo" width="180" /><br /><sub>Angolo</sub></td>
     <td align="center"><img src="public/Screen/styles/rank-pill.webp" alt="Pill" width="180" /><br /><sub>Pill</sub></td>
+  </tr>
+  <tr>
+    <td align="center"><img src="public/Screen/styles/rank-split.webp" alt="Split" width="180" /><br /><sub>Split</sub></td>
+    <td align="center"><img src="public/Screen/styles/rank-tinta.webp" alt="Tinta" width="180" /><br /><sub>Tinta</sub></td>
+    <td align="center"><img src="public/Screen/styles/rank-sfumato.webp" alt="Sfumato" width="180" /><br /><sub>Sfumato</sub></td>
+    <td align="center"><img src="public/Screen/styles/rank-editoriale.webp" alt="Editoriale" width="180" /><br /><sub>Editoriale</sub></td>
+  </tr>
+  <tr>
+    <td align="center"><img src="public/Screen/styles/rank-notch-vetro.webp" alt="Notch" width="180" /><br /><sub>Notch</sub></td>
   </tr>
 </table>
 
@@ -140,7 +161,7 @@ Ogni episodio ha la sua miniatura con il voto **di quell'episodio**, non la medi
 
 ### Anime: canonico o filler?
 
-Gli episodi anime sono etichettati prima di premere play, con un'etichetta d'angolo o una striscia a tutta larghezza.
+Gli episodi anime sono etichettati prima di premere play, con un'etichetta d'angolo o una striscia a tutta larghezza o un notch.
 
 <table align="center">
   <tr>
@@ -151,6 +172,7 @@ Gli episodi anime sono etichettati prima di premere play, con un'etichetta d'ang
   <tr>
     <td align="center"><img src="public/Screen/styles/filler-mixed.webp" alt="Misto" width="260" /><br /><sub>Misto</sub></td>
     <td align="center"><img src="public/Screen/styles/filler-strip.webp" alt="Layout a striscia" width="260" /><br /><sub>Layout a striscia</sub></td>
+    <td align="center"><img src="public/Screen/styles/filler-notch.webp" alt="Layout notch" width="260" /><br /><sub>Layout notch</sub></td>
   </tr>
 </table>
 

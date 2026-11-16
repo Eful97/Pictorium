@@ -32,7 +32,7 @@ const APP_URL = `http://127.0.0.1:${APP_PORT}`
 
 const TMDB_KEY = process.env.TMDB_KEY || ""
 const REAL = !!TMDB_KEY
-const SHOTS = (process.env.SHOTS || "home,editor,myposters,demos,styles").split(",")
+const SHOTS = (process.env.SHOTS || "home,editor,myposters,demos,styles,walls").split(",")
 const RUN = (name) => SHOTS.includes(name)
 console.log(`[shots] modalità: ${REAL ? "TMDB REALE (poster veri)" : "MOCK (gradiente)"}`)
 
@@ -245,9 +245,9 @@ try {
     const base = "lang=en&gradHeight=25&blur=30&bf=50&bd=40&logoFit=0"
     // Stesso titolo per riga: cambia solo lo stile.
     const shots = [
-      ...["shadow", "pill", "bar", "colored", "bordo", "vetro", "minimal", "ink"]
+      ...["shadow", "pill", "bar", "colored", "bordo", "vetro", "minimal", "ink", "tinta", "sfumato", "split", "editoriale", "notch-crema", "notch-vetro", "notch-inchiostro", "notch-sfumato"]
         .map((bs) => ({ file: `badge-${bs}`, type: "movie", id: 24428, q: `bs=${bs}&ranking=0` })),
-      ...["netflix", "number", "corner", "pill"]
+      ...["netflix", "number", "corner", "pill", "split", "tinta", "sfumato", "editoriale", "notch-vetro"]
         .map((rs) => ({ file: `rank-${rs}`, type: "tv", id: 1396, q: `ranking=1&rank=2&rs=${rs}` })),
       // pre=1 disegna il nastro solo se il film è davvero al cinema e non in
       // streaming: aggiorna l'id quando questo titolo arriva in streaming.
@@ -270,6 +270,7 @@ try {
       ...["manga", "anime", "filler", "mixed"]
         .map((fill) => ({ file: `filler-${fill}`, thumb: "31910/season/1/episode/1", q: `fill=${fill}&fillStyle=corner&flang=en`, width: 400 })),
       { file: "filler-strip", thumb: "31910/season/1/episode/1", q: "fill=filler&fillStyle=strip&flang=en", width: 400 },
+      { file: "filler-notch", thumb: "31910/season/1/episode/1", q: "fill=filler&fillStyle=notch&flang=en", width: 400 },
     ]
     for (const s of shots) {
       const key = `api_key=${encodeURIComponent(TMDB_KEY)}`
@@ -287,6 +288,60 @@ try {
       }
       await img.resize({ width: s.width || 320 }).webp({ quality: 82 }).toFile(out)
       console.log(`[shots] styles/${s.file}.webp ok`)
+    }
+  }
+
+  // ---- 6. Poster wall collage (public/Screen/poster-wall.jpg, landscape-wall.jpg) ----
+  if (RUN("walls")) {
+    if (!REAL) throw new Error("i wall richiedono TMDB_KEY (render reali)")
+    const sharp = (await import("sharp")).default
+    const key = `api_key=${encodeURIComponent(TMDB_KEY)}`
+    const titles = [
+      ["movie", 693134], ["tv", 66732], ["movie", 872585], ["tv", 100088], ["movie", 299534], ["tv", 94997],
+      ["movie", 634649], ["tv", 76479], ["movie", 361743], ["tv", 93405], ["movie", 475557], ["tv", 119051],
+      ["tv", 106379], ["movie", 438631], ["movie", 346698], ["tv", 126308], ["movie", 496243], ["tv", 94605],
+      ["movie", 414906], ["tv", 76331], ["movie", 76341], ["tv", 82856], ["movie", 533535], ["tv", 70523],
+      ["movie", 545611], ["tv", 71912], ["movie", 76600], ["movie", 284054], ["tv", 136315], ["movie", 324857],
+    ]
+    const looks = [
+      "bs=notch-vetro", "bs=tinta", "ranking=1&rs=netflix", "bs=notch-crema", "bs=sfumato", "bs=split",
+      "ranking=1&rs=notch-vetro", "bs=editoriale", "bs=notch-inchiostro", "bs=vetro", "ranking=1&rs=tinta",
+      "bs=notch-sfumato", "bs=bordo", "ranking=1&rs=split", "bs=pill", "bs=colored", "ranking=1&rs=sfumato", "bs=ink",
+    ]
+    const render = async (shape, n, w) => {
+      const tiles = []
+      for (let i = 0; i < n; i++) {
+        const [type, id] = titles[i % titles.length]
+        const look = looks[(i + (shape === "landscape" ? 5 : 0)) % looks.length]
+        const rank = look.includes("ranking=1") ? `&rank=${(i % 9) + 1}` : "&ranking=0"
+        const url = `${APP_URL}/api/poster/${type}/${id}?lang=en&gradHeight=25&blur=30&bf=50&bd=40&logoFit=0&${look}${rank}${shape === "landscape" ? "&shape=landscape" : ""}&preview=1&${key}`
+        const res = await fetch(url)
+        if (!res.ok) { console.log(`[shots] wall skip ${id}: HTTP ${res.status}`); continue }
+        tiles.push(await sharp(Buffer.from(await res.arrayBuffer())).resize({ width: w }).png().toBuffer())
+      }
+      return tiles
+    }
+    for (const shape of ["portrait", "landscape"]) {
+      const w = shape === "portrait" ? 380 : 620, gap = 24
+      const tiles = await render(shape, 36, w)
+      const metas = await Promise.all(tiles.map((t) => sharp(t).metadata()))
+      const cols = shape === "portrait" ? 7 : 5
+      const S = 3400, colY = new Array(cols).fill(0).map((_, c) => -(c % 2) * 160)
+      const comps = tiles.map((input, i) => {
+        const c = i % cols
+        const left = Math.round((S - cols * (w + gap)) / 2 + c * (w + gap))
+        const top = colY[c] + 300
+        colY[c] += metas[i].height + gap
+        return { input, left, top }
+      })
+      const canvas = await sharp({ create: { width: S, height: S, channels: 3, background: "#0b0b10" } }).composite(comps.filter((c) => c.top < S)).png().toBuffer()
+      const rotated = await sharp(canvas).rotate(-18, { background: "#0b0b10" }).toBuffer()
+      const m = await sharp(rotated).metadata()
+      const vignette = Buffer.from('<svg xmlns="http://www.w3.org/2000/svg" width="2400" height="1200"><defs><radialGradient id="g" cx="50%" cy="50%" r="75%"><stop offset="45%" stop-color="#0b0b10" stop-opacity="0"/><stop offset="100%" stop-color="#0b0b10" stop-opacity="0.92"/></radialGradient></defs><rect width="2400" height="1200" fill="url(#g)"/></svg>')
+      const out = shape === "portrait" ? "poster-wall.jpg" : "landscape-wall.jpg"
+      await sharp(rotated).extract({ left: Math.round((m.width - 2400) / 2), top: Math.round((m.height - 1200) / 2), width: 2400, height: 1200 })
+        .composite([{ input: vignette }]).jpeg({ quality: 82 }).toFile(path.join(OUT_DIR, out))
+      console.log(`[shots] ${out} ok`)
     }
   }
 

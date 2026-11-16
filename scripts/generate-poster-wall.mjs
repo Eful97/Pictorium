@@ -65,13 +65,23 @@ const STYLES = [
   "bs=colored&tl=1&gradHeight=25&blur=25&bf=45&bd=30",
   "bs=pill&tl=0&ac=%23e74c3c&gradHeight=15&blur=15&bf=40&bd=25",
   "ranking=&rs=bordo&tl=1&gradHeight=20&blur=25&bf=50&bd=30",
+  "bs=notch-vetro&tl=0&gradHeight=25&blur=30&bf=50&bd=40",
+  "bs=tinta&tl=0&gradHeight=25&blur=30&bf=50&bd=40",
+  "bs=notch-crema&tl=1&gradHeight=20&blur=25&bf=50&bd=35",
+  "ranking=&rs=split&tl=0&gradHeight=25&blur=30&bf=50&bd=40",
+  "bs=sfumato&tl=0&gradHeight=25&blur=30&bf=50&bd=40",
+  "bs=editoriale&tl=1&gradHeight=25&blur=30&bf=50&bd=40",
+  "bs=notch-inchiostro&tl=0&gradHeight=25&blur=30&bf=50&bd=40",
+  "ranking=&rs=notch-vetro&tl=0&gradHeight=25&blur=30&bf=50&bd=40",
+  "bs=split&tl=0&gradHeight=25&blur=30&bf=50&bd=40",
+  "bs=notch-sfumato&tl=0&gradHeight=25&blur=30&bf=50&bd=40",
 ]
 
 const slug = (s) => s.normalize("NFD").replace(/[̀-ͯ]/g, "").toLowerCase().replace(/[^a-z0-9]+/g, "-").replace(/^-|-$/g, "")
 
 async function render([type, id, title], i) {
   const landscape = i % 3 === 1
-  let params = `${STYLES[i % STYLES.length]}&lang=en&logoFit=0&fmt=webp`
+  let params = `${STYLES[i % STYLES.length]}&lang=en&logoFit=0&fmt=webp${process.env.TMDB_KEY ? `&api_key=${encodeURIComponent(process.env.TMDB_KEY)}` : ""}`
   if (params.startsWith("ranking=")) params += `&rank=${(i % 10) + 1}`
   if (landscape) params += "&shape=landscape"
   const url = `${BASE}/api/poster/${type}/${id}?${params}`

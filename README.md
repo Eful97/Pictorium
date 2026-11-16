@@ -70,6 +70,18 @@ Same title, different look. Every style is one click away in the editor and can 
     <td align="center"><img src="public/Screen/styles/badge-minimal.webp" alt="Minimal" width="180" /><br /><sub>Minimal</sub></td>
     <td align="center"><img src="public/Screen/styles/badge-ink.webp" alt="Ink" width="180" /><br /><sub>Ink</sub></td>
   </tr>
+  <tr>
+    <td align="center"><img src="public/Screen/styles/badge-tinta.webp" alt="Tinta" width="180" /><br /><sub>Tinta</sub></td>
+    <td align="center"><img src="public/Screen/styles/badge-sfumato.webp" alt="Sfumato" width="180" /><br /><sub>Sfumato</sub></td>
+    <td align="center"><img src="public/Screen/styles/badge-split.webp" alt="Split" width="180" /><br /><sub>Split</sub></td>
+    <td align="center"><img src="public/Screen/styles/badge-editoriale.webp" alt="Editorial" width="180" /><br /><sub>Editorial</sub></td>
+  </tr>
+  <tr>
+    <td align="center"><img src="public/Screen/styles/badge-notch-crema.webp" alt="Notch · Cream" width="180" /><br /><sub>Notch · Cream</sub></td>
+    <td align="center"><img src="public/Screen/styles/badge-notch-vetro.webp" alt="Notch · Glass" width="180" /><br /><sub>Notch · Glass</sub></td>
+    <td align="center"><img src="public/Screen/styles/badge-notch-inchiostro.webp" alt="Notch · Ink" width="180" /><br /><sub>Notch · Ink</sub></td>
+    <td align="center"><img src="public/Screen/styles/badge-notch-sfumato.webp" alt="Notch · Sfumato" width="180" /><br /><sub>Notch · Sfumato</sub></td>
+  </tr>
 </table>
 
 ### Live Top 10 rankings
@@ -82,6 +94,15 @@ Rank badges follow the real charts (Netflix, JustWatch, FlixPatrol) and update t
     <td align="center"><img src="public/Screen/styles/rank-number.webp" alt="Number" width="180" /><br /><sub>Number</sub></td>
     <td align="center"><img src="public/Screen/styles/rank-corner.webp" alt="Corner" width="180" /><br /><sub>Corner</sub></td>
     <td align="center"><img src="public/Screen/styles/rank-pill.webp" alt="Pill" width="180" /><br /><sub>Pill</sub></td>
+  </tr>
+  <tr>
+    <td align="center"><img src="public/Screen/styles/rank-split.webp" alt="Split" width="180" /><br /><sub>Split</sub></td>
+    <td align="center"><img src="public/Screen/styles/rank-tinta.webp" alt="Tinta" width="180" /><br /><sub>Tinta</sub></td>
+    <td align="center"><img src="public/Screen/styles/rank-sfumato.webp" alt="Sfumato" width="180" /><br /><sub>Sfumato</sub></td>
+    <td align="center"><img src="public/Screen/styles/rank-editoriale.webp" alt="Editorial" width="180" /><br /><sub>Editorial</sub></td>
+  </tr>
+  <tr>
+    <td align="center"><img src="public/Screen/styles/rank-notch-vetro.webp" alt="Notch" width="180" /><br /><sub>Notch</sub></td>
   </tr>
 </table>
 
@@ -140,7 +161,7 @@ Every episode gets its own thumbnail with **that episode's** rating, not the ser
 
 ### Anime: canon or filler?
 
-Anime episodes are tagged before you press play, as a corner label or a full-width strip.
+Anime episodes are tagged before you press play, as a corner label, a full-width strip or a notch.
 
 <table align="center">
   <tr>
@@ -151,6 +172,7 @@ Anime episodes are tagged before you press play, as a corner label or a full-wid
   <tr>
     <td align="center"><img src="public/Screen/styles/filler-mixed.webp" alt="Mixed" width="260" /><br /><sub>Mixed</sub></td>
     <td align="center"><img src="public/Screen/styles/filler-strip.webp" alt="Strip layout" width="260" /><br /><sub>Strip layout</sub></td>
+    <td align="center"><img src="public/Screen/styles/filler-notch.webp" alt="Notch layout" width="260" /><br /><sub>Notch layout</sub></td>
   </tr>
 </table>
 
