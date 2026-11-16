@@ -41,6 +41,7 @@ export const CHANGELOG: ChangelogRelease[] = [
       { type: "feature", text: "Reorganize the separate ratings style picker by position, Column or Bottom, with a preview for every style" },
       { type: "feature", text: "Add a Notch banner style to episode thumbnails" },
       { type: "feature", text: "Group badge style pickers into families with a variants row, remembering your last choice per family" },
+      { type: "feature", text: "Reorganize the Badge settings tab by family, font first, with the same Notch picker in every card" },
       { type: "feature", text: "Choose low, medium or high image quality for posters and thumbnails on private instances" },
       { type: "perf", text: "Deliver episode thumbnails as WebP or JPEG instead of PNG for lighter downloads" },
       { type: "feature", text: "Refresh the home page: a larger poster with a before and after slider, style chips, and the poster wall behind the hero" },
