@@ -257,6 +257,14 @@ try {
       // `crop` = ritaglio della colonna in alto a destra (frazioni del poster).
       ...["standard", "mono", "color", "knockout", "premium", "nova", "gradient", "outline", "strip", "naked", "editoriale"]
         .map((qbs) => ({ file: `quality-${qbs}`, type: "movie", id: 24428, q: `qbs=${qbs}&ranking=0`, crop: { x: 0.70, y: 0, w: 0.30, h: 0.32 }, width: 150 })),
+      // Notch qualità: linguetta sul bordo destro, Impilata (qgl=stacked) e Orizzontale (qgl=row).
+      ...["crema", "vetro", "inchiostro", "sfumato"]
+        .map((m) => ({ file: `quality-notch-${m}`, type: "movie", id: 24428, q: `qbs=notch-${m}&qgl=stacked&ranking=0`, crop: { x: 0.60, y: 0, w: 0.40, h: 0.4267 }, width: 150 })),
+      { file: "quality-notch-row", type: "movie", id: 24428, q: "qbs=notch-vetro&qgl=row&ranking=0", crop: { x: 0.60, y: 0, w: 0.40, h: 0.4267 }, width: 150 },
+      // Rating separati: un voto per fonte, in colonna (a destra) o in basso.
+      ...["column", "rings", "column-notch-crema", "column-notch-vetro", "column-notch-inchiostro", "column-notch-sfumato",
+        "bottom-bar", "bottom-pills", "bottom-mono", "bottom-color", "notch-crema", "notch-vetro", "notch-inchiostro", "notch-sfumato"]
+        .map((st) => ({ file: `sep-${st}`, type: "movie", id: 24428, q: `sep=1&sepstyle=${st}&rsrc=imdb,tmdb,tomatoes,metacritic,letterboxd&ranking=0` })),
       // Layout alternativi (freshScope=all: valgono anche fuori classifica).
       { file: "layout-fresh", type: "tv", id: 1396, q: "layout=fresh&freshScope=all&ranking=1&rank=2" },
       ...["provider-glass", "nuvio", "stremio"]

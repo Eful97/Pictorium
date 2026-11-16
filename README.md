@@ -108,7 +108,7 @@ Rank badges follow the real charts (Netflix, JustWatch, FlixPatrol) and update t
 
 ### Quality badges
 
-4K, HDR, Dolby Vision, Atmos and IMAX detected live from the streams, in 11 looks.
+4K, HDR, Dolby Vision, Atmos and IMAX detected live from the streams, in 12 looks, Notch included.
 
 <table align="center">
   <tr>
@@ -125,6 +125,42 @@ Rank badges follow the real charts (Netflix, JustWatch, FlixPatrol) and update t
     <td align="center"><img src="public/Screen/styles/quality-strip.webp" alt="Strip" width="110" /><br /><sub>Strip</sub></td>
     <td align="center"><img src="public/Screen/styles/quality-naked.webp" alt="Naked" width="110" /><br /><sub>Naked</sub></td>
     <td align="center"><img src="public/Screen/styles/quality-editoriale.webp" alt="Editorial" width="110" /><br /><sub>Editorial</sub></td>
+  </tr>
+  <tr>
+    <td align="center"><img src="public/Screen/styles/quality-notch-crema.webp" alt="Notch · Cream" width="110" /><br /><sub>Notch · Cream</sub></td>
+    <td align="center"><img src="public/Screen/styles/quality-notch-vetro.webp" alt="Notch · Glass" width="110" /><br /><sub>Notch · Glass</sub></td>
+    <td align="center"><img src="public/Screen/styles/quality-notch-inchiostro.webp" alt="Notch · Ink" width="110" /><br /><sub>Notch · Ink</sub></td>
+    <td align="center"><img src="public/Screen/styles/quality-notch-sfumato.webp" alt="Notch · Sfumato" width="110" /><br /><sub>Notch · Sfumato</sub></td>
+    <td align="center"><img src="public/Screen/styles/quality-notch-row.webp" alt="Notch · Row" width="110" /><br /><sub>Notch · Row</sub></td>
+  </tr>
+</table>
+
+### Separate ratings
+
+One score per source instead of the ★ average: in a column on the right, or along the bottom.
+
+<table align="center">
+  <tr>
+    <td align="center"><img src="public/Screen/styles/sep-column.webp" alt="Column · Pills" width="140" /><br /><sub>Column · Pills</sub></td>
+    <td align="center"><img src="public/Screen/styles/sep-rings.webp" alt="Column · Rings" width="140" /><br /><sub>Column · Rings</sub></td>
+    <td align="center"><img src="public/Screen/styles/sep-column-notch-crema.webp" alt="Column · Notch Cream" width="140" /><br /><sub>Column · Notch Cream</sub></td>
+    <td align="center"><img src="public/Screen/styles/sep-column-notch-vetro.webp" alt="Column · Notch Glass" width="140" /><br /><sub>Column · Notch Glass</sub></td>
+  </tr>
+  <tr>
+    <td align="center"><img src="public/Screen/styles/sep-column-notch-inchiostro.webp" alt="Column · Notch Ink" width="140" /><br /><sub>Column · Notch Ink</sub></td>
+    <td align="center"><img src="public/Screen/styles/sep-column-notch-sfumato.webp" alt="Column · Notch Sfumato" width="140" /><br /><sub>Column · Notch Sfumato</sub></td>
+  </tr>
+  <tr>
+    <td align="center"><img src="public/Screen/styles/sep-bottom-bar.webp" alt="Bottom · Bar" width="140" /><br /><sub>Bottom · Bar</sub></td>
+    <td align="center"><img src="public/Screen/styles/sep-bottom-pills.webp" alt="Bottom · Pills" width="140" /><br /><sub>Bottom · Pills</sub></td>
+    <td align="center"><img src="public/Screen/styles/sep-bottom-mono.webp" alt="Bottom · Mono" width="140" /><br /><sub>Bottom · Mono</sub></td>
+    <td align="center"><img src="public/Screen/styles/sep-bottom-color.webp" alt="Bottom · Color icons" width="140" /><br /><sub>Bottom · Color icons</sub></td>
+  </tr>
+  <tr>
+    <td align="center"><img src="public/Screen/styles/sep-notch-crema.webp" alt="Bottom · Notch Cream" width="140" /><br /><sub>Bottom · Notch Cream</sub></td>
+    <td align="center"><img src="public/Screen/styles/sep-notch-vetro.webp" alt="Bottom · Notch Glass" width="140" /><br /><sub>Bottom · Notch Glass</sub></td>
+    <td align="center"><img src="public/Screen/styles/sep-notch-inchiostro.webp" alt="Bottom · Notch Ink" width="140" /><br /><sub>Bottom · Notch Ink</sub></td>
+    <td align="center"><img src="public/Screen/styles/sep-notch-sfumato.webp" alt="Bottom · Notch Sfumato" width="140" /><br /><sub>Bottom · Notch Sfumato</sub></td>
   </tr>
 </table>
 

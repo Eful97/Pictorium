@@ -108,7 +108,7 @@ I badge di classifica seguono le classifiche reali (Netflix, JustWatch, FlixPatr
 
 ### Badge qualità
 
-4K, HDR, Dolby Vision, Atmos e IMAX rilevati dal vivo dagli stream, in 11 look.
+4K, HDR, Dolby Vision, Atmos e IMAX rilevati dal vivo dagli stream, in 12 look, Notch compreso.
 
 <table align="center">
   <tr>
@@ -125,6 +125,42 @@ I badge di classifica seguono le classifiche reali (Netflix, JustWatch, FlixPatr
     <td align="center"><img src="public/Screen/styles/quality-strip.webp" alt="Strip" width="110" /><br /><sub>Strip</sub></td>
     <td align="center"><img src="public/Screen/styles/quality-naked.webp" alt="Naked" width="110" /><br /><sub>Naked</sub></td>
     <td align="center"><img src="public/Screen/styles/quality-editoriale.webp" alt="Editoriale" width="110" /><br /><sub>Editoriale</sub></td>
+  </tr>
+  <tr>
+    <td align="center"><img src="public/Screen/styles/quality-notch-crema.webp" alt="Notch · Crema" width="110" /><br /><sub>Notch · Crema</sub></td>
+    <td align="center"><img src="public/Screen/styles/quality-notch-vetro.webp" alt="Notch · Vetro" width="110" /><br /><sub>Notch · Vetro</sub></td>
+    <td align="center"><img src="public/Screen/styles/quality-notch-inchiostro.webp" alt="Notch · Inchiostro" width="110" /><br /><sub>Notch · Inchiostro</sub></td>
+    <td align="center"><img src="public/Screen/styles/quality-notch-sfumato.webp" alt="Notch · Sfumato" width="110" /><br /><sub>Notch · Sfumato</sub></td>
+    <td align="center"><img src="public/Screen/styles/quality-notch-row.webp" alt="Notch · Orizzontale" width="110" /><br /><sub>Notch · Orizzontale</sub></td>
+  </tr>
+</table>
+
+### Rating separati
+
+Un voto per fonte al posto della media ★: in colonna a destra oppure in basso.
+
+<table align="center">
+  <tr>
+    <td align="center"><img src="public/Screen/styles/sep-column.webp" alt="Colonna · Pill" width="140" /><br /><sub>Colonna · Pill</sub></td>
+    <td align="center"><img src="public/Screen/styles/sep-rings.webp" alt="Colonna · Anelli" width="140" /><br /><sub>Colonna · Anelli</sub></td>
+    <td align="center"><img src="public/Screen/styles/sep-column-notch-crema.webp" alt="Colonna · Notch Crema" width="140" /><br /><sub>Colonna · Notch Crema</sub></td>
+    <td align="center"><img src="public/Screen/styles/sep-column-notch-vetro.webp" alt="Colonna · Notch Vetro" width="140" /><br /><sub>Colonna · Notch Vetro</sub></td>
+  </tr>
+  <tr>
+    <td align="center"><img src="public/Screen/styles/sep-column-notch-inchiostro.webp" alt="Colonna · Notch Inchiostro" width="140" /><br /><sub>Colonna · Notch Inchiostro</sub></td>
+    <td align="center"><img src="public/Screen/styles/sep-column-notch-sfumato.webp" alt="Colonna · Notch Sfumato" width="140" /><br /><sub>Colonna · Notch Sfumato</sub></td>
+  </tr>
+  <tr>
+    <td align="center"><img src="public/Screen/styles/sep-bottom-bar.webp" alt="In basso · Barra" width="140" /><br /><sub>In basso · Barra</sub></td>
+    <td align="center"><img src="public/Screen/styles/sep-bottom-pills.webp" alt="In basso · Pill" width="140" /><br /><sub>In basso · Pill</sub></td>
+    <td align="center"><img src="public/Screen/styles/sep-bottom-mono.webp" alt="In basso · Monocolore" width="140" /><br /><sub>In basso · Monocolore</sub></td>
+    <td align="center"><img src="public/Screen/styles/sep-bottom-color.webp" alt="In basso · Icone colorate" width="140" /><br /><sub>In basso · Icone colorate</sub></td>
+  </tr>
+  <tr>
+    <td align="center"><img src="public/Screen/styles/sep-notch-crema.webp" alt="In basso · Notch Crema" width="140" /><br /><sub>In basso · Notch Crema</sub></td>
+    <td align="center"><img src="public/Screen/styles/sep-notch-vetro.webp" alt="In basso · Notch Vetro" width="140" /><br /><sub>In basso · Notch Vetro</sub></td>
+    <td align="center"><img src="public/Screen/styles/sep-notch-inchiostro.webp" alt="In basso · Notch Inchiostro" width="140" /><br /><sub>In basso · Notch Inchiostro</sub></td>
+    <td align="center"><img src="public/Screen/styles/sep-notch-sfumato.webp" alt="In basso · Notch Sfumato" width="140" /><br /><sub>In basso · Notch Sfumato</sub></td>
   </tr>
 </table>
 
