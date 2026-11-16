@@ -550,3 +550,71 @@ export async function extractSceneTint(
     return defaultFallback
   }
 }
+
+type InkRect = { left: number; top: number; w: number; h: number }
+
+/**
+ * Riquadri delle macchie OPACHE di una bitmap (4-connesse, alpha >= `minAlpha`).
+ * La soglia alta scarta le ombre morbide: due placche vicine restano macchie
+ * distinte anche se le loro ombre si toccano. Solo per il report geometrico
+ * dell'editor (mai nel percorso di render Stremio).
+ */
+export async function opaqueComponents(png: Buffer, minAlpha = 100): Promise<InkRect[]> {
+  const { data, info } = await sharp(png).ensureAlpha().raw().toBuffer({ resolveWithObject: true })
+  const W = info.width
+  const H = info.height
+  const seen = new Uint8Array(W * H)
+  const out: InkRect[] = []
+  const stack: number[] = []
+  for (let p = 0; p < W * H; p++) {
+    if (seen[p] || data[p * info.channels + 3] < minAlpha) continue
+    let x0 = W, y0 = H, x1 = -1, y1 = -1
+    seen[p] = 1
+    stack.push(p)
+    while (stack.length) {
+      const q = stack.pop()!
+      const x = q % W
+      const y = (q - x) / W
+      if (x < x0) x0 = x
+      if (x > x1) x1 = x
+      if (y < y0) y0 = y
+      if (y > y1) y1 = y
+      for (const n of [x > 0 ? q - 1 : -1, x < W - 1 ? q + 1 : -1, y > 0 ? q - W : -1, y < H - 1 ? q + W : -1]) {
+        if (n >= 0 && !seen[n] && data[n * info.channels + 3] >= minAlpha) { seen[n] = 1; stack.push(n) }
+      }
+    }
+    out.push({ left: x0, top: y0, w: x1 - x0 + 1, h: y1 - y0 + 1 })
+  }
+  return out
+}
+
+/**
+ * Stringe ogni box sull'inchiostro che gli appartiene: una macchia va al box
+ * che ne contiene il centro (a parità, il box col centro più vicino), il box
+ * diventa l'unione delle sue macchie. Box senza macchie restano invariati.
+ * `comps` e `boxes` nello stesso spazio (canvas).
+ */
+export function tightenBoxesToInk<T extends InkRect>(boxes: readonly T[], comps: readonly InkRect[]): T[] {
+  const owned: InkRect[][] = boxes.map(() => [])
+  for (const c of comps) {
+    const cx = c.left + c.w / 2
+    const cy = c.top + c.h / 2
+    let best = -1
+    let bestD = Infinity
+    boxes.forEach((b, i) => {
+      if (cx < b.left || cx > b.left + b.w || cy < b.top || cy > b.top + b.h) return
+      const d = (cx - (b.left + b.w / 2)) ** 2 + (cy - (b.top + b.h / 2)) ** 2
+      if (d < bestD) { bestD = d; best = i }
+    })
+    if (best >= 0) owned[best].push(c)
+  }
+  return boxes.map((b, i) => {
+    const cs = owned[i]
+    if (!cs.length) return b
+    const l = Math.max(b.left, Math.min(...cs.map((c) => c.left)))
+    const t = Math.max(b.top, Math.min(...cs.map((c) => c.top)))
+    const r = Math.min(b.left + b.w, Math.max(...cs.map((c) => c.left + c.w)))
+    const btm = Math.min(b.top + b.h, Math.max(...cs.map((c) => c.top + c.h)))
+    return { ...b, left: l, top: t, w: r - l, h: btm - t }
+  })
+}

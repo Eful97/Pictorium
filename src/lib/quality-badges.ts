@@ -2,9 +2,9 @@ import sharp from "sharp"
 import { renderSVG, renderComposedSvg } from "./svg-badge"
 import fs from "fs"
 import path from "path"
-import { EDITORIAL_MARK_PAD_X_FACTOR, buildEditorialMarkSvg,buildQualityBadgeSvg, buildQualityKnockoutSvg, buildQualityNakedSvg, buildAgeKnockoutSvg, buildAgeEmphasisSvg, buildGradientMarkSvg, buildStripBadgeSvg, type StripSegmentGlyph, QUALITY_GROUP_ROW_MAX_ITEMS, badgeBoxHeight, TOP_SHADOW_PAD, TOP_SHADOW_FILTER, KNOCKOUT_SHADOW_FILTER, KNOCKOUT_INK_OPACITY, knockoutOuterShadow, AGE_KNOCKOUT_RADIUS_FACTOR, AGE_MONO_STROKE_FACTOR, AGE_MONO_STROKE_MIN, AGE_MONO_INK_DARK, AGE_MONO_INK_LIGHT, SATIN_PILL_INK_DARK, SATIN_PILL_INK_LIGHT, SATIN_PILL_STROKE_DARK, SATIN_PILL_STROKE_LIGHT, SATIN_PILL_STROKE_WIDTH, satinPillStops } from "./badge-svg-shared"
+import { EDITORIAL_MARK_PAD_X_FACTOR, buildEditorialMarkSvg,buildQualityBadgeSvg, buildQualityKnockoutSvg, buildQualityNakedSvg, buildAgeKnockoutSvg, buildAgeEmphasisSvg, buildGradientMarkSvg, buildStripBadgeSvg, buildQualityNotchGroupSvg, type QualityNotchRow, type StripSegmentGlyph, QUALITY_GROUP_ROW_MAX_ITEMS, badgeBoxHeight, TOP_SHADOW_PAD, TOP_SHADOW_FILTER, KNOCKOUT_SHADOW_FILTER, KNOCKOUT_INK_OPACITY, knockoutOuterShadow, AGE_KNOCKOUT_RADIUS_FACTOR, AGE_MONO_STROKE_FACTOR, AGE_MONO_STROKE_MIN, AGE_MONO_INK_DARK, AGE_MONO_INK_LIGHT, SATIN_PILL_INK_DARK, SATIN_PILL_INK_LIGHT, SATIN_PILL_STROKE_DARK, SATIN_PILL_STROKE_LIGHT, SATIN_PILL_STROKE_WIDTH, satinPillStops } from "./badge-svg-shared"
 import type { BadgeFont } from "./badge-styles"
-import { isAgeBadgeStyle, resolveQualityGroupLayout, isMergedQualityStrip, DEFAULT_AGE_BADGE_STYLE, type AgeBadgeStyle, type QualityGroupLayout } from "./badge-styles"
+import { isAgeBadgeStyle, notchMaterialOf, resolveQualityGroupLayout, isMergedQualityStrip, DEFAULT_AGE_BADGE_STYLE, type AgeBadgeStyle, type QualityGroupLayout } from "./badge-styles"
 import { normalizeBadgeFont } from "./badge-svg-shared"
 import { AV_KNOCKOUT_RADIUS_FACTOR, AV_KNOCKOUT_TAG_INSET_FACTOR, avMarkCapHeight, QUALITY_TIER_ICON_FILLS, tierAssetPlateGeometry, AV_COMBO_SHORT_LABEL, COLOR_MARK_GLYPH, COLOR_MARK_PLATE_BG, COLOR_MARK_PLATE_STROKE, GRADIENT_TIER_INK, avMarkGroupInkBox, avMarkInkBox, avPlateGlyphBox, gradientMarkStops, qualityBadgeIconPath, qualityIconReferenceWidth, qualityMarkAccent, type AvMarkInkBox, PREMIUM_COMBO_ACCENT, PREMIUM_PLATE_BG, PREMIUM_PLATE_STROKE, premiumAccentHex } from "./quality-badge-styles"
 import type { QualityBadgeStyle } from "./badge-styles"
@@ -625,6 +625,12 @@ export interface QualityBadgeGroupResult {
   readonly png: Buffer
   readonly w: number
   readonly h: number
+  /**
+   * Visible BODY of the notch group (the slab, without fillets/shadow pad) in
+   * THIS bitmap's space. Only the notch group sets it: consumers that glue to
+   * the slab (the separate-ratings notch below it) scale it by `h` ratio.
+   */
+  readonly body?: { readonly left: number; readonly top: number; readonly w: number; readonly h: number }
   readonly items: readonly QualityBadgeItem[]
   /**
    * Boxes of the quality HOMES this render does NOT paint (box only, no png):
@@ -723,9 +729,14 @@ export async function renderQualityBadgeGroup(
    * = `stacked`, so every legacy call site keeps its exact bytes.
    */
   qualityGroupLayout?: QualityGroupLayout | string | null,
+  /** Lato di aggancio dell'unico notch (il gruppo non ha mai top/bottom). */
+  notchEdge: "right" | "left" = "right",
 ): Promise<QualityBadgeGroupResult | null> {
   const ageText = typeof ageLabel === "string" ? ageLabel.trim() : ""
   const effAgeStyle: AgeBadgeStyle = isAgeBadgeStyle(ageStyle) ? ageStyle : DEFAULT_AGE_BADGE_STYLE
+  const qualityNotch = notchMaterialOf(qualityBadgeStyle)
+  const ageNotch = notchMaterialOf(effAgeStyle)
+  const groupNotch = qualityNotch ?? ageNotch
   const qualityText = typeof quality === "string" ? quality : ""
   const hasQuality = qualityText !== ""
   const isKnockout = qualityBadgeStyle === "knockout"
@@ -759,6 +770,8 @@ export async function renderQualityBadgeGroup(
   // stile: in `row` lo strip resta la placca UNICA merged (wrappa 2 per riga
   // da solo), in `stacked` rende una placca per marchio impilata in colonna
   // (stesse identità/box per-item di ogni altro stile).
+  // Nel gruppo notch il layout sceglie la composizione dell'unica linguetta
+  // (`stacked` = due piani, `row` = cella tier), mai più sagome.
   const groupLayout = resolveQualityGroupLayout(qualityGroupLayout)
   const isStripStyle = qualityBadgeStyle === "strip"
   const isStrip = isMergedQualityStrip(qualityBadgeStyle, groupLayout)
@@ -783,6 +796,35 @@ export async function renderQualityBadgeGroup(
   const baseMarkFs = Math.round(Math.max(17 * pw / 380, 10))
   const markFs = isNaked ? Math.round(baseMarkFs * NAKED_GROUP_SCALE) : baseMarkFs
   const markFont = normalizeBadgeFont(font)
+  // Un unico notch per TUTTO il gruppo: tier, età e marchi A/V vivono dentro
+  // una sola sagoma agganciata al bordo. Il lockup Dolby Vision+Atmos usa il
+  // logo (stessa asset/icon-path del renderer normale), non la scritta.
+  // Dedupe + cap deterministico + priorità HDR10+ (vale per ogni stile).
+  const rawFormats = [...new Set((videoFormats ?? []).filter((f): f is string => isQualityMarkId(f)))].slice(0, MAX_QUALITY_MARKS)
+  const validFormats = rawFormats.includes("hdr10plus") ? rawFormats.filter((f) => f !== "hdr") : rawFormats
+  if (groupNotch) {
+    const rows: QualityNotchRow[] = []
+    const comboPath = "quality-badges/video/dolby-vision-atmos.svg"
+    let comboAdded = false
+    if (validFormats.includes("dv") && validFormats.includes("atmos")) {
+      const src = await loadQualityIconSvg(comboPath)
+      const ink = avMarkInkBox(comboPath)
+      if (src && ink) {
+        rows.push({
+          label: AV_COMBO_SHORT_LABEL,
+          logo: { inner: svgInnerContent(src), viewBox: `${ink.x} ${ink.y} ${ink.w} ${ink.h}`, aspect: ink.w / ink.h },
+        })
+        comboAdded = true
+      }
+    }
+    for (const fmt of validFormats) {
+      if (comboAdded && (fmt === "dv" || fmt === "atmos")) continue
+      rows.push({ label: qualityMarkLabel(fmt) ?? fmt })
+    }
+    const spec = buildQualityNotchGroupSvg({ tier: qualityText, age: ageText, marks: rows }, markFs, null, !!topLight, groupNotch, notchEdge, markFont, groupLayout)
+    const png = await renderSVG(spec.svg, spec.w)
+    return { png, w: spec.w, h: spec.h, items: [], homeGhosts: [], body: spec.body }
+  }
   const markRefWidth = (() => {
     if (isKnockout) {
       return Math.max(1, buildQualityKnockoutSvg("4K", markFs, markFont).w - TOP_SHADOW_PAD * 2)
@@ -1029,17 +1071,6 @@ export async function renderQualityBadgeGroup(
   // Nothing painted at all (no quality, no age): legacy path, no format work.
   // (With a quality, the tier ALWAYS renders: icon or text pill.)
   if (!hasQuality && ageText === "") return null
-
-  // Dedupe + cap deterministico: l'ordine di selezione vince, i marchi oltre
-  // il cap non entrano nel gruppo (né nel report per-item).
-  const rawValidFormats = [...new Set((videoFormats ?? []).filter((f): f is string => isQualityMarkId(f)))]
-    .slice(0, MAX_QUALITY_MARKS)
-  // Priorità HDR10+ sul generico HDR (solo render, dopo la selezione
-  // effettiva: DB/provenance/raw utente e chiavi cache invariati — il gruppo
-  // non disegna HDR quando l'effettivo include anche HDR10+, in ogni ordine).
-  const validFormats = rawValidFormats.includes("hdr10plus")
-    ? rawValidFormats.filter((f) => f !== "hdr")
-    : rawValidFormats
 
   // -------------------------------------------------------------------
   // `strip` layout (merged single plate) — additive, only when the style

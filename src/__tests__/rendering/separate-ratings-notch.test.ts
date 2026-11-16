@@ -226,12 +226,15 @@ describe("stato display e UI del gradino", () => {
     expect(zero.bottomActive).toBe(true)
   })
 
-  it("famiglia Notch nel selettore: 4 varianti con etichetta materiale", () => {
-    const group = SEPARATE_STYLE_GROUPS.find((g) => g.id === "notch")
-    expect(group).toBeDefined()
-    expect([...(group?.members ?? [])]).toEqual([...MATERIALS])
-    expect(group?.labelKey).toBe("ui.notch")
-    for (const material of MATERIALS) expect(SEPARATE_VARIANT_LABELS[material]).toMatch(/^ui\.notch/)
+  it("selettore per posizione: gradino in basso, linguetta in colonna, etichetta materiale", () => {
+    const bottom = SEPARATE_STYLE_GROUPS.find((g) => g.id === "bottom")!
+    const column = SEPARATE_STYLE_GROUPS.find((g) => g.id === "column")!
+    for (const material of MATERIALS) {
+      expect(bottom.members).toContain(material)
+      expect(column.members).toContain(`column-${material}`)
+      expect(SEPARATE_VARIANT_LABELS[material]).toMatch(/^ui\.notch/)
+      expect(SEPARATE_VARIANT_LABELS[`column-${material}`]).toBe(SEPARATE_VARIANT_LABELS[material])
+    }
   })
 })
 

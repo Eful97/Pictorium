@@ -466,7 +466,7 @@ export const posterQuerySchema = z.object({
   sepscale: boundedQueryString(12),
   sepox: boundedQueryString(12),
   sepoy: boundedQueryString(12),
-  sepstyle: boundedQueryString(16),
+  sepstyle: boundedQueryString(24),
   netscale: boundedQueryString(12),
   nox: boundedQueryString(12),
   noy: boundedQueryString(12),

@@ -475,6 +475,65 @@ export async function renderSeparateRatingStack(
   }
 }
 
+/** Scala ottica della linguetta rating rispetto al font della colonna (come il gruppo notch qualità). */
+export const SEPARATE_SIDE_NOTCH_SCALE = 0.75
+
+/**
+ * Colonna rating separati come UNA linguetta notch laterale (stesso materiale
+ * e stesso aggancio al bordo del gruppo qualità notch): una riga per fonte,
+ * logo a sinistra e voto a destra in due colonne allineate. Nessuna correzione
+ * per-item (come il gruppo qualità notch): `items`/`slotGhosts` vuoti.
+ */
+export async function renderSeparateRatingsSideNotch(
+  items: readonly { id: string; value: number }[],
+  pw: number,
+  light: boolean,
+  material: NotchMaterial,
+  edge: "right" | "left",
+  font: BadgeFont = "inter",
+  scalePct: number = 130,
+): Promise<SeparateRatingStack | null> {
+  const f = normalizeBadgeFont(font)
+  const scale = Number.isFinite(scalePct) ? Math.min(Math.max(Math.round(scalePct), 10), 200) : 130
+  const fs = Math.max(8, Math.round(Math.max(14 * pw / 380, 11) * scale / 100 * SEPARATE_SIDE_NOTCH_SCALE))
+  const logoH = Math.round(fs * 0.95)
+  const rows: { logo: { png: Buffer; w: number; h: number }; display: string; textW: number }[] = []
+  for (const item of items.slice(0, MAX_SEPARATE_RATINGS)) {
+    const logo = await loadSeparateRatingLogo(item.id, logoH)
+    if (!logo) continue
+    const display = formatSeparateValue(item.id, item.value)
+    rows.push({ logo, display, textW: Math.max(1, Math.round(estimateTextWidth(display, fs, f))) })
+  }
+  if (rows.length === 0) return null
+  const pad = Math.round(fs * 0.8)
+  const gap = Math.round(fs * 0.7)
+  const rowH = Math.round(fs * 1.55)
+  const padY = Math.round(fs * 0.2)
+  const logoW = Math.max(...rows.map((r) => r.logo.w))
+  const textW = Math.max(...rows.map((r) => r.textW))
+  const boxW = pad * 2 + logoW + gap + textW
+  const boxH = rows.length * rowH + padY * 2
+  const R = rows.length > 1 ? Math.round(fs * 0.9) : boxH / 2
+  const fr = Math.round(Math.min(boxH, R * 2) * 0.8)
+  const P = TOP_SHADOW_PAD
+  const renderW = boxW + P
+  const renderH = boxH + fr * 2 + P * 2
+  const bodyX = edge === "right" ? P : 0
+  const bodyY = P + fr
+  const d = notchPathD({ x: bodyX, boxW, boxH, fr, renderH, edge, renderW, bodyY, radius: R })
+  const skin = notchMaterialSkin({ material, light, yEdge: edge === "right" ? renderW : 0, yInner: edge === "right" ? P : boxW, axis: "x", adaptiveVeil: true })
+  const parts = rows.map((row, i) => {
+    const cy = bodyY + padY + rowH * i + rowH / 2
+    const lx = bodyX + pad + (logoW - row.logo.w) / 2
+    const tx = bodyX + boxW - pad
+    return `<image href="data:image/png;base64,${row.logo.png.toString("base64")}" x="${Math.round(lx)}" y="${Math.round(cy - row.logo.h / 2)}" width="${row.logo.w}" height="${row.logo.h}"/>`
+      + `<text x="${tx}" y="${Math.round(cy)}" text-anchor="end" dominant-baseline="central" font-family="${fontFamilyFor(row.display, f)}" font-weight="700" font-size="${fs}" fill="${skin.ink}" textLength="${row.textW}" lengthAdjust="spacingAndGlyphs">${escSvg(row.display)}</text>`
+  })
+  const svg = `<svg xmlns="http://www.w3.org/2000/svg" width="${renderW}" height="${renderH}" viewBox="0 0 ${renderW} ${renderH}"><defs>${skin.defs}${TOP_SHADOW_FILTER}</defs><path d="${d}" fill="${skin.fill}"${skin.stroke}${skin.filter}/>${parts.join("")}</svg>`
+  const png = await renderSVG(svg, renderW)
+  return { png, w: renderW, h: renderH, body: { left: bodyX, top: bodyY, w: boxW, h: boxH }, items: [], slotGhosts: [] }
+}
+
 /**
  * Riga rating separati in basso (modalità bottom): logo provider + valore
  * affiancati in linea, max MAX_SEPARATE_RATINGS (=5, clamp anche su chiamate

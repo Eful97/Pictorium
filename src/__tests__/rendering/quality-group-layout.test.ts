@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest"
-import { QUALITY_BADGE_STYLES, type QualityBadgeStyle } from "@/lib/badge-styles"
+import { QUALITY_BADGE_STYLES, notchMaterialOf, type QualityBadgeStyle } from "@/lib/badge-styles"
 import { TOP_SHADOW_PAD } from "@/lib/badge-svg-shared"
 import {
   BADGE_ITEM_QUALITY_AGE,
@@ -28,6 +28,8 @@ const render = (
 describe("quality group layout — stacked (historic default)", () => {
   it("renders one column and is byte-identical when the layout is absent", async () => {
     for (const style of QUALITY_BADGE_STYLES) {
+      // Il notch è UN unico bitmap senza item per-item (nessuna colonna).
+      if (notchMaterialOf(style)) continue
       const absent = await render(style)
       const explicit = await render(style, "stacked")
       expect(absent, style).not.toBeNull()
@@ -54,6 +56,9 @@ describe("quality group layout — row (horizontal, max 2 per line)", () => {
     for (const style of QUALITY_BADGE_STYLES) {
       // The merged strip plate is its own contract (row keeps it merged).
       if (style === "strip") continue
+      // A notch is a tongue attached to the poster edge: `row` degrades to the
+      // historic single column for rendering only (saved values are untouched).
+      if (notchMaterialOf(style)) continue
       const stacked = await render(style, "stacked", ["dv", "imax", "hdr"])
       const row = await render(style, "row", ["dv", "imax", "hdr"])
       expect(stacked, style).not.toBeNull()

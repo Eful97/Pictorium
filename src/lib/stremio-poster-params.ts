@@ -1,6 +1,6 @@
 import { POSTER_URL_VERSION } from "@/lib/render-version"
 import type { BadgeStyle, RankingBadgeStyle, QualityBadgeStyle, BadgeFont, SeparateRatingsStyle, ExtraBadgeStyle, ExtraBadgeFollowRank, AwardBadgeMode } from "@/lib/badge-styles"
-import { getSeparateBadgeDefaultScale, getSeparateRatingsStyleForShape, isAgeBadgeStyle, isAwardBadgeMode, isBottomSeparateRatingsStyle, isQualityBadgeStyle, DEFAULT_QUALITY_BADGE_STYLE, DEFAULT_AWARD_BADGE_MODE } from "@/lib/badge-styles"
+import { getSeparateBadgeDefaultScale, getSeparateRatingsStyleForShape, isAgeBadgeStyle, isAwardBadgeMode, isBottomSeparateRatingsStyle, isColumnSeparateRatingsStyle, isQualityBadgeStyle, DEFAULT_QUALITY_BADGE_STYLE, DEFAULT_AWARD_BADGE_MODE } from "@/lib/badge-styles"
 import { canonicalizeBadgeItemTransforms } from "@/lib/badge-item-transforms"
 import { sanitizeDisabledContentTags } from "@/lib/content-tags"
 import { sanitizeDisabledNetworks } from "@/lib/network-keys"
@@ -457,9 +457,9 @@ export function buildStremioPosterSearchParams(input: StremioPosterParamsInput):
   const effSepStyle = input.shapeUnknown || input.posterShape !== "landscape"
     ? input.separateRatingsStyle
     : getSeparateRatingsStyleForShape(input.separateRatingsStyle ?? "column", "landscape")
-  // `rings` è una variante COLONNA ma non il default: va emessa anch'essa,
-  // altrimenti Stremio renderebbe la colonna a pill.
-  if (isBottomSeparateRatingsStyle(effSepStyle) || effSepStyle === "rings") {
+  // `rings`/`column-notch-*` sono varianti COLONNA ma non il default: vanno
+  // emesse anch'esse, altrimenti Stremio renderebbe la colonna a pill.
+  if (effSepStyle && effSepStyle !== "column" && (isBottomSeparateRatingsStyle(effSepStyle) || isColumnSeparateRatingsStyle(effSepStyle))) {
     params.set("sepstyle", effSepStyle)
   }
   if (input.ratingSources && input.ratingSources.length > 0) params.set("rsrc", input.ratingSources.join(","))

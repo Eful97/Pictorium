@@ -92,8 +92,14 @@ describe("separateRatingsStyle enum", () => {
     expect(DEFAULT_SEPARATE_RATINGS_STYLE).toBe("column")
     expect([...SEPARATE_RATINGS_STYLES].sort()).toEqual([
       "bottom-bar", "bottom-color", "bottom-mono", "bottom-pills", "column",
+      "column-notch-crema", "column-notch-inchiostro", "column-notch-sfumato", "column-notch-vetro",
       "notch-crema", "notch-inchiostro", "notch-sfumato", "notch-vetro", "rings",
     ])
+    // Linguetta laterale: variante COLONNA, mai bottom né gradino.
+    for (const style of ["column-notch-crema", "column-notch-vetro"] as const) {
+      expect(isSeparateRatingsStyle(style)).toBe(true)
+      expect(isBottomSeparateRatingsStyle(style)).toBe(false)
+    }
     expect(isSeparateRatingsStyle("column")).toBe(true)
     expect(isSeparateRatingsStyle("bottom-bar")).toBe(true)
     expect(isSeparateRatingsStyle("bottom-pills")).toBe(true)

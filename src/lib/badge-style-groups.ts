@@ -55,13 +55,18 @@ export const QUALITY_STYLE_GROUPS: readonly StyleGroup[] = [
   { id: "icons", labelKey: "ui.styleGroupIcons", members: ["color", "premium", "mono"] },
   { id: "plates", labelKey: "ui.styleGroupPlates", members: ["nova", "gradient", "knockout"] },
   { id: "bare", labelKey: "ui.styleGroupBare", members: ["naked", "editoriale"] },
+  NOTCH_GROUP,
 ]
 
-/** Rating separati (`sepstyle`): la scelta vera è la posizione. */
+/**
+ * Rating separati (`sepstyle`): la scelta vera è la POSIZIONE. Ogni famiglia
+ * ha le sue varianti e, in coda, i quattro materiali notch della stessa
+ * posizione (colonna → linguetta laterale `column-notch-*`, in basso → gradino
+ * `notch-*`).
+ */
 export const SEPARATE_STYLE_GROUPS: readonly StyleGroup[] = [
-  { id: "column", labelKey: "ui.sepGroupColumn", members: ["column", "rings"] },
-  { id: "bottom", labelKey: "ui.sepGroupBottom", members: ["bottom-bar", "bottom-pills", "bottom-mono", "bottom-color"] },
-  { id: "notch", labelKey: "ui.notch", members: ["notch-crema", "notch-vetro", "notch-inchiostro", "notch-sfumato"] },
+  { id: "column", labelKey: "ui.sepGroupColumn", members: ["column", "rings", "column-notch-crema", "column-notch-vetro", "column-notch-inchiostro", "column-notch-sfumato"] },
+  { id: "bottom", labelKey: "ui.sepGroupBottom", members: ["bottom-bar", "bottom-pills", "bottom-mono", "bottom-color", "notch-crema", "notch-vetro", "notch-inchiostro", "notch-sfumato"] },
 ]
 
 /** Etichetta della variante dentro la famiglia, quando quella dello stile ripeterebbe la famiglia. */
@@ -70,6 +75,10 @@ export const SEPARATE_VARIANT_LABELS: Readonly<Record<string, string>> = {
   "bottom-bar": "ui.sepVariantBar",
   "bottom-pills": "ui.sepVariantPills",
   ...NOTCH_VARIANT_LABELS,
+  "column-notch-crema": "ui.notchCrema",
+  "column-notch-vetro": "ui.notchVetro",
+  "column-notch-inchiostro": "ui.notchInchiostro",
+  "column-notch-sfumato": "ui.notchSfumato",
 }
 
 export type GroupedEntry =

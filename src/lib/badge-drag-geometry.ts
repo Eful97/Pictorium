@@ -185,7 +185,9 @@ export function parseBadgeDragGeometry(json: unknown): BadgeDragGeometry | null 
       const family = itemRec.family
       if (typeof id !== "string") continue
       if (family !== "quality" && family !== "separate") continue
-      const parsed = box(itemRec)
+      // Cornice sull'area dipinta quando il renderer la riporta (`ink`): il box
+      // dello slot include pad d'ombra e tela comune, molto più grande del badge.
+      const parsed = box(itemRec.ink) ?? box(itemRec)
       if (!parsed) continue
       items.push({ id, family, box: parsed, custom: itemRec.custom === true, ghost: itemRec.ghost === true })
     }

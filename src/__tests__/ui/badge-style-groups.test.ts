@@ -26,7 +26,7 @@ describe("badge style groups", () => {
 
   it("age filters members and degrades a one-member group to a single", () => {
     expect(ids(groupStyleOptions(AGE_BADGE_STYLES, QUALITY_STYLE_GROUPS))).toEqual([
-      "textPill:standard,outline", "icons:color,premium,mono", "plates:nova,gradient,knockout", "editoriale",
+      "textPill:standard,outline", "icons:color,premium,mono", "plates:nova,gradient,knockout", "editoriale", "notch:notch-crema,notch-vetro,notch-inchiostro,notch-sfumato",
     ])
   })
 })

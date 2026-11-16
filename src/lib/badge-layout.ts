@@ -341,6 +341,12 @@ export interface BadgeGeometryItem {
    * (`?ghosts=1`), never on the Stremio render path.
    */
   readonly ghost?: boolean
+  /**
+   * PAINTED area inside the box (opaque ink, no shadow pad / common-column
+   * canvas). Display only: the editor draws and hit-tests the frame on it;
+   * `top/left/w/h` stay the slot every correction is computed from.
+   */
+  readonly ink?: { readonly top: number; readonly left: number; readonly w: number; readonly h: number }
 }
 
 /**

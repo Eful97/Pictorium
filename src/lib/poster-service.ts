@@ -4,11 +4,11 @@ import { renderMultiRatings, MAX_CUSTOM_RATINGS } from "./multi-rating-renderer"
 import { resolveSeparateDisplayState } from "./poster-config"
 import type { SeparateRating } from "./ratings"
 import { MAX_SEPARATE_RATINGS } from "./ratings"
-import { renderSeparateRatingStack, renderSeparateRatingsBottom, renderSeparateRatingsNotch, notchSeparateStepBodyHeight, notchSeparateStepText, type SeparateRatingStack } from "./separate-rating-renderer"
+import { renderSeparateRatingStack, renderSeparateRatingsBottom, renderSeparateRatingsNotch, renderSeparateRatingsSideNotch, notchSeparateStepBodyHeight, notchSeparateStepText, type SeparateRatingStack } from "./separate-rating-renderer"
 import { cacheGet, cacheSet } from "./cache"
 import { GENRE_FALLBACK, cinematicVignetteSVG, cinematicCornerGradientSVG, topShadeSVG } from "./badges"
 import { applyBlur } from "./blur"
-import { STD_W, STD_H, extractBadgeColor, extractSceneTint, fitBadgeToCanvas, fitCompositeToCanvas, isValidHex, BadgeRender, PosterComposite, badgeBody, badgeCanvasForBody, scaleBadgeBleed, topBandMeanRGB, bottomBandMeanRGB, effectiveTopBackgroundLuminance, effectiveBottomBackgroundLuminance, adaptiveAccentHexForBand, insertFrostedGlassUnderlays } from "./poster-render-helpers"
+import { STD_W, STD_H, extractBadgeColor, extractSceneTint, fitBadgeToCanvas, fitCompositeToCanvas, isValidHex, BadgeRender, PosterComposite, badgeBody, badgeCanvasForBody, scaleBadgeBleed, topBandMeanRGB, bottomBandMeanRGB, effectiveTopBackgroundLuminance, effectiveBottomBackgroundLuminance, adaptiveAccentHexForBand, insertFrostedGlassUnderlays, opaqueComponents, tightenBoxesToInk } from "./poster-render-helpers"
 import { LAND_W, LAND_H } from "./image-utils"
 import { normalizeAutomaticAccentHex } from "./accent-color"
 import type { EffectiveAccentMeta } from "./effective-accent"
@@ -38,7 +38,7 @@ import type { WikidataResult } from "./awards"
 import { directorBadgeLabel } from "./awards"
 import type { BadgeT } from "./poster-badge"
 import type { BadgeFont } from "./badge-styles"
-import { isRibbonRankingStyle, notchMaterialOf, isBottomSeparateRatingsStyle, isNotchSeparateRatingsStyle, isAgeBadgeStyle, isAwardBadgeMode, getSeparateRatingsStyleForShape, resolveNumberBadgeBaseOffsetX, normalizeExtraBadgeStyleForRender, resolveQualityGroupLayout, isMergedQualityStrip, DEFAULT_AGE_BADGE_STYLE, DEFAULT_AWARD_BADGE_MODE, type BadgeStyle, type RankingBadgeStyle, type ExtraBadgeStyle, type ExtraBadgeFollowRank, type SeparateRatingsStyle, type SeparateBottomVariant, type AgeBadgeStyle, type AwardBadgeMode, type QualityGroupLayout } from "./badge-styles"
+import { isRibbonRankingStyle, notchMaterialOf, qualityGroupNotchMaterial, isBottomSeparateRatingsStyle, columnNotchMaterialOf, isNotchSeparateRatingsStyle, isAgeBadgeStyle, isAwardBadgeMode, getSeparateRatingsStyleForShape, resolveNumberBadgeBaseOffsetX, normalizeExtraBadgeStyleForRender, resolveQualityGroupLayout, isMergedQualityStrip, DEFAULT_AGE_BADGE_STYLE, DEFAULT_AWARD_BADGE_MODE, type BadgeStyle, type RankingBadgeStyle, type ExtraBadgeStyle, type ExtraBadgeFollowRank, type SeparateRatingsStyle, type SeparateBottomVariant, type AgeBadgeStyle, type AwardBadgeMode, type QualityGroupLayout } from "./badge-styles"
 import { normalizeBadgeFont } from "./badge-svg-shared"
 import type { PosterImageFormat } from "@/lib/poster-runtime-cache"
 import { DEFAULT_IMAGE_QUALITY, POSTER_ENCODE_QUALITY, type ImageQuality } from "@/lib/image-quality"
@@ -1230,6 +1230,8 @@ export async function generatePosterBuffer(input: GenerationInput): Promise<Buff
   const effSepBottomLight = bottomLight
   const isBottomStyle = isBottomSeparateRatingsStyle(effBottomStyle)
   const sepColumnVariant = effBottomStyle === "rings" ? "rings" as const : "pill" as const
+  // Linguetta laterale (`column-notch-*`): la colonna diventa UNA linguetta.
+  const sepSideNotch = columnNotchMaterialOf(effBottomStyle)
   const bottomVariant: SeparateBottomVariant | null = isBottomStyle ? effBottomStyle : null
   const bottomItemCount = bottomVariant ? (input.separateRatings?.length ?? 0) : 0
   // Offset gruppo rating separati (default 0 = percorso storico byte-identico):
@@ -1663,12 +1665,15 @@ export async function generatePosterBuffer(input: GenerationInput): Promise<Buff
   // legacy toggle è OFF (badgeQuality=false) l'effettiva è null: niente
   // icona, niente chiave che includa il tier nascosto.
   const effQualityBadgeStyle = qualityBadgeStyle
+  const effAgeBadgeStyle: AgeBadgeStyle = ageBadgeStyle
+  // Gruppo notch: UNA linguetta; `qgl` ne sceglie la composizione
+  // (`stacked` = due piani, `row` = cella tier).
+  const groupNotch = qualityGroupNotchMaterial(effQualityBadgeStyle, effAgeBadgeStyle)
   // Layout del gruppo qualità, risolto dalla route (query `qgl` > mapping >
   // config token > defaults > `stacked`). Fail-closed: assente/invalido =
   // colonna storica. Entra nella chiave solo quando è `row`, così le chiavi
   // storiche (stacked) restano byte-identiche.
   const effQualityGroupLayout = resolveQualityGroupLayout(rawQualityGroupLayout)
-  const effAgeBadgeStyle: AgeBadgeStyle = ageBadgeStyle
   const effQualityTopLight = topLight
   const effQualityGroupScale = qualityBadgeScale
   // `mono` renders the shared dynamic frame (same as the age mono): no asset
@@ -1676,6 +1681,16 @@ export async function generatePosterBuffer(input: GenerationInput): Promise<Buff
   const qualityIconPath = effQualityBadgeStyle === "knockout" || effQualityBadgeStyle === "mono" || !effectiveQuality ? null : qualityBadgeIconPath(effQualityBadgeStyle, effectiveQuality)
   const effComingSoonSide = ribbonSide === "right" ? "right" : "left"
   const effComingSoonLabel = comingSoonLabel
+  // Il notch laterale segue il lato del nastro/angolo occupato: quando il
+  // gruppo qualità si specchia a sinistra, la linguetta aggancia il bordo
+  // sinistro. Regola pura (tutte le dipendenze sono risolte prima della cache
+  // key), così il bitmap e la sua chiave restano coerenti.
+  const notchEdge: "right" | "left" = (
+    (isRibbonRankingStyle(rankingBadgeStyle) && ribbonSide === "right" && topBadge?.type === "rank")
+    || (showComingSoon && effComingSoonSide === "right")
+    || isTopBadgeNumberRightCorner({ topBadgeType: topBadge?.type, rankingBadgeStyle, extraBadgeStyle, ribbonSide, hasTopBadge: !!topBadge })
+    || (!!networkLogo && networkLogoPosition === "top")
+  ) ? "left" : "right"
 
   // Placca staccata: solo gli stili centrati (il nastro resta ancorato)
   // con offset Y esplicito arrotondano tutti e 4 gli angoli. Calcolato qui
@@ -1727,7 +1742,7 @@ export async function generatePosterBuffer(input: GenerationInput): Promise<Buff
   // niente). La chiave usa l'EFFETTIVA (gated dal legacy toggle): con bq=0 il
   // tier nascosto non entra nella chiave (stesso bitmap dell'age-only senza tier).
   const qualityBadgeKey = hasQualityGroup
-    ? badgeCacheKey("quality", effectiveQuality ?? "noquality", CW, effQualityTopLight, badgeFont, qualityBadgeScale, effQualityBadgeStyle ?? "standard", qualityIconPath ?? "std", formatsKey, ageText !== "" ? `${ageText}:${effAgeBadgeStyle}` : "noage", qualityItemKey, effQualityGroupLayout === "row" ? "row" : undefined)
+    ? badgeCacheKey("quality", effectiveQuality ?? "noquality", CW, effQualityTopLight, badgeFont, qualityBadgeScale, effQualityBadgeStyle ?? "standard", qualityIconPath ?? "std", formatsKey, ageText !== "" ? `${ageText}:${effAgeBadgeStyle}` : "noage", qualityItemKey, effQualityGroupLayout === "row" ? "row" : undefined, groupNotch ? notchEdge : undefined)
     : null
   const comingSoonKey = showComingSoon
     ? badgeCacheKey("comingsoon", effComingSoonLabel, CW, badgeFont, topLight, effComingSoonSide)
@@ -1777,7 +1792,7 @@ export async function generatePosterBuffer(input: GenerationInput): Promise<Buff
           || coalesceBadgeRender(qualityBadgeKey, async () => {
               // Gruppo con qualità/formati/stile-età EFFETTIVI (legacy-gated):
               // con bq=0 l'age-only non resuscita il tech stack disabilitato.
-              const res = await renderQualityBadgeGroup(effectiveQuality ?? null, effQualityBadgeStyle, effectiveFormats, badgePw, effQualityTopLight, badgeFont, hasAgeBadge ? ageText : null, effAgeBadgeStyle, itemTransformsForQuality, effQualityGroupLayout)
+              const res = await renderQualityBadgeGroup(effectiveQuality ?? null, effQualityBadgeStyle, effectiveFormats, badgePw, effQualityTopLight, badgeFont, hasAgeBadge ? ageText : null, effAgeBadgeStyle, itemTransformsForQuality, effQualityGroupLayout, notchEdge)
               if (res) cacheSet(qualityBadgeKey, res, ["badge"], BADGE_CACHE_TTL)
               return res
             }))
@@ -1854,6 +1869,22 @@ export async function generatePosterBuffer(input: GenerationInput): Promise<Buff
   const badgeGeoFixedX: Partial<Record<BadgeGeometryFamily, boolean>> = {}
   // Per-item boxes (see `BadgeGeometryReport.items`).
   const badgeGeoItems: BadgeGeometryItem[] = []
+  // Bitmap del gruppo qualità come composto: il report stringe la sua cornice
+  // e quelle dei marchi sull'inchiostro reale (ombre e tela comune escluse).
+  // `body` (linguette notch): la lastra nello spazio della bitmap piazzata —
+  // la cornice è la lastra, non i raccordi che sporgono lungo il bordo.
+  type InkSource = { png: Buffer; left: number; top: number; body?: { left: number; top: number; w: number; h: number } }
+  let qualityInkSource: InkSource | null = null
+  let separateInkSource: InkSource | null = null
+  // Marchi qualità staccati (correzione per-item): composti fuori dal gruppo,
+  // la loro cornice si stringe sulla PROPRIA bitmap.
+  const qualityDetachedInk = new Map<string, InkSource>()
+  const bodyFrame = (src: InkSource) => src.body
+    ? { left: src.left + src.body.left, top: src.top + src.body.top, w: src.body.w, h: src.body.h }
+    : null
+  const scaledBody = (body: { left: number; top: number; w: number; h: number } | undefined, k: number) => body
+    ? { left: Math.round(body.left * k), top: Math.round(body.top * k), w: Math.round(body.w * k), h: Math.round(body.h * k) }
+    : undefined
 
   // Rettangolo finale del badge genere (per il contenimento colonna separati
   // sotto: solo shrink quando lo stack sfora, mai enlarge — a scala 100 lo
@@ -2572,9 +2603,14 @@ export async function generatePosterBuffer(input: GenerationInput): Promise<Buff
       : TOP_SHADOW_PAD
     const sharedTopLineTop = netBaseTop + NETWORK_LOGO_SHIFT_Y - TOP_SHADOW_PAD
     let top = landscapeSharedTopLine ? sharedTopLineTop : netBaseTop - 10 + 5
-    let left = isRightRibbonCorner
-      ? netPadX - qPad
-      : CW - netPadX - (safeQualityBadgeResult.w - qPad)
+    // Linguette: il lato dritto coincide con l'ultima colonna (right) o con
+    // la prima (left) del bitmap di gruppo — niente margine netPadX e niente
+    // pad ombra sull'asse di aggancio.
+    let left = groupNotch
+      ? (notchEdge === "right" ? CW - safeQualityBadgeResult.w : 0)
+      : isRightRibbonCorner
+        ? netPadX - qPad
+        : CW - netPadX - (safeQualityBadgeResult.w - qPad)
     let finalQualityBadge = safeQualityBadgeResult
 
     if (isRightRibbonCorner) {
@@ -2609,7 +2645,9 @@ export async function generatePosterBuffer(input: GenerationInput): Promise<Buff
           curPng = await sharp(safeQualityBadgeResult.png).resize(newW, newH).toBuffer()
           // Lo shrink scala anche il pad: l'ancora resta a box.
           const curPad = Math.round(qPad * scale)
-          curLeft = isRightRibbonCorner ? netPadX - curPad : CW - netPadX - (curW - curPad)
+          curLeft = groupNotch
+            ? (notchEdge === "right" ? CW - curW : 0)
+            : isRightRibbonCorner ? netPadX - curPad : CW - netPadX - (curW - curPad)
           if (scale <= minScale) break
         }
         finalQualityBadge = { ...finalQualityBadge, png: curPng, w: curW, h: curH }
@@ -2617,17 +2655,20 @@ export async function generatePosterBuffer(input: GenerationInput): Promise<Buff
       }
     }
 
-    composites.push({
+    // Offset applicato DOPO lo shrink anti-overlap (che ragiona sulla
+    // posizione ancorata). Sulle linguette l'offset X è ignorato: il raccordo
+    // resta agganciato al bordo, come il genere notch ignora l'offset Y.
+    const qualityLeftFinal = left + (groupNotch ? 0 : qualityBadgeOffsetX)
+    const qualityLayer: PosterComposite = {
       input: finalQualityBadge.png,
-      // Offset applicato DOPO lo shrink anti-overlap (che ragiona sulla
-      // posizione ancorata): con offset estremi il badge puo sovrapporsi ad
-      // altri elementi - scelta utente, WYSIWYG. fitCompositeToCanvas lo
-      // tiene comunque dentro la tela.
       top: top + qualityBadgeOffsetY,
-      left: left + qualityBadgeOffsetX,
-    })
+      left: qualityLeftFinal,
+    }
+    composites.push(qualityLayer)
+    // Vetro reale sotto la linguetta: il solo velo SVG non sfoca l'artwork.
+    if (groupNotch === "vetro") glassLayers.add(qualityLayer)
     const qualityGroupTop = top + qualityBadgeOffsetY
-    const qualityGroupLeft = left + qualityBadgeOffsetX
+    const qualityGroupLeft = qualityLeftFinal
     // Per-item corrections: the group keeps its automatic anchor/offset/scale
     // (nothing else ever moves); a corrected element is composited on its own
     // at the transformed box. The ratio maps the group bitmap's own space
@@ -2655,6 +2696,7 @@ export async function generatePosterBuffer(input: GenerationInput): Promise<Buff
             ? item.png
             : await sharp(item.png).resize(placed.w, placed.h).toBuffer()
         composites.push({ input: png, top: placed.top, left: placed.left })
+        qualityDetachedInk.set(item.id, { png, left: placed.left, top: placed.top })
       }
       badgeGeoItems.push({
         id: item.id,
@@ -2698,9 +2740,15 @@ export async function generatePosterBuffer(input: GenerationInput): Promise<Buff
     }
     badgeGeo.quality = {
       top: top + qualityBadgeOffsetY,
-      left: left + qualityBadgeOffsetX,
+      left: qualityLeftFinal,
       w: finalQualityBadge.w,
       h: finalQualityBadge.h,
+    }
+    qualityInkSource = {
+      png: finalQualityBadge.png,
+      left: qualityLeftFinal,
+      top: top + qualityBadgeOffsetY,
+      body: groupNotch && qualityBadgeResult ? scaledBody(qualityBadgeResult.body, finalQualityBadge.h / qualityBadgeResult.h) : undefined,
     }
     // Ancoraggio della colonna separati: sotto il box visibile del badge
     // qualita (asse centrale allineato) con gap ottico 6px. L'ancora sottrae
@@ -2710,9 +2758,14 @@ export async function generatePosterBuffer(input: GenerationInput): Promise<Buff
     const qBottomPad = qualityBadgeResult?.h
       ? Math.round(TOP_SHADOW_PAD * finalQualityBadge.h / qualityBadgeResult.h)
       : TOP_SHADOW_PAD
+    // Gruppo notch: l'ancora è il fondo della LASTRA (sotto ci sono raccordo
+    // e pad ombra), scalato con la bitmap finale.
+    const qNotchBody = groupNotch && qualityBadgeResult?.body ? qualityBadgeResult.body : null
     qualityStackAnchor = {
-      top: top + qualityBadgeOffsetY + finalQualityBadge.h - qBottomPad,
-      centerX: (left + qualityBadgeOffsetX) + finalQualityBadge.w / 2,
+      top: qNotchBody && qualityBadgeResult
+        ? top + qualityBadgeOffsetY + Math.round((qNotchBody.top + qNotchBody.h) * finalQualityBadge.h / qualityBadgeResult.h)
+        : top + qualityBadgeOffsetY + finalQualityBadge.h - qBottomPad,
+      centerX: qualityLeftFinal + finalQualityBadge.w / 2,
       leftCorner: isRightRibbonCorner,
     }
   }
@@ -2736,14 +2789,24 @@ export async function generatePosterBuffer(input: GenerationInput): Promise<Buff
       : ((isRibbonRankingStyle(rankingBadgeStyle) && ribbonSide === "right" && topBadge?.type === "rank" && !!finalRankBadge)
         || (showComingSoon && effComingSoonSide === "right" && !!ribbonLayout)
         || isTopBadgeNumberRightCorner({ topBadgeType: topBadge?.type, rankingBadgeStyle, extraBadgeStyle, ribbonSide, hasTopBadge: !!finalRankBadge }))
-    const stackTop = (qualityStackAnchor ? qualityStackAnchor.top + 6 : netBaseTop - 10)
-      + (isLandscape ? 0 : PORTRAIT_SEPARATE_SHIFT_Y)
-    const stackKey = badgeCacheKey("separate", items.map((i) => `${i.id}${i.value}`).join(","), CW, badgeFont, effSepTopLight, separateBadgeScaleEff, separateItemKey, sepColumnVariant === "rings" ? "rings" : undefined)
+    // `column-notch-*`: UNA linguetta agganciata allo stesso bordo del gruppo
+    // qualità, sotto la sua lastra.
+    const sideNotch = sepSideNotch
+    const stackKey = badgeCacheKey("separate", items.map((i) => `${i.id}${i.value}`).join(","), CW, badgeFont, effSepTopLight, separateBadgeScaleEff, separateItemKey, sepColumnVariant === "rings" ? "rings" : undefined, sideNotch ? `notch-${sideNotch}-${notchEdge}` : undefined)
     const cached = cacheGet<SeparateRatingStack>(stackKey)
     const stack = cached ?? await coalesceBadgeRender(stackKey, () =>
-      renderSeparateRatingStack(items, badgePw, effSepTopLight, badgeFont, separateBadgeScaleEff, itemTransformsForSeparate, sepColumnVariant)
+      (sideNotch
+        ? renderSeparateRatingsSideNotch(items, badgePw, effSepTopLight, sideNotch, notchEdge, badgeFont, separateBadgeScaleEff)
+        : renderSeparateRatingStack(items, badgePw, effSepTopLight, badgeFont, separateBadgeScaleEff, itemTransformsForSeparate, sepColumnVariant))
         .then((r) => { if (r) cacheSet(stackKey, r, ["badge"], BADGE_CACHE_TTL); return r })
     )
+    // Linguetta: la LASTRA parte a un gap ottico sotto quella della qualità;
+    // raccordo e pad ombra sopra la lastra salgono oltre l'ancora.
+    const sideNotchGap = Math.round(8 * CW / 500)
+    const stackTop = sideNotch
+      ? (qualityStackAnchor ? qualityStackAnchor.top + sideNotchGap : netBaseTop) - (stack?.body?.top ?? 0)
+      : (qualityStackAnchor ? qualityStackAnchor.top + 6 : netBaseTop - 10)
+        + (isLandscape ? 0 : PORTRAIT_SEPARATE_SHIFT_Y)
     const fitted = stack ? await fitBadgeToCanvas(stack, CW, CH) : null
     // Contenimento colonna sopra il badge genere (o dentro il canvas senza
     // genere): SOLO shrink sull'overflow reale, mai per conteggio. La misura
@@ -2766,13 +2829,27 @@ export async function generatePosterBuffer(input: GenerationInput): Promise<Buff
       }
     }
     if (stackFitted) {
-      const leftPos = qualityStackAnchor
-        ? Math.round(qualityStackAnchor.centerX - stackFitted.w / 2)
-        : (rightCorner ? netPadX : Math.round(CW - netPadX + 10 - stackFitted.w))
+      const leftPos = sideNotch
+        ? (notchEdge === "right" ? CW - stackFitted.w : 0)
+        : qualityStackAnchor
+          ? Math.round(qualityStackAnchor.centerX - stackFitted.w / 2)
+          : (rightCorner ? netPadX : Math.round(CW - netPadX + 10 - stackFitted.w))
       // Clamp dentro il canvas come gli altri badge (a offset 0 identico allo storico).
-      const sepLeft = Math.max(0, Math.min(CW - stackFitted.w, leftPos + sepOX))
-      const sepTop = Math.max(0, Math.min(CH - stackFitted.h, stackTop + sepOY))
-      composites.push({ input: stackFitted.png, top: sepTop, left: sepLeft })
+      // La linguetta resta agganciata al bordo (offset X ignorato, come la
+      // qualità notch) e il raccordo superiore può salire oltre il bordo alto.
+      const sepLeft = sideNotch ? leftPos : Math.max(0, Math.min(CW - stackFitted.w, leftPos + sepOX))
+      const sepTop = sideNotch
+        ? Math.min(CH - stackFitted.h, stackTop + sepOY)
+        : Math.max(0, Math.min(CH - stackFitted.h, stackTop + sepOY))
+      const sepLayer = { input: stackFitted.png, top: sepTop, left: sepLeft }
+      composites.push(sepLayer)
+      if (sideNotch === "vetro") glassLayers.add(sepLayer)
+      separateInkSource = {
+        png: stackFitted.png,
+        left: sepLeft,
+        top: sepTop,
+        body: sideNotch && stack ? scaledBody(stack.body, stackFitted.h / stack.h) : undefined,
+      }
       badgeGeo.separate = { top: sepTop, left: sepLeft, w: stackFitted.w, h: stackFitted.h }
       // Per-item corrections of the single pills: the column keeps its
       // automatic anchor/offset/fit (nothing else moves); a corrected pill is
@@ -3542,6 +3619,38 @@ export async function generatePosterBuffer(input: GenerationInput): Promise<Buff
   // `noy` that is reinterpreted as a relative offset later). Card keeps its
   // provider offsets applied, so it is deliberately excluded.
   if (isFixedNetwork && !isCard) badgeGeoFixedX.network = true
+  // Cornici dell'editor sull'inchiostro reale: la bitmap del gruppo qualità
+  // porta pad d'ombra, tela della colonna comune e (notch) i raccordi vuoti,
+  // quindi i box grezzi erano molto più grandi del dipinto. Calcolato solo
+  // quando l'editor chiede la geometria; il render non cambia.
+  let reportedItems: BadgeGeometryItem[] = badgeGeoItems
+  if (onBadgeGeometry && qualityInkSource && badgeGeo.quality) {
+    const src = qualityInkSource
+    const comps = (await opaqueComponents(src.png)).map((c) => ({ ...c, left: c.left + src.left, top: c.top + src.top }))
+    badgeGeo.quality = bodyFrame(src) ?? tightenBoxesToInk([badgeGeo.quality], comps)[0]
+    const painted = badgeGeoItems.filter((it) => it.family === "quality" && !it.ghost && !qualityDetachedInk.has(it.id))
+    const tight = tightenBoxesToInk(painted, comps)
+    const detachedTight = new Map<string, BadgeGeometryItem>()
+    for (const it of badgeGeoItems) {
+      const own = it.family === "quality" ? qualityDetachedInk.get(it.id) : undefined
+      if (!own) continue
+      const ownComps = (await opaqueComponents(own.png)).map((c) => ({ ...c, left: c.left + own.left, top: c.top + own.top }))
+      detachedTight.set(it.id, tightenBoxesToInk([it], ownComps)[0])
+    }
+    // Il box resta lo slot (contratto delle correzioni per-item e delle home);
+    // l'area dipinta viaggia a parte in `ink`, solo per la cornice dell'editor.
+    reportedItems = badgeGeoItems.map((it) => {
+      const t = tight[painted.indexOf(it)] ?? detachedTight.get(it.id)
+      return t && (t.w !== it.w || t.h !== it.h || t.left !== it.left || t.top !== it.top)
+        ? { ...it, ink: { top: t.top, left: t.left, w: t.w, h: t.h } }
+        : it
+    })
+  }
+  if (onBadgeGeometry && separateInkSource && badgeGeo.separate) {
+    const src = separateInkSource
+    const comps = (await opaqueComponents(src.png)).map((c) => ({ ...c, left: c.left + src.left, top: c.top + src.top }))
+    badgeGeo.separate = bodyFrame(src) ?? tightenBoxesToInk([badgeGeo.separate], comps)[0]
+  }
   onBadgeGeometry?.({
     canvasW: CW,
     canvasH: CH,
@@ -3553,7 +3662,7 @@ export async function generatePosterBuffer(input: GenerationInput): Promise<Buff
         : null,
     families: badgeGeo,
     fixedX: badgeGeoFixedX,
-    items: badgeGeoItems,
+    items: reportedItems,
   })
 
   // -----------------------------------------------------------------------

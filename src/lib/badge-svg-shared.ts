@@ -1,4 +1,4 @@
-import type { BadgeStyle, RankingBadgeStyle, BadgeFont, NotchMaterial } from "./badge-styles"
+import type { BadgeStyle, RankingBadgeStyle, BadgeFont, NotchMaterial, NotchEdge } from "./badge-styles"
 import { isBadgeFont, notchMaterialOf } from "./badge-styles"
 import { apcaLc, isWarmGoldAccent, textColorForBg } from "./accent-color"
 import { AV_PLATE_RADIUS_FACTOR, AV_PLATE_STROKE_WIDTH, COLOR_MARK_GLYPH, COLOR_MARK_PLATE_BG, COLOR_MARK_PLATE_STROKE, GRADIENT_PLATE_BG, GRADIENT_PLATE_STROKE, PREMIUM_PLATE_BG, PREMIUM_PLATE_STROKE, premiumAccentHex } from "./quality-badge-styles"
@@ -709,9 +709,37 @@ export function buildGenreGradientBorderSvg(genreName: string, voteStr: string, 
  * apertura orizzontale dei raccordi concavi; il lato bordo è a filo (y=0 per
  * top, y=renderH per bottom), l'altro lato è arrotondato.
  */
-export function notchPathD(o: { x: number; boxW: number; boxH: number; fr: number; renderH: number; edge: "top" | "bottom" }): string {
+export function notchPathD(o: { x: number; boxW: number; boxH: number; fr: number; renderH: number; edge: NotchEdge; renderW?: number; bodyY?: number; radius?: number }): string {
   const { x, boxW, boxH, fr, renderH } = o
-  const R = boxH / 2
+  const R = o.radius ?? boxH / 2
+  if (o.edge === "right" || o.edge === "left") {
+    // Fianchi: il lato dritto è a filo del poster (x = renderW per "right",
+    // x = 0 per "left"); i raccordi concavi corrono in verticale alle due
+    // estremità, gli altri due angoli restano arrotondati come nelle sagome
+    // orizzontali. Nessuna rotazione del testo: la linguetta è orizzontale.
+    const right = o.edge === "right"
+    const W = o.renderW ?? 0
+    const edgeX = right ? W : 0
+    const bodyX = right ? W - boxW : boxW
+    const topY = o.bodyY ?? fr
+    const bottomY = topY + boxH
+    const cornerOut = right ? W - R : R
+    const cornerA = right ? bodyX + R : boxW - R
+    const cornerB = right ? bodyX : boxW
+    const cornerC = right ? bodyX + R : boxW - R
+    const sweep = right ? 0 : 1
+    return [
+      `M ${edgeX},${topY - fr}`,
+      `Q ${edgeX},${topY} ${cornerOut},${topY}`,
+      `L ${cornerA},${topY}`,
+      `A ${R},${R} 0 0,${sweep} ${cornerB},${topY + R}`,
+      `L ${cornerB},${bottomY - R}`,
+      `A ${R},${R} 0 0,${sweep} ${cornerC},${bottomY}`,
+      `L ${cornerOut},${bottomY}`,
+      `Q ${edgeX},${bottomY} ${edgeX},${bottomY + fr}`,
+      `Z`,
+    ].join(" ")
+  }
   const top = o.edge === "top"
   const Y = (v: number) => (top ? v : renderH - v)
   const sw = top ? 0 : 1
@@ -812,9 +840,14 @@ export function notchMaterialSkin(args: {
   yInner: number
   idSuffix?: string
   adaptiveVeil?: boolean
+  /** Gradiente lungo X per le linguette laterali; default Y (byte-identico). */
+  axis?: "x" | "y"
 }): NotchSkin {
   const { material, accentColor, light, yEdge, yInner } = args
   const suffix = args.idSuffix ?? ""
+  const gradientCoords = args.axis === "x"
+    ? `x1="${yEdge}" y1="0" x2="${yInner}" y2="0"`
+    : `x1="0" y1="${yEdge}" x2="0" y2="${yInner}"`
   const a = usableAccent(accentColor)
   if (material === "crema") {
     return {
@@ -832,7 +865,7 @@ export function notchMaterialSkin(args: {
     return {
       fill: args.adaptiveVeil ? notchGlassVeilFill(light) : (light ? "rgba(0,0,0,0.24)" : "rgba(255,255,255,0.14)"),
       ink: "rgba(255,255,255,0.95)",
-      defs: `<linearGradient id="nrim${suffix}" gradientUnits="userSpaceOnUse" x1="0" y1="${yEdge}" x2="0" y2="${yInner}"><stop offset="0.4" stop-color="#ffffff" stop-opacity="0"/><stop offset="1" stop-color="#ffffff" stop-opacity="0.55"/></linearGradient>`,
+      defs: `<linearGradient id="nrim${suffix}" gradientUnits="userSpaceOnUse" ${gradientCoords}><stop offset="0.4" stop-color="#ffffff" stop-opacity="0"/><stop offset="1" stop-color="#ffffff" stop-opacity="0.55"/></linearGradient>`,
       stroke: ` stroke="url(#nrim${suffix})" stroke-width="1.2"`,
       filter: "",
     }
@@ -854,7 +887,7 @@ export function notchMaterialSkin(args: {
     fill: `url(#nfade${suffix})`,
     ink: textColorForBg(innerC, "#ffffff", "rgba(0,0,0,0.85)"),
     starFill: light ? textColorForBg(innerC, "#ffffff", "rgba(0,0,0,0.85)") : undefined,
-    defs: `<linearGradient id="nfade${suffix}" gradientUnits="userSpaceOnUse" x1="0" y1="${yEdge}" x2="0" y2="${yInner}"><stop offset="0" stop-color="${edgeC}" stop-opacity="0.9"/><stop offset="1" stop-color="${innerC}" stop-opacity="0.97"/></linearGradient>`,
+    defs: `<linearGradient id="nfade${suffix}" gradientUnits="userSpaceOnUse" ${gradientCoords}><stop offset="0" stop-color="${edgeC}" stop-opacity="0.9"/><stop offset="1" stop-color="${innerC}" stop-opacity="0.97"/></linearGradient>`,
     stroke: "",
     filter: ` filter="url(#tds)"`,
   }
@@ -862,26 +895,34 @@ export function notchMaterialSkin(args: {
 
 /**
  * Pillola a notch: fondo tondo + due raccordi concavi verso il bordo del
- * poster (edge "top" = appesa al bordo alto, "bottom" = sale dal bordo basso).
- * Canvas = corpo + TOP_SHADOW_PAD sui lati e sul lato interno; il lato bordo è
- * a filo (y=0 per top, y=h per bottom) così il service la compone a filo.
+ * poster (edge "top"/"bottom" per genere/rank/extra, "right"/"left" per il
+ * gruppo qualità/età). Il lato bordo è sempre a filo del canvas (y=0/y=h per
+ * top/bottom, x=w/x=0 per right/left); il pad ombra sta sugli altri lati.
  */
-export function buildNotchSvg(genreName: string, voteStr: string, yearStr: string, fs: number, accentColor: string | null | undefined, light: boolean, material: NotchMaterial, edge: "top" | "bottom", parts?: GenreParts, font: BadgeFont = "inter") {
+export function buildNotchSvg(genreName: string, voteStr: string, yearStr: string, fs: number, accentColor: string | null | undefined, light: boolean, material: NotchMaterial, edge: NotchEdge, parts?: GenreParts, font: BadgeFont = "inter") {
   const dims = genreBadgeSvgDims(fs, genreName, voteStr, yearStr, parts, undefined, font)
   const boxH = genrePillHeight(fs)
   const R = boxH / 2
   const padX = Math.round(Math.max(fs * GENRE_PILL_PAD_X_FACTOR, R * 0.9))
   const boxW = dims.textContentW + padX * 2
-  const fr = Math.round(boxH * 0.8) // apertura orizzontale del raccordo
+  const fr = Math.round(boxH * 0.8) // apertura del raccordo (X in alto/basso, Y nei fianchi)
   const P = TOP_SHADOW_PAD
-  const renderW = boxW + fr * 2 + P * 2
-  const renderH = boxH + P
-  const x = P + fr
+  const horizontal = edge === "right" || edge === "left"
+  // Fianchi: il pad ombra resta solo sul lato interno e sopra/sotto i raccordi,
+  // così il lato dritto coincide con l'ultima colonna (right) o la prima (left).
+  const renderW = horizontal ? boxW + P : boxW + fr * 2 + P * 2
+  const renderH = horizontal ? boxH + fr * 2 + P * 2 : boxH + P
+  const bodyX = horizontal ? (edge === "right" ? P : 0) : P + fr
   const top = edge === "top"
-  const Y = (v: number) => (top ? v : renderH - v)
-  const d = notchPathD({ x, boxW, boxH, fr, renderH, edge })
-  const skin = notchMaterialSkin({ material, accentColor, light, yEdge: Y(0), yInner: Y(boxH) })
-  const textParts = buildGenreTextFlow({ genreName, voteStr, yearStr, fs, centerX: x + boxW / 2, y: Y(boxH / 2), parts, starFill: skin.starFill, font })
+  const bodyY = horizontal ? P + fr : (top ? 0 : P)
+  const d = notchPathD({ x: bodyX, boxW, boxH, fr, renderH, edge, renderW, bodyY })
+  const skin = notchMaterialSkin({
+    material, accentColor, light,
+    yEdge: horizontal ? (edge === "right" ? renderW : 0) : (top ? 0 : renderH),
+    yInner: horizontal ? (edge === "right" ? P : boxW) : (top ? boxH : P),
+    axis: horizontal ? "x" : "y",
+  })
+  const textParts = buildGenreTextFlow({ genreName, voteStr, yearStr, fs, centerX: bodyX + boxW / 2, y: bodyY + boxH / 2, parts, starFill: skin.starFill, font })
   const svg = `<svg xmlns="http://www.w3.org/2000/svg" width="${renderW}" height="${renderH}" viewBox="0 0 ${renderW} ${renderH}"><defs>${STAR_GRADIENT_DEF}${skin.defs}${TOP_SHADOW_FILTER}</defs><path d="${d}" fill="${skin.fill}"${skin.stroke}${skin.filter}/><g fill="${skin.ink}">${textParts}</g></svg>`
   return { svg, w: renderW, h: renderH }
 }
@@ -919,6 +960,192 @@ export function buildGenreSplitSvg(genreName: string, voteStr: string, yearStr: 
   const defs = `<defs><linearGradient id="gspl" x1="0" y1="0" x2="0" y2="1">${satinPillStops(bottomLight)}</linearGradient><clipPath id="gspc"><rect x="${ox}" y="0" width="${boxW}" height="${boxH}" rx="${r}"/></clipPath>${TOP_SHADOW_FILTER}</defs>`
   const svg = `<svg xmlns="http://www.w3.org/2000/svg" width="${renderW}" height="${renderH}" viewBox="0 0 ${renderW} ${renderH}">${defs}<rect x="${ox}" y="0" width="${boxW}" height="${boxH}" rx="${r}" fill="#000000" filter="url(#tds)"/><g clip-path="url(#gspc)">${leftEl}${rightEl}</g></svg>`
   return { svg, w: renderW, h: renderH }
+}
+
+/**
+ * Un UNICO notch per l'intero gruppo qualità/età: tier, età e marchi A/V
+ * vivono dentro una sola sagoma agganciata al bordo (stesso materiale e stesso
+ * raccordo della pillola notch di genere). Due composizioni, scelte dal layout
+ * del gruppo (`qgl`):
+ *
+ * - `stacked` → "due piani": riga alta con il tier grande + l'età in chip
+ *   invertita, riga bassa (separata da un filo) con i marchi A/V più piccoli.
+ *   Senza marchi resta un piano solo; senza tier/età i marchi salgono a riga
+ *   unica.
+ * - `row` → "cella tier": una riga sola; il tier (o, in sua assenza, l'età)
+ *   sta in una cella piena all'estremo tondo, poi età, filo, marchi A/V.
+ *   Sul bordo sinistro la sequenza si specchia, la cella resta sul lato tondo.
+ */
+export interface QualityNotchRow {
+  readonly label: string
+  /** Logo già risolto dal renderer (es. lockup Dolby Vision+Atmos), non testo. */
+  readonly logo?: { readonly inner: string; readonly viewBox: string; readonly aspect: number }
+}
+
+export interface QualityNotchContent {
+  readonly tier?: string | null
+  readonly age?: string | null
+  readonly marks?: readonly (string | QualityNotchRow)[]
+}
+
+/** Colori della chip/cella piena: l'inchiostro del materiale invertito. */
+export function notchChipColors(material: NotchMaterial, light: boolean): { fill: string; ink: string } {
+  if (material === "crema") return { fill: "#1A1A1C", ink: "#F4EFE6" }
+  if (material === "vetro") return { fill: "rgba(255,255,255,0.92)", ink: "#111114" }
+  if (material === "inchiostro") return { fill: "#F4EFE6", ink: "#0C0D11" }
+  return light ? { fill: "#1A1A1C", ink: "#F4EFE6" } : { fill: "#F4EFE6", ink: "#111114" }
+}
+
+/**
+ * Scala ottica del gruppo notch qualità/età rispetto al font base dei marchi:
+ * la linguetta è una lastra piena e a parità di font pesa più delle placche
+ * singole. Uniforme per layout (proporzioni interne invariate); la riga ha
+ * glifi secondari già piccoli, quindi si riduce meno dei due piani.
+ */
+export const NOTCH_GROUP_SCALE = { stacked: 0.8, row: 0.85 } as const
+
+/** Marchi A/V per piano nella composizione `stacked` (oltre: un piano in più). */
+export const NOTCH_STACKED_MARKS_PER_LINE = 2
+
+export function buildQualityNotchGroupSvg(
+  content: QualityNotchContent,
+  baseFs: number,
+  accentColor: string | null | undefined,
+  light: boolean,
+  material: NotchMaterial,
+  edge: "right" | "left",
+  font: BadgeFont = "inter",
+  layout: "stacked" | "row" = "stacked",
+): { svg: string; w: number; h: number; body: { left: number; top: number; w: number; h: number } } {
+  const fs = Math.max(8, Math.round(baseFs * NOTCH_GROUP_SCALE[layout]))
+  const tier = (content.tier ?? "").trim()
+  const age = (content.age ?? "").trim()
+  const marks = (content.marks ?? [])
+    .map((r) => (typeof r === "string" ? { label: r.trim() } : { ...r, label: r.label.trim() }))
+    .filter((r) => r.label.length > 0 || !!r.logo)
+  const chip = notchChipColors(material, light)
+  const gap = Math.round(fs * 0.55)
+  const rowH = Math.round(fs * 1.75)
+  const tw = (t: string, s: number) => Math.max(1, Math.round(estimateTextWidth(t, s, font)))
+  const text = (t: string, cx: number, cy: number, s: number, fill: string, weight: number, opacity = 1) =>
+    `<text x="${round2(cx)}" y="${round2(cy)}" text-anchor="middle" dominant-baseline="central" font-family="${fontFamilyFor(t, font)}" font-weight="${weight}" font-size="${s}" fill="${fill}"${opacity < 1 ? ` opacity="${opacity}"` : ""}${textFitAttrs(tw(t, s))}>${escSvg(t)}</text>`
+  // Marchio A/V: logo (lockup Dolby) a altezza `lh`, altrimenti testo `s`.
+  const markW = (r: QualityNotchRow, s: number, lh: number) => r.logo ? Math.max(1, Math.round(lh * r.logo.aspect)) : tw(r.label, s)
+  const mark = (r: QualityNotchRow, x: number, cy: number, s: number, lh: number, ink: string) => r.logo
+    ? `<svg x="${round2(x)}" y="${round2(cy - lh / 2)}" width="${markW(r, s, lh)}" height="${lh}" viewBox="${r.logo.viewBox}" fill="${ink}" color="${ink}">${r.logo.inner.replaceAll("currentColor", ink)}</svg>`
+    : text(r.label, x + markW(r, s, lh) / 2, cy, s, ink, 600, 0.88)
+  const ageS = Math.round(fs * 0.78)
+  const ageChipW = age ? tw(age, ageS) + Math.round(fs * 0.7) : 0
+  const ageChipH = Math.round(fs * 1.12)
+  const ageChip = (x: number, cy: number) =>
+    `<rect x="${round2(x)}" y="${round2(cy - ageChipH / 2)}" width="${ageChipW}" height="${ageChipH}" rx="${Math.round(ageChipH * 0.28)}" fill="${chip.fill}"/>${text(age, x + ageChipW / 2, cy + 0.5, ageS, chip.ink, 800)}`
+
+  type Seg = { w: number; draw: (x: number, cy: number, ink: string) => string }
+  const hair = (h: number): Seg => ({ w: gap * 2, draw: (x, cy, ink) => `<rect x="${round2(x + gap - 0.75)}" y="${round2(cy - h * 0.26)}" width="1.5" height="${round2(h * 0.52)}" fill="${ink}" opacity="0.28"/>` })
+  const space = (w: number): Seg => ({ w, draw: () => "" })
+  const segsW = (segs: Seg[]) => segs.reduce((sum, sg) => sum + sg.w, 0)
+
+  let boxW: number
+  let boxH: number
+  let R: number
+  let body: (bx: number, by: number, ink: string) => string
+
+  if (layout === "row") {
+    const avS = Math.round(fs * 0.82)
+    const lh = Math.round(fs * 0.95)
+    const pad = Math.round(fs * 0.7)
+    const inset = Math.max(2, Math.round(fs * 0.14))
+    boxH = rowH
+    R = boxH / 2
+    const cellLabel = tier || age
+    const cellS = Math.round(fs * (tier ? 1.05 : 0.9))
+    const cellW = cellLabel ? tw(cellLabel, cellS) + Math.round(fs * 0.95) : 0
+    const rest: Seg[] = []
+    if (tier && age) rest.push({ w: tw(age, avS), draw: (x, cy, ink) => text(age, x + tw(age, avS) / 2, cy, avS, ink, 700) })
+    marks.forEach((r, i) => {
+      if (i === 0 && rest.length) rest.push(hair(boxH))
+      else if (i > 0) rest.push(space(Math.round(gap * 1.3)))
+      rest.push({ w: markW(r, avS, lh), draw: (x, cy, ink) => mark(r, x, cy, avS, lh, ink) })
+    })
+    const cell: Seg | null = cellLabel ? {
+      w: inset + cellW,
+      draw: (x, cy) => {
+        const cx = edge === "right" ? x + inset : x
+        return `<rect x="${round2(cx)}" y="${round2(cy - boxH / 2 + inset)}" width="${cellW}" height="${boxH - inset * 2}" rx="${round2(R - inset)}" fill="${chip.fill}"/>${text(cellLabel, cx + cellW / 2, cy, cellS, chip.ink, 800)}`
+      },
+    } : null
+    // Il lato tondo è a sinistra per `right`, a destra per `left`: la cella
+    // resta sempre lì, la sequenza di lettura si specchia con lei.
+    const ordered: Seg[] = cell
+      ? (rest.length ? [cell, space(Math.round(pad * 0.8)), ...rest, space(pad)] : [cell])
+      : [space(pad), ...rest, space(pad)]
+    const segs = edge === "right" ? ordered : [...ordered].reverse()
+    boxW = Math.max(boxH, Math.round(segsW(segs)))
+    body = (bx, by, ink) => {
+      const cy = by + boxH / 2
+      let x = bx
+      return segs.map((sg) => { const out = sg.draw(x, cy, ink); x += sg.w; return out }).join("")
+    }
+  } else {
+    const pad = Math.round(fs * 0.8)
+    const tierS = Math.round(fs * 1.3)
+    const line1: Seg[] = []
+    if (tier) line1.push({ w: tw(tier, tierS), draw: (x, cy, ink) => text(tier, x + tw(tier, tierS) / 2, cy, tierS, ink, 800) })
+    if (tier && age) line1.push(space(gap))
+    if (age) line1.push({ w: ageChipW, draw: (x, cy) => ageChip(x, cy) })
+    // Senza tier/età i marchi salgono a riga unica, alla scala di una riga.
+    const solo = line1.length === 0
+    const avS = Math.round(fs * (solo ? 0.82 : 0.72))
+    const lh = Math.round(fs * (solo ? 0.95 : 0.85))
+    // Marchi A/V a capo ogni NOTCH_STACKED_MARKS_PER_LINE: la linguetta
+    // cresce in altezza (piani), mai oltre due marchi in larghezza.
+    const markLines: Seg[][] = []
+    marks.forEach((r, i) => {
+      if (i % NOTCH_STACKED_MARKS_PER_LINE === 0) markLines.push([])
+      const line = markLines[markLines.length - 1]
+      if (line.length) line.push(space(Math.round(gap * 1.6)))
+      line.push({ w: markW(r, avS, lh), draw: (x, cy, ink) => mark(r, x, cy, avS, lh, ink) })
+    })
+    const lines = solo ? markLines : [line1, ...markLines]
+    const multi = lines.length > 1
+    const h1 = rowH
+    const h2 = Math.round(fs * 1.25)
+    boxH = h1 + h2 * (lines.length - 1)
+    R = multi ? Math.round(fs * 0.9) : boxH / 2
+    const widths = lines.map(segsW)
+    boxW = Math.max(boxH, Math.round(Math.max(...widths) + pad * 2))
+    const lift = multi ? fs * 0.12 : 0
+    const drawLine = (segs: Seg[], lw: number, cx: number, cy: number, ink: string) => {
+      let x = cx - lw / 2
+      return segs.map((sg) => { const out = sg.draw(x, cy, ink); x += sg.w; return out }).join("")
+    }
+    body = (bx, by, ink) => {
+      const cx = bx + boxW / 2
+      return lines.map((segs, i) => {
+        const cy = i === 0 ? by + h1 / 2 + lift : by + h1 + h2 * (i - 1) + h2 / 2 - lift
+        // Filo solo tra il piano tier/età e i marchi.
+        const rule = i === 1 && !solo ? `<rect x="${bx + pad}" y="${by + h1}" width="${boxW - pad * 2}" height="1.2" fill="${ink}" opacity="0.2"/>` : ""
+        return rule + drawLine(segs, widths[i], cx, cy, ink)
+      }).join("")
+    }
+  }
+
+  const P = TOP_SHADOW_PAD
+  const fr = Math.round(Math.min(boxH, R * 2) * 0.8)
+  const renderW = boxW + P
+  const renderH = boxH + fr * 2 + P * 2
+  const bodyX = edge === "right" ? P : 0
+  const bodyY = P + fr
+  const d = notchPathD({ x: bodyX, boxW, boxH, fr, renderH, edge, renderW, bodyY, radius: R })
+  const skin = notchMaterialSkin({
+    material, accentColor, light,
+    yEdge: edge === "right" ? renderW : 0,
+    yInner: edge === "right" ? P : boxW,
+    axis: "x",
+    adaptiveVeil: true,
+  })
+  const svg = `<svg xmlns="http://www.w3.org/2000/svg" width="${renderW}" height="${renderH}" viewBox="0 0 ${renderW} ${renderH}"><defs>${skin.defs}${TOP_SHADOW_FILTER}</defs><path d="${d}" fill="${skin.fill}"${skin.stroke}${skin.filter}/><g>${body(bodyX, bodyY, skin.ink)}</g></svg>`
+  return { svg, w: renderW, h: renderH, body: { left: bodyX, top: bodyY, w: boxW, h: boxH } }
 }
 
 /** Text-only parts: the material builders reused by top badges (rank/extra label). */

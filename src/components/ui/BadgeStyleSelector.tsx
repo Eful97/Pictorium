@@ -93,10 +93,13 @@ function BadgePreview({ style, accentColor, family = "quality" }: { style: strin
     case "notch-crema":
     case "notch-vetro":
     case "notch-inchiostro":
-    case "notch-sfumato":
-      // Notch material: the SAME shared builder the poster renders with (neutral
-      // letters, edge follows the family: genre bottom, top elsewhere).
-      return <BuilderStylePreview base={base} svg={buildNotchSvg(AGE_SWATCH_LABEL, "", "", AGE_SWATCH_FS, ac, false, notchMaterialOf(style) ?? "vetro", family === "genre" ? "bottom" : "top").svg} />
+    case "notch-sfumato": {
+      // Notch material: the SAME shared builder the poster renders with.
+      // Genre hangs from the bottom, rank/extra from the top, quality/age
+      // stick out from the right edge of the poster.
+      const edge = family === "genre" ? "bottom" : (family === "quality" || family === "age") ? "right" : "top"
+      return <BuilderStylePreview base={base} svg={buildNotchSvg(AGE_SWATCH_LABEL, "", "", AGE_SWATCH_FS, ac, false, notchMaterialOf(style) ?? "vetro", edge).svg} />
+    }
     case "editoriale":
       if (family === "age" || family === "quality") {
         return <BuilderStylePreview base={base} svg={buildEditorialMarkSvg(family === "quality" ? QUALITY_SWATCH_LABEL : AGE_SWATCH_LABEL, AGE_SWATCH_FS, false).svg} />

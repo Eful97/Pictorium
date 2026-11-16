@@ -41,6 +41,12 @@ export function notchMaterialOf(style: string | null | undefined): NotchMaterial
 export function notchStyle(material: NotchMaterial): `notch-${NotchMaterial}` {
   return `notch-${material}`
 }
+/**
+ * Lato di aggancio della sagoma notch. `top`/`bottom` sono i badge di testo
+ * (rank/extra e genere); `right`/`left` servono al gruppo qualità/età, che è
+ * ancorato ai fianchi del poster e segue il lato del nastro effettivo.
+ */
+export type NotchEdge = "top" | "bottom" | "right" | "left"
 
 /**
  * Ranking (top) badge styles. `split` is additive and RANKING-ONLY (appended
@@ -119,8 +125,14 @@ export const DEFAULT_RANKING_BADGE_STYLE: RankingBadgeStyle = "default"
  * Additive: never replaces an existing style, no format/asset of its own.
  * Chain like the other styles: `qbs` query > per-title mapping >
  * config token > server defaults.
+ *
+ * `notch-<materiale>` renders EVERY element of the group (tier, age, A/V marks
+ * — including opaque pack artwork) as a text-labelled tongue attached to the
+ * poster's side edge (right, mirrored to left when the ribbon owns the corner).
+ * It reuses the shared notch skin/materials of genre/rank/extra. `qgl=row` and
+ * `strip` degrade to a column for rendering only; saved values are untouched.
  */
-export const QUALITY_BADGE_STYLES = ["standard", "mono", "color", "knockout", "premium", "nova", "gradient", "outline", "strip", "naked", "editoriale"] as const
+export const QUALITY_BADGE_STYLES = ["standard", "mono", "color", "knockout", "premium", "nova", "gradient", "outline", "strip", "naked", "editoriale", "notch-crema", "notch-vetro", "notch-inchiostro", "notch-sfumato"] as const
 export type QualityBadgeStyle = (typeof QUALITY_BADGE_STYLES)[number]
 
 export const DEFAULT_QUALITY_BADGE_STYLE: QualityBadgeStyle = "standard"
@@ -173,6 +185,18 @@ export function isMergedQualityStrip(
 }
 
 /**
+ * Materiale notch effettivo del gruppo qualità/età. Lo stile qualità comanda
+ * tutti i marchi del gruppo; uno stile età notch rende linguetta la sola età
+ * dentro un gruppo qualità normale.
+ */
+export function qualityGroupNotchMaterial(
+  qualityBadgeStyle: string | null | undefined,
+  ageBadgeStyle: string | null | undefined,
+): NotchMaterial | null {
+  return notchMaterialOf(qualityBadgeStyle) ?? notchMaterialOf(ageBadgeStyle)
+}
+
+/**
  * Age certification badge style: the same style vocabulary as the quality
  * badge, applied to the DYNAMIC certification label (12/PG-13/TV-MA, never a
  * bundled numeric asset): "standard" (neutral satin text pill, the historic
@@ -190,10 +214,12 @@ export function isMergedQualityStrip(
  * tier and its A/V marks).
  * `standard`/`knockout` keep their byte-identical renderers and the legacy
  * `knockout` identifier is preserved (enum/URL/persistence unchanged).
+ * `notch-<materiale>` renders the age pill as a text-labelled tongue attached
+ * to the poster's side edge, even inside a quality group with another style.
  * Per-shape chain like the age toggle itself: `agebs` query > config
  * token > effective per-shape server defaults > flat > "standard".
  */
-export const AGE_BADGE_STYLES = ["standard", "mono", "color", "knockout", "premium", "nova", "gradient", "outline", "editoriale"] as const
+export const AGE_BADGE_STYLES = ["standard", "mono", "color", "knockout", "premium", "nova", "gradient", "outline", "editoriale", "notch-crema", "notch-vetro", "notch-inchiostro", "notch-sfumato"] as const
 export type AgeBadgeStyle = (typeof AGE_BADGE_STYLES)[number]
 
 export const DEFAULT_AGE_BADGE_STYLE: AgeBadgeStyle = "standard"
@@ -311,7 +337,7 @@ export function isBadgeFont(v: string | null | undefined): v is BadgeFont {
  * query `sepstyle` > mapping per-titolo > config token > server defaults >
  * "column". Assente o non valido → column (URL e mapping esistenti invariati).
  */
-export const SEPARATE_RATINGS_STYLES = ["column", "bottom-bar", "bottom-pills", "bottom-mono", "bottom-color", "rings", "notch-crema", "notch-vetro", "notch-inchiostro", "notch-sfumato"] as const
+export const SEPARATE_RATINGS_STYLES = ["column", "bottom-bar", "bottom-pills", "bottom-mono", "bottom-color", "rings", "notch-crema", "notch-vetro", "notch-inchiostro", "notch-sfumato", "column-notch-crema", "column-notch-vetro", "column-notch-inchiostro", "column-notch-sfumato"] as const
 export type SeparateRatingsStyle = (typeof SEPARATE_RATINGS_STYLES)[number]
 
 export const DEFAULT_SEPARATE_RATINGS_STYLE: SeparateRatingsStyle = "column"
@@ -387,9 +413,22 @@ export function resolveSeparateBadgeScaleFallback(args: {
   return getSeparateBadgeDefaultScale(args.style)
 }
 
-/** True per le modalità bottom (esclude la colonna storica e la colonna ad anelli). */
+/**
+ * Linguetta laterale (`column-notch-<materiale>`): variante COLONNA — i rating
+ * in UNA linguetta notch agganciata al bordo, sotto la qualità.
+ */
+export function columnNotchMaterialOf(v: string | null | undefined): NotchMaterial | null {
+  return typeof v === "string" && v.startsWith("column-") ? notchMaterialOf(v.slice("column-".length)) : null
+}
+
+/** Varianti colonna (a destra, sotto la qualità): pill, anelli, linguetta. */
+export function isColumnSeparateRatingsStyle(v: string | null | undefined): boolean {
+  return v === "column" || v === "rings" || columnNotchMaterialOf(v) !== null
+}
+
+/** True per le modalità bottom (esclude ogni variante colonna). */
 export function isBottomSeparateRatingsStyle(v: string | null | undefined): v is SeparateBottomVariant {
-  return isSeparateRatingsStyle(v) && v !== "column" && v !== "rings"
+  return isSeparateRatingsStyle(v) && !isColumnSeparateRatingsStyle(v)
 }
 
 /**
@@ -415,7 +454,7 @@ export function getSeparateRatingsStyleForShape(
 }
 
 /** Variante bottom per il renderer riga: colonna esclusa per tipo. */
-export type SeparateBottomVariant = Exclude<SeparateRatingsStyle, "column" | "rings">
+export type SeparateBottomVariant = Exclude<SeparateRatingsStyle, "column" | "rings" | `column-notch-${NotchMaterial}`>
 export function isRibbonRankingStyle(v: string | null | undefined): boolean {
   return v === "netflix" || v === "netflix-color" || v === "colored"
 }
