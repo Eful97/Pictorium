@@ -110,7 +110,7 @@
   "ui.awardBadgeHint": "Award winners and nominees: text pill (historic look) or the award logo on a dark pill. Other badges stay text.",
   "ui.qualityBadgeStyle": "화질 아이콘 스타일",
   "ui.qualityGroupLayout": "화질 레이아웃",
-  "ui.qualityGroupLayoutHint": "세로 쌓기는 기존의 세로 열을 유지합니다. 가로 배치는 같은 마크를 한 줄에 최대 2개까지 나열합니다.",
+  "ui.qualityGroupLayoutHint": "세로 쌓기는 기존의 세로 열을 유지합니다. 가로 배치는 같은 마크를 가로로 나열합니다.",
   "ui.qualityGroupLayoutStacked": "세로 쌓기",
   "ui.qualityGroupLayoutRow": "가로 배치",
   "ui.videoFormats": "A/V 포맷",

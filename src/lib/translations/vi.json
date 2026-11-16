@@ -111,7 +111,7 @@
   "ui.awardBadgeHint": "Award winners and nominees: text pill (historic look) or the award logo on a dark pill. Other badges stay text.",
   "ui.qualityBadgeStyle": "Kiểu biểu tượng chất lượng",
   "ui.qualityGroupLayout": "Bố cục chất lượng",
-  "ui.qualityGroupLayoutHint": "Xếp dọc giữ cột dọc cổ điển; Xếp ngang bày các nhãn giống nhau theo hàng, tối đa 2 mỗi dòng.",
+  "ui.qualityGroupLayoutHint": "Xếp dọc giữ cột dọc cổ điển; Xếp ngang bày các nhãn giống nhau theo hàng.",
   "ui.qualityGroupLayoutStacked": "Xếp dọc",
   "ui.qualityGroupLayoutRow": "Xếp ngang",
   "ui.videoFormats": "Định dạng A/V",

@@ -110,7 +110,7 @@
   "ui.awardBadgeHint": "Award winners and nominees: text pill (historic look) or the award logo on a dark pill. Other badges stay text.",
   "ui.qualityBadgeStyle": "Styl ikon kvality",
   "ui.qualityGroupLayout": "Rozvržení kvality",
-  "ui.qualityGroupLayoutHint": "Svisle zachová klasický sloupec; Vodorovně umístí stejné značky do řady, maximálně 2 na řádek.",
+  "ui.qualityGroupLayoutHint": "Svisle zachová klasický sloupec; Vodorovně umístí stejné značky do řady.",
   "ui.qualityGroupLayoutStacked": "Svisle",
   "ui.qualityGroupLayoutRow": "Vodorovně",
   "ui.videoFormats": "A/V formáty",

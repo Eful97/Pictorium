@@ -111,7 +111,7 @@
   "ui.awardBadgeHint": "Award winners and nominees: text pill (historic look) or the award logo on a dark pill. Other badges stay text.",
   "ui.qualityBadgeStyle": "Quality icon style",
   "ui.qualityGroupLayout": "Quality layout",
-  "ui.qualityGroupLayoutHint": "Stacked keeps the classic vertical column; Row lays the same marks horizontally, up to 2 per line.",
+  "ui.qualityGroupLayoutHint": "Stacked keeps the classic vertical column; Row lays the same marks out horizontally.",
   "ui.qualityGroupLayoutStacked": "Stacked",
   "ui.qualityGroupLayoutRow": "Row",
   "ui.videoFormats": "A/V Formats",

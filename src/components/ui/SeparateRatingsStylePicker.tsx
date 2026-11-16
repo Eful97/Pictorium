@@ -5,6 +5,7 @@ import { columnNotchMaterialOf, getSeparateRatingsStyleForShape, notchMaterialOf
 import { buildNotchSvg } from "@/lib/badge-svg-shared"
 import { SEPARATE_STYLE_GROUPS, SEPARATE_VARIANT_LABELS, groupOf } from "@/lib/badge-style-groups"
 import { enabledFamilyMember, familyMember } from "@/components/ui/style-family"
+import { tileClass } from "@/components/ui/BadgeStyleSelector"
 
 type SepStyle = Parameters<typeof getSeparateRatingsStyleForShape>[0]
 
@@ -45,9 +46,9 @@ function SepSwatch({ style }: { style: string }) {
   const box = "relative inline-flex w-8 h-5 shrink-0 items-center justify-center"
   if (uri) {
     return (
-      <span className="relative inline-flex w-12 h-6 shrink-0 items-center justify-center">
+      <span className="relative inline-flex w-10 h-5 shrink-0 items-center justify-center">
         {/* eslint-disable-next-line @next/next/no-img-element -- SVG del builder condiviso (singola fonte col renderer) */}
-        <img src={uri} alt="" className="w-12 h-6 object-contain" />
+        <img src={uri} alt="" className="w-10 h-5 object-contain" />
       </span>
     )
   }
@@ -72,13 +73,16 @@ function SepSwatch({ style }: { style: string }) {
 
 const CHIP_ON = "bg-white/20 text-white shadow-sm"
 const CHIP_OFF = "bg-white/5 text-muted hover:bg-white/10 hover:text-zinc-200"
+const VARIANT_ON = "bg-accent-orange/15 text-accent-orange border-accent-orange/25"
+const VARIANT_OFF = "bg-white/5 text-muted hover:bg-white/10 hover:text-zinc-200 border-transparent"
 
 /**
- * Separate ratings style: two POSITION families (Column / Bottom) and, below,
- * the active family's variants — each with a swatch — with the four notch
- * materials of that position on their own captioned row. Landscape disables
- * `bottom-bar` (visible, never selected); the pressed state follows the
- * shape-normalized style. The caller keeps its own wrapper, label and hints.
+ * Separate ratings style: two POSITION families (Column / Bottom); below, the
+ * active family's styles as tiles with ONE "Notch" tile, and — when notch is
+ * picked — the materials row ("Varianti"), the same pattern as every other
+ * badge style selector. Landscape disables `bottom-bar` (visible, never
+ * selected); the pressed state follows the shape-normalized style. The caller
+ * keeps its own wrapper, label and hints.
  */
 export function SeparateRatingsStylePicker({
   value,
@@ -97,8 +101,11 @@ export function SeparateRatingsStylePicker({
   const disabled = landscape ? ["bottom-bar"] : undefined
   const valueGroup = groupOf(shown, SEPARATE_STYLE_GROUPS)
   const active = (openId ? SEPARATE_STYLE_GROUPS.find((g) => g.id === openId) : undefined) ?? valueGroup
+  const [notchMemory, setNotchMemory] = useState<Record<string, string>>({})
+  const [notchOpen, setNotchOpen] = useState(false)
   const pick = (member: string, groupId: string) => {
     setMemory((m) => ({ ...m, [groupId]: member }))
+    if (notchSwatchUri(member)) setNotchMemory((m) => ({ ...m, [groupId]: member }))
     onChange(member as SepStyle)
   }
   const isNotch = (m: string) => notchSwatchUri(m) !== null
@@ -113,14 +120,19 @@ export function SeparateRatingsStylePicker({
         aria-checked={checked}
         disabled={off}
         title={off ? t("ui.separateRatingsBarLandscapeHint") : undefined}
-        onClick={() => { if (!off) pick(m, groupId) }}
-        className={`flex-1 min-w-[64px] flex flex-col items-center gap-0.5 py-1 px-1 rounded-lg text-[10px] font-semibold transition duration-150 ${checked ? CHIP_ON : CHIP_OFF} ${off ? "cursor-not-allowed opacity-50" : "cursor-pointer"}`}
+        onClick={() => { if (!off) { setNotchOpen(false); pick(m, groupId) } }}
+        className={tileClass(off, checked)}
       >
         <SepSwatch style={m} />
-        {t(SEPARATE_VARIANT_LABELS[m] ?? MEMBER_LABELS[m])}
+        <span className="text-[10px] font-semibold leading-tight truncate max-w-full">{t(SEPARATE_VARIANT_LABELS[m] ?? MEMBER_LABELS[m])}</span>
       </button>
     )
   }
+  const notchMembers = active ? active.members.filter(isNotch) : []
+  const notchChecked = notchMembers.includes(shown)
+  // Tile Notch: il materiale attivo, altrimenti l'ultimo scelto in questa posizione, altrimenti il primo.
+  const notchRep = notchChecked ? shown : (active && notchMemory[active.id]) || notchMembers[0]
+  const showVariants = notchMembers.length > 0 && (notchChecked || notchOpen)
   return (
     <>
       <div className="grid grid-cols-2 gap-1">
@@ -133,7 +145,7 @@ export function SeparateRatingsStylePicker({
               type="button"
               aria-pressed={pressed}
               disabled={target === null}
-              onClick={() => { setOpenId(g.id); if (target !== null) pick(target, g.id) }}
+              onClick={() => { setOpenId(g.id); setNotchOpen(false); if (target !== null) pick(target, g.id) }}
               className={`flex-1 py-1 px-1 rounded-lg text-[11px] font-semibold transition duration-150 ${pressed ? CHIP_ON : CHIP_OFF} ${target === null ? "cursor-not-allowed opacity-50" : "cursor-pointer"}`}
             >
               {t(g.labelKey)}
@@ -142,10 +154,41 @@ export function SeparateRatingsStylePicker({
         })}
       </div>
       {active && (
-        <div className="flex flex-col gap-1" role="radiogroup" aria-label={t("ui.styleVariants")}>
-          <div className="flex flex-wrap gap-1">{active.members.filter((m) => !isNotch(m)).map((m) => chip(m, active.id))}</div>
-          <span className="text-[10px] font-semibold text-muted">{t("ui.notch")}</span>
-          <div className="flex flex-wrap gap-1">{active.members.filter(isNotch).map((m) => chip(m, active.id))}</div>
+        <div className="space-y-1.5">
+          <div className={`grid ${active.members.filter((m) => !isNotch(m)).length + (notchMembers.length ? 1 : 0) > 3 ? "grid-cols-5" : "grid-cols-3"} gap-1.5`} role="radiogroup" aria-label={t("ui.separateRatingsStyle")}>
+            {active.members.filter((m) => !isNotch(m)).map((m) => chip(m, active.id))}
+            {notchRep && (
+              <button
+                type="button"
+                aria-pressed={notchChecked}
+                onClick={() => { setNotchOpen(true); pick(notchRep, active.id) }}
+                className={tileClass(false, notchChecked)}
+              >
+                <SepSwatch style={notchRep} />
+                <span className="text-[10px] font-semibold leading-tight truncate max-w-full">{t("ui.notch")}</span>
+              </button>
+            )}
+          </div>
+          {showVariants && (
+            <div className="space-y-1" data-testid="sep-style-variants">
+              <span className="text-[10px] text-muted font-medium block">{t("ui.styleVariants")}</span>
+              <div className="flex flex-wrap gap-1" role="radiogroup" aria-label={t("ui.styleVariants")}>
+                {notchMembers.map((m) => (
+                  <button
+                    key={m}
+                    type="button"
+                    role="radio"
+                    aria-checked={shown === m}
+                    onClick={() => pick(m, active.id)}
+                    className={`flex items-center gap-1 py-1 px-1.5 rounded-lg border text-[10px] font-semibold transition duration-150 cursor-pointer ${shown === m ? VARIANT_ON : VARIANT_OFF}`}
+                  >
+                    <SepSwatch style={m} />
+                    <span className="leading-tight truncate">{t(SEPARATE_VARIANT_LABELS[m] ?? MEMBER_LABELS[m])}</span>
+                  </button>
+                ))}
+              </div>
+            </div>
+          )}
         </div>
       )}
     </>

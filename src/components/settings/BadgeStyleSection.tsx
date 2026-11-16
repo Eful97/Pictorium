@@ -1,6 +1,7 @@
 "use client"
 
-import { Palette } from "lucide-react"
+import { Palette, Sparkles, type LucideIcon } from "lucide-react"
+import type { ReactNode } from "react"
 import { useT } from "@/lib/contexts/TranslationContext"
 import { usePosterEditor } from "@/lib/contexts/PosterEditorContext"
 import { BadgeStyleSelector, VideoFormatSelector, BadgeFontSelector } from "@/components/ui"
@@ -10,6 +11,16 @@ import { KNOWN_VIDEO_FORMATS } from "@/lib/av-specs"
 import { QUALITY_BADGE_STYLES } from "@/lib/badge-styles"
 import { useShapeBadgeDefaults, type BadgeShapeTarget } from "@/components/settings/useShapeDefaults"
 import type { DefaultsPreviewFamily } from "@/lib/poster-url"
+
+/** Card heading shared by every Badge-tab card (icon + semibold title). */
+export function CardTitle({ icon: Icon, color, children }: { icon: LucideIcon; color: string; children: ReactNode }) {
+  return (
+    <span className="font-semibold text-zinc-200 flex items-center gap-1.5">
+      <Icon className={`w-3.5 h-3.5 ${color}`} />
+      {children}
+    </span>
+  )
+}
 
 /** Default genre style + font (Badge tab, Stile group). Follows the Badge edit
  *  target: portrait reads/writes the shared flats, landscape the profile
@@ -89,9 +100,7 @@ export function QualityStyleSection({ shape, qualityEnabled, onPreviewFamilyChan
     <div {...famAttrs("quality")} className="bg-surface/50 border border-surface2/60 rounded-xl p-3.5 space-y-3 shadow-sm">
       <fieldset disabled={disabled} className="contents">
       <div className="space-y-1.5">
-        <label className="text-[11px] text-muted font-medium block">
-          {t("ui.qualityBadgeStyle")}
-        </label>
+        <CardTitle icon={Sparkles} color="text-purple-400">{t("ui.qualityBadgeStyle")}</CardTitle>
         <BadgeStyleSelector
           groups={QUALITY_STYLE_GROUPS}
           value={qualityBadgeStyle}

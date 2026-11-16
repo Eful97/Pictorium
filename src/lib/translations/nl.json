@@ -110,7 +110,7 @@
   "ui.awardBadgeHint": "Award winners and nominees: text pill (historic look) or the award logo on a dark pill. Other badges stay text.",
   "ui.qualityBadgeStyle": "Kwaliteitspictogramstijl",
   "ui.qualityGroupLayout": "Kwaliteitsindeling",
-  "ui.qualityGroupLayoutHint": "Gestapeld houdt de klassieke verticale kolom; Rij zet dezelfde markeringen horizontaal, maximaal 2 per regel.",
+  "ui.qualityGroupLayoutHint": "Gestapeld houdt de klassieke verticale kolom; Rij zet dezelfde markeringen horizontaal.",
   "ui.qualityGroupLayoutStacked": "Gestapeld",
   "ui.qualityGroupLayoutRow": "Rij",
   "ui.videoFormats": "A/V-formaten",

@@ -311,22 +311,21 @@ export function QualityGroupLayoutSelector({
       <label className="text-[11px] text-muted font-medium block">
         {t("ui.qualityGroupLayout")}
       </label>
-      <select
-        value={effective}
-        onChange={(e) => {
-          const v = e.target.value
-          if (isQualityGroupLayout(v)) onChange(v)
-        }}
-        className="editor-input w-full px-2 py-1 cursor-pointer font-medium"
-        data-testid="quality-group-layout-select"
-        aria-label={t("ui.qualityGroupLayout")}
-      >
+      <div className="grid grid-cols-2 gap-1" role="radiogroup" aria-label={t("ui.qualityGroupLayout")} data-testid="quality-group-layout-select">
         {QUALITY_GROUP_LAYOUTS.map((layout) => (
-          <option key={layout} value={layout}>
+          <button
+            key={layout}
+            type="button"
+            role="radio"
+            aria-checked={effective === layout}
+            data-value={layout}
+            onClick={() => onChange(layout)}
+            className={`py-1 px-1 rounded-lg text-[11px] font-semibold transition duration-150 cursor-pointer ${effective === layout ? "bg-white/20 text-white shadow-sm" : "bg-white/5 text-muted hover:bg-white/10 hover:text-zinc-200"}`}
+          >
             {t(QUALITY_GROUP_LAYOUT_LABELS[layout])}
-          </option>
+          </button>
         ))}
-      </select>
+      </div>
       <p className="text-[10px] text-zinc-500 leading-relaxed select-none">
         {t("ui.qualityGroupLayoutHint")}
       </p>

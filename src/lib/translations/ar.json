@@ -110,7 +110,7 @@
   "ui.awardBadgeHint": "Award winners and nominees: text pill (historic look) or the award logo on a dark pill. Other badges stay text.",
   "ui.qualityBadgeStyle": "نمط أيقونة الجودة",
   "ui.qualityGroupLayout": "تخطيط الجودة",
-  "ui.qualityGroupLayoutHint": "يحافظ العمودي على العمود الرأسي الكلاسيكي؛ الأفقي يرتب العلامات نفسها في صف، بحد أقصى 2 في كل سطر.",
+  "ui.qualityGroupLayoutHint": "يحافظ العمودي على العمود الرأسي الكلاسيكي؛ الأفقي يرتب العلامات نفسها في صف.",
   "ui.qualityGroupLayoutStacked": "عمودي",
   "ui.qualityGroupLayoutRow": "أفقي",
   "ui.videoFormats": "صيغ الصوت والصورة",

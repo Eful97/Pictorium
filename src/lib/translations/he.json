@@ -110,7 +110,7 @@
   "ui.awardBadgeHint": "Award winners and nominees: text pill (historic look) or the award logo on a dark pill. Other badges stay text.",
   "ui.qualityBadgeStyle": "סגנון סמל האיכות",
   "ui.qualityGroupLayout": "פריסת איכות",
-  "ui.qualityGroupLayoutHint": "אנכי שומר על העמודה האנכית הקלאסית; אופקי מסדר את אותם סימונים בשורה, עד 2 בכל שורה.",
+  "ui.qualityGroupLayoutHint": "אנכי שומר על העמודה האנכית הקלאסית; אופקי מסדר את אותם סימונים בשורה.",
   "ui.qualityGroupLayoutStacked": "אנכי",
   "ui.qualityGroupLayoutRow": "אופקי",
   "ui.videoFormats": "פורמטי וידאו/שמע",

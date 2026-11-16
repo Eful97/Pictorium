@@ -2,7 +2,7 @@
 
 import { useEffect, useState, useId, type ReactNode } from "react"
 import { SeparateRatingsStylePicker } from "@/components/ui/SeparateRatingsStylePicker"
-import { ArrowUpToLine, ChevronDown, Flame, Layers, Menu, Palette, SlidersHorizontal, Sparkles, Star, Trophy, Tv } from "lucide-react"
+import { ArrowUpToLine, Award, ChevronDown, Flame, Layers, Menu, Palette, ShieldCheck, SlidersHorizontal, Sparkles, Star, Tag, Trophy, Tv, Type } from "lucide-react"
 import { useT } from "@/lib/contexts/TranslationContext"
 import { usePosterEditor } from "@/lib/contexts/PosterEditorContext"
 import { usePSelector } from "@/lib/context"
@@ -38,7 +38,7 @@ import { isBottomSeparateRatingsStyle, isNotchSeparateRatingsStyle, getSeparateR
 import { KNOWN_VIDEO_FORMATS } from "@/lib/av-specs"
 import { NATURAL_GRADIENT_DEFAULTS } from "@/lib/gradient-presets"
 import { QUICK_BADGE_PATCHES, quickTransformPatch as sharedQuickTransformPatch, withReadyPresetExtraStyleReset } from "@/lib/quick-visual-presets"
-import { GenreStyleSection, QualityStyleSection } from "@/components/settings/BadgeStyleSection"
+import { CardTitle, GenreStyleSection, QualityStyleSection } from "@/components/settings/BadgeStyleSection"
 import { AvailabilityGate, availabilityDisplayState, isAgeStyleActive, isBadgeFontActive, isCustomRatingsActive, isExtraStyleActive, isGenreStyleActive, isQualityStyleActive, isSeparateStyleActive, orderActiveFirst, type EffectiveBadgeFlags } from "@/components/settings/SettingsElementAvailability"
 import { RatingSourceIcon } from "@/components/RatingSourceIcon"
 import { UI_RATING_SOURCES } from "@/lib/rating-weights"
@@ -191,7 +191,7 @@ function CommonFontCard({ shape, onPreviewFamilyChange, flags }: { shape?: Badge
   if (!fontActive) return null
   return (
     <div {...famAttrs("genre")} data-testid="badge-common-font" className="bg-surface/50 border border-surface2/60 rounded-xl p-3.5 space-y-1.5 shadow-sm">
-      <label className="text-[11px] text-muted font-medium block">{t("ui.badgeFont")}</label>
+      <CardTitle icon={Type} color="text-accent-orange">{t("ui.badgeFont")}</CardTitle>
       <BadgeFontSelector value={badgeFont} onChange={(v) => setBadgeFont(v)} />
     </div>
   )
@@ -364,7 +364,7 @@ export function BadgeDefaultsSection({ active, shape, onPreviewFamilyChange, pre
   // legacy in-card placement via the same node (never duplicated on screen).
   const separateStylePicker = (
     <div className="pt-1 space-y-1.5" title={t("ui.separateRatingsHint")} data-testid="badge-separate-style-picker">
-      <span className="text-[11px] text-muted font-medium block">{t("ui.separateRatingsStyle")}</span>
+      <CardTitle icon={Star} color="text-amber-400">{t("ui.separateRatingsStyle")}</CardTitle>
       <SeparateRatingsStylePicker value={separateRatingsStyle} landscape={targetShape === "landscape"} onChange={setSeparateRatingsStyle} t={t} />
       {targetShape === "landscape" && (
         <p className="text-[10px] text-muted italic leading-tight">{t("ui.separateRatingsBarLandscapeHint")}</p>
@@ -385,7 +385,7 @@ export function BadgeDefaultsSection({ active, shape, onPreviewFamilyChange, pre
   const extraStyleCard = (
     <div {...famAttrs("extra")} className="bg-surface/50 border border-surface2/60 rounded-xl p-3.5 space-y-1.5 shadow-sm">
       <div className="space-y-1.5">
-        <span className="text-[11px] text-muted font-medium block">{t("ui.extraBadgeStyle")}</span>
+        <CardTitle icon={Tag} color="text-sky-400">{t("ui.extraBadgeStyle")}</CardTitle>
         {(extraBadgeStyle == null || extraBadgeStyle === "follow-rank") && (
           <p className="text-[10px] text-muted italic leading-tight">
             {t("ui.inherited")}: {t(EXTRA_STYLE_LABELS[legacyExtraStyleForRank(rankingBadgeStyle)])}
@@ -1442,6 +1442,13 @@ export function BadgeDefaultsSection({ active, shape, onPreviewFamilyChange, pre
         </div>
       </div>
 
+      {/* Generale: the badge font applies to every badge, so it opens the Badge tab. */}
+      {mode === "appearance" && fontActive && (
+      <div hidden={hideFor("genre")} data-testid="badge-common-font-wrap">
+        <CommonFontCard shape={targetShape} onPreviewFamilyChange={onPreviewFamilyChange} flags={effFlags} />
+      </div>
+      )}
+
       {/* CARD Classifica: ONLY the rank badge selector. Rendered FIRST in the
           Badge tab (hidden on Informazioni) so rankings stay on top in both
           tabs; the two on/off masters above own the visibility. */}
@@ -1523,11 +1530,6 @@ export function BadgeDefaultsSection({ active, shape, onPreviewFamilyChange, pre
               ),
             },
           ].filter((it) => it.active))}
-          {fontActive && (
-          <div hidden={hideFor("genre")} data-testid="badge-common-font-wrap">
-            <CommonFontCard shape={targetShape} onPreviewFamilyChange={onPreviewFamilyChange} flags={effFlags} />
-          </div>
-          )}
         </>
       ) : (
         <>
@@ -1983,6 +1985,20 @@ export function BadgeDefaultsSection({ active, shape, onPreviewFamilyChange, pre
         </div>
       </div>
 
+      {(mode !== "appearance" || qualityStyleActive) && (
+      <div hidden={hideFor("quality") || modeHide("appearance")} data-testid="badge-quality-style-wrap">
+        {mode === "appearance" ? (
+          qualityStyleActive ? (
+          <AvailabilityGate active name={t("ui.qualityBadgeStyle")} hint="" testId="badge-quality-style">
+            <QualityStyleSection shape={targetShape} qualityEnabled={badgeQuality} onPreviewFamilyChange={onPreviewFamilyChange} forceShow />
+          </AvailabilityGate>
+          ) : null
+        ) : (
+          <QualityStyleSection shape={targetShape} qualityEnabled={badgeQuality} onPreviewFamilyChange={onPreviewFamilyChange} />
+        )}
+      </div>
+      )}
+
       {/* Age rating: small neutral text badge below the quality stack. In
           appearance the whole card unmounts while the age style is inactive
           (never an empty shell with a lone heading); Information always keeps
@@ -2029,9 +2045,7 @@ export function BadgeDefaultsSection({ active, shape, onPreviewFamilyChange, pre
             ageStyleActive ? (
             <AvailabilityGate active name={t("ui.ageBadgeStyle")} hint="" testId="badge-age-style">
               <div className="space-y-1.5">
-                <label className="text-[11px] text-muted font-medium block">
-                  {t("ui.ageBadgeStyle")}
-                </label>
+                <CardTitle icon={ShieldCheck} color="text-emerald-400">{t("ui.ageBadgeStyle")}</CardTitle>
                 <BadgeStyleSelector
                   groups={QUALITY_STYLE_GROUPS}
                   value={ageBadgeStyle}
@@ -2069,24 +2083,10 @@ export function BadgeDefaultsSection({ active, shape, onPreviewFamilyChange, pre
       {(mode === undefined || mode === "appearance") && (
       <div hidden={hideFor("info") || modeHide("appearance")} data-testid="badge-award-style" className="bg-surface/50 border border-surface2/60 rounded-xl p-3.5 space-y-1.5 shadow-sm">
         <div className="space-y-1.5">
-          <span className="text-[11px] text-muted font-medium block">{t("ui.awardBadgeStyle")}</span>
+          <CardTitle icon={Award} color="text-amber-300">{t("ui.awardBadgeStyle")}</CardTitle>
           <AwardBadgeModeSelector value={awardBadgeStyle} onChange={(v) => { setAwardBadgeStyle(v) }} t={t} />
         </div>
         <p className="text-[11px] text-zinc-500 leading-relaxed mt-1.5">{t("ui.awardBadgeHint")}</p>
-      </div>
-      )}
-
-      {(mode !== "appearance" || qualityStyleActive) && (
-      <div hidden={hideFor("quality") || modeHide("appearance")} data-testid="badge-quality-style-wrap">
-        {mode === "appearance" ? (
-          qualityStyleActive ? (
-          <AvailabilityGate active name={t("ui.qualityBadgeStyle")} hint="" testId="badge-quality-style">
-            <QualityStyleSection shape={targetShape} qualityEnabled={badgeQuality} onPreviewFamilyChange={onPreviewFamilyChange} forceShow />
-          </AvailabilityGate>
-          ) : null
-        ) : (
-          <QualityStyleSection shape={targetShape} qualityEnabled={badgeQuality} onPreviewFamilyChange={onPreviewFamilyChange} />
-        )}
       </div>
       )}
       </BadgeGroup>

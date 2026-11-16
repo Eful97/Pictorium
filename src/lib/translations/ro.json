@@ -110,7 +110,7 @@
   "ui.awardBadgeHint": "Award winners and nominees: text pill (historic look) or the award logo on a dark pill. Other badges stay text.",
   "ui.qualityBadgeStyle": "Stil pictogramă calitate",
   "ui.qualityGroupLayout": "Aspect calitate",
-  "ui.qualityGroupLayoutHint": "Vertical păstrează coloana clasică; Orizontal așază aceleași marcaje pe rând, maximum 2 pe linie.",
+  "ui.qualityGroupLayoutHint": "Vertical păstrează coloana clasică; Orizontal așază aceleași marcaje pe rând.",
   "ui.qualityGroupLayoutStacked": "Vertical",
   "ui.qualityGroupLayoutRow": "Orizontal",
   "ui.videoFormats": "Formate A/V",

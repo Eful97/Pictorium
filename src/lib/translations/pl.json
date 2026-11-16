@@ -110,7 +110,7 @@
   "ui.awardBadgeHint": "Award winners and nominees: text pill (historic look) or the award logo on a dark pill. Other badges stay text.",
   "ui.qualityBadgeStyle": "Styl ikony jakości",
   "ui.qualityGroupLayout": "Układ jakości",
-  "ui.qualityGroupLayoutHint": "Pionowo zachowuje klasyczną kolumnę; Poziomo układa te same oznaczenia w rzędzie, maksymalnie 2 w linii.",
+  "ui.qualityGroupLayoutHint": "Pionowo zachowuje klasyczną kolumnę; Poziomo układa te same oznaczenia w rzędzie.",
   "ui.qualityGroupLayoutStacked": "Pionowo",
   "ui.qualityGroupLayoutRow": "Poziomo",
   "ui.videoFormats": "Formaty A/W",

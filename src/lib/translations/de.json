@@ -110,7 +110,7 @@
   "ui.awardBadgeHint": "Award winners and nominees: text pill (historic look) or the award logo on a dark pill. Other badges stay text.",
   "ui.qualityBadgeStyle": "Qualitäts-Icon-Stil",
   "ui.qualityGroupLayout": "Qualitätslayout",
-  "ui.qualityGroupLayoutHint": "Gestapelt behält die klassische vertikale Spalte; Reihe ordnet dieselben Marken horizontal an, maximal 2 pro Zeile.",
+  "ui.qualityGroupLayoutHint": "Gestapelt behält die klassische vertikale Spalte; Reihe ordnet dieselben Marken horizontal an.",
   "ui.qualityGroupLayoutStacked": "Gestapelt",
   "ui.qualityGroupLayoutRow": "Reihe",
   "ui.videoFormats": "A/V-Formate",

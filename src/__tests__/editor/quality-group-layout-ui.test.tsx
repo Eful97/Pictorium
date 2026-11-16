@@ -187,17 +187,16 @@ describe("BadgeDefaultsSection quality group layout selector", () => {
 
   it("portrait writes the shared flat", () => {
     const { ctx } = renderBadge("portrait")
-    const select = screen.getByTestId("quality-group-layout-select") as HTMLSelectElement
-    expect(select.value).toBe("stacked")
-    fireEvent.change(select, { target: { value: "row" } })
+    const group = screen.getByTestId("quality-group-layout-select")
+    expect(group.querySelector('[aria-checked="true"]')?.getAttribute("data-value")).toBe("stacked")
+    fireEvent.click(group.querySelector('[data-value="row"]') as HTMLElement)
     expect(ctx().defaultQualityGroupLayout).toBe("row")
     expect(QUALITY_GROUP_LAYOUTS).toContain(ctx().defaultQualityGroupLayout)
   })
 
   it("landscape writes the profile override and keeps the flat untouched", () => {
     const { ctx } = renderBadge("landscape")
-    const select = screen.getByTestId("quality-group-layout-select") as HTMLSelectElement
-    fireEvent.change(select, { target: { value: "row" } })
+    fireEvent.click(screen.getByTestId("quality-group-layout-select").querySelector('[data-value="row"]') as HTMLElement)
     expect((ctx().landscape as Record<string, unknown>).qualityGroupLayout).toBe("row")
     expect(ctx().defaultQualityGroupLayout).toBe("stacked")
   })

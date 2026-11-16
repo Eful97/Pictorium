@@ -233,7 +233,7 @@ function styleLabel(s: string, t: (k: string) => string): string {
   return s === "shadow" ? t("ui.shadow") : s === "pill" ? t("ui.pill") : s === "bar" ? t("ui.bar") : s === "default" ? t("ui.bsDefault") : s === "colored" ? t("ui.colored") : s === "bordo" ? t("ui.bordo") : s === "vetro" ? t("ui.vetro") : s === "minimal" ? t("ui.minimal") : s === "ink" ? t("ui.ink") : s === "tinta" ? t("ui.tinta") : s === "sfumato" ? t("ui.sfumato") : s === "split" ? t("ui.split") : s === "editoriale" ? t("ui.editoriale") : s === "netflix" ? t("ui.netflix") : s === "corner" ? t("ui.corner") : s === "number" ? t("ui.number") : s === "standard" ? t("ui.qbsStandard") : s === "mono" ? t("ui.qbsMono") : s === "color" ? t("ui.qbsColor") : s === "knockout" ? t("ui.qbsKnockout") : s === "premium" ? t("ui.qbsPremium") : s === "nova" ? t("ui.qbsNova") : s === "gradient" ? t("ui.qbsGradient") : s === "outline" ? t("ui.qbsOutline") : s === "strip" ? t("ui.qbsStrip") : s === "naked" ? t("ui.qbsNaked") : s
 }
 
-function tileClass(isDisabled: boolean, isActive: boolean): string {
+export function tileClass(isDisabled: boolean, isActive: boolean): string {
   return `flex flex-col items-center justify-center gap-0.5 w-full py-1.5 px-1 rounded-lg border transition duration-150 ${
     isDisabled
       ? "bg-white/5 text-zinc-600 cursor-not-allowed opacity-50 border-transparent"

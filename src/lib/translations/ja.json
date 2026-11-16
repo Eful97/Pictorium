@@ -110,7 +110,7 @@
   "ui.awardBadgeHint": "Award winners and nominees: text pill (historic look) or the award logo on a dark pill. Other badges stay text.",
   "ui.qualityBadgeStyle": "画質アイコンスタイル",
   "ui.qualityGroupLayout": "画質レイアウト",
-  "ui.qualityGroupLayoutHint": "縦積みは従来の縦一列を維持します。横並びは同じマークを1行に最大2個まで横に並べます。",
+  "ui.qualityGroupLayoutHint": "縦積みは従来の縦一列を維持します。横並びは同じマークを横に並べます。",
   "ui.qualityGroupLayoutStacked": "縦積み",
   "ui.qualityGroupLayoutRow": "横並び",
   "ui.videoFormats": "A/Vフォーマット",

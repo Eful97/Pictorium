@@ -39,7 +39,7 @@ export function AwardBadgeModeSelector({
           >
             {opt.id === "badge" ? (
               <span
-                className="inline-flex items-center justify-center h-6 px-1.5 rounded-full text-[7px] font-bold leading-none text-black select-none"
+                className="inline-flex items-center justify-center h-4 px-1.5 rounded-full text-[7px] font-bold leading-none text-black select-none"
                 style={{
                   background:
                     "linear-gradient(180deg, rgba(255,255,255,0.96) 0%, rgba(255,255,255,0.86) 100%)",
@@ -51,7 +51,7 @@ export function AwardBadgeModeSelector({
               </span>
             ) : (
               <span
-                className="inline-flex flex-col items-center justify-center h-6 px-2 rounded-full select-none"
+                className="inline-flex items-center justify-center gap-0.5 h-4 px-1.5 rounded-full select-none"
                 style={{
                   background: "rgba(24,24,27,0.88)",
                   border: "1px solid rgba(255,255,255,0.20)",

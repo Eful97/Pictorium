@@ -110,7 +110,7 @@
   "ui.awardBadgeHint": "Award winners and nominees: text pill (historic look) or the award logo on a dark pill. Other badges stay text.",
   "ui.qualityBadgeStyle": "Kvalitetsikonstil",
   "ui.qualityGroupLayout": "Kvalitetslayout",
-  "ui.qualityGroupLayoutHint": "Staplad behåller den klassiska vertikala kolumnen; Rad lägger samma märken horisontellt, högst 2 per rad.",
+  "ui.qualityGroupLayoutHint": "Staplad behåller den klassiska vertikala kolumnen; Rad lägger samma märken horisontellt.",
   "ui.qualityGroupLayoutStacked": "Staplad",
   "ui.qualityGroupLayoutRow": "Rad",
   "ui.videoFormats": "Ljud/bild-format",

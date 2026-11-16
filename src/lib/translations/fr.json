@@ -110,7 +110,7 @@
   "ui.awardBadgeHint": "Award winners and nominees: text pill (historic look) or the award logo on a dark pill. Other badges stay text.",
   "ui.qualityBadgeStyle": "Style des icônes qualité",
   "ui.qualityGroupLayout": "Disposition qualité",
-  "ui.qualityGroupLayoutHint": "Empilée conserve la colonne verticale classique ; Ligne dispose les mêmes marques à l’horizontale, 2 par ligne maximum.",
+  "ui.qualityGroupLayoutHint": "Empilée conserve la colonne verticale classique ; Ligne dispose les mêmes marques à l’horizontale.",
   "ui.qualityGroupLayoutStacked": "Empilée",
   "ui.qualityGroupLayoutRow": "Ligne",
   "ui.videoFormats": "Formats A/V",

@@ -110,7 +110,7 @@
   "ui.awardBadgeHint": "Award winners and nominees: text pill (historic look) or the award logo on a dark pill. Other badges stay text.",
   "ui.qualityBadgeStyle": "Kalite simge stili",
   "ui.qualityGroupLayout": "Kalite düzeni",
-  "ui.qualityGroupLayoutHint": "Dikey klasik sütunu korur; Yatay aynı işaretleri satırda en fazla 2’şer gösterir.",
+  "ui.qualityGroupLayoutHint": "Dikey klasik sütunu korur; Yatay aynı işaretleri bir satırda gösterir.",
   "ui.qualityGroupLayoutStacked": "Dikey",
   "ui.qualityGroupLayoutRow": "Yatay",
   "ui.videoFormats": "Ses/Görüntü Formatları",
