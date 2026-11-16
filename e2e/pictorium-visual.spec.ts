@@ -212,12 +212,11 @@ test("home with key — hero podium and status strip", async ({ page }) => {
   // Strip di stato sotto il carosello
   await page.locator('[data-testid="home-status"]').scrollIntoViewIfNeeded()
   await page.waitForTimeout(800)
-  // Poster wall decorativa: ~40 render /api/poster lazy e mescolati, il cui
-  // caricamento varia per run (su CI alcune tile non arrivano in tempo).
-  // Mascherata: questo screenshot verifica la strip di stato, non la wall.
+  // Poster wall decorativa (lazy e mescolata, varia per run): già nascosta
+  // sopra con lo stile `.home-stage-wall`. Questo screenshot verifica la strip
+  // di stato, non la wall: niente maschera (coprirebbe il fondale dell'hero).
   await expect(page).toHaveScreenshot("home-key-status.png", {
     maxDiffPixelRatio: 0.03,
-    mask: [page.locator(".poster-wall")],
   })
 })
 
