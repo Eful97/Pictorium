@@ -11,4 +11,11 @@ export interface RecentChange {
 }
 
 export const RECENT_CHANGES: RecentChange[] = [
+  { type: "fix", text: "hide the wall in the hero snapshot, show Ko-fi label on mobile", sha: "ccd69f0", date: "2026-11-16" },
+  { type: "feature", text: "hero with before/after poster comparison and wall backdrop", sha: "ddb1e64", date: "2026-11-16" },
+  { type: "feature", text: "per-shape image quality option and WebP episode thumbnails", sha: "d3da197", date: "2026-11-15" },
+  { type: "feature", text: "title logo zones, Auto in grid centre, disable off families in Spostamento", sha: "9806737", date: "2026-11-15" },
+  { type: "feature", text: "notch step layout for separate ratings", sha: "82cabdf", date: "2026-11-15" },
+  { type: "feature", text: "Spostamento tab pins badge families to poster zones", sha: "26708d8", date: "2026-11-15" },
+  { type: "feature", text: "notch style, grouped style pickers, thumbnail notch banner", sha: "c20d000", date: "2026-11-15" },
 ]
