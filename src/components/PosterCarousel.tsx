@@ -1,7 +1,6 @@
 "use client"
 
 import { useMemo } from "react"
-import { useT } from "@/lib/contexts/TranslationContext"
 import wall from "@/data/poster-wall.json"
 
 /** Colonne della poster wall full-bleed (su schermi stretti le esterne escono
@@ -23,13 +22,11 @@ function shuffle<T>(arr: readonly T[]): T[] {
   return a
 }
 
-/** Poster wall decorativa della home: colonne inclinate che scorrono in CSS,
+/** Poster wall decorativa della home (fondale dell'hero, dietro la copy): colonne inclinate che scorrono in CSS,
  *  nessuna interazione. Le immagini sono poster Pictorium PREGENERATI
  *  (`scripts/generate-poster-wall.mjs` → public/poster-wall + manifest): zero
  *  render live, che a cache fredda rallentavano i poster Stremio. */
 export function PosterCarousel() {
-  const { t } = useT()
-
   // Mescolati a ogni mount e distribuiti sulle colonne.
   const columns = useMemo(() => {
     const pool = shuffle(wall)
@@ -39,15 +36,7 @@ export function PosterCarousel() {
   }, [])
 
   return (
-    <div id="poster-examples" className="mt-8 sm:mt-14 max-w-5xl mx-auto px-2 sm:px-8">
-      <h2 className="section-heading text-lg sm:text-xl font-bold mb-3 sm:mb-4">
-        {t("ui.posterExamples")}
-        <span className="demo-tag">{t("ui.demoTag")}</span>
-      </h2>
-      <p className="text-[11px] sm:text-xs text-zinc-500 mb-4 sm:mb-6">
-        {t("ui.posterExamplesDesc")}
-      </p>
-
+    <div className="home-stage-wall" aria-hidden="true">
       <div className="poster-wall" aria-hidden="true">
         <div className="poster-wall-tilt">
           {columns.map((tiles, c) => (

@@ -1,5 +1,5 @@
 import { describe, it, expect, vi, afterEach } from "vitest"
-import { screen, waitFor } from "@testing-library/react"
+import { act, fireEvent, screen, waitFor } from "@testing-library/react"
 import userEvent from "@testing-library/user-event"
 import { HomeHero } from "@/components/HomeHero"
 import { HomeStatusStrip } from "@/components/HomeStatusStrip"
@@ -21,30 +21,29 @@ function posterFetchUrls(fetchMock: ReturnType<typeof vi.fn>): string[] {
 }
 
 afterEach(() => {
+  vi.useRealTimers()
   vi.unstubAllGlobals()
 })
 
 describe("HomeHero", () => {
-  it("renders kicker, split title, subtitle and pills", () => {
+  it("renders the split title and subtitle without kicker, pills or duplicate catalogs CTA", () => {
     renderWithCtx(<HomeHero />)
-    expect(screen.getByText("ui.heroKicker")).toBeInTheDocument()
     const title = screen.getByRole("heading", { level: 1 })
     expect(title.textContent).toContain("ui.heroTitleLead")
     expect(title.textContent).toContain("ui.heroTitleAccent")
     expect(title.textContent).toContain("ui.heroTitleTail")
     expect(screen.getByText("ui.heroSubtitle")).toBeInTheDocument()
-    expect(screen.getByText("ui.heroPillLogos")).toBeInTheDocument()
-    // "Best-fit" compare sia nella pill della copia sia nel chip flottante
-    expect(screen.getAllByText("ui.heroPillBestFit").length).toBeGreaterThanOrEqual(1)
-    expect(screen.getByText("ui.heroPillLangs")).toBeInTheDocument()
+    expect(screen.queryByText("ui.heroKicker")).toBeNull()
+    expect(screen.queryByText("ui.heroPillLogos")).toBeNull()
+    expect(screen.queryByText("ui.heroCatalogsCta")).toBeNull()
   })
 
-  it("renders three real podium posters via /api/poster without leaking api_key (M21)", async () => {
+  it("renders one real poster via /api/poster without leaking api_key (M21)", async () => {
     const fetchMock = stubPosterFetch()
     const { container } = renderWithCtx(<HomeHero />, { tmdbKey: "test-key" })
-    await waitFor(() => expect(posterFetchUrls(fetchMock)).toHaveLength(3))
+    await waitFor(() => expect(posterFetchUrls(fetchMock)).toHaveLength(1))
     const imgs = Array.from(container.querySelectorAll(".p-frame img"))
-    expect(imgs).toHaveLength(3)
+    expect(imgs).toHaveLength(1)
     // La chiave personale NON compare mai nel DOM né negli URL di fetch:
     // viaggia nell'header x-api-key.
     expect(container.innerHTML).not.toContain("api_key")
@@ -56,45 +55,37 @@ describe("HomeHero", () => {
         expect((init?.headers as Record<string, string> | undefined)?.["x-api-key"]).toBe("test-key")
       }
     }
-    // Le img risultano popolate (object URL o URL pulito senza chiave)
     imgs.forEach((img) => expect(img.getAttribute("src")).toBeTruthy())
   })
 
-  it("picks 2 random ranked movies + 1 ranked series with their real ranks (M21: letti dai fetch URL)", async () => {
+  it("picks a random ranked movie with its real rank and compares it with the raw TMDB poster", async () => {
     const fetchMock = stubPosterFetch()
     const trending = [
       { id: 101, media_type: "movie", title: "Movie B", name: "", poster_path: "/b.jpg", release_date: "2020-01-01", rank: 2 },
       { id: 100, media_type: "movie", title: "Movie A", name: "", poster_path: "/a.jpg", release_date: "2020-01-01", rank: 1 },
-      { id: 102, media_type: "movie", title: "Movie C", name: "", poster_path: "/c.jpg", release_date: "2020-01-01", rank: 3 },
       { id: 200, media_type: "tv", title: "", name: "Series A", poster_path: "/s.jpg", release_date: "2020-01-01", rank: 1 },
     ] as const
     const { container } = renderWithCtx(<HomeHero />, { tmdbKey: "test-key", trending: [...trending] })
-    await waitFor(() => expect(posterFetchUrls(fetchMock)).toHaveLength(3))
-    expect(container.querySelectorAll(".p-frame img")).toHaveLength(3)
-    // 2 film distinti tra quelli in classifica + 1 serie; rank reali in URL
-    const posterUrls = posterFetchUrls(fetchMock)
-    const movieIds = posterUrls.map((s) => s.match(/\/movie\/(\d+)\?/)?.[1]).filter(Boolean)
-    expect(new Set(movieIds).size).toBe(2)
-    expect(movieIds.every((id) => ["100", "101", "102"].includes(id!))).toBe(true)
-    const tvSrc = posterUrls.find((s) => s.includes("/tv/"))
-    expect(tvSrc).toContain("/tv/200?")
-    expect(tvSrc).toContain("rank=1")
-    // Il nastro Netflix identifica la serie giornaliera (e il primo film)
-    expect(tvSrc).toContain("rs=netflix")
-    posterUrls.forEach((s) => {
-      const id = s.match(/\/(?:movie|tv)\/(\d+)\?/)?.[1]
-      const item = [...trending].find((i) => String(i.id) === id)
-      expect(s).toContain(`rank=${item!.rank}`)
-    })
+    await waitFor(() => expect(posterFetchUrls(fetchMock)).toHaveLength(1))
+    const [url] = posterFetchUrls(fetchMock)
+    const id = url.match(/\/movie\/(\d+)\?/)?.[1]
+    expect(["100", "101"]).toContain(id)
+    const item = trending.find((i) => String(i.id) === id)!
+    expect(url).toContain(`rank=${item.rank}`)
+    // Il poster originale TMDB sta sotto lo slider prima/dopo
+    expect(container.querySelector(".hero-before")?.getAttribute("src")).toContain(item.poster_path)
+    expect(screen.getByRole("slider")).toBeInTheDocument()
   })
 
-  it("navigates to catalogs when CTA is clicked", async () => {
-    stubPosterFetch()
+  it("style chips re-render the poster with the chosen badge style", async () => {
+    const fetchMock = stubPosterFetch()
     const u = userEvent.setup()
-    const push = vi.fn()
-    renderWithCtx(<HomeHero />, { router: { push, replace: vi.fn(), back: vi.fn() } })
-    await u.click(screen.getByText("ui.heroCatalogsCta"))
-    expect(push).toHaveBeenCalledWith("cataloghi")
+    renderWithCtx(<HomeHero />, { tmdbKey: "test-key" })
+    await waitFor(() => expect(posterFetchUrls(fetchMock)).toHaveLength(1))
+    expect(posterFetchUrls(fetchMock)[0]).toContain("layout=fresh")
+    await u.click(screen.getByRole("button", { name: /notch/i }))
+    await waitFor(() => expect(posterFetchUrls(fetchMock).some((s) => s.includes("layout=standard&rs=notch-crema&bs=notch-crema"))).toBe(true))
+    expect(screen.getByRole("button", { name: /notch/i })).toHaveAttribute("aria-pressed", "true")
   })
 
   it("retired Badge Lab: no Lab link or route is exposed on the home hero", () => {
@@ -105,23 +96,23 @@ describe("HomeHero", () => {
     expect(hrefs.some((h) => h.includes("/lab/badges") || h.includes("/presets"))).toBe(false)
   })
 
-  it("opens the editor when a podium poster is clicked", async () => {
+  it("cycles the styles on its own and stops at the first interaction", async () => {
+    vi.useFakeTimers()
+    const fetchMock = stubPosterFetch()
+    vi.stubGlobal("matchMedia", () => ({ matches: false, addEventListener: vi.fn(), removeEventListener: vi.fn() }))
+    renderWithCtx(<HomeHero />, { tmdbKey: "test-key" })
+    await act(async () => { await vi.advanceTimersByTimeAsync(3300) })
+    expect(posterFetchUrls(fetchMock).some((u) => u.includes("rs=vetro"))).toBe(true)
+    await act(async () => { fireEvent.click(screen.getByRole("button", { name: /notch/i })) })
+    const after = posterFetchUrls(fetchMock).length
+    await act(async () => { await vi.advanceTimersByTimeAsync(10000) })
+    expect(posterFetchUrls(fetchMock)).toHaveLength(after)
+  })
+
+  it("has no open-in-editor button: the hero only shows the comparison and style chips", () => {
     stubPosterFetch()
-    const u = userEvent.setup()
-    const navigateToPoster = vi.fn()
-    const trending = [
-      { id: 100, media_type: "movie", title: "Movie A", name: "", poster_path: "/a.jpg", release_date: "2020-01-01", rank: 1 },
-      { id: 101, media_type: "movie", title: "Movie B", name: "", poster_path: "/b.jpg", release_date: "2020-01-01", rank: 2 },
-      { id: 200, media_type: "tv", title: "", name: "Series A", poster_path: "/s.jpg", release_date: "2020-01-01", rank: 1 },
-    ] as const
-    renderWithCtx(<HomeHero />, { tmdbKey: "test-key", trending: [...trending], navigateToPoster })
-    await u.click(screen.getByRole("button", { name: "Movie A" }))
-    expect(navigateToPoster).toHaveBeenCalledWith(expect.objectContaining({ id: 100, media_type: "movie" }))
-    // Anche il fallback statico resta cliccabile (nessun trending)
-    navigateToPoster.mockClear()
-    renderWithCtx(<HomeHero />, { tmdbKey: "test-key", navigateToPoster })
-    await u.click(screen.getByRole("button", { name: "Dark" }))
-    expect(navigateToPoster).toHaveBeenCalledWith(expect.objectContaining({ id: 44217, media_type: "tv" }))
+    renderWithCtx(<HomeHero />)
+    expect(screen.queryByRole("button", { name: "Apri nell'editor" })).toBeNull()
   })
 })
 

@@ -953,13 +953,16 @@ input[type="range"]::-moz-range-thumb:active {
   z-index: -1;
   pointer-events: none;
   background:
-    linear-gradient(to top, rgb(24 6 2 / 0.42), transparent 55%),
+    linear-gradient(rgb(8 6 10 / 0.45), rgb(8 6 10 / 0.45)),
+    linear-gradient(to top, rgb(24 6 2 / 0.55), transparent 70%),
     url("/bg/pictorium-bg-dark.webp") center / cover no-repeat;
 }
 
 [data-theme="light"] .app-shell-bg,
 html.light .app-shell-bg {
-  background: url("/bg/pictorium-bg-light.webp") center / cover no-repeat;
+  background:
+    linear-gradient(rgb(250 248 245 / 0.4), rgb(250 248 245 / 0.4)),
+    url("/bg/pictorium-bg-light.webp") center / cover no-repeat;
 }
 
 /* Per-poster tint: AppShell sets --bg-accent to the edited poster's dominant
@@ -1988,7 +1991,7 @@ select:focus-visible {
 }
 
 .home-hero-title {
-  font-size: clamp(2rem, 4.2vw, 2.9rem);
+  font-size: clamp(2.4rem, 5vw, 3.6rem);
   line-height: 1.05;
   font-weight: 750;
   letter-spacing: -0.035em;
@@ -2012,8 +2015,8 @@ select:focus-visible {
 
 .home-hero-sub {
   max-width: 46ch;
-  font-size: 13px;
-  line-height: 1.65;
+  font-size: 15px;
+  line-height: 1.6;
   color: var(--color-muted);
 }
 
@@ -2076,6 +2079,30 @@ select:focus-visible {
   border-color: rgba(255,255,255,0.14);
 }
 
+/* Hero + poster wall come fondale: la wall sta dietro la copy a bassa opacità,
+   con un velo che protegge la leggibilità del testo (il resto è decorativo). */
+.home-stage {
+  position: relative;
+  isolation: isolate;
+}
+.home-stage-wall {
+  position: absolute;
+  inset: 0;
+  z-index: -1;
+  pointer-events: none;
+  opacity: 0.3;
+}
+.home-stage-wall .poster-wall {
+  height: 100%;
+  min-height: 420px;
+}
+.home-stage-wall::after {
+  content: "";
+  position: absolute;
+  inset: 0;
+  background: radial-gradient(ellipse 60% 70% at 28% 50%, rgb(9 8 12 / 0.9), transparent 80%);
+}
+
 /* ── Podio poster (3D) ─────────────────────────────────────── */
 .podium {
   position: relative;
@@ -2086,13 +2113,13 @@ select:focus-visible {
   min-height: 400px;
 }
 
-.podium-inner {
+.hero-stage {
   position: relative;
+  z-index: 1;
   display: flex;
+  flex-direction: column;
   align-items: center;
-  justify-content: center;
-  transform-style: preserve-3d;
-  transition: transform var(--dur-slow) var(--ease-out-expo);
+  gap: 0.9rem;
 }
 
 .p-frame {
@@ -2120,36 +2147,113 @@ select:focus-visible {
   border-radius: inherit;
 }
 
-.p-frame-side {
-  width: clamp(120px, 12vw, 170px);
-  aspect-ratio: 2/3;
-  transition: transform var(--dur-base) var(--ease-out-expo), box-shadow var(--dur-base) ease;
-}
-
-.p-frame-side:hover {
-  transform: translateY(-4px) !important;
-}
-
 .p-frame-main {
   width: clamp(150px, 15vw, 215px);
   aspect-ratio: 2/3;
   z-index: 2;
-  border-color: rgb(var(--accent-rgb) / 0.4);
+  border-color: rgba(255,255,255,0.14);
   box-shadow:
-    0 0 0 1px rgb(var(--accent-rgb) / 0.2),
-    0 0 44px rgb(var(--accent-rgb) / 0.18),
     0 30px 70px rgba(0,0,0,0.6),
     inset 0 1px 0 rgba(255,255,255,0.08);
 }
 
-.p-frame-left {
-  transform: rotateY(18deg) rotateZ(2.5deg) translateX(14px);
-  z-index: 1;
+/* Confronto prima/dopo: il poster TMDB originale è clippato a destra dello
+   slider (--pos), il poster Pictorium sta sotto (i badge in alto a sinistra
+   restano così sul lato Pictorium). Il range nativo copre il frame
+   (invisibile) così tastiera, touch e mouse funzionano senza JS di drag. */
+.hero-compare {
+  width: clamp(210px, 22vw, 300px);
+  cursor: ew-resize;
+}
+.hero-before {
+  position: absolute;
+  inset: 0;
+  clip-path: inset(0 0 0 var(--pos));
+}
+.hero-handle {
+  position: absolute;
+  z-index: 2;
+  top: 0;
+  bottom: 0;
+  left: var(--pos);
+  width: 2px;
+  transform: translateX(-50%);
+  background: #fff;
+  box-shadow: 0 0 10px rgba(0, 0, 0, 0.5);
+  pointer-events: none;
+}
+.hero-knob {
+  position: absolute;
+  top: 50%;
+  left: 50%;
+  width: 40px;
+  height: 40px;
+  border-radius: 50%;
+  transform: translate(-50%, -50%);
+  background: #fff;
+  box-shadow: 0 2px 12px rgba(0, 0, 0, 0.55);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  color: #252321;
+}
+.hero-legend {
+  display: flex;
+  justify-content: space-between;
+  width: clamp(210px, 22vw, 300px);
+  margin-top: -0.2rem;
+}
+.hero-legend span {
+  padding: 3px 12px;
+  border-radius: 999px;
+  font-size: 12px;
+  font-weight: 700;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+  color: #fff;
+  background: rgba(13, 13, 16, 0.82);
+  border: 1px solid rgba(255, 255, 255, 0.16);
+}
+/* Selettore doppio: batte la regola globale input[type="range"] (height 32px). */
+.hero-compare .hero-range {
+  display: block;
+  position: absolute;
+  z-index: 3;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+  margin: 0;
+  padding: 0;
+  opacity: 0;
+  cursor: ew-resize;
+  touch-action: pan-y;
+}
+.hero-compare:has(.hero-range:focus-visible) {
+  outline: 2px solid var(--color-accent-orange);
+  outline-offset: 3px;
 }
 
-.p-frame-right {
-  transform: rotateY(-18deg) rotateZ(-2.5deg) translateX(-14px);
-  z-index: 1;
+.hero-style-row {
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: center;
+  gap: 0.4rem;
+}
+.hero-style-chip {
+  padding: 0.3rem 0.8rem;
+  border-radius: 999px;
+  font-size: 12px;
+  font-weight: 600;
+  color: rgba(255, 255, 255, 0.78);
+  background: rgba(13, 13, 16, 0.82);
+  border: 1px solid rgba(255, 255, 255, 0.16);
+  transition: color 0.15s ease, background 0.15s ease, border-color 0.15s ease;
+}
+.hero-style-chip:hover { color: #fff; }
+.hero-style-chip[aria-pressed="true"] {
+  color: #111;
+  background: #fff;
+  border-color: #fff;
 }
 
 .podium-glow {
@@ -2166,54 +2270,6 @@ select:focus-visible {
      costringe il compositor a ri-rasterizzare ogni frame per sempre, anche da
      fermo, e ruba budget allo scroll (misurato via tracing: 60fps continui in
      idle). Il frame statico è identico allo 0% del vecchio breath. */
-}
-
-/* Chip flottanti attorno al podio */
-.float-chip {
-  position: absolute;
-  z-index: 4;
-  display: flex;
-  align-items: center;
-  gap: 0.45rem;
-  padding: 0.5rem 0.75rem;
-  border-radius: 0.625rem;
-  font-size: 10px;
-  font-weight: 700;
-  letter-spacing: 0.08em;
-  text-transform: uppercase;
-  color: var(--color-foreground);
-  background: linear-gradient(180deg, rgba(255,255,255,0.055), rgba(255,255,255,0.015)), rgba(13,13,16,0.82);
-  border: 1px solid rgba(255,255,255,0.08);
-  box-shadow: 0 16px 36px rgba(0,0,0,0.32), inset 0 1px 0 rgba(255,255,255,0.03);
-  backdrop-filter: blur(14px);
-  /* Niente bob infinito: muovere un layer con backdrop-filter costringe a
-     ricampionare il backdrop ogni frame per sempre (come sopra: compositor
-     mai in idle → scroll laggoso). Chip statiche, look invariato. */
-}
-
-.float-chip svg {
-  color: var(--color-accent-orange);
-}
-
-.float-chip.fc-ai {
-  top: 6%;
-  right: 2%;
-  animation-delay: 0.8s;
-}
-
-.float-chip.fc-saved {
-  bottom: 16%;
-  left: 0;
-  animation-delay: 1.6s;
-}
-
-.float-chip.fc-saved svg {
-  color: #4ade80;
-}
-
-@keyframes bob {
-  0%, 100% { transform: translateY(0); }
-  50% { transform: translateY(-7px); }
 }
 
 /* Tag "Demo" accanto al titolo del carosello */
@@ -2416,9 +2472,20 @@ button.status-version:hover {
 @media (max-width: 920px) {
   .home-hero {
     grid-template-columns: 1fr;
-    gap: 2.25rem;
+    gap: 1.25rem;
     text-align: center;
   }
+
+  /* Wall più discreta: copy e poster occupano tutta la larghezza. */
+  .home-stage-wall { opacity: 0.2; }
+  .home-stage-wall::after {
+    background: radial-gradient(ellipse 90% 60% at 50% 40%, rgb(9 8 12 / 0.9), transparent 85%);
+  }
+
+  /* Poster subito dopo titolo e sottotitolo, ricerca sotto. */
+  .home-hero-copy { display: contents; }
+  .podium { order: 3; }
+  .home-hero-search { order: 4; }
 
   .home-hero-sub {
     margin-left: auto;
@@ -2440,22 +2507,9 @@ button.status-version:hover {
 
   }
 
-  .p-frame-side {
-    display: none;
-  }
-
-  .p-frame-main {
-    width: 190px;
-  }
-
-  .float-chip.fc-ai {
-    right: 4%;
-    top: 2%;
-  }
-
-  .float-chip.fc-saved {
-    left: 6%;
-    bottom: 10%;
+  .hero-compare,
+  .hero-legend {
+    width: min(210px, 58vw);
   }
 }
 
@@ -2474,8 +2528,9 @@ button.status-version:hover {
     line-height: 1.5;
   }
 
-  .p-frame-main {
-    width: 140px;
+  .hero-compare,
+  .hero-legend {
+    width: min(190px, 54vw);
   }
 
   .status-strip {
@@ -2521,9 +2576,6 @@ button.status-version:hover {
     padding: 0.25rem 0.45rem;
   }
 
-  .float-chip {
-    display: none;
-  }
 }
 
 /* ============================================================
@@ -2841,7 +2893,7 @@ button.status-version:hover {
 [data-theme="light"] :is(.hero-kicker, .stat-pill, .feature-card-title, .status-pill, .control-label, .tab-chip, .counter-badge, .btn-secondary, .segmented-option:hover, .top-action-button:not(.top-action-button-primary):not(.top-action-button-accent)) {
   color: var(--color-foreground);
 }
-[data-theme="light"] :is(.float-chip, .btn-secondary, .segmented-control, .stat-pill, .feature-card, .status-pill, .counter-badge, .tab-chip) {
+[data-theme="light"] :is(.btn-secondary, .segmented-control, .stat-pill, .feature-card, .status-pill, .counter-badge, .tab-chip) {
   background: var(--color-surface);
   border-color: var(--color-border-subtle);
   box-shadow: 0 4px 16px rgba(37,35,33,0.06);
@@ -2949,3 +3001,27 @@ html.light button:has(> .badge-style-preview):not([class*="bg-accent-orange"]):h
     .reveal-slide-in-left-subtle { animation-name: slide-in-left-subtle; }
   }
 }
+
+
+/* Tema chiaro: confronto prima/dopo, chip di stile e fondale wall. */
+[data-theme="light"] .home-stage-wall { opacity: 0.3; }
+[data-theme="light"] .home-stage-wall::after {
+  background: radial-gradient(ellipse 55% 65% at 28% 50%, rgb(250 248 245 / 0.7), transparent 70%);
+}
+[data-theme="light"] .hero-legend span {
+  color: #252321;
+  background: rgba(255, 255, 255, 0.92);
+  border-color: rgba(37, 35, 33, 0.16);
+}
+[data-theme="light"] .hero-style-chip {
+  color: #252321;
+  background: rgba(255, 255, 255, 0.92);
+  border-color: rgba(37, 35, 33, 0.16);
+}
+[data-theme="light"] .hero-style-chip[aria-pressed="true"] {
+  color: #fff;
+  background: #252321;
+  border-color: #252321;
+}
+
+[data-theme="light"] .home-hero-sub { color: #544e47; }

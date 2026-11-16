@@ -416,7 +416,7 @@ export function AppShell() {
             src="/pictorium.svg"
             alt="Pictorium"
             decoding="async"
-            className="header-logo header-logo-dark h-10 sm:h-14 md:h-24 w-auto cursor-pointer hover:brightness-110 active:scale-95 transition duration-150 mb-1.5 md:mb-2"
+            className="header-logo header-logo-dark h-10 sm:h-12 md:h-[72px] w-auto cursor-pointer hover:brightness-110 active:scale-95 transition duration-150 mb-1.5 md:mb-2"
           />
           {/* eslint-disable-next-line @next/next/no-img-element -- local SVG asset */}
           <img
@@ -428,7 +428,7 @@ export function AppShell() {
             src="/pictorium-light.svg"
             alt="Pictorium"
             decoding="async"
-            className="header-logo header-logo-light h-10 sm:h-14 md:h-24 w-auto cursor-pointer hover:brightness-110 active:scale-95 transition duration-150 mb-1.5 md:mb-2"
+            className="header-logo header-logo-light h-10 sm:h-12 md:h-[72px] w-auto cursor-pointer hover:brightness-110 active:scale-95 transition duration-150 mb-1.5 md:mb-2"
           />
           <p className="header-tagline text-center text-[10px] sm:text-xs md:text-sm mb-3.5 sm:mb-4 md:mb-4 max-w-xs sm:max-w-none">{t("ui.homeTagline")}</p>
           <MobileCommunityLinks />

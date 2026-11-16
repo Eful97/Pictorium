@@ -1,67 +1,40 @@
 "use client"
 
-import { useMemo, useRef, type MouseEvent, type KeyboardEvent, type ReactNode } from "react"
+import { useEffect, useMemo, useState, type CSSProperties, type ReactNode } from "react"
 import { usePSelector } from "@/lib/context"
 import { currentPathUuid } from "@/lib/user-token"
 import { useT } from "@/lib/contexts/TranslationContext"
 import { toSearchResult, type SearchResult } from "@/lib/types"
 import { useSecurePosterUrl } from "@/lib/useSecurePosterUrl"
-import { Layers, Sparkles, Globe } from "lucide-react"
-
-interface PodiumSlot {
-  key: string
-  className: string
-  alt: string
-  url: string
-  item: SearchResult
-}
-
-interface FallbackSlot extends Omit<PodiumSlot, "url"> {
-  url: () => string
-}
+import { ChevronLeft, ChevronRight } from "lucide-react"
 
 /** M21: `<img>` che recupera il poster con la chiave in header x-api-key
- *  (object URL) invece di incollare api_key nel query string del DOM. */
+ *  (object URL) invece di incollare api_key nel query string del DOM.
+ *  Cambiando URL (stile) tiene visibile l'ultimo poster finché il nuovo non
+ *  arriva: niente flash vuoto a ogni click sui chip. */
 function SecurePosterImg({ url, loading }: { url: string; loading: "eager" | "lazy" }) {
   const tmdbKey = usePSelector((v) => v.tmdbKey)
   const src = useSecurePosterUrl(url, tmdbKey)
+  const [last, setLast] = useState(src)
+  if (src && src !== last) setLast(src)
   // eslint-disable-next-line @next/next/no-img-element -- poster dinamico /api/poster
-  return <img src={src ?? undefined} alt="" loading={loading} decoding="async" />
+  return <img src={src ?? last ?? undefined} alt="" loading={loading} decoding="async" />
 }
 
-// Poster statici di riserva (stessi layout del carosello) usati solo finché il
-// trending non è caricato o se le classifiche sono vuote. Restano cliccabili:
-// aprono l'editor con quel titolo, come le card del carosello.
-const FALLBACK_PODIUM: FallbackSlot[] = [
-  {
-    key: "dark",
-    className: "p-frame p-frame-side p-frame-left",
-    alt: "Dark",
-    item: toSearchResult({ id: 44217, media_type: "tv", title: "Dark", name: "Dark" }),
-    url: () =>
-      `/api/poster/tv/44217?genreName=Thriller&voteAverage=8.0&rs=netflix&rank=4&label=Serie%20tv&ranking=&tl=0&gradHeight=25&blur=30&bf=50&bd=40&logoFit=0`,
-  },
-  {
-    key: "shawshank",
-    className: "p-frame p-frame-main",
-    alt: "The Shawshank Redemption",
-    item: toSearchResult({ id: 278, media_type: "movie", title: "The Shawshank Redemption", name: "The Shawshank Redemption" }),
-    url: () =>
-      `/api/poster/movie/278?genreName=Dramma&voteAverage=9.3&bs=vetro&gradHeight=25&blur=30&bf=50&bd=40&tl=0&logoFit=0`,
-  },
-  {
-    key: "inception",
-    className: "p-frame p-frame-side p-frame-right",
-    alt: "Inception",
-    item: toSearchResult({ id: 27205, media_type: "movie", title: "Inception", name: "Inception" }),
-    url: () =>
-      `/api/poster/movie/27205?genreName=Thriller&voteAverage=8.8&bs=bar&tl=0&ac=%23f39c12&gradHeight=30&blur=35&bf=50&bd=45&logoFit=0`,
-  },
-]
+// Poster statico di riserva, usato solo finché il trending non è caricato o se
+// le classifiche sono vuote. Niente poster_path: senza "originale" il
+// confronto prima/dopo non compare, restano gli stili.
+const FALLBACK_ITEM: SearchResult = toSearchResult({ id: 278, media_type: "movie", title: "The Shawshank Redemption", name: "The Shawshank Redemption" })
+const FALLBACK_PARAMS = "genreName=Dramma&voteAverage=9.3&ranking=&rank=1"
 
-// Stile del badge rank per ogni slot del podio: il nastro Netflix identifica la
-// classifica giornaliera delle serie (e il primo film), bordo al centro.
-const SLOT_RANK_STYLES = ["netflix", "bordo", "netflix"] as const
+// Stili mostrati dai chip: `layout` (Fresh o Standard), `rs` = badge classifica
+// (su ogni poster del hero), `bs` = badge genere/voto. Etichette già tradotte.
+const HERO_STYLES = [
+  { id: "fresh", label: "ui.posterLayoutFresh", layout: "fresh", rs: "netflix", bs: "minimal" },
+  { id: "vetro", label: "ui.vetro", layout: "standard", rs: "vetro", bs: "vetro" },
+  { id: "editoriale", label: "ui.editoriale", layout: "standard", rs: "editoriale", bs: "editoriale" },
+  { id: "notch", label: "ui.notch", layout: "standard", rs: "notch-crema", bs: "notch-crema" },
+] as const
 
 /** Fisher–Yates: copia mescolata deterministica solo per test (Math.random stub). */
 function shuffle<T>(arr: T[]): T[] {
@@ -74,86 +47,71 @@ function shuffle<T>(arr: T[]): T[] {
 }
 
 export function HomeHero({ search }: { search?: ReactNode }) {
-  const router = usePSelector((v) => v.router)
   const trending = usePSelector((v) => v.trending)
-  const titleOf = usePSelector((v) => v.titleOf)
-  const navigateToPoster = usePSelector((v) => v.navigateToPoster)
+  const posterUrl = usePSelector((v) => v.posterUrl)
   const { t } = useT()
-  const podiumRef = useRef<HTMLDivElement>(null)
-  const innerRef = useRef<HTMLDivElement>(null)
-  const leftRef = useRef<HTMLDivElement>(null)
-  const rightRef = useRef<HTMLDivElement>(null)
+  const [styleId, setStyleId] = useState<(typeof HERO_STYLES)[number]["id"]>("fresh")
+  const style = HERO_STYLES.find((s) => s.id === styleId)!
+  const [pos, setPos] = useState(60)
+  // Autoplay finché l'utente non tocca nulla: gli stili ruotano da soli e lo
+  // slider fa un'oscillazione d'invito. Il primo gesto (chip, slider) lo ferma;
+  // con prefers-reduced-motion non parte.
+  const [auto, setAuto] = useState(true)
+  const stop = () => setAuto(false)
 
-  // Due film + una serie estratti a caso a ogni refresh tra i titoli delle
-  // classifiche giornaliere (JustWatch DAILY_POPULARITY esposta da
-  // /api/tmdb/trending): il podio cambia a ogni visita. Ogni poster mostra il
-  // badge rank reale della posizione del titolo in classifica.
-  // Namespace utente (?u=) per i poster del podio: senza, il server non può
-  // risolvere le chiavi salvate nel profilo e risponde 503 su profilo fresco
-  // (chiave nel namespace ma niente chiave device). A `/` è stringa vuota.
+  // Namespace utente (?u=) per il poster: senza, il server non può risolvere le
+  // chiavi salvate nel profilo e risponde 503 su profilo fresco. A `/` è
+  // stringa vuota.
   const nsSuffix = useMemo(() => {
     const id = currentPathUuid()
     return id ? `&u=${id}` : ""
   }, [])
-  const slots = useMemo<PodiumSlot[]>(() => {
+
+  // Un film a caso (a ogni refresh) tra quelli delle classifiche giornaliere
+  // (JustWatch DAILY_POPULARITY via /api/tmdb/trending), col badge rank reale.
+  const hero = useMemo(() => {
     const movies = trending.filter((i) => i.media_type === "movie").sort((a, b) => a.rank - b.rank)
-    const tv = trending.filter((i) => i.media_type === "tv").sort((a, b) => a.rank - b.rank)
-    if (movies.length < 2 || tv.length < 1) {
-      // URL pulite: la chiave viaggia solo via header x-api-key (hook
-      // useSecurePosterUrl) — mai incollata in query string.
-      return FALLBACK_PODIUM.map((p) => ({ ...p, url: `${p.url()}${nsSuffix}` }))
+    if (movies.length < 1) return { item: FALLBACK_ITEM, params: FALLBACK_PARAMS }
+    const [item] = shuffle(movies)
+    return { item, params: `ranking=&rank=${item.rank}` }
+  }, [trending])
+
+  const { item } = hero
+  // `layout` sempre esplicito: un layout del profilo (Fresh, Card) ignorerebbe
+  // `rs`/`bs` e i chip degli stili standard non cambierebbero nulla.
+  // URL pulito: la chiave viaggia solo via header x-api-key (useSecurePosterUrl).
+  const url = `/api/poster/${item.media_type}/${item.id}?${hero.params}&layout=${style.layout}&rs=${style.rs}&bs=${style.bs}&tl=0&gradHeight=25&blur=30&bf=50&bd=40&logoFit=0${nsSuffix}`
+  // Poster TMDB "grezzo" per il confronto (image.tmdb.org è già in CSP img-src).
+  const before = item.poster_path ? posterUrl(item.poster_path, "w500") : null
+  const hasBefore = before !== null
+
+  useEffect(() => {
+    if (!auto || typeof window.matchMedia !== "function" || window.matchMedia("(prefers-reduced-motion: reduce)").matches) return
+    const cycle = setInterval(() => {
+      setStyleId((cur) => HERO_STYLES[(HERO_STYLES.findIndex((s) => s.id === cur) + 1) % HERO_STYLES.length].id)
+    }, 3200)
+    let raf = 0
+    const invite = setTimeout(() => {
+      if (!hasBefore) return
+      const t0 = performance.now()
+      const step = (now: number) => {
+        const k = Math.min((now - t0) / 1500, 1)
+        setPos(Math.round(60 - 25 * Math.sin(Math.PI * k)))
+        if (k < 1) raf = requestAnimationFrame(step)
+      }
+      raf = requestAnimationFrame(step)
+    }, 1200)
+    return () => {
+      clearInterval(cycle)
+      clearTimeout(invite)
+      cancelAnimationFrame(raf)
     }
-    const [m1, m2] = shuffle(movies)
-    const [s1] = shuffle(tv)
-    const picks = [m1, m2, s1]
-    return picks.map((item, i) => ({
-      key: `${item.media_type}-${item.id}`,
-      className: ["p-frame p-frame-side p-frame-left", "p-frame p-frame-main", "p-frame p-frame-side p-frame-right"][i],
-      alt: titleOf(item),
-      item,
-      url: `/api/poster/${item.media_type}/${item.id}?ranking=&rank=${item.rank}&rs=${SLOT_RANK_STYLES[i]}&tl=0&gradHeight=25&blur=30&bf=50&bd=40&logoFit=0${nsSuffix}`,
-    }))
-  }, [trending, titleOf, nsSuffix])
-
-  // Parallasse attivo solo su dispositivi con hover (desktop); calcolato una
-  // volta per non ri-eseguire matchMedia a ogni mousemove.
-  const hoverOkRef = useRef<boolean | null>(null)
-  const hoverOk = () => {
-    if (hoverOkRef.current === null) {
-      const reduced = typeof window.matchMedia === "function" && window.matchMedia("(prefers-reduced-motion: reduce)").matches
-      hoverOkRef.current = !reduced && typeof window.matchMedia === "function" && window.matchMedia("(hover: hover)").matches
-    }
-    return hoverOkRef.current
-  }
-
-  const onMove = (e: MouseEvent<HTMLDivElement>) => {
-    if (!hoverOk()) return
-    const el = podiumRef.current
-    if (!el) return
-    const r = el.getBoundingClientRect()
-    const dx = (e.clientX - r.left) / r.width - 0.5
-    const dy = (e.clientY - r.top) / r.height - 0.5
-    if (innerRef.current) innerRef.current.style.transform = `rotateY(${dx * 8}deg) rotateX(${-dy * 6}deg)`
-    // Profondità fissa (14px in scala 0.6) come nel prototipo: i frame laterali
-    // si staccano dal piano centrale quando il podio ruota.
-    if (leftRef.current) leftRef.current.style.transform = "rotateY(18deg) rotateZ(2.5deg) translateX(14px) translateZ(8.4px)"
-    if (rightRef.current) rightRef.current.style.transform = "rotateY(-18deg) rotateZ(-2.5deg) translateX(-14px) translateZ(-8.4px)"
-  }
-
-  const onLeave = () => {
-    if (innerRef.current) innerRef.current.style.transform = ""
-    if (leftRef.current) leftRef.current.style.transform = ""
-    if (rightRef.current) rightRef.current.style.transform = ""
-  }
+  }, [auto, hasBefore])
 
   return (
     <section className="home-hero animate-fade-scale-in-hero">
       <div className="home-hero-copy">
-        <span className="hero-kicker mb-3 animate-fade-up" style={{ animationDelay: "0ms" }}>
-          <span className="dot" aria-hidden="true" />
-          {t("ui.heroKicker")}
-        </span>
-        <h1 className="home-hero-title animate-fade-up" style={{ animationDelay: "70ms" }}>
+        <h1 className="home-hero-title animate-fade-up" style={{ animationDelay: "0ms" }}>
           {t("ui.heroTitleLead")}
           <span className="accent-word">{t("ui.heroTitleAccent")}</span>
           {t("ui.heroTitleTail")}
@@ -164,60 +122,61 @@ export function HomeHero({ search }: { search?: ReactNode }) {
             {search}
           </div>
         ) : null}
-        <div className="stat-pills mt-4 animate-fade-up" style={{ animationDelay: "210ms" }}>
-          <span className="stat-pill">
-            <Layers className="w-3.5 h-3.5" />
-            {t("ui.heroPillLogos")}
-          </span>
-          <span className="stat-pill">
-            <Sparkles className="w-3.5 h-3.5" />
-            {t("ui.heroPillBestFit")}
-          </span>
-          <span className="stat-pill">
-            <Globe className="w-3.5 h-3.5" />
-            {t("ui.heroPillLangs")}
-          </span>
-        </div>
-        <div className="home-hero-cta-row animate-fade-up" style={{ animationDelay: "280ms" }}>
-          <button type="button" onClick={() => router.push("cataloghi")} className="btn-primary px-5 py-2.5 whitespace-nowrap">
-            {t("ui.heroCatalogsCta")}
-          </button>
-        </div>
       </div>
 
-      <div className="podium" ref={podiumRef} onMouseMove={onMove} onMouseLeave={onLeave}>
+      <div className="podium">
         <div className="podium-glow" aria-hidden="true" />
-        <div className="podium-inner" ref={innerRef}>
-          {slots.map((p, i) => (
-            <div
-              key={p.key}
-              className={`${p.className} cursor-pointer`}
-              ref={i === 0 ? leftRef : i === 2 ? rightRef : undefined}
-              role="button"
-              tabIndex={0}
-              aria-label={p.alt}
-              onClick={() => navigateToPoster(p.item)}
-              onKeyDown={(e: KeyboardEvent<HTMLDivElement>) => {
-                if (e.key === "Enter" || e.key === " ") {
-                  e.preventDefault()
-                  navigateToPoster(p.item)
-                }
-              }}
-            >
-              {/* M21: la chiave viaggia nell'header x-api-key, mai nel DOM */}
-              <SecurePosterImg url={p.url} loading={i === 1 ? "eager" : "lazy"} />
+        <div className="hero-stage">
+          <div className="p-frame p-frame-main hero-compare" style={{ "--pos": `${pos}%` } as CSSProperties}>
+            {/* M21: la chiave viaggia nell'header x-api-key, mai nel DOM */}
+            <SecurePosterImg url={url} loading="eager" />
+            {before ? (
+              <>
+                {/* eslint-disable-next-line @next/next/no-img-element -- poster TMDB originale */}
+                <img className="hero-before" src={before} alt="" decoding="async" />
+                <span className="hero-handle" aria-hidden="true">
+                  <span className="hero-knob">
+                    <ChevronLeft className="w-4 h-4" strokeWidth={3} />
+                    <ChevronRight className="w-4 h-4" strokeWidth={3} />
+                  </span>
+                </span>
+                <input
+                  type="range"
+                  className="hero-range"
+                  min={0}
+                  max={100}
+                  step={1}
+                  value={pos}
+                  aria-label="Pictorium / TMDB"
+                  onPointerDown={stop}
+                  onKeyDown={stop}
+                  onChange={(e) => setPos(Number(e.target.value))}
+                />
+              </>
+            ) : null}
+          </div>
+          {before ? (
+            <div className="hero-legend" aria-hidden="true">
+              <span>Pictorium</span>
+              <span>TMDB</span>
             </div>
-          ))}
-        </div>
-        <div className="float-chip fc-ai" aria-hidden="true">
-          <Sparkles className="w-3.5 h-3.5" />
-          {t("ui.heroPillBestFit")}
-        </div>
-        <div className="float-chip fc-saved" aria-hidden="true">
-          <svg className="w-3.5 h-3.5" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.6" strokeLinecap="round" strokeLinejoin="round">
-            <polyline points="20 6 9 17 4 12" />
-          </svg>
-          {t("ui.demoTag")} · {t("ui.saved")}
+          ) : null}
+          <div className="hero-style-row" role="group" aria-label={t("ui.styleGenreBadge")}>
+            {HERO_STYLES.map((s) => (
+              <button
+                key={s.id}
+                type="button"
+                className="hero-style-chip"
+                aria-pressed={styleId === s.id}
+                onClick={() => {
+                  stop()
+                  setStyleId(s.id)
+                }}
+              >
+                {t(s.label)}
+              </button>
+            ))}
+          </div>
         </div>
       </div>
     </section>

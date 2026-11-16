@@ -34,7 +34,6 @@ import { loadCustomTiles, storeCustomTiles, loadCustomLogoTiles, storeCustomLogo
 import { userFetch } from "@/lib/http"
 import { SearchBar } from "@/components/SearchBar"
 import { PosterCarousel } from "@/components/PosterCarousel"
-import { ScrollReveal } from "@/components/ScrollReveal"
 import { HomeHero } from "@/components/HomeHero"
 import { PosterPreview } from "@/components/PosterPreview"
 import { PerTitleBadgeEditor } from "@/components/PerTitleBadgeEditor"
@@ -1967,12 +1966,10 @@ export default function EditView() {
         </div>
       )}
       {!selected && !profileGate && hasTmdbKey && (
-        <>
+        <div className="home-stage">
+          <PosterCarousel />
           <HomeHero search={searchBar} />
-          <ScrollReveal animation="fade-up" threshold={0.05}>
-            <PosterCarousel />
-          </ScrollReveal>
-        </>
+        </div>
       )}
 
       {selected && badgeEditorFor === selectedStashKey && (
