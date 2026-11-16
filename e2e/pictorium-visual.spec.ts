@@ -1467,4 +1467,32 @@ test.describe("poster API — visual regression", () => {
     const poster = await renderPoster(page, url)
     await expect(poster).toHaveScreenshot("poster-font-barlow-landscape.png", { maxDiffPixelRatio: 0.10 })
   })
+
+  // Notch badge (genere / classifica / extra): pillola con lato dritto incollato
+  // al bordo del poster + due raccordi concavi. Copertura dedicata perché prima
+  // esistevano snapshot solo per il gradino separato (poster-separate-notch-*).
+  for (const material of ["crema", "vetro", "inchiostro", "sfumato"] as const) {
+    test(`notch genre badge ${material} — screenshot`, async ({ page }) => {
+      const url = posterUrl({ genreName: "Action", voteAverage: "7.8", year: "2024", badges: "1", ranking: "0", bg: "1", by: "1", bq: "0", bs: `notch-${material}`, imdbId: "tt0133093" })
+      const poster = await renderPoster(page, url)
+      await expect(poster).toHaveScreenshot(`poster-notch-genre-${material}.png`, { maxDiffPixelRatio: 0.10 })
+    })
+    test(`notch ranking badge ${material} — screenshot`, async ({ page }) => {
+      const url = posterUrl({ genreName: "Action", voteAverage: "7.8", badges: "1", ranking: "1", rank: "3", label: "Top 3", rs: `notch-${material}`, imdbId: "tt0133093" })
+      const poster = await renderPoster(page, url)
+      await expect(poster).toHaveScreenshot(`poster-notch-ranking-${material}.png`, { maxDiffPixelRatio: 0.10 })
+    })
+    test(`notch extra badge ${material} — screenshot`, async ({ page }) => {
+      const url = posterUrl({ genreName: "Action", voteAverage: "7.8", badges: "1", ranking: "0", bg: "1", by: "0", br: "0", extra: "Based on a true story", xbs: `notch-${material}`, imdbId: "tt0133093" })
+      const poster = await renderPoster(page, url)
+      await expect(poster).toHaveScreenshot(`poster-notch-extra-${material}.png`, { maxDiffPixelRatio: 0.10 })
+    })
+  }
+
+  // Gradino separato con scala bassa (leggibilità del gradino alto).
+  test("separate ratings notch step crema low scale — screenshot", async ({ page }) => {
+    const url = posterUrl({ genreName: "Action", voteAverage: "7.8", year: "2024", badges: "1", ranking: "0", bg: "1", by: "1", bq: "0", imdbId: "tt0133093", sep: "1", sepstyle: "notch-crema", sepscale: "80", rsrc: "imdb,tmdb,tomatoes" })
+    const poster = await renderPoster(page, url)
+    await expect(poster).toHaveScreenshot("poster-separate-notch-crema-lowscale.png", { maxDiffPixelRatio: 0.10 })
+  })
 })
