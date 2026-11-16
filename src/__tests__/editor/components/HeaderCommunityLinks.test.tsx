@@ -41,18 +41,20 @@ describe("HeaderCommunityLinks", () => {
     expect(container.querySelector("[class*='bg-white/10'][class*='w-px']")).toBeNull()
   })
 
-  it("renders mobile community links with an icon-only Ko-fi pill", () => {
+  it("renders mobile community links with a labelled Ko-fi pill", () => {
     renderWithCtx(<MobileCommunityLinks />)
 
     expect(screen.getByText("GitHub")).toBeInTheDocument()
     expect(screen.getByText("Discord")).toBeInTheDocument()
+    expect(screen.getByText("Ko-fi")).toBeInTheDocument()
 
     const kofiLink = screen.getByRole("link", { name: "Support on Ko-fi" })
     expect(kofiLink).toHaveAttribute("href", "https://ko-fi.com/eful97")
     expect(kofiLink).toHaveAttribute("target", "_blank")
     expect(kofiLink).toHaveAttribute("rel", expect.stringContaining("noopener"))
     expect(kofiLink.querySelector("svg")).not.toBeNull()
-    expect(kofiLink.textContent).toBe("")
+    // Solo l'etichetta "Ko-fi": nessun importo né barra di progresso
+    expect(kofiLink.textContent).toBe("Ko-fi")
     expect(screen.queryByText(/VPS:/)).toBeNull()
     expect(screen.queryByText(/€/)).toBeNull()
 

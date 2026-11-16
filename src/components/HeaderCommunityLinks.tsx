@@ -138,9 +138,10 @@ export function MobileCommunityLinks() {
         rel="noopener noreferrer"
         aria-label="Support on Ko-fi"
         title="Support on Ko-fi"
-        className="flex items-center justify-center px-2 py-1 rounded-xl bg-white/[0.05] border border-white/10 text-zinc-300 active:scale-95 transition duration-150"
+        className="flex items-center gap-1.5 px-2.5 py-1 rounded-xl bg-white/[0.05] border border-white/10 text-xs text-zinc-300 active:scale-95 transition duration-150"
       >
         <KofiIcon className="w-3.5 h-3.5" />
+        <span className="text-[11px] font-medium">Ko-fi</span>
       </a>
     </div>
     {/* Tendina sponsor sotto la barra, aperta al primo avvio */}

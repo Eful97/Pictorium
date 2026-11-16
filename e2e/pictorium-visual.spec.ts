@@ -203,10 +203,11 @@ test("home with key — hero podium and status strip", async ({ page }) => {
     return imgs.length >= 1 && imgs.every((i) => i.complete && i.naturalWidth > 0)
   }, { timeout: 30_000, polling: 500 })
   // La poster wall è il fondale dell'hero: decorativa e dipendente dal
-  // caricamento lazy, mascherata come nello screenshot della strip.
+  // caricamento lazy. Non si può mascherare (coprirebbe tutto l'hero): la si
+  // nasconde per questo screenshot.
+  await page.addStyleTag({ content: ".home-stage-wall { visibility: hidden !important; }" })
   await expect(page).toHaveScreenshot("home-key-hero.png", {
     maxDiffPixelRatio: 0.03,
-    mask: [page.locator(".poster-wall")],
   })
   // Strip di stato sotto il carosello
   await page.locator('[data-testid="home-status"]').scrollIntoViewIfNeeded()
