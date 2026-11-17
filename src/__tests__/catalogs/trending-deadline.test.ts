@@ -253,7 +253,7 @@ describe("GET /api/tmdb/trending — percorso sano", () => {
     expect(spy.mock.calls.length).toBe(callsBefore)
   })
 
-  it("gzip, separazione per country e cache JW invariata", async () => {
+  it("JSON non compresso dall'app, separazione per country e cache JW invariata", async () => {
     const tracker = newTracker()
     const ids = Array.from({ length: 20 }, (_, i) => 300 + i)
     const tvIds = Array.from({ length: 20 }, (_, i) => 400 + i)
@@ -262,7 +262,11 @@ describe("GET /api/tmdb/trending — percorso sano", () => {
     const res = await GET(
       req("/api/tmdb/trending?country=IT&api_key=testkey", { ua: "task13-contract" }),
     )
-    expect(res.headers.get("Content-Encoding")).toBe("gzip")
+    // Compressione delegata al server Next: la route consegna JSON leggibile e
+    // si limita a dichiarare Vary. Un gzip fatto a mano qui produceva corpi
+    // illeggibili su Next >= 16.4.5 (header rimosso o doppia compressione).
+    expect(res.headers.get("Content-Encoding")).toBeNull()
+    expect(res.headers.get("Vary")).toContain("Accept-Encoding")
     const json = await readJson(res)
     expect(json.movies).toHaveLength(20)
     expect(json.tv).toHaveLength(20)
