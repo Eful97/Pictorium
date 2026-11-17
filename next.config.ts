@@ -30,6 +30,12 @@ const nextConfig: NextConfig = {
   // React Compiler: ottimizza automaticamente il re-rendering dei componenti,
   // riducendo la necessita' di useMemo/useCallback manuali.
   reactCompiler: true,
+  experimental: {
+    // Policy di upgrade: gli agenti di coding ricevono solo i nudge di
+    // sicurezza (advisory che riguardano la versione installata), non quelli
+    // su release stabili o Future Defaults.
+    agentUpgrade: "security",
+  },
   // DistDir separato per i test E2E (playwright.config.ts): evita il lock
   // "Another next dev server is already running" quando l'utente ha già un
   // `npm run dev` attivo su .next.
