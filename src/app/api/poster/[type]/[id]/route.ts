@@ -557,7 +557,7 @@ export async function GET(req: NextRequest, { params }: { params: Promise<RouteP
     const {
       qQualityParam, rankingEnabledEarly, preJw, preDigital, effectiveCustomUrl, wikidataRaceTimedOut,
       backdropCustomForFetch, originalBase, logoFetch, backdropFetch, rankingResult, animeRankResult,
-      rawLiveQuality, preReleaseDetected, wikidataResult, tmdbKeywords, imdbTop250, ageCert,
+      rawLiveQuality, preReleaseDetected, preInTheaters, wikidataResult, tmdbKeywords, imdbTop250, ageCert,
       ...pendingRating
     } = await fetchRenderData({
       req, hardenedParams, mediaType, tmdbId, mapping, earlyEffMapping, sd, earlyEffSd, configOverride,
@@ -824,7 +824,7 @@ export async function GET(req: NextRequest, { params }: { params: Promise<RouteP
         tmdbId, mediaType, mapping, posterRegion, locale, t, dateFormat, isLandscape, hardenedParams,
         artwork, titleMeta, renderConfig,
         rankingResult, animeRankResult, wikidataResult, wikidataRaceTimedOut, tmdbKeywords, imdbTop250,
-        aggregated, liveQualityResult, preJw, preDigital, preReleaseDetected,
+        aggregated, liveQualityResult, preJw, preDigital, preReleaseDetected, preInTheaters,
         finalRank, finalQuality, qLabel, ageLabel, ageEphemeral, applyPreRelease, accentOverride,
         topLight, bottomLight, bottomActive, useSeparate, effBlurHeight, effBlurFade,
         cacheHit: !!cachedPoster.payload,
@@ -918,6 +918,7 @@ export async function GET(req: NextRequest, { params }: { params: Promise<RouteP
       onAccentMeta: (m) => { collectedAccentMeta = m },
       demoSamples,
       accentOverride, imdbTop250, whatsonFeatures: aggregated?.whatsonFeatures ?? null, preRelease: applyPreRelease,
+      preInTheaters,
       shape: posterShape,
       posterLayout,
       posterFreshScope,

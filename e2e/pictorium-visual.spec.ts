@@ -410,26 +410,35 @@ test.describe("poster API — functional", () => {
     }
   })
 
-  test("ranking number pre-release with unknown availability — Coming Soon overlay renders", async ({ request }) => {
+  test("pre-release split: past theatrical date renders the In theaters badge, future stays upcoming", async ({ request }) => {
     // Matrix (id 603) is absent from the mock JW responses → jwAvailable null.
     // Unknown availability no longer disqualifies: with rd inside the 120-day
-    // theatrical window pre=1 renders the Coming Soon overlay (veil/ribbon),
-    // so the bytes differ from the plain poster. Coming Soon stacking geometry
-    // stays covered by unit tests (numberSharesComingSoonCorner).
+    // theatrical window pre=1 renders the pre-digital overlay. The PHASE
+    // decides the badge: a past theatrical date is already in theaters
+    // (centered "In theaters" extra badge, no ribbon), a future date keeps
+    // the upcoming release badge. Both differ from the plain poster and from
+    // each other. Ribbon stacking geometry stays covered by unit tests
+    // (numberSharesComingSoonCorner).
     // rd is relative to today (never rendered): stable detection.
-    const rd = new Date(Date.now() - 30 * 24 * 3600 * 1000).toISOString().slice(0, 10)
-    const base = { genreName: "Action", voteAverage: "7.8", badges: "1", ranking: "1", rank: "3", label: "Top 3", rs: "number", title: "Matrix", rd }
-    const preRes = await request.get(posterUrl({ ...base, pre: "1" }, "movie", 603))
-    expect(preRes.ok()).toBeTruthy()
-    const preBuffer = await preRes.body()
-    expect(preBuffer.length).toBeGreaterThan(1000)
-    const plainRes = await request.get(posterUrl(base, "movie", 603))
+    const past = new Date(Date.now() - 30 * 24 * 3600 * 1000).toISOString().slice(0, 10)
+    const future = new Date(Date.now() + 60 * 24 * 3600 * 1000).toISOString().slice(0, 10)
+    const base = { genreName: "Action", voteAverage: "7.8", badges: "1", ranking: "1", rank: "3", label: "Top 3", rs: "number", title: "Matrix" }
+    const inTheatersRes = await request.get(posterUrl({ ...base, rd: past, pre: "1" }, "movie", 603))
+    expect(inTheatersRes.ok()).toBeTruthy()
+    const inTheatersBuffer = await inTheatersRes.body()
+    expect(inTheatersBuffer.length).toBeGreaterThan(1000)
+    const upcomingRes = await request.get(posterUrl({ ...base, rd: future, pre: "1" }, "movie", 603))
+    expect(upcomingRes.ok()).toBeTruthy()
+    const upcomingBuffer = await upcomingRes.body()
+    const plainRes = await request.get(posterUrl({ ...base, rd: past }, "movie", 603))
     expect(plainRes.ok()).toBeTruthy()
-    expect(Buffer.compare(preBuffer, await plainRes.body())).not.toBe(0)
-    // side=right specchia comunque il numerale (stesso switch del nastro).
-    const rightRes = await request.get(posterUrl({ ...base, pre: "1", side: "right" }, "movie", 603))
+    expect(Buffer.compare(inTheatersBuffer, await plainRes.body())).not.toBe(0)
+    // Two phases never alias: the label/geometry differ.
+    expect(Buffer.compare(inTheatersBuffer, upcomingBuffer)).not.toBe(0)
+    // side=right specchia comunque il badge (stesso switch del nastro).
+    const rightRes = await request.get(posterUrl({ ...base, rd: past, pre: "1", side: "right" }, "movie", 603))
     expect(rightRes.ok()).toBeTruthy()
-    expect(Buffer.compare(preBuffer, await rightRes.body())).not.toBe(0)
+    expect(Buffer.compare(inTheatersBuffer, await rightRes.body())).not.toBe(0)
   })
 
   test("quality style: knockout with verified Dolby — stacked group differs from formats=none", async ({ request }) => {

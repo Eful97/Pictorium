@@ -533,6 +533,15 @@ export interface GenerationInput {
    */
   preRelease?: boolean
   /**
+   * Fase teatrale del rilevamento pre-digitale (solo film): true = già uscito
+   * in sala (data teatrale passata), false = non ancora uscito. Cambia
+   * l'etichetta del badge ("Al cinema" vs "Prossimamente") e, per la fase in
+   * sala, spegne velo scuro e sfocatura: resta il solo badge. Il nastro
+   * angolare resta legato al solo "Prossimamente". Ignorato con `preRelease`
+   * false.
+   */
+  preInTheaters?: boolean
+  /**
    * Formato canvas (prova orizzontale): "poster" (500×750, default) o
    * "landscape" (768×432, base = backdrop TMDB). La route costruisce già
    * `posterBuf` alle dimensioni giuste; qui CW/CH guidano solo overlay,
@@ -970,6 +979,7 @@ export async function generatePosterBuffer(input: GenerationInput): Promise<Buff
     qLabel, queryExtra, qNetLogo, networkLogo, networkLogoPosition = "auto", networkLogoFollowTitle, networkFixedX, networkFixedY, onNetworkGeometry, onBadgeGeometry, badgeItemTransforms, badgeHomeGhosts, onAccentMeta, sd, accentOverride, imdbTop250, whatsonFeatures,
     logoSrc, backdropSrc, analysisKey,
     preRelease = false,
+    preInTheaters = false,
     hideLogo = false,
     seasonalTheme = null,
     logoScrimDisabled,
@@ -1103,14 +1113,18 @@ export async function generatePosterBuffer(input: GenerationInput): Promise<Buff
   // contenuto con il proprio selettore (`preRelease`), quindi resta visibile
   // anche con le classifiche o gli extra spenti. Il custom (`extra=`) è invece
   // soggetto al master: quando gli extra sono spenti non può risuscitarlo.
-  // Reso come nastro angolare rosso in alto a sinistra (non pill centrale).
+  // Fase teatrale: un film già uscito in sala usa l'etichetta "Al cinema"
+  // (badge extra normale, nessun nastro); solo il non-ancora-uscito resta
+  // "Prossimamente" col nastro angolare rosso.
   const comingSoonLabel = t("badge.comingSoon")
+  const inTheatersLabel = t("badge.inTheaters")
+  const preReleaseLabel = preInTheaters ? inTheatersLabel : comingSoonLabel
   if (preRelease && !gatedQueryExtra) {
     const isUpcoming = computed.upcomingRelease
       && topBadge?.type === "extra"
       && topBadge.label === computed.upcomingRelease
     if (!isUpcoming) {
-      topBadge = { type: "extra" as const, label: comingSoonLabel }
+      topBadge = { type: "extra" as const, label: preReleaseLabel }
     }
   }
   const showComingSoon = !!preRelease && !gatedQueryExtra
@@ -1452,8 +1466,11 @@ export async function generatePosterBuffer(input: GenerationInput): Promise<Buff
   // Velo pre-digitale: sopra poster/vignetta ma sotto logo e badge (restano
   // luminosi e leggibili). Stato del contenuto con il proprio selettore
   // (`preRelease`), indipendente dal master "Badge extra" e dalle classifiche.
+  // Solo fase "non ancora uscito": un film già in sala mostra il solo badge
+  // "Al cinema", con artwork nitido e non scurito (la sfocatura finale è
+  // legata a `showComingSoon`, quindi già assente in questa fase).
   // Costante cachata, nessun cambio di output a flag spento.
-  if (preRelease) {
+  if (preRelease && !preInTheaters) {
     composites.push({ input: await getPreReleaseDim(CW, CH), top: 0, left: 0 })
   }
   // Ombra lineare superiore (default 50 × 25% canvas): sopra vignetta/velo

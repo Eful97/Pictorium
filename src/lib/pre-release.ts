@@ -104,20 +104,34 @@ export interface PreReleaseInput {
 }
 
 /**
- * True se il film è in stato pre-digitale. Fail-open: a dati ignoti il
- * poster resta normale (nastro solo con dati certi, mai per un buco nei
- * metadati).
+ * Fase teatrale di un film in stato pre-digitale:
+ * - `upcoming`: non ancora uscito (data teatrale futura, o digitale futuro
+ *   senza data teatrale passata) → badge "Prossimamente".
+ * - `inTheaters`: già uscito in sala (data teatrale passata, dentro la
+ *   finestra) e non ancora digitale → badge "Al cinema".
  */
-export function isDigitalPreRelease(input: PreReleaseInput): boolean {
-  if (input.mediaType !== "movie") return false
+export type TheatricalPhase = "upcoming" | "inTheaters"
+
+/**
+ * Fase teatrale del film, con la stessa precedenza di `isDigitalPreRelease`
+ * (JustWatch vince su TMDB; senza data digitale conta la finestra theatrical).
+ * Fail-open: a dati ignoti ritorna null e il poster resta normale (mai
+ * scurire per un buco nei metadati).
+ *
+ * La distinzione è SOLO la data teatrale: una data digitale futura resta
+ * "upcoming" anche con un'uscita in sala recente — sappiamo che il film ha
+ * una release digitale programmata, quindi non affermiamo che sia in sala.
+ */
+export function resolveTheatricalPhase(input: PreReleaseInput): TheatricalPhase | null {
+  if (input.mediaType !== "movie") return null
   // JustWatch ha la precedenza: offerte presenti = disponibile, punto.
-  if (input.jwAvailable === true) return false
+  if (input.jwAvailable === true) return null
   const now = input.now ?? Date.now()
 
   if (input.digitalDate) {
     const t = Date.parse(`${input.digitalDate}T00:00:00Z`)
-    if (!Number.isFinite(t)) return false
-    return t > now
+    if (!Number.isFinite(t)) return null
+    return t > now ? "upcoming" : null
   }
 
   // Senza data digitale: pre-release solo con prova POSITIVA, cioè JustWatch
@@ -128,9 +142,17 @@ export function isDigitalPreRelease(input: PreReleaseInput): boolean {
   // Un film vecchio senza offerte è quasi sempre un buco dati → normale.
   if (input.jwAvailable === false && input.theatricalDate) {
     const t = Date.parse(input.theatricalDate)
-    if (!Number.isFinite(t)) return false
-    if (t > now) return true
-    return now - t < THEATRICAL_WINDOW_MS
+    if (!Number.isFinite(t)) return null
+    if (t > now) return "upcoming"
+    return now - t < THEATRICAL_WINDOW_MS ? "inTheaters" : null
   }
-  return false
+  return null
+}
+
+/**
+ * True se il film è in stato pre-digitale (una qualsiasi delle due fasi).
+ * Fail-open: a dati ignoti il poster resta normale.
+ */
+export function isDigitalPreRelease(input: PreReleaseInput): boolean {
+  return resolveTheatricalPhase(input) !== null
 }

@@ -187,7 +187,7 @@ paths (or TMDB `file_path`s) are accepted.
 | `side` | `left`/`right` | server decide | Netflix ribbon / network logo side. Pass explicitly for deterministic output. |
 | `ac` | hex color | auto | Accent color override (sampled from artwork when omitted). |
 | `tl` | `1`/`0` | auto | Top-light text mode. Omit to let the server compute it from the artwork luminance. |
-| `pre` | `1` | off | Pre-digital effect (dark veil + "Coming Soon" ribbon), films only, default OFF. |
+| `pre` | `1` | off | Pre-digital effect (dark veil + "Coming Soon" ribbon), films only, default OFF. Movies already in theaters get only a centered "In theaters" badge (no veil, no blur). |
 | `lang` | e.g. `it`, `en` | `it` | Artwork/metadata language. |
 | `region` | e.g. `IT`, `US` | server default | JustWatch charts region (rankings, quality, pre-release detection). |
 | `title` | text (≤ 200) | — | **Send it.** Title used for the JustWatch match (quality + pre-release detection). Without it the match falls back to generic values and degrades. |

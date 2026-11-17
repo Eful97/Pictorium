@@ -24,7 +24,7 @@
 * **Vertical Netflix Top 10 ribbon**: the iconic red side ribbon with live rank position (dedicated support for anime series).
 * **Film awards & accolades**: automatic recognition of Oscars, Cannes, BAFTA, Emmy, and the *"Absolute Cinema"* badge for IMDb Top 250 titles.
 * **Always-in-sync charts**: Top 10/20 badges track live charts; if a title leaves the ranking, its badge updates automatically.
-* **✨ Pre-Digital Effect (Coming Soon)**: for movies out in theaters but not yet streaming (detected via JustWatch/TMDB): darkened poster with a red "Coming Soon" corner ribbon. It is a per-request URL flag (`pre=1`) or a library-wide default, not a per-title saved field.
+* **✨ Pre-Digital Effect (Coming Soon / In theaters)**: for movies out in theaters but not yet streaming (detected via JustWatch/TMDB): darkened poster with a red "Coming Soon" corner ribbon, or — for a movie already released in theaters — just a centered "In theaters" badge on the untouched artwork (no veil, no blur). It is a per-request URL flag (`pre=1`) or a library-wide default, not a per-title saved field.
 * **🔌 Custom rating provider**: display external ratings from any HTTP(S) API (via IMDb ID) with dedicated pills. See [docs/custom-rating.md](custom-rating.md).
 
 </details>
