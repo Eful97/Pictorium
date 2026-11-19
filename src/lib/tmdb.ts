@@ -976,6 +976,17 @@ export async function getReleaseDates(mediaType: "movie" | "tv", id: number, api
   return parseTmdb<TMDBReleaseDatesResponse>("release_dates", tmdbReleaseDatesSchema, data)
 }
 
+export interface TMDBWatchProvidersResponse {
+  id: number
+  results?: Record<string, Record<string, unknown> | undefined>
+}
+
+/** Provider streaming per paese (`/{type}/{id}/watch/providers`), chiave tmdbId. */
+export async function getWatchProviders(mediaType: "movie" | "tv", id: number, apiKey?: string, signal?: AbortSignal, timeoutMs = 30000): Promise<TMDBWatchProvidersResponse> {
+  const data = await tmdbFetch(`/${mediaType}/${id}/watch/providers`, apiKey, signal, timeoutMs)
+  return data as TMDBWatchProvidersResponse
+}
+
 const tmdbContentRatingItemSchema = z.object({
   iso_3166_1: z.string(),
   rating: z.string().nullable().optional(),

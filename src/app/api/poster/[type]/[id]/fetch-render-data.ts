@@ -14,10 +14,11 @@ import { type WikidataResult, fetchAllWikidata } from "@/lib/awards"
 import { buildTextLogoBuffer } from "@/lib/svg-badge"
 import { combineAbortSignals } from "@/lib/abort-signal"
 import { cropBackdropToPortrait, landscapeBackdropUrl } from "@/lib/image-utils"
-import { extractDigitalReleaseDate, isDigitalPreRelease } from "@/lib/pre-release"
+import { extractDigitalReleaseDate, extractProviderAvailability, isDigitalPreRelease } from "@/lib/pre-release"
 import { fetchAggregatedRating, isMdbTmdbIdentityUsable } from "@/lib/ratings"
 import { fetchImg, fetchLogoImg, imgSrc } from "@/lib/poster-render-helpers"
 import { fetchPosterBaseWithCustom, fetchValidatedCustomImage, resolveEffectiveCustomUrl, safeTmdbImgSrc } from "@/lib/custom-poster-base"
+import * as tmdbApi from "@/lib/tmdb"
 import { getContentRatings, getExternalIds, getKeywords, getReleaseDates } from "@/lib/tmdb"
 import { getTMDBSessionCache } from "@/lib/tmdb-session-cache"
 import { hasJWOffers } from "@/lib/justwatch"
@@ -378,12 +379,23 @@ export async function fetchRenderData(
                   hasJWOffers(tmdbId, "MOVIE", preTitle, posterRegion.code, renderAbort.signal).catch(() => null),
                 ])
                 preDigital = relDates ? extractDigitalReleaseDate(relDates, posterRegion.code) : null
-                preJw = jw
+                // JW non ha risposto/trovato il titolo (ricerca per titolo, top 5):
+                // secondo parere per tmdbId dai watch providers TMDB della
+                // regione. Solo un esito positivo cambia il verdetto; ogni
+                // errore lascia `jw` com'è (mai un flip per un buco dati).
+                let jwEff = jw
+                if (jwEff !== true) {
+                  try {
+                    const wp = await tmdbApi.getWatchProviders(mediaType, tmdbId, apiKey, renderAbort.signal, POSTER_TMDB_TIMEOUT_MS)
+                    if (extractProviderAvailability(wp, posterRegion.code) === true) jwEff = true
+                  } catch { /* fail-open: verdetto invariato */ }
+                }
+                preJw = jwEff
                 return isDigitalPreRelease({
                   mediaType,
                   theatricalDate: titleMeta.releaseDate ?? mapping?.releaseDate ?? null,
                   digitalDate: preDigital,
-                  jwAvailable: jw,
+                  jwAvailable: jwEff,
                 })
               } catch {
                 return false

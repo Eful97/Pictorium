@@ -141,7 +141,7 @@ describe("isDigitalPreRelease", () => {
     ).toBe(true)
   })
 
-  it("JW unknown (null) + recent theatrical is pre-release (no flapping on JW errors)", () => {
+  it("JW unknown (null) + recent theatrical is NOT pre-release (no ribbon unless sure)", () => {
     expect(
       isDigitalPreRelease({
         mediaType: "movie",
@@ -150,7 +150,7 @@ describe("isDigitalPreRelease", () => {
         jwAvailable: null,
         now: NOW,
       }),
-    ).toBe(true)
+    ).toBe(false)
   })
 
   it("JW unknown (null) + old theatrical is a data gap, not pre-release", () => {
@@ -165,7 +165,7 @@ describe("isDigitalPreRelease", () => {
     ).toBe(false)
   })
 
-  it("JW unknown (null) + future theatrical is pre-release", () => {
+  it("JW unknown (null) + future theatrical is NOT pre-release (no ribbon unless sure)", () => {
     expect(
       isDigitalPreRelease({
         mediaType: "movie",
@@ -174,7 +174,7 @@ describe("isDigitalPreRelease", () => {
         jwAvailable: null,
         now: NOW,
       }),
-    ).toBe(true)
+    ).toBe(false)
   })
 
   it("JW true + future theatrical without digital date is not pre-release", () => {
