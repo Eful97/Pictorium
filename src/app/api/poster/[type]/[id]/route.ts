@@ -703,7 +703,7 @@ export async function GET(req: NextRequest, { params }: { params: Promise<RouteP
       networkLogoOffsetX, networkLogoOffsetY,
       queryExtra, qNetLogo, networkLogo, networkLogoPosition, ribbonSide, ribbonEnabled, rankingBadgeAccent,
       networkLogoFollowTitle, networkFixedX, networkFixedY,
-      watchProviders, watchRegion,
+      watchProviders, watchRegion, typeIcon,
       preRelease, posterShape, posterLayout, posterFreshScope, logoAlign, seasonalTheme, hideLogo,
     } = renderConfig
 
@@ -925,6 +925,7 @@ export async function GET(req: NextRequest, { params }: { params: Promise<RouteP
       mapping, tmdbId, digitalReleaseDate: preDigital ?? null, tmdbNetworks: titleMeta.tmdbNetworks, productionCompanies: titleMeta.productionCompanies, tmdbStudios: titleMeta.tmdbStudios,
       tmdbNetworksDetailed: titleMeta.tmdbNetworksDetailed, productionCompaniesDetailed: titleMeta.productionCompaniesDetailed,
       ...(watchProviderList.length > 0 ? { watchProviders: watchProviderList } : {}),
+      ...(typeIcon ? { typeIcon: true } : {}),
       tvType: titleMeta.tvType, tvStatus: titleMeta.tvStatus, releaseDate: titleMeta.releaseDate, firstAirDate: titleMeta.firstAirDate,
       lastAirDate: titleMeta.lastAirDate, seasonCount: titleMeta.seasonCount, nextEpisodeAirDate: titleMeta.nextEpisodeAirDate, numberOfEpisodes: titleMeta.numberOfEpisodes, originCountries: titleMeta.originCountries, genreIds: titleMeta.genreIds,
       wikidataResult, tmdbKeywords, locale, t,

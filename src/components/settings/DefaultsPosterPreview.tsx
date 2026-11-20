@@ -312,6 +312,7 @@ export function buildDefaultsPreviewUrlFromEditor(
       defaultDisabledNetworks: ed.defaultDisabledNetworks ?? undefined,
       defaultWatchProviders: ed.defaultWatchProviders ?? undefined,
       defaultWatchRegion: ed.defaultWatchRegion ?? undefined,
+      defaultTypeIcon: previewIsLandscape ? ed.defaultTypeIconLandscape : ed.defaultTypeIcon,
       previewFamily: opts.previewFamily ?? null,
       previewExtra,
     })

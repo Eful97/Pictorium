@@ -172,6 +172,8 @@
   "ui.tmdbFallbackHint": "Vedlejší integrované značky plus loga studií a stanic z TMDB pro tituly bez zvýrazněné značky. Vypnutí nikdy neskryje výše uvedené zvýrazněné značky.",
   "ui.watchProvidersLabel": "Show where to watch",
   "ui.watchProvidersHint": "Replaces the production network logo with the streaming services (subscription) that carry the title in the chosen country. Needs your TMDB key.",
+  "ui.typeIconLabel": "Type icon",
+  "ui.typeIconHint": "Small movie/TV icon before the genre · rating · year line, to tell films and series apart in mixed catalogs.",
   "ui.watchRegionLabel": "Streaming country",
   "ui.watchRegionSame": "Same as poster country",
   "ui.otherNetworksMixedHint": "Některé vedlejší značky zůstávají jednotlivě vypnuté. Vypněte skupinu a znovu ji zapněte, abyste je všechny znovu aktivovali.",

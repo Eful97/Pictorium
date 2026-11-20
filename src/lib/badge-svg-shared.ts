@@ -1,6 +1,7 @@
 import type { BadgeStyle, RankingBadgeStyle, BadgeFont, NotchMaterial, NotchEdge } from "./badge-styles"
 import { isBadgeFont, notchMaterialOf } from "./badge-styles"
 import { apcaLc, isWarmGoldAccent, textColorForBg } from "./accent-color"
+import { TYPE_ICON_PATHS, TYPE_ICON_INK_W, type TypeIconKind } from "./type-icon-glyphs"
 import { AV_PLATE_RADIUS_FACTOR, AV_PLATE_STROKE_WIDTH, COLOR_MARK_GLYPH, COLOR_MARK_PLATE_BG, COLOR_MARK_PLATE_STROKE, GRADIENT_PLATE_BG, GRADIENT_PLATE_STROKE, PREMIUM_PLATE_BG, PREMIUM_PLATE_STROKE, premiumAccentHex } from "./quality-badge-styles"
 
 const TEXT_SAFE_PAD = 1.15
@@ -259,6 +260,8 @@ export interface GenreParts {
   readonly showGenre?: boolean
   readonly showYear?: boolean
   readonly showRating?: boolean
+  /** Glifo film/serie inline davanti alla riga (solo glifo, senza sfondo). */
+  readonly typeIcon?: TypeIconKind | null
 }
 
 function normalizeParts(parts?: GenreParts): Required<GenreParts> {
@@ -266,6 +269,7 @@ function normalizeParts(parts?: GenreParts): Required<GenreParts> {
     showGenre: parts?.showGenre ?? true,
     showYear: parts?.showYear ?? true,
     showRating: parts?.showRating ?? true,
+    typeIcon: parts?.typeIcon ?? null,
   }
 }
 
@@ -298,12 +302,16 @@ export function genreBadgeSvgDims(fs: number, genreName: string, voteStr: string
   const segRating = voteW > 0 ? 1 : 0
   const segYear = yearW > 0 ? 1 : 0
   const segCount = segGenre + segRating + segYear
-  const textContentW = segCount > 0
+  // Glifo tipo inline: larghezza = inchiostro (≈0.8 fs) + spazio verso il testo.
+  const iconW = opts.typeIcon ? Math.round(fs * 0.8) : 0
+  // Come ogni altro segmento: spazio + puntino + spazio verso il testo.
+  const iconGap = opts.typeIcon && segCount > 0 ? gap + bulletW + gap : 0
+  const textContentW = (segCount > 0
     ? (genreW + (segRating ? starW + gapStar + voteW : 0) + yearW) + (segCount - 1) * (gap + bulletW + gap)
-    : 0
+    : 0) + iconW + iconGap
   const totalW = textContentW + buf
   const svgH = badgeBoxHeight(fs)
-  return { starW, gap, gapStar, totalW, svgH, genreW, voteW, yearW, bulletW, textContentW }
+  return { starW, gap, gapStar, totalW, svgH, genreW, voteW, yearW, bulletW, textContentW, iconW, iconGap }
 }
 
 function buildGenreTextFlow({ genreName, voteStr, yearStr, fs, centerX, y, parts, style, starFill, font = "inter" }: GenreTextFlowArgs) {
@@ -349,6 +357,18 @@ function buildGenreTextFlow({ genreName, voteStr, yearStr, fs, centerX, y, parts
     texts.push(`<text x="${round2(cx)}" y="${y}" text-anchor="middle" dominant-baseline="central" font-family="${flowFamily}" font-weight="${GENRE_FONT_WEIGHT}" font-size="${fs}"${textFitAttrs(w)}${op}>${escSvg(text)}</text>`)
   }
   let cursor = centerX - dims.textContentW / 2
+  let iconEl = ""
+  if (opts.typeIcon) {
+    // Inchiostro x 3..21, y 4..20 nel viewBox 24: centrato verticalmente su `y`.
+    const s = dims.iconW / TYPE_ICON_INK_W
+    iconEl = `<path fill-rule="evenodd" transform="translate(${round2(cursor - 3 * s)},${round2(y - 12 * s)}) scale(${round2(s)})" d="${TYPE_ICON_PATHS[opts.typeIcon]}"/>`
+    cursor += dims.iconW
+    if (dims.iconGap > 0) {
+      cursor += dims.gap
+      segText(bulletText, cursor + dims.bulletW / 2, dims.bulletW, 0.45)
+      cursor += dims.bulletW + dims.gap
+    }
+  }
   if (hasGenre) {
     segText(genreName, cursor + dims.genreW / 2, dims.genreW)
     cursor += dims.genreW
@@ -374,7 +394,7 @@ function buildGenreTextFlow({ genreName, voteStr, yearStr, fs, centerX, y, parts
     segText(yearStr, cursor + dims.yearW / 2, dims.yearW)
     cursor += dims.yearW
   }
-  let t = texts.join("")
+  let t = iconEl + texts.join("")
   if (starCx !== null) {
     t += `<g transform="translate(${round2(starCx)},${round2(y + starDy)})" fill="${starFill ?? "url(#starg)"}"><path d="${starPath(starR)}"/></g>`
   }

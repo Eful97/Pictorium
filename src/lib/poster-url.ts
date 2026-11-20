@@ -186,6 +186,8 @@ interface BadgeParams {
   /** "Dove guardare": `wp=0|1` esplicito quando definito, `wpr` solo se valido. */
   watchProviders?: boolean | null
   watchRegion?: string | null
+  /** Icona tipo film/serie già risolta per la forma: `ti=0|1` esplicito quando definito. */
+  typeIcon?: boolean | null
 }
 
 interface PosterState {
@@ -662,6 +664,7 @@ export function buildPreviewUrl(ps: PosterState, bp: BadgeParams, configToken?: 
     params.push(`dnet=${encodeURIComponent(ids.join(","))}`)
   }
   pushWatchProviderParams(params, bp.watchProviders, bp.watchRegion)
+  if (bp.typeIcon != null) params.push(`ti=${bp.typeIcon ? "1" : "0"}`)
   // Cornice stagionale (scelta per-titolo sopra il contesto lista di
   // origine, su entrambi i canvas col proprio asset — portrait 500×750,
   // landscape 768×432; senza contesto né scelta nessun parametro (URL
@@ -899,6 +902,8 @@ export interface DefaultsPreviewParams {
   /** "Dove guardare" di default (stesso contratto di `watchProviders`). */
   defaultWatchProviders?: boolean | null
   defaultWatchRegion?: string | null
+  /** Icona tipo già risolta per la forma in anteprima (`ti=0|1` esplicito). */
+  defaultTypeIcon?: boolean | null
   /** Preview-only editing family: `rank` targets the rank bucket (`sash=rank`
    *  when the configured preview can paint a rank; otherwise the actual
    *  without-ranking composition, never an empty third state); `info`/`extra`
@@ -1043,6 +1048,7 @@ export function buildDefaultsPreviewUrl(bp: DefaultsPreviewParams): string {
     params.push(`dnet=${encodeURIComponent(ids.join(","))}`)
   }
   pushWatchProviderParams(params, bp.defaultWatchProviders, bp.defaultWatchRegion)
+  if (bp.defaultTypeIcon != null) params.push(`ti=${bp.defaultTypeIcon ? "1" : "0"}`)
   // Preview-only info sample (Informazioni family): explicit `extra=` wins
   // over the computed badge exactly like an editor custom badge; ignored when
   // ranking is off, so a disabled master never shows a phantom sample.

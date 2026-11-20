@@ -498,6 +498,8 @@ export interface PosterRenderConfig {
   watchProviders: boolean
   /** Paese provider (`wpr`, codice REGIONS) o null = paese del poster. */
   watchRegion: string | null
+  /** Icona tipo film/serie (`ti`): default per forma (portrait/landscape indipendenti). */
+  typeIcon: boolean
   /** Riga rating custom provider (display). Default ON quando il provider è configurato. */
   customRatings: boolean
   ratingSources: string[]
@@ -994,6 +996,11 @@ export function resolvePosterRenderConfig(input: PosterRenderConfigInput): Poste
   const watchProviders: boolean = rawWp !== null ? rawWp !== "0" : (configOverride?.watchProviders ?? sd.watchProviders ?? false)
   const watchRegion: string | null = sanitizeWatchRegion(q.get("wpr"))
     ?? sanitizeWatchRegion(configOverride?.watchRegion) ?? sanitizeWatchRegion(sd.watchRegion)
+  // Icona tipo — query `ti` > default per forma (`typeIcon` portrait / `typeIconLandscape`) > OFF.
+  const rawTi = q.get("ti")
+  const typeIcon: boolean = rawTi !== null
+    ? rawTi !== "0"
+    : ((posterShape === "landscape" ? sd.typeIconLandscape : sd.typeIcon) ?? false)
 
   // Custom rating provider row (display) — precedence: query `cr` > mapping
   // effettivo per formato > config token/profile > effective per-shape defaults > true
@@ -1437,6 +1444,7 @@ export function resolvePosterRenderConfig(input: PosterRenderConfigInput): Poste
     disabledNetworks,
     watchProviders,
     watchRegion,
+    typeIcon,
     customRatings,
     ratingSources,
     separateRatings,

@@ -160,6 +160,9 @@ export interface DefaultsState {
   defaultWatchProviders: boolean
   /** Paese provider (codice REGIONS) o null = paese del poster. */
   defaultWatchRegion: string | null
+  /** Icona tipo film/serie, verticale / landscape indipendenti (default OFF). */
+  defaultTypeIcon: boolean
+  defaultTypeIconLandscape: boolean
   defaultAutoRotateClean: boolean
   /**
    * Default rotazione poster: include anche i poster della lingua corrente
@@ -392,6 +395,8 @@ const DEFAULT_FLAT_DEFAULTS: Omit<DefaultsState, "landscape"> = {
   defaultDisabledNetworks: [],
   defaultWatchProviders: false,
   defaultWatchRegion: null,
+  defaultTypeIcon: false,
+  defaultTypeIconLandscape: false,
   defaultAutoRotateClean: false,
   defaultRotationIncludeNonClean: false,
   defaultAutoRotateBackdrop: false,
@@ -636,6 +641,10 @@ interface StoredDefaults {
   watchProviders?: boolean
   defaultWatchRegion?: string | null
   watchRegion?: string | null
+  defaultTypeIcon?: boolean
+  typeIcon?: boolean
+  defaultTypeIconLandscape?: boolean
+  typeIconLandscape?: boolean
   defaultAutoRotateClean?: boolean
   /** Default rotazione poster (Solo clean / Clean + lingua). */
   defaultRotationIncludeNonClean?: boolean
@@ -1059,6 +1068,8 @@ function buildFromStored(d: StoredDefaults | null): DefaultsState {
     defaultDisabledNetworks: sanitizeDisabledNetworks(d.defaultDisabledNetworks ?? d.disabledNetworks),
     defaultWatchProviders: d.defaultWatchProviders ?? d.watchProviders ?? false,
     defaultWatchRegion: sanitizeWatchRegion(d.defaultWatchRegion ?? d.watchRegion),
+    defaultTypeIcon: d.defaultTypeIcon ?? d.typeIcon ?? false,
+    defaultTypeIconLandscape: d.defaultTypeIconLandscape ?? d.typeIconLandscape ?? false,
     defaultAutoRotateClean: d.defaultAutoRotateClean ?? d.autoRotateClean ?? false,
     defaultRotationIncludeNonClean: d.defaultRotationIncludeNonClean ?? false,
     defaultAutoRotateBackdrop: d.defaultAutoRotateBackdrop ?? false,
@@ -1307,6 +1318,8 @@ export function defaultsToPayload(d: DefaultsState): Record<string, unknown> {
     // Solo ON nel payload locale: i default salvati legacy restano identici (OFF = assente).
     watchProviders: d.defaultWatchProviders ? true : undefined,
     watchRegion: d.defaultWatchRegion ?? undefined,
+    typeIcon: d.defaultTypeIcon ? true : undefined,
+    typeIconLandscape: d.defaultTypeIconLandscape ? true : undefined,
     autoRotateClean: d.defaultAutoRotateClean,
     defaultRotationIncludeNonClean: d.defaultRotationIncludeNonClean,
     defaultAutoRotateBackdrop: d.defaultAutoRotateBackdrop,
@@ -1646,6 +1659,12 @@ export function useDefaults() {
           if (currentStored?.defaultWatchProviders === undefined && currentStored?.watchProviders === undefined && typeof serverData.watchProviders === "boolean") {
             merged.defaultWatchProviders = serverData.watchProviders
             merged.defaultWatchRegion = typeof serverData.watchRegion === "string" ? serverData.watchRegion : null
+          }
+          if (currentStored?.defaultTypeIcon === undefined && currentStored?.typeIcon === undefined && typeof serverData.typeIcon === "boolean") {
+            merged.defaultTypeIcon = serverData.typeIcon
+          }
+          if (currentStored?.defaultTypeIconLandscape === undefined && currentStored?.typeIconLandscape === undefined && typeof serverData.typeIconLandscape === "boolean") {
+            merged.defaultTypeIconLandscape = serverData.typeIconLandscape
           }
           if (!currentStored?.defaultVideoFormats && Array.isArray(serverData.videoFormats)) {
             merged.defaultVideoFormats = serverData.videoFormats

@@ -1600,6 +1600,15 @@ export function BadgeDefaultsSection({ active, shape, onPreviewFamilyChange, pre
                 />
               </div>
               </fieldset>
+              {/* Icona tipo film/serie: glifo davanti alla riga; verticale e landscape indipendenti (segue la forma in modifica). */}
+              <div className="flex items-center justify-between" title={t("ui.typeIconHint")}>
+                <span className="text-muted">{t("ui.typeIconLabel")}</span>
+                <Toggle
+                  value={isLandscape ? ed.defaultTypeIconLandscape === true : ed.defaultTypeIcon === true}
+                  onChange={isLandscape ? ed.setDefaultTypeIconLandscape : ed.setDefaultTypeIcon}
+                  label={t("ui.typeIconLabel")}
+                />
+              </div>
             </div>
           )}
 

@@ -172,6 +172,8 @@
   "ui.tmdbFallbackHint": "注目マークのないタイトル向けのバンドル済みサブマークとTMDB由来のスタジオ・ネットワークロゴ。オフにしても上記の注目マークは隠れません。",
   "ui.watchProvidersLabel": "Show where to watch",
   "ui.watchProvidersHint": "Replaces the production network logo with the streaming services (subscription) that carry the title in the chosen country. Needs your TMDB key.",
+  "ui.typeIconLabel": "Type icon",
+  "ui.typeIconHint": "Small movie/TV icon before the genre · rating · year line, to tell films and series apart in mixed catalogs.",
   "ui.watchRegionLabel": "Streaming country",
   "ui.watchRegionSame": "Same as poster country",
   "ui.otherNetworksMixedHint": "一部のサブマークは個別にオフのままです。すべて有効にするにはグループをオフ→オンしてください。",

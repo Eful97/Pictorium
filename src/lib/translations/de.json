@@ -172,6 +172,8 @@
   "ui.tmdbFallbackHint": "Sekundäre mitgelieferte Marken plus Studio- und Senderlogos von TMDB für Titel ohne hervorgehobene Marke. Deaktivieren blendet die hervorgehobenen Logos oben niemals aus.",
   "ui.watchProvidersLabel": "Show where to watch",
   "ui.watchProvidersHint": "Replaces the production network logo with the streaming services (subscription) that carry the title in the chosen country. Needs your TMDB key.",
+  "ui.typeIconLabel": "Type icon",
+  "ui.typeIconHint": "Small movie/TV icon before the genre · rating · year line, to tell films and series apart in mixed catalogs.",
   "ui.watchRegionLabel": "Streaming country",
   "ui.watchRegionSame": "Same as poster country",
   "ui.otherNetworksMixedHint": "Einige sekundäre Marken bleiben einzeln deaktiviert. Schalte die Gruppe aus und wieder ein, um alle zu reaktivieren.",

@@ -1,4 +1,5 @@
 import { renderWatchProviderRow } from "@/lib/watch-providers-render"
+import { renderTypeIcon } from "@/lib/type-icon-render"
 import type { WatchProvider } from "@/lib/watch-providers"
 import sharp from "sharp"
 import type { RatingItem } from "./custom-rating/types"
@@ -47,7 +48,7 @@ import { DEFAULT_IMAGE_QUALITY, POSTER_ENCODE_QUALITY, type ImageQuality } from 
 import { qualityBadgeIconPath } from "./quality-badge-styles"
 import type { QualityBadgeStyle } from "./badge-styles"
 import { isRankKey } from "./i18n"
-import { composeFreshOverlay, composeFreshOverlaySplit, isEffectiveFreshLayout, isFreshRank, prepareFreshReconstructedBackground, type ComposeFreshInput, type FreshOverlayGeometry } from "./fresh-layout"
+import { composeFreshOverlay, composeFreshOverlaySplit, freshMetaRows, isEffectiveFreshLayout, isFreshRank, prepareFreshReconstructedBackground, type ComposeFreshInput, type FreshOverlayGeometry } from "./fresh-layout"
 import { renderCardPoster, aggregateCardRating, cardMetadataBand, type CardOverlayGeometry } from "./card-layout"
 import { cardLayoutGeometry, isCardRankDisplayable } from "./card-layout-geometry"
 import { isEffectiveCardLayout, type CardSkin } from "./card-layout-skins"
@@ -358,6 +359,8 @@ export interface GenerationInput {
   tmdbNetworksDetailed?: readonly NetworkCandidate[]
   /** "Dove guardare": provider flatrate già risolti dalla route; se presenti sostituiscono il logo network. */
   watchProviders?: readonly WatchProvider[]
+  /** Icona tipo film/serie in basso a sinistra (`ti`), default OFF. */
+  typeIcon?: boolean
   productionCompaniesDetailed?: readonly NetworkCandidate[]
   tvType: string | null
   tvStatus: string | null
@@ -834,6 +837,8 @@ export async function renderCardMainBadge(args: {
   readonly showGenre: boolean
   readonly showYear: boolean
   readonly showRating: boolean
+  /** Icona tipo film/serie inline (stessa riga del genere). */
+  readonly typeIcon?: "movie" | "tv" | null
   readonly badgePw: number
   readonly CW: number
   readonly badgeStyle: BadgeStyle
@@ -843,11 +848,11 @@ export async function renderCardMainBadge(args: {
   readonly nativeScale: number
 }): Promise<{ png: Buffer; w: number; h: number } | null> {
   const vote = args.aggregate ?? 0
-  const key = badgeCacheKey("card-genre", args.genreName, vote, args.CW, args.year, args.badgeStyle, args.badgeFont, args.accentColor, args.bottomLight, args.showGenre, args.showYear, args.showRating, args.nativeScale)
+  const key = badgeCacheKey("card-genre", args.genreName, vote, args.CW, args.year, args.badgeStyle, args.badgeFont, args.accentColor, args.bottomLight, args.showGenre, args.showYear, args.showRating, args.nativeScale, args.typeIcon ?? null)
   const cached = cacheGet<{ png: Buffer; w: number; h: number }>(key)
   if (cached) return cached
   return coalesceBadgeRender(key, () =>
-    renderGenreBadge(args.genreName ?? "", vote, args.badgePw, args.year, args.badgeStyle, args.accentColor, args.bottomLight, { showGenre: args.showGenre, showYear: args.showYear, showRating: args.showRating }, args.nativeScale, args.badgeFont)
+    renderGenreBadge(args.genreName ?? "", vote, args.badgePw, args.year, args.badgeStyle, args.accentColor, args.bottomLight, { showGenre: args.showGenre, showYear: args.showYear, showRating: args.showRating, typeIcon: args.typeIcon ?? null }, args.nativeScale, args.badgeFont)
       .then((r) => { if (r) cacheSet(key, r, ["badge"], BADGE_CACHE_TTL); return r }),
   )
 }
@@ -976,7 +981,7 @@ export async function generatePosterBuffer(input: GenerationInput): Promise<Buff
     networkLogoOffsetX, networkLogoOffsetY,
     mediaType, finalRank, animeRankResult,
     mapping, tmdbNetworks, productionCompanies, tmdbStudios,
-    tmdbNetworksDetailed, productionCompaniesDetailed, watchProviders,
+    tmdbNetworksDetailed, productionCompaniesDetailed, watchProviders, typeIcon,
     tvType, tvStatus, releaseDate, firstAirDate,
     lastAirDate, seasonCount, nextEpisodeAirDate, numberOfEpisodes, originCountries, genreIds,
     wikidataResult, tmdbKeywords, locale, t,
@@ -1740,8 +1745,14 @@ export async function generatePosterBuffer(input: GenerationInput): Promise<Buff
   const genreAtTop = input.genreTopWhenFree === true && shape !== "landscape" && !isFresh && !isCard
     && badgeStyle !== "bar" && !notchMaterialOf(badgeStyle) && !topBadge && !showComingSoon
   const genreLight = genreAtTop ? topBadgeLight : genreBadgeLight
+  // Icona tipo: glifo inline nella riga del badge genere standard (Fresh/Card
+  // non usano questo percorso: lì resta il fallback standalone).
+  const genreTypeIcon: "movie" | "tv" | null = typeIcon && !isFresh && !isCard ? mediaType : null
+  // Fresh/Card disegnano il glifo nella propria riga genere: se l'overlay lo
+  // ha posato il fallback standalone non serve.
+  let typeIconInlineAux = false
   const genreBadgeKey = hasGenreBadge
-    ? badgeCacheKey("genre", genreName, voteAverage, CW, year, badgeStyle, badgeFont, genreStdAccent, genreLight, badgeGenre, badgeYear, badgeRating, genreBadgeScale)
+    ? badgeCacheKey("genre", genreName, voteAverage, CW, year, badgeStyle, badgeFont, genreStdAccent, genreLight, badgeGenre, badgeYear, badgeRating, genreBadgeScale, genreTypeIcon)
     : null
   // The award logo mode is part of the cache identity: the logo bitmap can
   // never be served for a textual request (or vice versa). Non-award extras
@@ -1791,7 +1802,7 @@ export async function generatePosterBuffer(input: GenerationInput): Promise<Buff
     genreBadgeKey
       ? (cacheGet<BadgeRender>(genreBadgeKey)
           || coalesceBadgeRender(genreBadgeKey, () =>
-                renderGenreBadge(genreName ?? "", voteAverage ?? 0, badgePw, year, badgeStyle, genreStdAccent, genreLight, { showGenre: badgeGenre, showYear: badgeYear, showRating: badgeRating }, badgeStyle === "bar" ? genreBadgeScale : 100, badgeFont)
+                renderGenreBadge(genreName ?? "", voteAverage ?? 0, badgePw, year, badgeStyle, genreStdAccent, genreLight, { showGenre: badgeGenre, showYear: badgeYear, showRating: badgeRating, typeIcon: genreTypeIcon }, badgeStyle === "bar" ? genreBadgeScale : 100, badgeFont)
                 .then((r) => { if (r) cacheSet(genreBadgeKey, r, ["badge"], BADGE_CACHE_TTL); return r })
             ))
       : Promise.resolve(null)
@@ -1988,12 +1999,12 @@ export async function generatePosterBuffer(input: GenerationInput): Promise<Buff
       // divergono con shrink overflow e metriche dei font).
       let sepCenterShift = 0
       if (anchorRight && genreBadgeResult && (input.separateRatings?.length ?? 0) > 0) {
-        const fullKey = badgeCacheKey("genre", genreName, voteAverage, CW, year, badgeStyle, badgeFont, genreStdAccent, genreBadgeLight, badgeGenre, badgeYear, true, genreBadgeScale)
+        const fullKey = badgeCacheKey("genre", genreName, voteAverage, CW, year, badgeStyle, badgeFont, genreStdAccent, genreBadgeLight, badgeGenre, badgeYear, true, genreBadgeScale, genreTypeIcon)
         const fullHit = cacheGet<{ png: Buffer; w: number; h: number }>(fullKey)
         const fullW = fullHit
           ? fullHit.w
           : await coalesceBadgeRender(fullKey, () =>
-              renderGenreBadge(genreName ?? "", voteAverage ?? 0, badgePw, year, badgeStyle, genreStdAccent, genreBadgeLight, { showGenre: badgeGenre, showYear: badgeYear, showRating: true }, 100, badgeFont)
+              renderGenreBadge(genreName ?? "", voteAverage ?? 0, badgePw, year, badgeStyle, genreStdAccent, genreBadgeLight, { showGenre: badgeGenre, showYear: badgeYear, showRating: true, typeIcon: genreTypeIcon }, 100, badgeFont)
                 .then((r) => { if (r) cacheSet(fullKey, r, ["badge"], BADGE_CACHE_TTL); return r }),
             ).then((r) => (r ? r.w : null), () => null)
         if (fullW != null && fullW > genreBadgeResult.w) {
@@ -3185,6 +3196,7 @@ export async function generatePosterBuffer(input: GenerationInput): Promise<Buff
         voteAverage,
         separateRatings: input.separateRatings,
         customRatings: input.ratings,
+        typeIcon: typeIcon ? mediaType : null,
       },
       logo: logoResult ? { png: logoResult.input, w: logoResult.w, h: logoResult.h } : null,
       provider: networkLogoForLayout ? { png: networkLogoForLayout.png, w: networkLogoForLayout.w, h: networkLogoForLayout.h } : null,
@@ -3230,6 +3242,7 @@ export async function generatePosterBuffer(input: GenerationInput): Promise<Buff
       const freshLayers = await composeFreshOverlay(freshOverlayInput)
       composites.splice(freshInsertAt ?? composites.length, 0, ...freshLayers)
     }
+    if (freshOverlayInput.meta.typeIcon && freshMetaRows(freshOverlayInput.meta).length > 0) typeIconInlineAux = true
     // Badge extra non-rank: bitmap standard riusato al top (stesso anchor).
     if (isExtraTopBadge && finalRankBadge && finalRankLeft !== null) {
       const extraCanvas = badgeCanvasForBody(finalRankLeft, finalRankTop, finalRankBadge)
@@ -3333,6 +3346,7 @@ export async function generatePosterBuffer(input: GenerationInput): Promise<Buff
         showGenre: cardRawGenre,
         showYear: cardRawYear,
         showRating: cardRawBadgeRating,
+        typeIcon: typeIcon ? mediaType : null,
         badgePw,
         CW,
         // Card: la banda non è un bordo poster, la pillola a notch resterebbe
@@ -3349,6 +3363,7 @@ export async function generatePosterBuffer(input: GenerationInput): Promise<Buff
         ? await scaleBitmapForLayout(rendered, genreBadgeScale)
         : rendered
       cardMainBadgeRendered = cardMainBadge !== null
+      if (cardMainBadge) typeIconInlineAux = true
     }
     // P15 individuals via the EXISTING renderers only (never Card text rows,
     // never silently dropped while the toggle is on):
@@ -3783,6 +3798,16 @@ export async function generatePosterBuffer(input: GenerationInput): Promise<Buff
   // -----------------------------------------------------------------------
   // 7. Final composite
   // -----------------------------------------------------------------------
+  // Icona tipo film/serie, fallback senza badge genere standard: solo glifo in
+  // basso a sinistra, sopra il resto del chrome (fail-open: poster storico).
+  if (typeIcon && !typeIconInlineAux && !(genreTypeIcon && safeGenreBadgeResult)) {
+    const icon = await renderTypeIcon(mediaType, Math.round(badgePw * 0.04))
+    if (icon) {
+      const margin = Math.round(badgePw * (isLandscape ? 0.03 : 0.015))
+      composites.push({ input: icon.png, top: CH - icon.h - margin, left: margin })
+    }
+  }
+
   const safeComposites = (await Promise.all(composites.map((layer) => fitCompositeToCanvas(layer, CW, CH))))
     .filter((layer): layer is PosterComposite => layer !== null)
 

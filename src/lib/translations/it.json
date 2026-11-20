@@ -173,6 +173,8 @@
   "ui.tmdbFallbackHint": "Marchi secondari integrati più loghi di studio e network da TMDB per i titoli senza marchio in evidenza. Spegnerlo non nasconde mai i marchi in evidenza qui sopra.",
   "ui.watchProvidersLabel": "Mostra dove guardare",
   "ui.watchProvidersHint": "Sostituisce il logo del network di produzione con i servizi di streaming (in abbonamento) che hanno il titolo nel paese scelto. Usa la tua chiave TMDB.",
+  "ui.typeIconLabel": "Icona tipo",
+  "ui.typeIconHint": "Piccola icona film/serie davanti alla riga genere · rating · anno, per distinguere film e serie nei cataloghi misti.",
   "ui.watchRegionLabel": "Paese streaming",
   "ui.watchRegionSame": "Come il paese del poster",
   "ui.otherNetworksMixedHint": "Alcuni marchi secondari restano disattivati singolarmente. Spegni e riaccendi il gruppo per riabilitarli tutti.",

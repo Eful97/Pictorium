@@ -172,6 +172,8 @@
   "ui.tmdbFallbackHint": "주요 마크가 없는 타이틀을 위한 번들 보조 마크와 TMDB에서 가져온 스튜디오 및 네트워크 로고. 끄더라도 위의 주요 마크는 숨겨지지 않습니다.",
   "ui.watchProvidersLabel": "Show where to watch",
   "ui.watchProvidersHint": "Replaces the production network logo with the streaming services (subscription) that carry the title in the chosen country. Needs your TMDB key.",
+  "ui.typeIconLabel": "Type icon",
+  "ui.typeIconHint": "Small movie/TV icon before the genre · rating · year line, to tell films and series apart in mixed catalogs.",
   "ui.watchRegionLabel": "Streaming country",
   "ui.watchRegionSame": "Same as poster country",
   "ui.otherNetworksMixedHint": "일부 보조 마크는 개별적으로 꺼진 상태입니다. 모두 다시 켜려면 그룹을 껐다가 켜세요.",

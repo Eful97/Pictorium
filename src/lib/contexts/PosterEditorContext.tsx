@@ -435,6 +435,11 @@ export interface PosterEditorCtx {
   setDefaultWatchProviders: (v: boolean | ((prev: boolean) => boolean)) => void
   defaultWatchRegion: string | null
   setDefaultWatchRegion: (v: string | null) => void
+  /** Icona tipo film/serie: verticale e landscape indipendenti (default OFF). */
+  defaultTypeIcon: boolean
+  setDefaultTypeIcon: (v: boolean | ((prev: boolean) => boolean)) => void
+  defaultTypeIconLandscape: boolean
+  setDefaultTypeIconLandscape: (v: boolean | ((prev: boolean) => boolean)) => void
   defaultAutoRotateClean: boolean
   setDefaultAutoRotateClean: (v: boolean | ((prev: boolean) => boolean)) => void
   /** Default rotazione poster: include i poster della lingua corrente (false = Solo clean). */
@@ -908,7 +913,7 @@ export function PosterEditorProvider({
     defaultBadgeItemTransforms,
     defaultGenreBadgeOffsetX, defaultGenreBadgeOffsetY, defaultQualityBadgeOffsetX, defaultQualityBadgeOffsetY,
     defaultNetworkLogoOffsetX, defaultNetworkLogoOffsetY,
-    defaultBadgeGenre, defaultBadgeYear, defaultBadgeRating, defaultBadgeQuality, defaultAgeBadge, defaultAgeCountry, defaultAgeBadgeStyle, defaultAwardBadgeStyle, defaultCustomRatings, defaultCustomRatingEndpoint, defaultCustomRatingApiKeyHeader, defaultRatingSources, defaultSeparateRatings, defaultSeparateRatingsStyle, defaultPosterLayout, defaultPosterFreshScope, defaultSashOrder, defaultDisabledContentTags, defaultDisabledNetworks, defaultWatchProviders, defaultWatchRegion,
+    defaultBadgeGenre, defaultBadgeYear, defaultBadgeRating, defaultBadgeQuality, defaultAgeBadge, defaultAgeCountry, defaultAgeBadgeStyle, defaultAwardBadgeStyle, defaultCustomRatings, defaultCustomRatingEndpoint, defaultCustomRatingApiKeyHeader, defaultRatingSources, defaultSeparateRatings, defaultSeparateRatingsStyle, defaultPosterLayout, defaultPosterFreshScope, defaultSashOrder, defaultDisabledContentTags, defaultDisabledNetworks, defaultWatchProviders, defaultWatchRegion, defaultTypeIcon, defaultTypeIconLandscape,
     defaultAutoRotateClean, defaultRotationIncludeNonClean, defaultAutoRotateBackdrop, defaultPortraitFitEnabled, defaultLandscapeFitEnabled, defaultNetworkLogo, defaultNetworkLogoPosition, defaultNetworkLogoFollowTitle, defaultPreRelease, defaultRibbonSide, defaultRibbonEnabled, defaultPosterShape, defaultLogoAlign,
     defaultDisableCleanPosters,
     defaultPortraitBackdropFallback,
@@ -1729,6 +1734,16 @@ export function PosterEditorProvider({
     }, [defaultWatchProviders, update])
   const setDefaultWatchRegion = useCallback(
     (v: string | null) => update({ defaultWatchRegion: v }), [update])
+  const setDefaultTypeIcon = useCallback(
+    (v: boolean | ((prev: boolean) => boolean)) => {
+      const next = typeof v === "function" ? v(defaultTypeIcon) : v
+      update({ defaultTypeIcon: next })
+    }, [defaultTypeIcon, update])
+  const setDefaultTypeIconLandscape = useCallback(
+    (v: boolean | ((prev: boolean) => boolean)) => {
+      const next = typeof v === "function" ? v(defaultTypeIconLandscape) : v
+      update({ defaultTypeIconLandscape: next })
+    }, [defaultTypeIconLandscape, update])
   const setDefaultAutoRotateClean = useCallback(
     (v: boolean | ((prev: boolean) => boolean)) => {
       const next = typeof v === "function" ? v(defaultAutoRotateClean) : v
@@ -2396,6 +2411,10 @@ export function PosterEditorProvider({
       setDefaultWatchProviders,
       defaultWatchRegion,
       setDefaultWatchRegion,
+      defaultTypeIcon,
+      setDefaultTypeIcon,
+      defaultTypeIconLandscape,
+      setDefaultTypeIconLandscape,
       defaultAutoRotateClean,
       setDefaultAutoRotateClean,
       defaultRotationIncludeNonClean,
@@ -2720,7 +2739,7 @@ export function PosterEditorProvider({
       defaultSashOrder, setDefaultSashOrder,
       defaultDisabledContentTags, setDefaultDisabledContentTags,
       defaultDisabledNetworks, setDefaultDisabledNetworks,
-      defaultWatchProviders, setDefaultWatchProviders, defaultWatchRegion, setDefaultWatchRegion,
+      defaultWatchProviders, setDefaultWatchProviders, defaultWatchRegion, setDefaultWatchRegion, defaultTypeIcon, setDefaultTypeIcon, defaultTypeIconLandscape, setDefaultTypeIconLandscape,
       defaultAutoRotateClean, setDefaultAutoRotateClean,
       defaultRotationIncludeNonClean, setDefaultRotationIncludeNonClean,
       defaultDisableCleanPosters, setDefaultDisableCleanPosters,

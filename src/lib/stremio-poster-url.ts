@@ -189,6 +189,7 @@ export function buildStremioPosterUrl(input: BuildStremioPosterUrlInput): URL {
     disabledNetworks: sd.disabledNetworks ?? undefined,
     watchProviders: sd.watchProviders ?? undefined,
     watchRegion: sd.watchRegion ?? undefined,
+    typeIcon: (effShape === "landscape" ? input.defaults.typeIconLandscape : input.defaults.typeIcon) ?? undefined,
     badgeStyle: eff?.badgeStyle ?? sd.badgeStyle,
     rankingBadgeStyle: eff?.rankingBadgeStyle ?? sd.rankingBadgeStyle,
     extraBadgeStyle: eff?.extraBadgeStyle ?? shapeExtraStyle ?? undefined,

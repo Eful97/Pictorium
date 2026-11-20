@@ -459,6 +459,10 @@ export interface ServerDefaults {
   watchProviders?: boolean
   /** Paese dei provider (codice REGIONS); assente = paese del poster. Query `wpr`. */
   watchRegion?: string
+  /** Icona tipo (film/serie) sui poster verticali (default OFF). Query `ti`. */
+  typeIcon?: boolean
+  /** Icona tipo sui landscape, indipendente dal verticale (default OFF). Query `ti`. */
+  typeIconLandscape?: boolean
   /**
    * Custom seasonal keywords per theme (user-scoped setting): extra
    * whole-word/phrase matches for the automatic catalog-name recognition

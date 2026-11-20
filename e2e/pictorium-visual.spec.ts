@@ -441,6 +441,37 @@ test.describe("poster API — functional", () => {
     expect(Buffer.compare(inTheatersBuffer, await rightRes.body())).not.toBe(0)
   })
 
+  test("type icon: ti=1 draws the movie/TV mark in both shapes, ti=0 keeps the plain poster", async ({ request }) => {
+    const base = { genreName: "Action", voteAverage: "7.8", badges: "1", ranking: "0", title: "Avatar" }
+    for (const shape of ["poster", "landscape"]) {
+      const plain = await (await request.get(posterUrl({ ...base, shape, ti: "0" }))).body()
+      const off = await (await request.get(posterUrl({ ...base, shape }))).body()
+      const on = await (await request.get(posterUrl({ ...base, shape, ti: "1" }))).body()
+      const tv = await (await request.get(posterUrl({ ...base, shape, ti: "1" }, "tv", 1399))).body()
+      expect(Buffer.compare(plain, off)).toBe(0)
+      expect(Buffer.compare(plain, on)).not.toBe(0)
+      expect(Buffer.compare(on, tv)).not.toBe(0)
+      if (process.env.TI_DUMP_DIR) {
+        const fs = await import("node:fs")
+        fs.writeFileSync(`${process.env.TI_DUMP_DIR}/ti-${shape}-movie.png`, on)
+        fs.writeFileSync(`${process.env.TI_DUMP_DIR}/ti-${shape}-tv.png`, tv)
+      }
+    }
+  })
+
+  test("type icon: Fresh and Card draw the glyph in their own genre row", async ({ request }) => {
+    const base = { genreName: "Action", voteAverage: "7.8", badges: "1", ranking: "1", rank: "3", label: "Top 3", rs: "number", title: "Avatar" }
+    for (const layout of ["fresh", "provider-glass"]) {
+      const off = await (await request.get(posterUrl({ ...base, layout, ti: "0" }))).body()
+      const on = await (await request.get(posterUrl({ ...base, layout, ti: "1" }))).body()
+      expect(Buffer.compare(off, on)).not.toBe(0)
+      if (process.env.TI_DUMP_DIR) {
+        const fs = await import("node:fs")
+        fs.writeFileSync(`${process.env.TI_DUMP_DIR}/ti-${layout}.png`, on)
+      }
+    }
+  })
+
   test("quality style: knockout with verified Dolby — stacked group differs from formats=none", async ({ request }) => {
     // tt0068646 (The Godfather) is in the local AV specs DB with 4K +
     // dv/atmos: quality tier AND formats are verified data, no override.

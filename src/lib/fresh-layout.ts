@@ -7,6 +7,7 @@ import { loadSeparateRatingLogo } from "./separate-rating-renderer"
 import type { PosterComposite } from "./poster-render-helpers"
 import { renderSVG } from "./svg-badge"
 import { escSvg, estimateTextWidth, fontFamilyFor, normalizeBadgeFont, textFitAttrs } from "./badge-svg-shared"
+import { TYPE_ICON_PATHS, TYPE_ICON_INK_W, type TypeIconKind } from "./type-icon-glyphs"
 import type { BadgeFont, SeparateRatingsStyle } from "./badge-styles"
 import { MAX_CUSTOM_RATINGS } from "./multi-rating-renderer"
 import { resolveSeparateDisplayState } from "./poster-config"
@@ -625,10 +626,14 @@ export interface FreshMetaInput {
   readonly voteAverage: number | null
   readonly separateRatings: readonly SeparateRating[] | undefined
   readonly customRatings: readonly RatingItem[] | undefined
+  /** Icona tipo film/serie: glifo + puntino davanti al genere (o riga solo-glifo se manca il genere). */
+  readonly typeIcon?: TypeIconKind | null
 }
 
 export interface FreshMetaRow {
-  readonly kind: "genre" | "rating" | "separate" | "year" | "custom"
+  readonly kind: "genre" | "rating" | "separate" | "year" | "custom" | "type"
+  /** Glifo tipo davanti al testo della riga (`genre`) o da solo (`type`). */
+  readonly glyph?: TypeIconKind | null
   /**
    * Display text. For `separate` rows this is ONLY the formatted score
    * (e.g. "8.7", "88%") — the column renders the built-in brand icon beside
@@ -676,7 +681,7 @@ export function freshMetaRows(input: FreshMetaInput): FreshMetaRow[] {
   })
   const rows: FreshMetaRow[] = []
   if (input.badgeGenre && input.genreName) {
-    rows.push({ kind: "genre", text: input.genreName.toUpperCase(), star: false })
+    rows.push({ kind: "genre", text: input.genreName.toUpperCase(), star: false, glyph: input.typeIcon ?? null })
   }
   const customItems = (input.customRatings ?? [])
     .filter((c) => Number.isFinite(c.value))
@@ -698,6 +703,10 @@ export function freshMetaRows(input: FreshMetaInput): FreshMetaRow[] {
   }
   if (input.badgeYear && input.year) {
     rows.push({ kind: "year", text: input.year, star: false })
+  }
+  // Senza riga genere il glifo tipo sta da solo in testa alla colonna.
+  if (input.typeIcon && rows.length > 0 && !rows.some((r) => r.glyph)) {
+    rows.unshift({ kind: "type", text: "", star: false, glyph: input.typeIcon })
   }
   return rows
 }
@@ -1570,11 +1579,22 @@ export async function renderFreshMetaColumn(
   const lockW = (text: string, size: number, tracking: number, cap: number): number =>
     Math.min(cap, estimateTextWidth(text, size, f) + tracking)
   const baseGap = Math.round(geo.ratingSize * 0.35)
-  type Spec = { text: string; base: number; spacingBase: number; weight: number; fill: string; opacity: number; star: boolean; size: number; separate: boolean; source: string | null }
+  type Spec = { text: string; base: number; spacingBase: number; weight: number; fill: string; opacity: number; star: boolean; size: number; separate: boolean; source: string | null; glyph?: TypeIconKind | null }
+  // Glifo tipo: altezza inchiostro = cap height (0.73 size); larghezza = 18/16 di essa.
+  // Unità riga genere: glifo + spazio + puntino + spazio + testo.
+  const glyphGeo = (size: number) => {
+    const s = (size * 0.73) / 16
+    const gap = Math.round(size * 0.3)
+    const dotR = Math.max(1.5, size * 0.06)
+    return { s, inkW: TYPE_ICON_INK_W * s, gap, dotR, extra: Math.round(TYPE_ICON_INK_W * s + gap * 2 + dotR * 2) }
+  }
   const specs: Spec[] = rows.map((row) => {
+    if (row.kind === "type") {
+      return { text: "", base: geo.smallSize, spacingBase: 0, weight: 700, fill: "#ffffff", opacity: 0.92, star: false, size: geo.smallSize, separate: false, source: null, glyph: row.glyph ?? null }
+    }
     if (row.kind === "genre") {
       const spacingBase = geo.genreSize * 0.12
-      return { text: row.text, base: geo.genreSize, spacingBase, weight: 800, fill: "#ffffff", opacity: 0.92, star: false, size: fitRowSize(row.text, geo.genreSize, spacingBase, 0), separate: false, source: null }
+      return { text: row.text, base: geo.genreSize, spacingBase, weight: 800, fill: "#ffffff", opacity: 0.92, star: false, size: fitRowSize(row.text, geo.genreSize, spacingBase, row.glyph ? glyphGeo(geo.genreSize).extra : 0), separate: false, source: null, glyph: row.glyph ?? null }
     }
     if (row.kind === "rating") {
       // Star + gap occupy horizontal space with the digits: fit as one unit.
@@ -1746,7 +1766,7 @@ export async function renderFreshMetaColumn(
       }
     }
   }
-  type Placed = { y: number; top: number; iconY: number; size: number; base: number; spacingBase: number; weight: number; fill: string; opacity: number; star: boolean; text: string; icon: { png: Buffer; w: number; h: number } | null; scoreLock: number; gap: number }
+  type Placed = { y: number; top: number; iconY: number; size: number; base: number; spacingBase: number; weight: number; fill: string; opacity: number; star: boolean; text: string; icon: { png: Buffer; w: number; h: number } | null; scoreLock: number; gap: number; glyph?: TypeIconKind | null }
   const placed: Placed[] = []
   let y = 0
   // Available score width for an icon row: never negative (1px floor). The
@@ -1777,7 +1797,7 @@ export async function renderFreshMetaColumn(
     const display = s.separate && s.source ? `${s.text} ${s.source.toUpperCase()}` : s.text
     const capH = capHFor(s.size)
     y += capH
-    placed.push({ y, top: y - capH, iconY: 0, size: s.size, base: s.base, spacingBase: s.spacingBase, weight: s.weight, fill: s.fill, opacity: s.opacity, star: s.star, text: display, icon: null, scoreLock: 0, gap: 0 })
+    placed.push({ y, top: y - capH, iconY: 0, size: s.size, base: s.base, spacingBase: s.spacingBase, weight: s.weight, fill: s.fill, opacity: s.opacity, star: s.star, text: display, icon: null, scoreLock: 0, gap: 0, glyph: s.glyph ?? null })
     y += lineGap
   })
   const h = Math.max(1, y - lineGap + 8)
@@ -1794,6 +1814,26 @@ export async function renderFreshMetaColumn(
         const iconX = x0 + (iconSlotW - p.icon.w) / 2
         return `<image href="data:image/png;base64,${p.icon.png.toString("base64")}" x="${iconX.toFixed(1)}" y="${p.iconY.toFixed(1)}" width="${p.icon.w}" height="${p.icon.h}"/>` +
           `<text x="${(x0 + iconSlotW + p.gap).toFixed(1)}" y="${p.y}" font-family="${family}" font-size="${p.size}" font-weight="${p.weight}" fill="${p.fill}" fill-opacity="${p.opacity}"${textFitAttrs(scoreW)}>${escSvg(p.text)}</text>`
+      }
+      if (p.glyph) {
+        // Glifo (+ puntino + testo) sulla stessa riga; unità centrata o a filo del pad.
+        const g = glyphGeo(p.size)
+        const capH = Math.round(p.size * 0.73)
+        const cy = p.y - capH / 2
+        const hasText = p.text.length > 0
+        const textMax = Math.max(8, fitW - g.extra)
+        const spacing = p.spacingBase * (p.size / p.base)
+        const capped = Math.min(spacing, textMax / Math.max(1, 2 * Math.max(1, p.text.length)))
+        const rowW = hasText ? lockW(p.text, p.size, capped * p.text.length, textMax) : 0
+        const unitW = hasText ? g.extra + rowW : g.inkW
+        const x0 = align === "start" ? FRESH_META_SHADOW_PAD : w / 2 - unitW / 2
+        const mark = `<path fill="${p.fill}" fill-opacity="${p.opacity}" fill-rule="evenodd" transform="translate(${(x0 - 3 * g.s).toFixed(2)},${(cy - 12 * g.s).toFixed(2)}) scale(${g.s.toFixed(4)})" d="${TYPE_ICON_PATHS[p.glyph]}"/>`
+        if (!hasText) return mark
+        const dotCx = x0 + g.inkW + g.gap + g.dotR
+        const textX = dotCx + g.dotR + g.gap
+        return mark +
+          `<circle cx="${dotCx.toFixed(1)}" cy="${cy.toFixed(1)}" r="${g.dotR.toFixed(2)}" fill="${p.fill}" fill-opacity="0.45"/>` +
+          `<text x="${textX.toFixed(1)}" y="${p.y}" text-anchor="start" font-family="${family}" font-size="${p.size}" font-weight="${p.weight}" letter-spacing="${capped.toFixed(2)}" fill="${p.fill}" fill-opacity="${p.opacity}"${textFitAttrs(rowW)}>${escSvg(p.text)}</text>`
       }
       if (p.star) {
         const starR = starUnit(p.size)

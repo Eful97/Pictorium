@@ -172,6 +172,8 @@
   "ui.tmdbFallbackHint": "סימני המשנה המובנים ולוגואי האולפנים והרשתות מ־TMDB לכותרים ללא סימן מודגש. כיבוי לעולם אינו מסתיר את הסימנים המודגשים לעיל.",
   "ui.watchProvidersLabel": "Show where to watch",
   "ui.watchProvidersHint": "Replaces the production network logo with the streaming services (subscription) that carry the title in the chosen country. Needs your TMDB key.",
+  "ui.typeIconLabel": "Type icon",
+  "ui.typeIconHint": "Small movie/TV icon before the genre · rating · year line, to tell films and series apart in mixed catalogs.",
   "ui.watchRegionLabel": "Streaming country",
   "ui.watchRegionSame": "Same as poster country",
   "ui.otherNetworksMixedHint": "חלק מסימני המשנה נשארים כבויים בנפרד. כבו את הקבוצה והדליקו שוב כדי להפעיל את כולם.",

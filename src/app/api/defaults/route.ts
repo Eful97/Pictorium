@@ -354,6 +354,8 @@ const defaultsSchema = z.object({
   disabledNetworks: z.array(z.string().max(40)).max(MAX_DISABLED_NETWORKS).optional(),
   watchProviders: z.boolean().optional(),
   watchRegion: z.string().max(2).optional(),
+  typeIcon: z.boolean().optional(),
+  typeIconLandscape: z.boolean().optional(),
 })
 
 function isPlainLandscapeRecord(v: unknown): v is Record<string, unknown> {

@@ -82,6 +82,8 @@ export interface StremioPosterParamsInput {
   /** "Dove guardare": emesso come `wp=1` (+ `wpr`) solo quando ON. */
   readonly watchProviders?: boolean | null
   readonly watchRegion?: string | null
+  /** Icona tipo film/serie: emesso come `ti=1` solo quando ON. */
+  readonly typeIcon?: boolean | null
   readonly badgeStyle?: BadgeStyle
   readonly rankingBadgeStyle?: RankingBadgeStyle
   /** Standalone extra-badge style: emitted as `xbs` only when defined (incl. "follow-rank" sentinel). */
@@ -488,6 +490,7 @@ export function buildStremioPosterSearchParams(input: StremioPosterParamsInput):
     const wpr = sanitizeWatchRegion(input.watchRegion)
     if (wpr) params.set("wpr", wpr)
   }
+  if (input.typeIcon === true) params.set("ti", "1")
   if (input.customBadge) params.set("extra", input.customBadge)
   if (input.dateFormat && input.dateFormat !== "locale") {
     params.set("df", input.dateFormat)
