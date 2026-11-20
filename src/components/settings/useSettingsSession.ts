@@ -714,6 +714,8 @@ export function useSettingsSession(): SettingsSessionResult {
       // landscape, nessuna recipe preset): staged come gli altri default.
       setDefaultDisabledContentTags: makeSimpleSetter(updateSession, "defaultDisabledContentTags"),
       setDefaultDisabledNetworks: makeSimpleSetter(updateSession, "defaultDisabledNetworks"),
+      setDefaultWatchProviders: makeSimpleSetter(updateSession, "defaultWatchProviders"),
+      setDefaultWatchRegion: makeSimpleSetter(updateSession, "defaultWatchRegion"),
       setDefaultAutoRotateClean: makeSimpleSetter(updateSession, "defaultAutoRotateClean"),
       setDefaultRotationIncludeNonClean: makeSimpleSetter(updateSession, "defaultRotationIncludeNonClean"),
       setDefaultDisableCleanPosters: makeSimpleSetter(updateSession, "defaultDisableCleanPosters"),

@@ -1959,6 +1959,30 @@ export function BadgeDefaultsSection({ active, shape, onPreviewFamilyChange, pre
               </div>
             </div>
           )}
+
+          {/* "Dove guardare": space-wide (flat), staged like the other defaults. */}
+          <div className="flex items-center justify-between border-t border-white/10 pt-2">
+            <span className="text-zinc-300 font-medium">{t("ui.watchProvidersLabel")}</span>
+            <Toggle
+              value={ed.defaultWatchProviders === true}
+              onChange={ed.setDefaultWatchProviders}
+              label={t("ui.watchProvidersLabel")}
+            />
+          </div>
+          <p className="text-[11px] text-zinc-400 leading-relaxed">{t("ui.watchProvidersHint")}</p>
+          {ed.defaultWatchProviders === true && (
+            <select
+              aria-label={t("ui.watchRegionLabel")}
+              value={ed.defaultWatchRegion ?? ""}
+              onChange={(e) => ed.setDefaultWatchRegion(e.target.value || null)}
+              className="w-full rounded-lg border border-white/10 bg-white/[0.04] px-2 py-1.5 text-xs text-zinc-200"
+            >
+              <option value="">{t("ui.watchRegionSame")}</option>
+              {REGIONS.map((r) => (
+                <option key={r.code} value={r.code}>{`${r.flag} ${r.label}`}</option>
+              ))}
+            </select>
+          )}
         </div>
       </div>
       </BadgeGroup>

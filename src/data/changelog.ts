@@ -45,6 +45,7 @@ export const CHANGELOG: ChangelogRelease[] = [
       { type: "feature", text: "Choose low, medium or high image quality for posters and thumbnails on private instances" },
       { type: "perf", text: "Deliver episode thumbnails as WebP or JPEG instead of PNG for lighter downloads" },
       { type: "feature", text: "Refresh the home page: a larger poster with a before and after slider, style chips, and the poster wall behind the hero" },
+      { type: "feature", text: "Show where to watch: an optional row of streaming provider icons for the country you choose, in place of the production network logo" },
       { type: "fix", text: "Show the Ko-fi label next to its icon in the mobile header" },
       { type: "fix", text: "Fit the editor selection frames to the visible badge instead of its shadow and padding" },
     ],

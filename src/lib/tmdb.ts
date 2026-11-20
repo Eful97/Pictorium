@@ -1095,6 +1095,11 @@ export async function getDetailsWithExternalIds(mediaType: "movie" | "tv", id: n
   return parseTmdb<TMDBDetails>("details_with_external_ids", tmdbDetailsSchema, data)
 }
 
+/** Raw `/watch/providers` payload (parsed by `watch-providers.ts`). */
+export async function getWatchProvidersRaw(mediaType: "movie" | "tv", id: number, apiKey?: string, signal?: AbortSignal, timeoutMs = 30000): Promise<unknown> {
+  return tmdbFetch(`/${mediaType}/${id}/watch/providers`, apiKey, signal, timeoutMs)
+}
+
 export async function getFullDetails(mediaType: "movie" | "tv", id: number, language = "it-IT", apiKey?: string, signal?: AbortSignal): Promise<TMDBDetails> {
   const data = await tmdbFetch(`/${mediaType}/${id}?language=${toProviderLanguage(language)}&append_to_response=credits,videos,external_ids`, apiKey, signal)
   return parseTmdb<TMDBDetails>("full_details", tmdbDetailsSchema, data)

@@ -18,6 +18,7 @@ import { t } from "./i18n"
 import { normalizeSashOrder, DEFAULT_SASH_ORDER, type SashBucket } from "./badge-priority"
 import { sanitizeDisabledContentTags } from "./content-tags"
 import { sanitizeDisabledNetworks } from "./network-keys"
+import { sanitizeWatchRegion } from "./regions"
 import { DEFAULT_QUALITY_BADGE_STYLE, type QualityBadgeStyle } from "./badge-styles"
 import { DEFAULT_QUALITY_GROUP_LAYOUT, isQualityGroupLayout, type QualityGroupLayout } from "./badge-styles"
 import { DEFAULT_AGE_BADGE_STYLE, DEFAULT_AWARD_BADGE_MODE, isAgeBadgeStyle, isAwardBadgeMode, type AgeBadgeStyle, type AwardBadgeMode } from "./badge-styles"
@@ -155,6 +156,10 @@ export interface DefaultsState {
    * `network-keys.ts`). Stesso contratto dei tag sopra.
    */
   defaultDisabledNetworks: string[]
+  /** "Dove guardare" (fila provider): default OFF. */
+  defaultWatchProviders: boolean
+  /** Paese provider (codice REGIONS) o null = paese del poster. */
+  defaultWatchRegion: string | null
   defaultAutoRotateClean: boolean
   /**
    * Default rotazione poster: include anche i poster della lingua corrente
@@ -385,6 +390,8 @@ const DEFAULT_FLAT_DEFAULTS: Omit<DefaultsState, "landscape"> = {
   defaultSashOrder: [...DEFAULT_SASH_ORDER],
   defaultDisabledContentTags: [],
   defaultDisabledNetworks: [],
+  defaultWatchProviders: false,
+  defaultWatchRegion: null,
   defaultAutoRotateClean: false,
   defaultRotationIncludeNonClean: false,
   defaultAutoRotateBackdrop: false,
@@ -625,6 +632,10 @@ interface StoredDefaults {
   defaultDisabledNetworks?: string[]
   /** Chiave server/local piatta (saveDefaults/defaultsToPayload): fallback di lettura. */
   disabledNetworks?: string[]
+  defaultWatchProviders?: boolean
+  watchProviders?: boolean
+  defaultWatchRegion?: string | null
+  watchRegion?: string | null
   defaultAutoRotateClean?: boolean
   /** Default rotazione poster (Solo clean / Clean + lingua). */
   defaultRotationIncludeNonClean?: boolean
@@ -1046,6 +1057,8 @@ function buildFromStored(d: StoredDefaults | null): DefaultsState {
     // landscape): allowlist canonica, assente = storico. Mai guess.
     defaultDisabledContentTags: sanitizeDisabledContentTags(d.defaultDisabledContentTags ?? d.disabledContentTags),
     defaultDisabledNetworks: sanitizeDisabledNetworks(d.defaultDisabledNetworks ?? d.disabledNetworks),
+    defaultWatchProviders: d.defaultWatchProviders ?? d.watchProviders ?? false,
+    defaultWatchRegion: sanitizeWatchRegion(d.defaultWatchRegion ?? d.watchRegion),
     defaultAutoRotateClean: d.defaultAutoRotateClean ?? d.autoRotateClean ?? false,
     defaultRotationIncludeNonClean: d.defaultRotationIncludeNonClean ?? false,
     defaultAutoRotateBackdrop: d.defaultAutoRotateBackdrop ?? false,
@@ -1291,6 +1304,9 @@ export function defaultsToPayload(d: DefaultsState): Record<string, unknown> {
     sashOrder: d.defaultSashOrder,
     disabledContentTags: d.defaultDisabledContentTags,
     disabledNetworks: d.defaultDisabledNetworks,
+    // Solo ON nel payload locale: i default salvati legacy restano identici (OFF = assente).
+    watchProviders: d.defaultWatchProviders ? true : undefined,
+    watchRegion: d.defaultWatchRegion ?? undefined,
     autoRotateClean: d.defaultAutoRotateClean,
     defaultRotationIncludeNonClean: d.defaultRotationIncludeNonClean,
     defaultAutoRotateBackdrop: d.defaultAutoRotateBackdrop,
@@ -1626,6 +1642,10 @@ export function useDefaults() {
           }
           if (!currentStored?.defaultDisabledNetworks && !currentStored?.disabledNetworks && Array.isArray(serverData.disabledNetworks)) {
             merged.defaultDisabledNetworks = serverData.disabledNetworks
+          }
+          if (currentStored?.defaultWatchProviders === undefined && currentStored?.watchProviders === undefined && typeof serverData.watchProviders === "boolean") {
+            merged.defaultWatchProviders = serverData.watchProviders
+            merged.defaultWatchRegion = typeof serverData.watchRegion === "string" ? serverData.watchRegion : null
           }
           if (!currentStored?.defaultVideoFormats && Array.isArray(serverData.videoFormats)) {
             merged.defaultVideoFormats = serverData.videoFormats

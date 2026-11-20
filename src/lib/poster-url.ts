@@ -27,6 +27,15 @@ import type { LandscapeServerDefaults } from "./server-defaults"
 import { DEFAULT_SASH_ORDER, NEXT_EPISODE_BADGE_KEY, type SashBucket } from "./badge-priority"
 import { sanitizeDisabledContentTags } from "./content-tags"
 import { sanitizeDisabledNetworks } from "./network-keys"
+import { sanitizeWatchRegion } from "./regions"
+
+/** `wp=0|1` esplicito (lo staged OFF deve vincere sul default salvato), `wpr` solo se valido e ON. */
+function pushWatchProviderParams(params: string[], on: boolean | null | undefined, region: string | null | undefined): void {
+  if (on == null) return
+  params.push(`wp=${on ? "1" : "0"}`)
+  const wpr = on ? sanitizeWatchRegion(region) : null
+  if (wpr) params.push(`wpr=${wpr}`)
+}
 import { normalizeLogoFont, sanitizeLogoText } from "./text-logo"
 import type { QualityMarkId } from "./quality-badge-pack"
 import type { PosterShape, NetworkLogoPosition, PosterLayout, PosterFreshScope } from "./types"
@@ -174,6 +183,9 @@ interface BadgeParams {
   disabledContentTags?: readonly string[] | null
   /** Mark network disabilitati space-wide (stesso contratto di cui sopra). */
   disabledNetworks?: readonly string[] | null
+  /** "Dove guardare": `wp=0|1` esplicito quando definito, `wpr` solo se valido. */
+  watchProviders?: boolean | null
+  watchRegion?: string | null
 }
 
 interface PosterState {
@@ -649,6 +661,7 @@ export function buildPreviewUrl(ps: PosterState, bp: BadgeParams, configToken?: 
     const ids = [...new Set(sanitizeDisabledNetworks(bp.disabledNetworks))].sort()
     params.push(`dnet=${encodeURIComponent(ids.join(","))}`)
   }
+  pushWatchProviderParams(params, bp.watchProviders, bp.watchRegion)
   // Cornice stagionale (scelta per-titolo sopra il contesto lista di
   // origine, su entrambi i canvas col proprio asset — portrait 500×750,
   // landscape 768×432; senza contesto né scelta nessun parametro (URL
@@ -883,6 +896,9 @@ export interface DefaultsPreviewParams {
   defaultDisabledContentTags?: readonly string[] | null
   /** Mark network disabilitati space-wide di default (stesso contratto). */
   defaultDisabledNetworks?: readonly string[] | null
+  /** "Dove guardare" di default (stesso contratto di `watchProviders`). */
+  defaultWatchProviders?: boolean | null
+  defaultWatchRegion?: string | null
   /** Preview-only editing family: `rank` targets the rank bucket (`sash=rank`
    *  when the configured preview can paint a rank; otherwise the actual
    *  without-ranking composition, never an empty third state); `info`/`extra`
@@ -1026,6 +1042,7 @@ export function buildDefaultsPreviewUrl(bp: DefaultsPreviewParams): string {
     const ids = [...new Set(sanitizeDisabledNetworks(bp.defaultDisabledNetworks))].sort()
     params.push(`dnet=${encodeURIComponent(ids.join(","))}`)
   }
+  pushWatchProviderParams(params, bp.defaultWatchProviders, bp.defaultWatchRegion)
   // Preview-only info sample (Informazioni family): explicit `extra=` wins
   // over the computed badge exactly like an editor custom badge; ignored when
   // ranking is off, so a disabled master never shows a phantom sample.

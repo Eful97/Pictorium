@@ -85,6 +85,16 @@ export function parseRegion(input: string | null | undefined): string | null {
   return null
 }
 
+/**
+ * Paese per "Dove guardare" (`wpr`): solo codici REGIONS (maiuscolo); tutto il
+ * resto — slug, GLOBAL, garbage — è null (mai interpolato in una richiesta).
+ */
+export function sanitizeWatchRegion(input: string | null | undefined): string | null {
+  if (typeof input !== "string") return null
+  const upper = input.trim().toUpperCase()
+  return REGIONS.some((r) => r.code === upper) ? upper : null
+}
+
 /** Come parseRegion ma non ritorna mai null (fallback DEFAULT_REGION). */
 export function normalizeRegion(input: string | null | undefined): string {
   return parseRegion(input) ?? DEFAULT_REGION

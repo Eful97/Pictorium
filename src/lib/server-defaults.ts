@@ -455,6 +455,10 @@ export interface ServerDefaults {
    * can never resurrect. Absent/empty = historical behavior.
    */
   disabledNetworks?: string[]
+  /** "Dove guardare": fila di icone provider flatrate (default OFF). Query `wp`. */
+  watchProviders?: boolean
+  /** Paese dei provider (codice REGIONS); assente = paese del poster. Query `wpr`. */
+  watchRegion?: string
   /**
    * Custom seasonal keywords per theme (user-scoped setting): extra
    * whole-word/phrase matches for the automatic catalog-name recognition

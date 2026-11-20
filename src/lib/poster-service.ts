@@ -1,3 +1,5 @@
+import { renderWatchProviderRow } from "@/lib/watch-providers-render"
+import type { WatchProvider } from "@/lib/watch-providers"
 import sharp from "sharp"
 import type { RatingItem } from "./custom-rating/types"
 import { renderMultiRatings, MAX_CUSTOM_RATINGS } from "./multi-rating-renderer"
@@ -354,6 +356,8 @@ export interface GenerationInput {
   tmdbStudios: readonly string[]
   /** Mappa name -> logo_path TMDB per fallback (SVG first -> TMDB). */
   tmdbNetworksDetailed?: readonly NetworkCandidate[]
+  /** "Dove guardare": provider flatrate già risolti dalla route; se presenti sostituiscono il logo network. */
+  watchProviders?: readonly WatchProvider[]
   productionCompaniesDetailed?: readonly NetworkCandidate[]
   tvType: string | null
   tvStatus: string | null
@@ -972,7 +976,7 @@ export async function generatePosterBuffer(input: GenerationInput): Promise<Buff
     networkLogoOffsetX, networkLogoOffsetY,
     mediaType, finalRank, animeRankResult,
     mapping, tmdbNetworks, productionCompanies, tmdbStudios,
-    tmdbNetworksDetailed, productionCompaniesDetailed,
+    tmdbNetworksDetailed, productionCompaniesDetailed, watchProviders,
     tvType, tvStatus, releaseDate, firstAirDate,
     lastAirDate, seasonCount, nextEpisodeAirDate, numberOfEpisodes, originCountries, genreIds,
     wikidataResult, tmdbKeywords, locale, t,
@@ -1566,6 +1570,10 @@ export async function generatePosterBuffer(input: GenerationInput): Promise<Buff
   // preservata: il raw resta usato solo se la pill matcha (stesso match,
   // resa diversa: pill stilizzata vs colori originali). Il doppio
   // download/scan TMDB è eliminato dalla memo in network-svgs.
+  // Download dei loghi provider in parallelo al ramo network (mai throw → null).
+  const watchRowPromise = watchProviders && watchProviders.length > 0
+    ? renderWatchProviderRow(watchProviders, Math.round(badgePw * 0.09))
+    : Promise.resolve(null)
   let [pillLogoResult, rawLogoResult] = netLogoEnabled
     ? await Promise.all([
         hasDetailed
@@ -1585,6 +1593,14 @@ export async function generatePosterBuffer(input: GenerationInput): Promise<Buff
     rawLogoResult = pillLogoResult
       ? await renderFirstMatchingNetworkRawBadgeHybrid(demoCandidates, badgePw, topLight, undefined, disabledNetworks)
       : null
+  }
+  // "Dove guardare": con provider disponibili la fila sostituisce il logo
+  // network (stesso slot/bitmap, quindi stesso layout). Vuota o con download
+  // falliti → null e il ramo network sopra resta com'è oggi.
+  const watchRow = await watchRowPromise
+  if (watchRow) {
+    pillLogoResult = { ...watchRow, networkKey: "__watch_providers", matchedName: "watch-providers" }
+    rawLogoResult = pillLogoResult
   }
   const networkLogoResult = pillLogoResult
   // Network: sempre visibile quando abilitato, subito sopra il logo film, quasi attaccato — SVG resta raw, TMDB fallback è A (ricolor + ombra) per non risultare scuro.

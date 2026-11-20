@@ -1,3 +1,5 @@
+import { getWatchProviders, type WatchProvider } from "@/lib/watch-providers"
+import { sanitizeWatchRegion } from "@/lib/regions"
 import { NextRequest } from "next/server"
 import { initSharp } from "@/lib/sharp-config"
 import { getImages, getDetails } from "@/lib/tmdb"
@@ -73,6 +75,9 @@ import { finalizePosterRender } from "./finalize"
 import { resolveRenderDisplay } from "./display-state"
 import type { PosterArtwork, PosterTitleMeta } from "./sources"
 import { resolveAutoSources, resolveMappingSources, resolveQuerySources, type SourceResolutionContext } from "./resolve-sources"
+
+/** Cap del fetch provider (parità col cap rating): oltre, il poster esce senza icone. */
+const WATCH_PROVIDERS_TIMEOUT_MS = 1500
 
 // Vercel: limite massimo di esecuzione della funzione. Il render poster ha un
 // deadline interno di 30s (PICTORIUM_RENDER_TIMEOUT_MS) → 40s copre il caso
@@ -698,8 +703,18 @@ export async function GET(req: NextRequest, { params }: { params: Promise<RouteP
       networkLogoOffsetX, networkLogoOffsetY,
       queryExtra, qNetLogo, networkLogo, networkLogoPosition, ribbonSide, ribbonEnabled, rankingBadgeAccent,
       networkLogoFollowTitle, networkFixedX, networkFixedY,
+      watchProviders, watchRegion,
       preRelease, posterShape, posterLayout, posterFreshScope, logoAlign, seasonalTheme, hideLogo,
     } = renderConfig
+
+    // "Dove guardare": fetch provider flatrate solo se opt-in, paese `wpr` >
+    // defaults > paese del poster. Cap 1500 ms e renderAbort: mai oltre il
+    // caso peggiore, errore/timeout → lista vuota (poster invariato).
+    const wpRegion = sanitizeWatchRegion(watchRegion ?? posterRegion.code)
+    const watchProvidersPromise: Promise<WatchProvider[]> = watchProviders && wpRegion
+      ? getWatchProviders(mediaType as "movie" | "tv", tmdbId, wpRegion, effTmdbKey,
+          AbortSignal.any([renderAbort.signal, AbortSignal.timeout(WATCH_PROVIDERS_TIMEOUT_MS)]))
+      : Promise.resolve([])
 
     // Blur non-clean + stato display dei rating separati (display-state.ts).
     const {
@@ -846,6 +861,8 @@ export async function GET(req: NextRequest, { params }: { params: Promise<RouteP
       titleMeta.tmdbNetworksDetailed = [{ name: fallbackName, logoPath: fallbackPath }]
     }
 
+    const watchProviderList = await watchProvidersPromise
+
     // 10. Generate poster buffer
     // Collettore geometria network per il debug (solo numeri): in fissa è la
     // fonte del freeze senza salto; nel path normale resta inutilizzato.
@@ -905,6 +922,7 @@ export async function GET(req: NextRequest, { params }: { params: Promise<RouteP
       finalRank, animeRankResult, rankingResult,
       mapping, tmdbId, digitalReleaseDate: preDigital ?? null, tmdbNetworks: titleMeta.tmdbNetworks, productionCompanies: titleMeta.productionCompanies, tmdbStudios: titleMeta.tmdbStudios,
       tmdbNetworksDetailed: titleMeta.tmdbNetworksDetailed, productionCompaniesDetailed: titleMeta.productionCompaniesDetailed,
+      ...(watchProviderList.length > 0 ? { watchProviders: watchProviderList } : {}),
       tvType: titleMeta.tvType, tvStatus: titleMeta.tvStatus, releaseDate: titleMeta.releaseDate, firstAirDate: titleMeta.firstAirDate,
       lastAirDate: titleMeta.lastAirDate, seasonCount: titleMeta.seasonCount, nextEpisodeAirDate: titleMeta.nextEpisodeAirDate, numberOfEpisodes: titleMeta.numberOfEpisodes, originCountries: titleMeta.originCountries, genreIds: titleMeta.genreIds,
       wikidataResult, tmdbKeywords, locale, t,

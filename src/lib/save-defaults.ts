@@ -45,6 +45,8 @@ export async function saveDefaults(ed: PosterEditorCtx): Promise<boolean> {
     // persistite come gli altri default (PUT + localStorage via `d` sotto).
     disabledContentTags: ed.defaultDisabledContentTags,
     disabledNetworks: ed.defaultDisabledNetworks,
+    watchProviders: ed.defaultWatchProviders,
+    watchRegion: ed.defaultWatchRegion ?? undefined,
     badgeStyle: ed.defaultBadgeStyle,
     rankingBadgeStyle: ed.defaultRankingBadgeStyle,
     extraBadgeStyle: ed.defaultExtraBadgeStyle ?? null,

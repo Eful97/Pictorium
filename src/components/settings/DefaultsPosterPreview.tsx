@@ -310,6 +310,8 @@ export function buildDefaultsPreviewUrlFromEditor(
       defaultSashOrder: ed.defaultSashOrder,
       defaultDisabledContentTags: ed.defaultDisabledContentTags ?? undefined,
       defaultDisabledNetworks: ed.defaultDisabledNetworks ?? undefined,
+      defaultWatchProviders: ed.defaultWatchProviders ?? undefined,
+      defaultWatchRegion: ed.defaultWatchRegion ?? undefined,
       previewFamily: opts.previewFamily ?? null,
       previewExtra,
     })

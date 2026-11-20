@@ -18,6 +18,7 @@ import { parseMinQuality, type StreamQuality } from "./quality-tiers"
 import { parseSashOrder, normalizeSashOrder, DEFAULT_SASH_ORDER, NEXT_EPISODE_BADGE_KEY, type SashBucket } from "./badge-priority"
 import { sanitizeDisabledContentTags } from "./content-tags"
 import { sanitizeDisabledNetworks } from "./network-keys"
+import { sanitizeWatchRegion } from "./regions"
 import { parseBadgeItemTransforms, type BadgeItemTransformMap } from "./badge-item-transforms"
 import {
   isBadgeStyle,
@@ -493,6 +494,10 @@ export interface PosterRenderConfig {
    * Skippati prima dei path locale e fallback TMDB, mai resurrect.
    */
   disabledNetworks: string[]
+  /** "Dove guardare" (`wp`): fila provider flatrate al posto del logo network. */
+  watchProviders: boolean
+  /** Paese provider (`wpr`, codice REGIONS) o null = paese del poster. */
+  watchRegion: string | null
   /** Riga rating custom provider (display). Default ON quando il provider è configurato. */
   customRatings: boolean
   ratingSources: string[]
@@ -983,6 +988,11 @@ export function resolvePosterRenderConfig(input: PosterRenderConfigInput): Poste
   const disabledNetworks: string[] = rawDnet !== null
     ? sanitizeDisabledNetworks(rawDnet.split(","))
     : sanitizeDisabledNetworks(configOverride?.disabledNetworks ?? sd.disabledNetworks ?? [])
+  // "Dove guardare" — catena: query `wp`/`wpr` > server defaults > OFF / paese
+  // del poster. Regione sanitizzata a ogni livello (garbage cade al successivo).
+  const rawWp = q.get("wp")
+  const watchProviders: boolean = rawWp !== null ? rawWp !== "0" : (sd.watchProviders ?? false)
+  const watchRegion: string | null = sanitizeWatchRegion(q.get("wpr")) ?? sanitizeWatchRegion(sd.watchRegion)
 
   // Custom rating provider row (display) — precedence: query `cr` > mapping
   // effettivo per formato > config token/profile > effective per-shape defaults > true
@@ -1424,6 +1434,8 @@ export function resolvePosterRenderConfig(input: PosterRenderConfigInput): Poste
     sashOrder,
     disabledContentTags,
     disabledNetworks,
+    watchProviders,
+    watchRegion,
     customRatings,
     ratingSources,
     separateRatings,

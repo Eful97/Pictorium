@@ -62,6 +62,7 @@ const RENDER_FILES = [
   "src/lib/network-follow.ts",
   "src/lib/network-keys.ts",
   "src/lib/network-svgs.ts",
+  "src/lib/watch-providers-render.ts",
   "src/lib/poster-auto-fit.ts",
   "src/lib/poster-badge.ts",
   "src/lib/poster-cache-infra.ts",

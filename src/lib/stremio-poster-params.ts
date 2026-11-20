@@ -4,6 +4,7 @@ import { getSeparateBadgeDefaultScale, getSeparateRatingsStyleForShape, isAgeBad
 import { canonicalizeBadgeItemTransforms } from "@/lib/badge-item-transforms"
 import { sanitizeDisabledContentTags } from "@/lib/content-tags"
 import { sanitizeDisabledNetworks } from "@/lib/network-keys"
+import { sanitizeWatchRegion } from "@/lib/regions"
 import type { AgeBadgeStyle } from "@/lib/badge-styles"
 import type { QualityMarkId } from "@/lib/quality-badge-pack"
 import { parseMinQuality, type StreamQuality } from "@/lib/quality-tiers"
@@ -78,6 +79,9 @@ export interface StremioPosterParamsInput {
    * solo quando non-vuoti (stesso contratto di `dct` sopra).
    */
   readonly disabledNetworks?: readonly string[] | null
+  /** "Dove guardare": emesso come `wp=1` (+ `wpr`) solo quando ON. */
+  readonly watchProviders?: boolean | null
+  readonly watchRegion?: string | null
   readonly badgeStyle?: BadgeStyle
   readonly rankingBadgeStyle?: RankingBadgeStyle
   /** Standalone extra-badge style: emitted as `xbs` only when defined (incl. "follow-rank" sentinel). */
@@ -478,6 +482,11 @@ export function buildStremioPosterSearchParams(input: StremioPosterParamsInput):
   if (input.disabledNetworks && input.disabledNetworks.length > 0) {
     const ids = [...new Set(sanitizeDisabledNetworks(input.disabledNetworks))].sort()
     if (ids.length > 0) params.set("dnet", ids.join(","))
+  }
+  if (input.watchProviders === true) {
+    params.set("wp", "1")
+    const wpr = sanitizeWatchRegion(input.watchRegion)
+    if (wpr) params.set("wpr", wpr)
   }
   if (input.customBadge) params.set("extra", input.customBadge)
   if (input.dateFormat && input.dateFormat !== "locale") {

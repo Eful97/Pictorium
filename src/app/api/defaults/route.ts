@@ -352,6 +352,8 @@ const defaultsSchema = z.object({
   // 74 canonical marks + the Other-group sentinel (same list, never a key).
   disabledContentTags: z.array(z.string().max(40)).max(64).optional(),
   disabledNetworks: z.array(z.string().max(40)).max(MAX_DISABLED_NETWORKS).optional(),
+  watchProviders: z.boolean().optional(),
+  watchRegion: z.string().max(2).optional(),
 })
 
 function isPlainLandscapeRecord(v: unknown): v is Record<string, unknown> {

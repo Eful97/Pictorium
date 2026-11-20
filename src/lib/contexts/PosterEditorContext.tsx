@@ -431,6 +431,10 @@ export interface PosterEditorCtx {
    */
   defaultDisabledNetworks: string[]
   setDefaultDisabledNetworks: (v: string[] | ((prev: string[]) => string[])) => void
+  defaultWatchProviders: boolean
+  setDefaultWatchProviders: (v: boolean | ((prev: boolean) => boolean)) => void
+  defaultWatchRegion: string | null
+  setDefaultWatchRegion: (v: string | null) => void
   defaultAutoRotateClean: boolean
   setDefaultAutoRotateClean: (v: boolean | ((prev: boolean) => boolean)) => void
   /** Default rotazione poster: include i poster della lingua corrente (false = Solo clean). */
@@ -904,7 +908,7 @@ export function PosterEditorProvider({
     defaultBadgeItemTransforms,
     defaultGenreBadgeOffsetX, defaultGenreBadgeOffsetY, defaultQualityBadgeOffsetX, defaultQualityBadgeOffsetY,
     defaultNetworkLogoOffsetX, defaultNetworkLogoOffsetY,
-    defaultBadgeGenre, defaultBadgeYear, defaultBadgeRating, defaultBadgeQuality, defaultAgeBadge, defaultAgeCountry, defaultAgeBadgeStyle, defaultAwardBadgeStyle, defaultCustomRatings, defaultCustomRatingEndpoint, defaultCustomRatingApiKeyHeader, defaultRatingSources, defaultSeparateRatings, defaultSeparateRatingsStyle, defaultPosterLayout, defaultPosterFreshScope, defaultSashOrder, defaultDisabledContentTags, defaultDisabledNetworks,
+    defaultBadgeGenre, defaultBadgeYear, defaultBadgeRating, defaultBadgeQuality, defaultAgeBadge, defaultAgeCountry, defaultAgeBadgeStyle, defaultAwardBadgeStyle, defaultCustomRatings, defaultCustomRatingEndpoint, defaultCustomRatingApiKeyHeader, defaultRatingSources, defaultSeparateRatings, defaultSeparateRatingsStyle, defaultPosterLayout, defaultPosterFreshScope, defaultSashOrder, defaultDisabledContentTags, defaultDisabledNetworks, defaultWatchProviders, defaultWatchRegion,
     defaultAutoRotateClean, defaultRotationIncludeNonClean, defaultAutoRotateBackdrop, defaultPortraitFitEnabled, defaultLandscapeFitEnabled, defaultNetworkLogo, defaultNetworkLogoPosition, defaultNetworkLogoFollowTitle, defaultPreRelease, defaultRibbonSide, defaultRibbonEnabled, defaultPosterShape, defaultLogoAlign,
     defaultDisableCleanPosters,
     defaultPortraitBackdropFallback,
@@ -1718,6 +1722,13 @@ export function PosterEditorProvider({
       const next = typeof v === "function" ? v(defaultDisabledNetworks) : v
       update({ defaultDisabledNetworks: next })
     }, [defaultDisabledNetworks, update])
+  const setDefaultWatchProviders = useCallback(
+    (v: boolean | ((prev: boolean) => boolean)) => {
+      const next = typeof v === "function" ? v(defaultWatchProviders) : v
+      update({ defaultWatchProviders: next })
+    }, [defaultWatchProviders, update])
+  const setDefaultWatchRegion = useCallback(
+    (v: string | null) => update({ defaultWatchRegion: v }), [update])
   const setDefaultAutoRotateClean = useCallback(
     (v: boolean | ((prev: boolean) => boolean)) => {
       const next = typeof v === "function" ? v(defaultAutoRotateClean) : v
@@ -2381,6 +2392,10 @@ export function PosterEditorProvider({
       setDefaultDisabledContentTags,
       defaultDisabledNetworks,
       setDefaultDisabledNetworks,
+      defaultWatchProviders,
+      setDefaultWatchProviders,
+      defaultWatchRegion,
+      setDefaultWatchRegion,
       defaultAutoRotateClean,
       setDefaultAutoRotateClean,
       defaultRotationIncludeNonClean,
@@ -2705,6 +2720,7 @@ export function PosterEditorProvider({
       defaultSashOrder, setDefaultSashOrder,
       defaultDisabledContentTags, setDefaultDisabledContentTags,
       defaultDisabledNetworks, setDefaultDisabledNetworks,
+      defaultWatchProviders, setDefaultWatchProviders, defaultWatchRegion, setDefaultWatchRegion,
       defaultAutoRotateClean, setDefaultAutoRotateClean,
       defaultRotationIncludeNonClean, setDefaultRotationIncludeNonClean,
       defaultDisableCleanPosters, setDefaultDisableCleanPosters,

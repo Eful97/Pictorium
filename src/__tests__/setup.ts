@@ -325,6 +325,10 @@ const itDict: Record<string, string> = {
   "ui.tmdbFallbackNetworks": "Altri loghi",
   "ui.tmdbFallbackHint": "Marchi secondari integrati più loghi di studio e network da TMDB per i titoli senza marchio in evidenza. Spegnerlo non nasconde mai i marchi in evidenza qui sopra.",
   "ui.otherNetworksMixedHint": "Alcuni marchi secondari restano disattivati singolarmente. Spegni e riaccendi il gruppo per riabilitarli tutti.",
+  "ui.watchProvidersLabel": "Mostra dove guardare",
+  "ui.watchProvidersHint": "Sostituisce il logo del network di produzione con i servizi di streaming (in abbonamento) che hanno il titolo nel paese scelto. Usa la tua chiave TMDB.",
+  "ui.watchRegionLabel": "Paese streaming",
+  "ui.watchRegionSame": "Come il paese del poster",
 }
 
 function mockT(key: string, params?: Record<string, string | number>): string {
