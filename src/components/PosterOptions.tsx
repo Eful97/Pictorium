@@ -110,6 +110,7 @@ export function PosterOptions({ posters, posterActivePath, lang, selectPoster, a
     logoScale: ed.logoScale,
     logoOffsetX: ed.logoOffsetX,
     logoOffsetY: ed.logoOffsetY,
+    logoAnchor: ed.posterLayout === "standard" ? ed.logoAnchor : null,
     hasBadges: ed.globalBadges,
   })
 

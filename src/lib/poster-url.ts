@@ -1,3 +1,5 @@
+import type { LogoAnchor } from "@/lib/logo-layout"
+import type { QualityAnchor, BottomAnchor } from "@/lib/badge-anchor"
 import { getDomain } from "./utils"
 import {
   resolveEffectiveNetworkFollow,
@@ -39,7 +41,7 @@ function pushWatchProviderParams(params: string[], on: boolean | null | undefine
 import { normalizeLogoFont, sanitizeLogoText } from "./text-logo"
 import type { QualityMarkId } from "./quality-badge-pack"
 import type { PosterShape, NetworkLogoPosition, PosterLayout, PosterFreshScope } from "./types"
-import { isPosterLayout } from "./types"
+import { isPosterLayout, isNetworkLogoPosition } from "./types"
 import type { DateFormat } from "./release-badge"
 
 interface BadgeParams {
@@ -140,6 +142,9 @@ interface BadgeParams {
   networkLogo?: boolean
   /** Ancoraggio orizzontale del logo network (preview WYSIWYG, sempre esplicito). */
   networkLogoPosition?: NetworkLogoPosition
+  logoAnchor?: LogoAnchor
+  qualityAnchor?: QualityAnchor
+  bottomAnchor?: BottomAnchor
   /**
    * Il network segue il titolo (preview WYSIWYG, esplicito quando definito:
    * assente = legacy invariato).
@@ -396,6 +401,9 @@ export function buildUrlPattern(bp: BadgeParams & {
     topShadeHeight: bp.topShadeHeight,
     networkLogo: bp.networkLogo,
     networkLogoPosition: bp.networkLogoPosition,
+    logoAnchor: bp.logoAnchor,
+    qualityAnchor: bp.qualityAnchor,
+    bottomAnchor: bp.bottomAnchor,
     networkLogoFollowTitle: bp.networkLogoFollowTitle,
     preRelease: bp.preRelease,
     ribbonSide: bp.ribbonSide,
@@ -626,7 +634,10 @@ export function buildPreviewUrl(ps: PosterState, bp: BadgeParams, configToken?: 
   params.push(`netLogo=${bp.networkLogo !== false ? "1" : "0"}`)
   // SEMPRE esplicito (come ribbon/side): senza, un mapping salvato con
   // posizione forzata scavalcerebbe lo stato editor (desync WYSIWYG).
-  params.push(`netPos=${bp.networkLogoPosition === "top" ? "top" : "auto"}`)
+  params.push(`netPos=${isNetworkLogoPosition(bp.networkLogoPosition) ? bp.networkLogoPosition : "auto"}`)
+  params.push(`lanc=${bp.logoAnchor ?? "auto"}`)
+  params.push(`qanc=${bp.qualityAnchor ?? "auto"}`)
+  params.push(`banc=${bp.bottomAnchor ?? "auto"}`)
   // Esplicito quando definito (come netPos): senza, un mapping salvato con
   // follow spento scavalcerebbe lo stato editor e viceversa (desync
   // WYSIWYG). Assente = URL legacy invariati.
@@ -846,6 +857,9 @@ export interface DefaultsPreviewParams {
   defaultNetworkLogoOffsetY?: number
   defaultNetworkLogo?: boolean
   defaultNetworkLogoPosition?: NetworkLogoPosition
+  defaultLogoAnchor?: LogoAnchor
+  defaultQualityAnchor?: QualityAnchor
+  defaultBottomAnchor?: BottomAnchor
   /** Il network segue il titolo (default globale, per-shape via `landscape`).
    *  Emesso solo quando definito: default legacy = URL invariati. */
   defaultNetworkLogoFollowTitle?: boolean | null
@@ -1177,7 +1191,11 @@ export function buildDefaultsPreviewUrl(bp: DefaultsPreviewParams): string {
     params.push(`noy=${previewLandscape ? netOn.y : (pick(land.networkLogoOffsetY, bp.defaultNetworkLogoOffsetY) ?? 0)}`)
   }
   params.push(`netLogo=${pick(land.networkLogo, bp.defaultNetworkLogo) !== false ? "1" : "0"}`)
-  params.push(`netPos=${pick(land.networkLogoPosition ?? undefined, bp.defaultNetworkLogoPosition) === "top" ? "top" : "auto"}`)
+  const landNetPos = pick(land.networkLogoPosition ?? undefined, bp.defaultNetworkLogoPosition)
+  params.push(`netPos=${isNetworkLogoPosition(landNetPos) ? landNetPos : "auto"}`)
+  params.push(`lanc=${pick(land.logoAnchor ?? undefined, bp.defaultLogoAnchor) ?? "auto"}`)
+  params.push(`qanc=${pick(land.qualityAnchor ?? undefined, bp.defaultQualityAnchor) ?? "auto"}`)
+  params.push(`banc=${pick(land.bottomAnchor ?? undefined, bp.defaultBottomAnchor) ?? "auto"}`)
   params.push(`ribbon=${pick(land.ribbonEnabled, bp.defaultRibbonEnabled) === false ? "0" : "1"}`)
   // Effetto pre-digitale SEMPRE esplicito in preview (come ribbon/sep/cr):
   // senza, un default salvato ON scavalcerebbe il toggle staged (desync

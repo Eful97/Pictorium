@@ -2,6 +2,7 @@
 
 import { useState, useEffect, useRef } from "react"
 import type { TMDBImage, PosterShape } from "@/lib/types"
+import { isActiveLogoAnchor, type LogoAnchor } from "@/lib/logo-layout"
 import { userFetch } from "@/lib/http"
 import { currentPathUuid } from "@/lib/user-token"
 
@@ -31,6 +32,8 @@ export interface UsePosterFitInput {
   logoScale: number
   logoOffsetX: number
   logoOffsetY: number
+  /** Ancora d'angolo del logo (solo Standard); assente/auto = zona storica. */
+  logoAnchor?: LogoAnchor | null
   hasBadges: boolean
   /** Formato canvas: "landscape" analizza sfondi 16:9 a 768×432 con layout
    *  Cinematic Left. Default "poster". */
@@ -79,6 +82,7 @@ function serialise(input: UsePosterFitInput): string | null {
     input.hasBadges,
     input.shape ?? "poster",
     input.posterSize ?? (input.shape === "landscape" ? "w780" : "w342"),
+    ...(isActiveLogoAnchor(input.logoAnchor) ? [input.logoAnchor] : []),
   ])
 }
 
@@ -139,6 +143,7 @@ export function usePosterFit(input: UsePosterFitInput): UsePosterFitResult {
             logoScale: inp.logoScale,
             logoOffsetX: inp.logoOffsetX,
             logoOffsetY: inp.logoOffsetY,
+            ...(isActiveLogoAnchor(inp.logoAnchor) ? { logoAnchor: inp.logoAnchor } : {}),
             hasBadges: inp.hasBadges,
             shape: inp.shape ?? "poster",
             posterSize: inp.posterSize ?? (inp.shape === "landscape" ? "w780" : "w342"),

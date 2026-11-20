@@ -252,6 +252,9 @@ export function buildStremioPosterUrl(input: BuildStremioPosterUrlInput): URL {
     // Ancoraggio network: effettivo per formato (profilo landscape vince sul
     // flat), poi default globale (come networkLogo).
     networkLogoPosition: eff?.networkLogoPosition ?? sd.networkLogoPosition,
+    logoAnchor: eff?.logoAnchor ?? sd.logoAnchor,
+    qualityAnchor: eff?.qualityAnchor ?? sd.qualityAnchor,
+    bottomAnchor: eff?.bottomAnchor ?? sd.bottomAnchor,
     preRelease: sd.preRelease,
     // hideLogo viaggia solo sul banner (il chiamante lo imposta insieme a
     // forceShape): poster/preview/Stremio non lo vedono mai.

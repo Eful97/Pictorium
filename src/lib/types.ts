@@ -1,3 +1,8 @@
+import type { LogoAnchor } from "./logo-layout"
+export type { LogoAnchor }
+import type { QualityAnchor, BottomAnchor } from "./badge-anchor"
+export type { QualityAnchor }
+export type { BottomAnchor }
 import type { BadgeStyle, RankingBadgeStyle, QualityBadgeStyle, QualityGroupLayout, BadgeFont, SeparateRatingsStyle, ExtraBadgeStyle, ExtraBadgeFollowRank, AgeBadgeStyle, AwardBadgeMode } from "./badge-styles"
 import type { QualityMarkId } from "./quality-badge-pack"
 
@@ -88,12 +93,25 @@ export function isPosterFreshScope(value: unknown): value is PosterFreshScope {
  * nastro rank/preset o Coming Soon a destra, sinistra in tutti gli altri
  * casi — anche in vista Stremio). Catena: query > mapping > config token >
  * server defaults > "auto".
+ * "tl" / "tr" (solo Standard): angolo alto sinistro / destro FORZATO, qualunque
+ * sia il lato del nastro. Stesso comportamento di "top" per il resto (stacking
+ * sotto Coming Soon e badge d'angolo, shrink vs badge centrale); la posizione
+ * fissa (follow OFF) resta prioritaria su tutte.
  */
-export type NetworkLogoPosition = "auto" | "top"
+export const NETWORK_LOGO_POSITIONS = ["auto", "top", "tl", "tr"] as const
+export type NetworkLogoPosition = (typeof NETWORK_LOGO_POSITIONS)[number]
+
+/**
+ * Valori OFFERTI dal selettore (Auto + angoli alti). `top` resta valido in URL,
+ * mapping e default già salvati (comportamento invariato) ma non ha più un
+ * pulsante: gli angoli espliciti sono più chiari e prevedibili.
+ */
+export const NETWORK_LOGO_POSITION_CHOICES = ["auto", "tl", "tr"] as const
 
 export function isNetworkLogoPosition(value: unknown): value is NetworkLogoPosition {
-  return value === "auto" || value === "top"
+  return typeof value === "string" && (NETWORK_LOGO_POSITIONS as readonly string[]).includes(value)
 }
+
 
 export interface SearchResult {
   id: number
@@ -422,6 +440,9 @@ export interface Mapping {
   networkLogo?: boolean | null
   /** Posizione del logo network ("auto" = specchio dinamico, "top" = angolo alto lato nastro). */
   networkLogoPosition?: NetworkLogoPosition | null
+  logoAnchor?: LogoAnchor | null
+  qualityAnchor?: QualityAnchor | null
+  bottomAnchor?: BottomAnchor | null
   ribbonSide?: "left" | "right" | null
   /** Nastro stile Netflix all'angolo (false = badge classifica centrato). Default ON. */
   ribbonEnabled?: boolean | null
@@ -602,6 +623,9 @@ export interface LandscapeSettings {
   networkLogo?: boolean | null
   /** Ancoraggio logo network ("auto" = specchio dinamico). */
   networkLogoPosition?: NetworkLogoPosition | null
+  logoAnchor?: LogoAnchor | null
+  qualityAnchor?: QualityAnchor | null
+  bottomAnchor?: BottomAnchor | null
   /** Nastro stile Netflix all'angolo (default ON). */
   ribbonEnabled?: boolean | null
   /**
@@ -744,6 +768,9 @@ export function effectiveMappingForShape(mapping: Mapping | null, shape: PosterS
     videoFormats: l.videoFormats ?? mapping.videoFormats,
     networkLogo: l.networkLogo ?? mapping.networkLogo,
     networkLogoPosition: l.networkLogoPosition ?? mapping.networkLogoPosition,
+    logoAnchor: l.logoAnchor ?? mapping.logoAnchor,
+    qualityAnchor: l.qualityAnchor ?? mapping.qualityAnchor,
+    bottomAnchor: l.bottomAnchor ?? mapping.bottomAnchor,
     ribbonEnabled: l.ribbonEnabled ?? mapping.ribbonEnabled,
   }
 }

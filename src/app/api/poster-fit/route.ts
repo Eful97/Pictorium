@@ -2,6 +2,7 @@ import { NextRequest } from "next/server"
 import { rateLimit, rateLimitKey, rateLimitResponse } from "@/lib/rate-limit"
 import { selectAcceptedPosterPath } from "@/lib/poster-fit-adjust"
 import { rankBestFitPosters, selectAutoFitCandidates } from "@/lib/poster-auto-fit"
+import { isLogoAnchor, type LogoAnchor } from "@/lib/logo-layout"
 import { BEST_FIT_GLOBAL } from "@/lib/best-fit-config"
 import { createLogger } from "@/lib/logger"
 import { readJsonBody, BodyTooLargeError } from "@/lib/read-body"
@@ -23,6 +24,7 @@ interface PosterFitBody {
   logoScale?: number
   logoOffsetX?: number
   logoOffsetY?: number
+  logoAnchor?: string
   hasBadges?: boolean
   posterSize?: "w342" | "w500" | "w780" | "w300"
   shape?: "poster" | "landscape"
@@ -144,6 +146,9 @@ for (const field of ["logoScale", "logoOffsetX", "logoOffsetY"] as const) {
     return Response.json({ error: `Invalid body field: '${field}' must be a finite number` }, { status: 400 })
   }
 }
+if (body.logoAnchor !== undefined && !isLogoAnchor(body.logoAnchor)) {
+  return Response.json({ error: "Invalid body field: 'logoAnchor' must be one of auto, tl, tr, bl, bc, br" }, { status: 400 })
+}
 if (body.hasBadges !== undefined && typeof body.hasBadges !== "boolean") {
   return Response.json({ error: "Invalid body field: 'hasBadges' must be a boolean" }, { status: 400 })
 }
@@ -239,6 +244,7 @@ if (!body.logoPath.startsWith("/")) {
     hasBadges,
     [-20, 0, 20],
     shape,
+    body.logoAnchor as LogoAnchor | undefined,
   )
 
   const ranked = rankedResults.map((r) => ({

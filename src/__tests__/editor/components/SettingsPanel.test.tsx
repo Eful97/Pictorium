@@ -516,10 +516,10 @@ describe("SettingsPanel shape, resize and tab homes", () => {
     clickTab("ui.settingsTabTransform")
     const transformPanel = screen.getByRole("tabpanel", { name: "ui.transform" })
     expect(transformPanel).toBeInTheDocument()
-    // Position hosts the network-position override only (logo alignment is
-    // Auto-only: no selector, no subgroup, no card anywhere).
-    expect(within(transformPanel).getByText("ui.position")).toBeInTheDocument()
-    expect(within(transformPanel).getByText("ui.networkLogoPosition")).toBeInTheDocument()
+    // The network-position override lives INSIDE the network card (no separate
+    // "Position" card); logo alignment is Auto-only: no selector, no subgroup.
+    expect(within(transformPanel).queryByText("ui.position")).toBeNull()
+    expect(within(within(transformPanel).getByTestId("transform-geo-network")).getByText("ui.networkLogoPosition")).toBeInTheDocument()
     expect(within(transformPanel).queryByText("ui.logoAlign")).toBeNull()
     // Scoped to the visible transform panel: hidden Badge instances still
     // mount the picker, so a global query would false-positive.

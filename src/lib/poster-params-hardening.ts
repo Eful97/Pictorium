@@ -18,6 +18,8 @@
 // (mapping/defaults utente) non vengono mai toccati: solo la query.
 // ---------------------------------------------------------------------------
 
+import { isLogoAnchor } from "@/lib/logo-layout"
+import { isQualityAnchor, isBottomAnchor } from "@/lib/badge-anchor"
 import { envWithFallback } from "./env-compat"
 import { GENRE_FALLBACK } from "./badges"
 import { isRankKey } from "./i18n"
@@ -25,7 +27,7 @@ import { CHART_REGIONS, SUPPORTED_UI_LANGS } from "./regions"
 import { parseRatingSources } from "./ratings"
 import { isSeparateRatingsStyle, isQualityGroupLayout, DEFAULT_QUALITY_GROUP_LAYOUT, isQualityBadgeStyle, isBadgeStyle, isRankingBadgeStyle } from "./badge-styles"
 import { parseRegion } from "./regions"
-import { isPosterLayout, isPosterFreshScope, DEFAULT_POSTER_FRESH_SCOPE } from "./types"
+import { isPosterLayout, isPosterFreshScope, isNetworkLogoPosition, DEFAULT_POSTER_FRESH_SCOPE } from "./types"
 import { ANIME_RANK_MAX, parseSashOrder } from "./badge-priority"
 import { MAX_QUALITY_MARKS, isQualityMarkId } from "./quality-badge-pack"
 import { normalizeLogoFont, sanitizeLogoText } from "./text-logo"
@@ -176,7 +178,7 @@ export const POSTER_CACHE_ALLOWLIST: ReadonlySet<string> = new Set([
   // seasonal-theme.ts).
   "theme",
   // Funzionali (letti dalla route / poster-config, mai stile libero).
-  "badges", "ranking", "bg", "by", "br", "bq", "qbs", "awardstyle", "ribbon", "cr", "sep", "netLogo", "netPos", "netFollow", "wp", "wpr", "ti",
+  "badges", "ranking", "bg", "by", "br", "bq", "qbs", "awardstyle", "ribbon", "cr", "sep", "netLogo", "netPos", "lanc", "qanc", "banc", "netFollow", "wp", "wpr", "ti",
   "age", "agecountry", "agebs",
   "pre", "side", "hideLogo", "tint", "be", "preview", "u", "user",
   "config", "c", "api_key", "mdblist_key", "simkl_key", "tvdb_key",
@@ -640,11 +642,29 @@ export function hardenPosterSearchParams(
   params.delete("bp")
   params.delete("bpf")
   params.delete("bpt")
-  // netPos: enum finita ("top"/"auto") — garbage collassato (stesso render di
-  // auto, che il server risolve da solo).
+  // lanc: enum finita (LOGO_ANCHORS) — garbage collassato come netPos.
+  if (params.has("lanc")) {
+    const v = (params.get("lanc") || "").toLowerCase()
+    if (isLogoAnchor(v)) params.set("lanc", v)
+    else params.delete("lanc")
+  }
+  // qanc: enum finita (QUALITY_ANCHORS) — garbage collassato come netPos.
+  if (params.has("qanc")) {
+    const v = (params.get("qanc") || "").toLowerCase()
+    if (isQualityAnchor(v)) params.set("qanc", v)
+    else params.delete("qanc")
+  }
+  // banc: enum finita (BOTTOM_ANCHORS) — garbage collassato come netPos.
+  if (params.has("banc")) {
+    const v = (params.get("banc") || "").toLowerCase()
+    if (isBottomAnchor(v)) params.set("banc", v)
+    else params.delete("banc")
+  }
+  // netPos: enum finita (auto/top/tl/tr) — garbage collassato (stesso render
+  // di auto, che il server risolve da solo).
   if (params.has("netPos")) {
     const v = (params.get("netPos") || "").toLowerCase()
-    if (v === "top" || v === "auto") params.set("netPos", v)
+    if (isNetworkLogoPosition(v)) params.set("netPos", v)
     else params.delete("netPos")
   }
   // agecountry: territorio ISO-2 maiuscolo, GLOBAL esplicitamente escluso

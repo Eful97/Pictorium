@@ -3,6 +3,9 @@ import { getImages, getDetails, getDetailsWithExternalIds, type TMDBImage, type 
 import { effectiveMappingForShape, type Mapping } from "@/lib/types"
 import type { RegionDef } from "@/lib/regions"
 import type { ServerDefaults } from "@/lib/server-defaults"
+import { effectiveDefaultsForShape } from "@/lib/server-defaults-shape"
+import { resolvePosterLayout } from "@/lib/poster-config"
+import { resolveLogoAnchor } from "@/lib/logo-layout"
 import { BEST_FIT_GLOBAL, resolveLogoFitEnabled } from "@/lib/best-fit-config"
 import { AUTO_FIT_FETCH_TIMEOUT_MS, selectAutoFitCandidates, selectBestLogoFitPosterPath } from "@/lib/poster-auto-fit"
 import { matchTMDBStudios } from "@/lib/awards"
@@ -250,6 +253,18 @@ export async function resolveAutoSources(
     dynamicRotationIncludeNonClean, effTmdbKey, effMdblistKey, effSimklKey, reqRatingSources,
     renderAbort, queryBackdrop, queryLogo, queryPortraitBase,
   } = ctx
+  // Ancora del logo per lo scoring best-fit: stessa catena del render
+  // (`resolveLogoAnchor`), ma solo con layout Standard (Fresh/Card la ignorano).
+  // Layout non Standard o ancora assente = "auto" = zona storica invariata.
+  const fitShape = isLandscape ? "landscape" : "poster"
+  const fitLogoAnchor = resolvePosterLayout(ctx.hardenedParams, ctx.mapping, configOverride, sd, fitShape) === "standard"
+    ? resolveLogoAnchor({
+        query: ctx.hardenedParams.get("lanc"),
+        mapping: effectiveMappingForShape(ctx.mapping, fitShape)?.logoAnchor,
+        config: configOverride?.logoAnchor,
+        defaults: effectiveDefaultsForShape(sd, fitShape).logoAnchor ?? sd.logoAnchor,
+      })
+    : "auto"
   let aggregatedRating: ReturnType<typeof fetchAggregatedRating> | null = null
   let ratingAbort: AbortController | null = null
   const preferredLanguage = canonicalLang || posterRegion.lang2
@@ -521,6 +536,7 @@ export async function resolveAutoSources(
                 return Buffer.from(await readResponseBody(res))
               }, candidateSignal)
             },
+            logoAnchor: fitLogoAnchor,
             hasBadges: true,
           })
           const fitMs = Date.now() - fitStart
@@ -713,6 +729,7 @@ export async function resolveAutoSources(
                   return Buffer.from(await readResponseBody(res))
                 }, candidateSignal)
               },
+              logoAnchor: fitLogoAnchor,
               hasBadges: true,
               shape: "landscape",
             })

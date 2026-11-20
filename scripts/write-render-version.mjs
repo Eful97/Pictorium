@@ -56,6 +56,7 @@ const RENDER_FILES = [
   "src/lib/justwatch.ts",
   "src/lib/logo-contrast.ts",
   "src/lib/logo-layout.ts",
+  "src/lib/badge-anchor.ts",
   "src/lib/logo-selection.ts",
   "src/lib/multi-rating-renderer.ts",
   "src/lib/network-files.ts",

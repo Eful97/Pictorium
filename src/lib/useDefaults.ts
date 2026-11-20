@@ -1,5 +1,7 @@
 "use client"
 
+import { isLogoAnchor, type LogoAnchor } from "@/lib/logo-layout"
+import { isQualityAnchor, type QualityAnchor, isBottomAnchor, type BottomAnchor } from "@/lib/badge-anchor"
 import { useState, useEffect, useCallback, useRef } from "react"
 import type { BadgeStyle, RankingBadgeStyle, ExtraBadgeStyle, ExtraBadgeFollowRank } from "./badge-styles"
 import type { NetworkLogoPosition, PosterLayout, PosterFreshScope, PosterShape } from "./types"
@@ -185,6 +187,9 @@ export interface DefaultsState {
   defaultNetworkLogo: boolean
   /** Posizione del logo network di default ("auto" = specchio dinamico, "top" = angolo alto lato nastro). */
   defaultNetworkLogoPosition: NetworkLogoPosition
+  defaultLogoAnchor: LogoAnchor
+  defaultQualityAnchor: QualityAnchor
+  defaultBottomAnchor: BottomAnchor
   /** Il network segue il titolo di default (true = layout storico). */
   defaultNetworkLogoFollowTitle: boolean
   defaultPreRelease: boolean
@@ -249,6 +254,9 @@ export interface DefaultsState {
   networkLogo: boolean
   /** Posizione del logo network del poster in editing. */
   networkLogoPosition: NetworkLogoPosition
+  logoAnchor: LogoAnchor
+  qualityAnchor: QualityAnchor
+  bottomAnchor: BottomAnchor
   /** Il network segue il titolo nel poster in editing (false = posizione assoluta). */
   networkLogoFollowTitle: boolean
   preRelease: boolean
@@ -407,6 +415,9 @@ const DEFAULT_FLAT_DEFAULTS: Omit<DefaultsState, "landscape"> = {
   defaultLandscapeFitEnabled: true,
   defaultNetworkLogo: true,
   defaultNetworkLogoPosition: "auto",
+  defaultLogoAnchor: "auto",
+  defaultQualityAnchor: "auto",
+  defaultBottomAnchor: "auto",
   defaultNetworkLogoFollowTitle: true,
   defaultPreRelease: false,
   defaultRibbonSide: "left",
@@ -446,6 +457,9 @@ const DEFAULT_FLAT_DEFAULTS: Omit<DefaultsState, "landscape"> = {
   posterFreshScope: "ranked",
   networkLogo: true,
   networkLogoPosition: "auto",
+  logoAnchor: "auto",
+  qualityAnchor: "auto",
+  bottomAnchor: "auto",
   networkLogoFollowTitle: true,
   preRelease: false,
   ribbonSide: "left",
@@ -666,8 +680,14 @@ interface StoredDefaults {
   defaultLogoFitEnabled?: boolean
   defaultNetworkLogo?: boolean
   defaultNetworkLogoPosition?: NetworkLogoPosition
+  defaultLogoAnchor?: LogoAnchor
+  defaultQualityAnchor?: QualityAnchor
+  defaultBottomAnchor?: BottomAnchor
   defaultNetworkLogoFollowTitle?: boolean
   networkLogoPosition?: NetworkLogoPosition
+  logoAnchor?: LogoAnchor
+  qualityAnchor?: QualityAnchor
+  bottomAnchor?: BottomAnchor
   networkLogoFollowTitle?: boolean
   defaultPreRelease?: boolean
   preRelease?: boolean
@@ -1085,6 +1105,15 @@ function buildFromStored(d: StoredDefaults | null): DefaultsState {
     defaultNetworkLogoPosition: isNetworkLogoPosition(d.defaultNetworkLogoPosition)
       ? d.defaultNetworkLogoPosition
       : (isNetworkLogoPosition(d.networkLogoPosition) ? d.networkLogoPosition : "auto"),
+    defaultLogoAnchor: isLogoAnchor(d.defaultLogoAnchor)
+      ? d.defaultLogoAnchor
+      : (isLogoAnchor(d.logoAnchor) ? d.logoAnchor : "auto"),
+    defaultQualityAnchor: isQualityAnchor(d.defaultQualityAnchor)
+      ? d.defaultQualityAnchor
+      : (isQualityAnchor(d.qualityAnchor) ? d.qualityAnchor : "auto"),
+    defaultBottomAnchor: isBottomAnchor(d.defaultBottomAnchor)
+      ? d.defaultBottomAnchor
+      : (isBottomAnchor(d.bottomAnchor) ? d.bottomAnchor : "auto"),
     defaultPreRelease: d.defaultPreRelease ?? d.preRelease ?? false,
     defaultRibbonSide: d.defaultRibbonSide ?? d.ribbonSide ?? "left",
     defaultRibbonEnabled: d.defaultRibbonEnabled ?? d.ribbonEnabled ?? true,
@@ -1158,6 +1187,15 @@ function buildFromStored(d: StoredDefaults | null): DefaultsState {
     networkLogoPosition: isNetworkLogoPosition(d.networkLogoPosition)
       ? d.networkLogoPosition
       : (isNetworkLogoPosition(d.defaultNetworkLogoPosition) ? d.defaultNetworkLogoPosition : "auto"),
+    logoAnchor: isLogoAnchor(d.logoAnchor)
+      ? d.logoAnchor
+      : (isLogoAnchor(d.defaultLogoAnchor) ? d.defaultLogoAnchor : "auto"),
+    qualityAnchor: isQualityAnchor(d.qualityAnchor)
+      ? d.qualityAnchor
+      : (isQualityAnchor(d.defaultQualityAnchor) ? d.defaultQualityAnchor : "auto"),
+    bottomAnchor: isBottomAnchor(d.bottomAnchor)
+      ? d.bottomAnchor
+      : (isBottomAnchor(d.defaultBottomAnchor) ? d.defaultBottomAnchor : "auto"),
     preRelease: d.preRelease ?? d.defaultPreRelease ?? false,
     ribbonSide: d.ribbonSide ?? d.defaultRibbonSide ?? "left",
     ribbonEnabled: d.ribbonEnabled ?? d.defaultRibbonEnabled ?? true,
@@ -1332,6 +1370,9 @@ export function defaultsToPayload(d: DefaultsState): Record<string, unknown> {
     defaultLandscapeFitEnabled: d.defaultLandscapeFitEnabled,
     networkLogo: d.defaultNetworkLogo,
     networkLogoPosition: d.defaultNetworkLogoPosition,
+    logoAnchor: d.defaultLogoAnchor,
+    qualityAnchor: d.defaultQualityAnchor,
+    bottomAnchor: d.defaultBottomAnchor,
     networkLogoFollowTitle: d.defaultNetworkLogoFollowTitle,
     preRelease: d.defaultPreRelease,
     ribbonSide: d.defaultRibbonSide,

@@ -1,5 +1,7 @@
 "use client"
 
+import { type LogoAnchor } from "@/lib/logo-layout"
+import { type QualityAnchor, type BottomAnchor } from "@/lib/badge-anchor"
 import { createContext, useContext, useState, useMemo, useCallback, useRef } from "react"
 import type { TMDBImage, NetworkLogoPosition, PosterLayout, PosterFreshScope, PosterShape, LandscapeSettings } from "@/lib/types"
 import { useDefaults, type DefaultSyncStatus, type DefaultsState, type StagedSaveResult } from "@/lib/useDefaults"
@@ -209,7 +211,13 @@ export interface PosterEditorCtx {
   networkLogo: boolean
   setNetworkLogo: (v: boolean | ((prev: boolean) => boolean)) => void
   networkLogoPosition: NetworkLogoPosition
+  logoAnchor: LogoAnchor
+  qualityAnchor: QualityAnchor
+  bottomAnchor: BottomAnchor
   setNetworkLogoPosition: (v: NetworkLogoPosition | ((prev: NetworkLogoPosition) => NetworkLogoPosition)) => void
+  setLogoAnchor: (v: LogoAnchor | ((prev: LogoAnchor) => LogoAnchor)) => void
+  setQualityAnchor: (v: QualityAnchor | ((prev: QualityAnchor) => QualityAnchor)) => void
+  setBottomAnchor: (v: BottomAnchor | ((prev: BottomAnchor) => BottomAnchor)) => void
   /** Il network segue il titolo nel poster in editing (false = posizione assoluta). */
   networkLogoFollowTitle: boolean
   setNetworkLogoFollowTitle: (v: boolean | ((prev: boolean) => boolean)) => void
@@ -464,7 +472,13 @@ export interface PosterEditorCtx {
   defaultNetworkLogo: boolean
   setDefaultNetworkLogo: (v: boolean | ((prev: boolean) => boolean)) => void
   defaultNetworkLogoPosition: NetworkLogoPosition
+  defaultLogoAnchor: LogoAnchor
+  defaultQualityAnchor: QualityAnchor
+  defaultBottomAnchor: BottomAnchor
   setDefaultNetworkLogoPosition: (v: NetworkLogoPosition | ((prev: NetworkLogoPosition) => NetworkLogoPosition)) => void
+  setDefaultLogoAnchor: (v: LogoAnchor | ((prev: LogoAnchor) => LogoAnchor)) => void
+  setDefaultQualityAnchor: (v: QualityAnchor | ((prev: QualityAnchor) => QualityAnchor)) => void
+  setDefaultBottomAnchor: (v: BottomAnchor | ((prev: BottomAnchor) => BottomAnchor)) => void
   /** Il network segue il titolo di default (true = layout storico). */
   defaultNetworkLogoFollowTitle: boolean
   setDefaultNetworkLogoFollowTitle: (v: boolean | ((prev: boolean) => boolean)) => void
@@ -887,6 +901,9 @@ export function PosterEditorProvider({
 
   const {
     globalBadges, rankingBadges, networkLogo, networkLogoPosition, networkLogoFollowTitle, preRelease, ribbonSide, ribbonEnabled, posterShape, logoAlign,
+    logoAnchor,
+    qualityAnchor,
+    bottomAnchor,
     badgeGenre, badgeYear, badgeRating, badgeQuality, customRatings, ratingSources, separateRatings, separateRatingsStyle, posterLayout, posterFreshScope,
     gradientHeight, blurIntensity, blurFade, blurDarkness, blurEnabled, tintStrength, topShade, topShadeHeight,
     topBadgeScale, topBadgeOffsetX, topBadgeOffsetY,
@@ -915,6 +932,9 @@ export function PosterEditorProvider({
     defaultNetworkLogoOffsetX, defaultNetworkLogoOffsetY,
     defaultBadgeGenre, defaultBadgeYear, defaultBadgeRating, defaultBadgeQuality, defaultAgeBadge, defaultAgeCountry, defaultAgeBadgeStyle, defaultAwardBadgeStyle, defaultCustomRatings, defaultCustomRatingEndpoint, defaultCustomRatingApiKeyHeader, defaultRatingSources, defaultSeparateRatings, defaultSeparateRatingsStyle, defaultPosterLayout, defaultPosterFreshScope, defaultSashOrder, defaultDisabledContentTags, defaultDisabledNetworks, defaultWatchProviders, defaultWatchRegion, defaultTypeIcon, defaultTypeIconLandscape,
     defaultAutoRotateClean, defaultRotationIncludeNonClean, defaultAutoRotateBackdrop, defaultPortraitFitEnabled, defaultLandscapeFitEnabled, defaultNetworkLogo, defaultNetworkLogoPosition, defaultNetworkLogoFollowTitle, defaultPreRelease, defaultRibbonSide, defaultRibbonEnabled, defaultPosterShape, defaultLogoAlign,
+    defaultLogoAnchor,
+    defaultQualityAnchor,
+    defaultBottomAnchor,
     defaultDisableCleanPosters,
     defaultPortraitBackdropFallback,
     defaultAutoWordmark,
@@ -1141,6 +1161,21 @@ export function PosterEditorProvider({
       const next = typeof v === "function" ? v(networkLogoPosition) : v
       update({ networkLogoPosition: next })
     }, [networkLogoPosition, update])
+  const setLogoAnchor = useCallback(
+    (v: LogoAnchor | ((prev: LogoAnchor) => LogoAnchor)) => {
+      const next = typeof v === "function" ? v(logoAnchor) : v
+      update({ logoAnchor: next })
+    }, [logoAnchor, update])
+  const setQualityAnchor = useCallback(
+    (v: QualityAnchor | ((prev: QualityAnchor) => QualityAnchor)) => {
+      const next = typeof v === "function" ? v(qualityAnchor) : v
+      update({ qualityAnchor: next })
+    }, [qualityAnchor, update])
+  const setBottomAnchor = useCallback(
+    (v: BottomAnchor | ((prev: BottomAnchor) => BottomAnchor)) => {
+      const next = typeof v === "function" ? v(bottomAnchor) : v
+      update({ bottomAnchor: next })
+    }, [bottomAnchor, update])
   const setNetworkLogoFollowTitle = useCallback(
     (v: boolean | ((prev: boolean) => boolean)) => {
       const next = typeof v === "function" ? v(networkLogoFollowTitle) : v
@@ -1794,6 +1829,21 @@ export function PosterEditorProvider({
       const next = typeof v === "function" ? v(defaultNetworkLogoPosition) : v
       update({ defaultNetworkLogoPosition: next })
     }, [defaultNetworkLogoPosition, update])
+  const setDefaultLogoAnchor = useCallback(
+    (v: LogoAnchor | ((prev: LogoAnchor) => LogoAnchor)) => {
+      const next = typeof v === "function" ? v(defaultLogoAnchor) : v
+      update({ defaultLogoAnchor: next })
+    }, [defaultLogoAnchor, update])
+  const setDefaultQualityAnchor = useCallback(
+    (v: QualityAnchor | ((prev: QualityAnchor) => QualityAnchor)) => {
+      const next = typeof v === "function" ? v(defaultQualityAnchor) : v
+      update({ defaultQualityAnchor: next })
+    }, [defaultQualityAnchor, update])
+  const setDefaultBottomAnchor = useCallback(
+    (v: BottomAnchor | ((prev: BottomAnchor) => BottomAnchor)) => {
+      const next = typeof v === "function" ? v(defaultBottomAnchor) : v
+      update({ defaultBottomAnchor: next })
+    }, [defaultBottomAnchor, update])
   const setDefaultNetworkLogoFollowTitle = useCallback(
     (v: boolean | ((prev: boolean) => boolean)) => {
       const next = typeof v === "function" ? v(defaultNetworkLogoFollowTitle) : v
@@ -2102,6 +2152,9 @@ export function PosterEditorProvider({
       videoFormats: land?.videoFormats ?? defaultVideoFormats,
       networkLogo: land?.networkLogo ?? defaultNetworkLogo,
       networkLogoPosition: land?.networkLogoPosition ?? defaultNetworkLogoPosition,
+      logoAnchor: land?.logoAnchor ?? defaultLogoAnchor,
+      qualityAnchor: land?.qualityAnchor ?? defaultQualityAnchor,
+      bottomAnchor: land?.bottomAnchor ?? defaultBottomAnchor,
       networkLogoFollowTitle: netResetView.follow,
       ribbonEnabled: land?.ribbonEnabled ?? defaultRibbonEnabled,
       gradientHeight: defaultGradientHeight,
@@ -2182,7 +2235,7 @@ export function PosterEditorProvider({
       topShade: landscapeDefaults?.topShade ?? defaultTopShade,
       topShadeHeight: landscapeDefaults?.topShadeHeight ?? defaultTopShadeHeight,
     })
-  }, [update, posterShape, landscapeDefaults, defaultGlobalBadges, defaultRankingBadges, defaultBadgeGenre, defaultBadgeYear, defaultBadgeRating, defaultBadgeQuality, defaultAgeBadge, defaultAgeCountry, defaultAgeBadgeStyle, defaultAwardBadgeStyle, defaultCustomRatings, defaultRatingSources, defaultSeparateRatings, defaultSeparateRatingsStyle, defaultPosterLayout, defaultPosterFreshScope, defaultBadgeStyle, defaultRankingBadgeStyle, defaultExtraBadgeStyle, defaultBadgeFont, defaultQualityBadgeStyle, defaultQualityGroupLayout, defaultVideoFormats, defaultNetworkLogo, defaultNetworkLogoPosition, defaultNetworkLogoFollowTitle, defaultRibbonEnabled, defaultGradientHeight, defaultBlurEnabled, defaultBlurIntensity, defaultBlurFade, defaultBlurDarkness, defaultTintStrength, defaultTopShade, defaultTopShadeHeight, defaultTopBadgeScale, defaultTopBadgeOffsetX, defaultTopBadgeOffsetY, defaultExtraBadgeScale, defaultExtraBadgeOffsetX, defaultExtraBadgeOffsetY, defaultGenreBadgeScale, defaultGenreBadgeOffsetX, defaultGenreBadgeOffsetY, defaultQualityBadgeScale, defaultQualityBadgeOffsetX, defaultQualityBadgeOffsetY, defaultSeparateBadgeScale, defaultSeparateBadgeOffsetX, defaultSeparateBadgeOffsetY, defaultNetworkLogoScale, defaultNetworkLogoOffsetX, defaultNetworkLogoOffsetY, defaultLogoScale, defaultLogoOffsetX, defaultLogoOffsetY, setAgeBadge, setAgeCountry, setAgeBadgeStyle, setAwardBadgeStyle, setSeasonalTheme]) // eslint-disable-line react-hooks/exhaustive-deps -- setter refs are stable
+  }, [update, posterShape, landscapeDefaults, defaultGlobalBadges, defaultRankingBadges, defaultBadgeGenre, defaultBadgeYear, defaultBadgeRating, defaultBadgeQuality, defaultAgeBadge, defaultAgeCountry, defaultAgeBadgeStyle, defaultAwardBadgeStyle, defaultCustomRatings, defaultRatingSources, defaultSeparateRatings, defaultSeparateRatingsStyle, defaultPosterLayout, defaultPosterFreshScope, defaultBadgeStyle, defaultRankingBadgeStyle, defaultExtraBadgeStyle, defaultBadgeFont, defaultQualityBadgeStyle, defaultQualityGroupLayout, defaultVideoFormats, defaultNetworkLogo, defaultNetworkLogoPosition, defaultLogoAnchor, defaultQualityAnchor, defaultBottomAnchor, defaultNetworkLogoFollowTitle, defaultRibbonEnabled, defaultGradientHeight, defaultBlurEnabled, defaultBlurIntensity, defaultBlurFade, defaultBlurDarkness, defaultTintStrength, defaultTopShade, defaultTopShadeHeight, defaultTopBadgeScale, defaultTopBadgeOffsetX, defaultTopBadgeOffsetY, defaultExtraBadgeScale, defaultExtraBadgeOffsetX, defaultExtraBadgeOffsetY, defaultGenreBadgeScale, defaultGenreBadgeOffsetX, defaultGenreBadgeOffsetY, defaultQualityBadgeScale, defaultQualityBadgeOffsetX, defaultQualityBadgeOffsetY, defaultSeparateBadgeScale, defaultSeparateBadgeOffsetX, defaultSeparateBadgeOffsetY, defaultNetworkLogoScale, defaultNetworkLogoOffsetX, defaultNetworkLogoOffsetY, defaultLogoScale, defaultLogoOffsetX, defaultLogoOffsetY, setAgeBadge, setAgeCountry, setAgeBadgeStyle, setAwardBadgeStyle, setSeasonalTheme]) // eslint-disable-line react-hooks/exhaustive-deps -- setter refs are stable
 
   const editorCtx = useMemo<PosterEditorCtx>(
     () => ({
@@ -2243,7 +2296,13 @@ export function PosterEditorProvider({
       networkLogo,
       setNetworkLogo,
       networkLogoPosition,
+      logoAnchor,
+      qualityAnchor,
+      bottomAnchor,
       setNetworkLogoPosition,
+      setLogoAnchor,
+      setQualityAnchor,
+      setBottomAnchor,
       networkLogoFollowTitle,
       setNetworkLogoFollowTitle,
       preRelease,
@@ -2434,7 +2493,13 @@ export function PosterEditorProvider({
       defaultNetworkLogo,
       setDefaultNetworkLogo,
       defaultNetworkLogoPosition,
+      defaultLogoAnchor,
+      defaultQualityAnchor,
+      defaultBottomAnchor,
       setDefaultNetworkLogoPosition,
+      setDefaultLogoAnchor,
+      setDefaultQualityAnchor,
+      setDefaultBottomAnchor,
       defaultNetworkLogoFollowTitle,
       setDefaultNetworkLogoFollowTitle,
       defaultPreRelease,
@@ -2638,6 +2703,12 @@ export function PosterEditorProvider({
       customBadge, setCustomBadge,
       networkLogo, setNetworkLogo,
       networkLogoPosition, setNetworkLogoPosition,
+      logoAnchor,
+      setLogoAnchor,
+      qualityAnchor,
+      setQualityAnchor,
+      bottomAnchor,
+      setBottomAnchor,
       networkLogoFollowTitle, setNetworkLogoFollowTitle,
       preRelease, setPreRelease,
       ribbonSide, setRibbonSide,
@@ -2750,6 +2821,12 @@ export function PosterEditorProvider({
       defaultLandscapeFitEnabled, setDefaultLandscapeFitEnabled,
       defaultNetworkLogo, setDefaultNetworkLogo,
       defaultNetworkLogoPosition, setDefaultNetworkLogoPosition,
+      defaultLogoAnchor,
+      setDefaultLogoAnchor,
+      defaultQualityAnchor,
+      setDefaultQualityAnchor,
+      defaultBottomAnchor,
+      setDefaultBottomAnchor,
       defaultNetworkLogoFollowTitle, setDefaultNetworkLogoFollowTitle,
       defaultPreRelease, setDefaultPreRelease,
       defaultRibbonSide, setDefaultRibbonSide,

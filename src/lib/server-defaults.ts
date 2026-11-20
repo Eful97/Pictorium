@@ -1,3 +1,5 @@
+import { type LogoAnchor } from "@/lib/logo-layout"
+import { type QualityAnchor, type BottomAnchor } from "@/lib/badge-anchor"
 import fs from "node:fs/promises"
 import { existsSync, readFileSync } from "node:fs"
 import path from "node:path"
@@ -124,6 +126,9 @@ export interface LandscapeServerDefaults {
   networkLogo?: boolean
   /** Network logo placement ("auto" = dynamic mirror, "top" = ribbon-side corner). */
   networkLogoPosition?: import("@/lib/types").NetworkLogoPosition
+  logoAnchor?: import("@/lib/types").LogoAnchor
+  qualityAnchor?: import("@/lib/types").QualityAnchor
+  bottomAnchor?: import("@/lib/types").BottomAnchor
   /**
    * Logo-block alignment override ("left"/"center"); absent/null = follow the
    * flat (flat null = per-shape auto: portrait "center", landscape "left").
@@ -280,6 +285,9 @@ export interface ServerDefaults {
   networkLogo?: boolean
   /** Posizione del logo network ("auto" = specchio dinamico, "top" = angolo alto lato nastro). */
   networkLogoPosition?: import("@/lib/types").NetworkLogoPosition
+  logoAnchor?: import("@/lib/types").LogoAnchor
+  qualityAnchor?: import("@/lib/types").QualityAnchor
+  bottomAnchor?: import("@/lib/types").BottomAnchor
   /** Scala % logo film (null = auto-fit per aspect, comportamento storico). */
   logoScale?: number | null
   /** Offset px logo film (null = 0). */

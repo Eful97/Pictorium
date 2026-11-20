@@ -1,3 +1,5 @@
+import { LOGO_ANCHORS } from "@/lib/logo-layout"
+import { QUALITY_ANCHORS, BOTTOM_ANCHORS } from "@/lib/badge-anchor"
 import { NextRequest } from "next/server"
 import { getServerDefaultsChecked, setServerDefaults, getServerDefaultsForUser, getStoredUserDefaults, setServerDefaultsForUser, getInstanceEnvDefaults, type ServerDefaults } from "@/lib/server-defaults"
 import { cacheInvalidatePosterData } from "@/lib/cache"
@@ -10,7 +12,7 @@ import { createLogger } from "@/lib/logger"
 import { z } from "zod"
 import { MAX_DISABLED_NETWORKS } from "@/lib/network-keys"
 import { BADGE_STYLES, RANKING_BADGE_STYLES, QUALITY_BADGE_STYLES, AGE_BADGE_STYLES, AWARD_BADGE_MODES, BADGE_FONTS, SEPARATE_RATINGS_STYLES, EXTRA_BADGE_STYLES, EXTRA_BADGE_FOLLOW_RANK } from "@/lib/badge-styles"
-import { POSTER_LAYOUTS, POSTER_FRESH_SCOPES } from "@/lib/types"
+import { POSTER_LAYOUTS, POSTER_FRESH_SCOPES, NETWORK_LOGO_POSITIONS } from "@/lib/types"
 import { QUALITY_GROUP_LAYOUTS } from "@/lib/badge-styles"
 import { readJsonBody, BodyTooLargeError, DEFAULT_MAX_BODY_BYTES } from "@/lib/read-body"
 import { envWithFallback } from "@/lib/env-compat"
@@ -173,7 +175,10 @@ const defaultsSchema = z.object({
   defaultPortraitFitEnabled: z.boolean().optional(),
   defaultLandscapeFitEnabled: z.boolean().optional(),
   networkLogo: z.boolean().optional(),
-  networkLogoPosition: z.enum(["auto", "top"]).optional(),
+  networkLogoPosition: z.enum(NETWORK_LOGO_POSITIONS).optional(),
+  logoAnchor: z.enum(LOGO_ANCHORS).optional(),
+  qualityAnchor: z.enum(QUALITY_ANCHORS).optional(),
+  bottomAnchor: z.enum(BOTTOM_ANCHORS).optional(),
   networkLogoFollowTitle: z.boolean().nullable().optional(),
   // Default logo film (null = auto-fit/0, mai spazzatura dallo storage).
   logoScale: z.number().nullable().optional(),
@@ -308,7 +313,10 @@ const defaultsSchema = z.object({
     customRatings: z.boolean().optional(),
     separateRatings: z.boolean().optional(),
     networkLogo: z.boolean().optional(),
-    networkLogoPosition: z.enum(["auto", "top"]).optional(),
+    networkLogoPosition: z.enum(NETWORK_LOGO_POSITIONS).optional(),
+    logoAnchor: z.enum(LOGO_ANCHORS).optional(),
+    qualityAnchor: z.enum(QUALITY_ANCHORS).optional(),
+    bottomAnchor: z.enum(BOTTOM_ANCHORS).optional(),
     networkLogoFollowTitle: z.boolean().nullable().optional(),
     /**
      * Logo-block alignment override ("left"/"center"); absent/null = follow

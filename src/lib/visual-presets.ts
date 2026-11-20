@@ -1,3 +1,5 @@
+import { LOGO_ANCHORS, isLogoAnchor } from "@/lib/logo-layout"
+import { QUALITY_ANCHORS, isQualityAnchor, BOTTOM_ANCHORS, isBottomAnchor } from "@/lib/badge-anchor"
 import { z } from "zod"
 import { BADGE_STYLES, RANKING_BADGE_STYLES, EXTRA_BADGE_STYLES, EXTRA_BADGE_FOLLOW_RANK, QUALITY_BADGE_STYLES, AGE_BADGE_STYLES, BADGE_FONTS, SEPARATE_RATINGS_STYLES, DEFAULT_AGE_BADGE_STYLE, DEFAULT_AWARD_BADGE_MODE, DEFAULT_BADGE_FONT, DEFAULT_BADGE_STYLE, DEFAULT_QUALITY_BADGE_STYLE, DEFAULT_RANKING_BADGE_STYLE, isAgeBadgeStyle, isAwardBadgeMode, isBadgeFont, isBadgeStyle, isExtraBadgeStyle, isExtraFollowRank, isQualityBadgeStyle, isRankingBadgeStyle, DEFAULT_QUALITY_BADGE_OFFSET_X_LANDSCAPE, DEFAULT_QUALITY_BADGE_OFFSET_Y_LANDSCAPE, QUALITY_GROUP_LAYOUTS, DEFAULT_QUALITY_GROUP_LAYOUT, isQualityGroupLayout } from "./badge-styles"
 import { KNOWN_VIDEO_FORMATS } from "./av-specs"
@@ -5,7 +7,7 @@ import { isQualityMarkId } from "./quality-badge-pack"
 import { qualityMarkListSchema } from "./validation"
 import { SASH_BUCKETS } from "./badge-priority"
 import { DEFAULT_AGE_COUNTRY, normalizeCertificationCountry } from "./certification"
-import { DEFAULT_POSTER_FRESH_SCOPE, DEFAULT_POSTER_LAYOUT, POSTER_FRESH_SCOPES, POSTER_LAYOUTS } from "./types"
+import { DEFAULT_POSTER_FRESH_SCOPE, DEFAULT_POSTER_LAYOUT, POSTER_FRESH_SCOPES, POSTER_LAYOUTS, NETWORK_LOGO_POSITIONS, isNetworkLogoPosition } from "./types"
 import type { LandscapeServerDefaults } from "./server-defaults"
 
 const percent = z.number().finite().min(0).max(100)
@@ -47,7 +49,10 @@ const landscapeSchema = z.object({
   qualityGroupLayout: z.enum(QUALITY_GROUP_LAYOUTS).nullable().optional(),
   videoFormats: qualityMarkListSchema.nullable().optional(),
   sashOrder: z.array(z.enum(SASH_BUCKETS)).max(SASH_BUCKETS.length).optional(),
-  networkLogo: z.boolean().optional(), networkLogoPosition: z.enum(["auto", "top"]).optional(),
+  networkLogo: z.boolean().optional(), networkLogoPosition: z.enum(NETWORK_LOGO_POSITIONS).optional(),
+  logoAnchor: z.enum(LOGO_ANCHORS).optional(),
+  qualityAnchor: z.enum(QUALITY_ANCHORS).optional(),
+  bottomAnchor: z.enum(BOTTOM_ANCHORS).optional(),
   preRelease: z.boolean().optional(),
   ribbonEnabled: z.boolean().optional(), ribbonSide: z.enum(["left", "right"]).optional(),
   // Personal-owned appearance keys (same backend names/enums as the API
@@ -121,7 +126,10 @@ export const visualPresetValuesSchema = z.object({
   // Stile separati aggiunto dopo: default("column") per non invalidare i preset salvati.
   defaultSeparateRatingsStyle: z.enum(SEPARATE_RATINGS_STYLES).default("column"),
   defaultNetworkLogoScale: scale, defaultNetworkLogoOffsetX: offset, defaultNetworkLogoOffsetY: offset,
-  defaultNetworkLogo: z.boolean(), defaultNetworkLogoPosition: z.enum(["auto", "top"]), defaultPreRelease: z.boolean(),
+  defaultNetworkLogo: z.boolean(), defaultNetworkLogoPosition: z.enum(NETWORK_LOGO_POSITIONS), defaultPreRelease: z.boolean(),
+  defaultLogoAnchor: z.enum(LOGO_ANCHORS).optional(),
+  defaultQualityAnchor: z.enum(QUALITY_ANCHORS).optional(),
+  defaultBottomAnchor: z.enum(BOTTOM_ANCHORS).optional(),
   // Follow aggiunto dopo: opzionale per non invalidare preset salvati
   // (legacy senza campo) né forzare lo stato editor; null/assente = eredita.
   defaultNetworkLogoFollowTitle: z.boolean().nullable().optional(),
@@ -371,6 +379,9 @@ export const PRESET_FLAT_TO_LANDSCAPE: Record<string, keyof LandscapeServerDefau
   defaultSashOrder: "sashOrder",
   defaultNetworkLogo: "networkLogo",
   defaultNetworkLogoPosition: "networkLogoPosition",
+  defaultLogoAnchor: "logoAnchor",
+  defaultQualityAnchor: "qualityAnchor",
+  defaultBottomAnchor: "bottomAnchor",
   defaultNetworkLogoFollowTitle: "networkLogoFollowTitle",
   defaultPreRelease: "preRelease",
   defaultRibbonEnabled: "ribbonEnabled",
@@ -1314,6 +1325,9 @@ export const MAPPING_SHAPE_LAND_KEYS = [
   "videoFormats",
   "networkLogo",
   "networkLogoPosition",
+  "logoAnchor",
+  "qualityAnchor",
+  "bottomAnchor",
   "ribbonEnabled",
   "customBadge",
   "accentColor",
@@ -1391,6 +1405,9 @@ const MAPPING_SHAPE_PROFILE_KEY: Record<MappingShapeLandKey, string> = {
   videoFormats: "videoFormats",
   networkLogo: "networkLogo",
   networkLogoPosition: "networkLogoPosition",
+  logoAnchor: "logoAnchor",
+  qualityAnchor: "qualityAnchor",
+  bottomAnchor: "bottomAnchor",
   ribbonEnabled: "ribbonEnabled",
   // Identity (flat bare name = profile key): the formerly-shared visuals.
   customBadge: "customBadge",
@@ -1439,6 +1456,9 @@ export const MAPPING_SHAPE_FACTORY: Record<MappingShapeLandKey, unknown> = {
   videoFormats: [...KNOWN_VIDEO_FORMATS],
   networkLogo: true,
   networkLogoPosition: "auto",
+  logoAnchor: "auto",
+  qualityAnchor: "auto",
+  bottomAnchor: "auto",
   ribbonEnabled: true,
   // Formerly-shared visuals (explicit-null-shadows, see types.ts): the
   // factory is "none/automatic" — an absent saved flat keeps inheriting at
@@ -1505,7 +1525,13 @@ export function mappingShapeChainEffective(
           : DEFAULT_AWARD_BADGE_MODE,
       }
     case "networkLogoPosition":
-      return { known: true, value: raw === "top" ? "top" : "auto" }
+      return { known: true, value: isNetworkLogoPosition(raw) ? raw : "auto" }
+    case "logoAnchor":
+      return { known: true, value: isLogoAnchor(raw) ? raw : "auto" }
+    case "qualityAnchor":
+      return { known: true, value: isQualityAnchor(raw) ? raw : "auto" }
+    case "bottomAnchor":
+      return { known: true, value: isBottomAnchor(raw) ? raw : "auto" }
     case "badgeStyle":
       return {
         known: true,

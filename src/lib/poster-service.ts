@@ -11,7 +11,7 @@ import { renderSeparateRatingStack, renderSeparateRatingsBottom, renderSeparateR
 import { cacheGet, cacheSet } from "./cache"
 import { GENRE_FALLBACK, cinematicVignetteSVG, cinematicCornerGradientSVG, topShadeSVG } from "./badges"
 import { applyBlur } from "./blur"
-import { STD_W, STD_H, extractBadgeColor, extractSceneTint, fitBadgeToCanvas, fitCompositeToCanvas, isValidHex, BadgeRender, PosterComposite, badgeBody, badgeCanvasForBody, scaleBadgeBleed, topBandMeanRGB, bottomBandMeanRGB, effectiveTopBackgroundLuminance, effectiveBottomBackgroundLuminance, adaptiveAccentHexForBand, insertFrostedGlassUnderlays, opaqueComponents, tightenBoxesToInk } from "./poster-render-helpers"
+import { STD_W, STD_H, extractBadgeColor, extractSceneTint, fitBadgeToCanvas, fitCompositeToCanvas, isValidHex, BadgeRender, PosterComposite, badgeBody, badgeCanvasForBody, type BadgeBleed, scaleBadgeBleed, topBandMeanRGB, bottomBandMeanRGB, effectiveTopBackgroundLuminance, effectiveBottomBackgroundLuminance, adaptiveAccentHexForBand, insertFrostedGlassUnderlays, opaqueComponents, tightenBoxesToInk } from "./poster-render-helpers"
 import { LAND_W, LAND_H } from "./image-utils"
 import { normalizeAutomaticAccentHex } from "./accent-color"
 import type { EffectiveAccentMeta } from "./effective-accent"
@@ -21,7 +21,8 @@ import { renderGenreBadge, renderRankingBadge, renderExtraBadge, renderComingSoo
 import { buildLogoScrim, logoContrast, logoInkLuminance, logoScrimStrength, posterLogoZoneLuminance } from "./logo-contrast"
 import { renderFirstMatchingNetworkLogoBadge, renderFirstMatchingNetworkRawBadge, renderFirstMatchingNetworkLogoBadgeHybrid, renderFirstMatchingNetworkRawBadgeHybrid, type NetworkCandidate } from "./network-svgs"
 import { isNetworkFixedPosition } from "./network-follow"
-import { computeLogoLayout, logoAlignPadX, PORTRAIT_LOGO_MAX_HEIGHT_PCT, PORTRAIT_LOGO_TOP_OFFSET, LANDSCAPE_LOGO_MAX_WIDTH_PCT, LANDSCAPE_LOGO_MAX_HEIGHT_PCT, LANDSCAPE_LOGO_BOTTOM_MARGIN_PCT, LANDSCAPE_LOGO_TOP_OFFSET, LANDSCAPE_LOGO_SHIFT_X, LANDSCAPE_LOGO_SHIFT_Y } from "./logo-layout"
+import { isActiveQualityAnchor, type QualityAnchor, isActiveBottomAnchor, bottomAnchoredLeft, bottomAnchoredBodyLeft, type BodyInkRatios, type BottomAnchor } from "./badge-anchor"
+import { computeLogoLayout, logoAlignPadX, isActiveLogoAnchor, isTopLogoAnchor, type LogoAnchor,PORTRAIT_LOGO_MAX_HEIGHT_PCT, PORTRAIT_LOGO_TOP_OFFSET, LANDSCAPE_LOGO_MAX_WIDTH_PCT, LANDSCAPE_LOGO_MAX_HEIGHT_PCT, LANDSCAPE_LOGO_BOTTOM_MARGIN_PCT, LANDSCAPE_LOGO_TOP_OFFSET, LANDSCAPE_LOGO_SHIFT_X, LANDSCAPE_LOGO_SHIFT_Y } from "./logo-layout"
 import { logoDefaultScaleFromAspect, FRESH_TITLE_LOGO_DEFAULT_SCALE } from "./logo-selection"
 import fs from "fs"
 import path from "path"
@@ -97,6 +98,18 @@ async function inkBounds(png: Buffer): Promise<{ x: number; y: number; w: number
   return x1 < 0 ? null : { x: x0, y: y0, w: x1 - x0 + 1, h: y1 - y0 + 1 }
 }
 
+/**
+ * Rapporti (offset, larghezza) dell'inchiostro visibile rispetto al CORPO del
+ * badge: input di `bottomAnchoredBodyLeft`. Costo (un decode sharp) solo con
+ * ancora inferiore attiva. Null = bitmap senza inchiostro.
+ */
+async function inkRatios(badge: { png: Buffer; w: number; h: number; bleed?: BadgeBleed }): Promise<BodyInkRatios | null> {
+  const body = badgeBody(badge)
+  const ink = await inkBounds(badge.png)
+  if (!ink || body.w <= 0) return null
+  return { offset: (ink.x - body.x) / body.w, width: ink.w / body.w }
+}
+
 /** Respiro minimo tra inchiostro del badge genere e logo titolo. */
 const LOGO_BADGE_GAP = 6
 
@@ -108,6 +121,15 @@ const LOGO_BADGE_GAP = 6
  * piena e sale sopra il logo (`dy` negativo sul top). Nessuna collisione →
  * stesso oggetto e `dy` 0 (byte-identico allo storico).
  */
+/** Sovrapposizione di due box `{left,top,w,h}` con margine di respiro `m` (px). */
+function rectsOverlap(
+  a: { left: number; top: number; w: number; h: number },
+  b: { left: number; top: number; w: number; h: number },
+  m = 0,
+): boolean {
+  return a.left < b.left + b.w + m && a.left + a.w > b.left - m && a.top < b.top + b.h + m && a.top + a.h > b.top - m
+}
+
 async function shrinkAwayFromRect<T extends BadgeRender>(
   badge: T,
   rect: { top: number; left: number; w: number; h: number },
@@ -404,6 +426,22 @@ export interface GenerationInput {
    * (byte-identico al passato).
    */
   networkLogoPosition?: NetworkLogoPosition
+  /**
+   * Ancora d'angolo del logo titolo (solo Standard; Fresh/Card la ignorano).
+   * "auto" (default) = posizione storica, byte-identica. Vedi `LogoAnchor`.
+   */
+  logoAnchor?: LogoAnchor
+  /**
+   * Ancora d'angolo del badge qualità (solo Standard; Fresh/Card la ignorano).
+   * "auto" (default) = lato storico, byte-identico. Vedi `QualityAnchor`.
+   */
+  qualityAnchor?: QualityAnchor
+  /**
+   * Ancora della fascia inferiore: genere, riga rating personalizzata e riga
+   * rating separati bottom (solo Standard; Fresh/Card ignorano). Cambia solo
+   * l'asse X. "auto" (default) = storico, byte-identico. Vedi `BottomAnchor`.
+   */
+  bottomAnchor?: BottomAnchor
   /**
    * Il network segue il layout storico ancorato al titolo (default true =
    * comportamento attuale). false + coordinate fisse valorizzate = posizione
@@ -985,7 +1023,7 @@ export async function generatePosterBuffer(input: GenerationInput): Promise<Buff
     tvType, tvStatus, releaseDate, firstAirDate,
     lastAirDate, seasonCount, nextEpisodeAirDate, numberOfEpisodes, originCountries, genreIds,
     wikidataResult, tmdbKeywords, locale, t,
-    qLabel, queryExtra, qNetLogo, networkLogo, networkLogoPosition = "auto", networkLogoFollowTitle, networkFixedX, networkFixedY, onNetworkGeometry, onBadgeGeometry, badgeItemTransforms, badgeHomeGhosts, onAccentMeta, sd, accentOverride, imdbTop250, whatsonFeatures,
+    qLabel, queryExtra, qNetLogo, networkLogo, networkLogoPosition = "auto", logoAnchor = "auto", qualityAnchor = "auto", bottomAnchor = "auto", networkLogoFollowTitle, networkFixedX, networkFixedY, onNetworkGeometry, onBadgeGeometry, badgeItemTransforms, badgeHomeGhosts, onAccentMeta, sd, accentOverride, imdbTop250, whatsonFeatures,
     logoSrc, backdropSrc, analysisKey,
     preRelease = false,
     preInTheaters = false,
@@ -1388,6 +1426,11 @@ export async function generatePosterBuffer(input: GenerationInput): Promise<Buff
   // Logo baked-in in entrambi i formati (hideLogo esplicito lo salta:
   // veicolo del banner Nuvio pulito). In landscape valgono i vincoli del
   // canvas 16:9 — stessi di context.tsx e poster-fit-score.ts (Golden Rule).
+  // Ancora d'angolo del logo: SOLO Standard (Fresh/Card hanno il proprio motore
+  // di layout e la ignorano). "auto" = percorso storico byte-identico.
+  const logoAnchorEff: LogoAnchor = !isFresh && !isCard && isActiveLogoAnchor(logoAnchor) ? logoAnchor : "auto"
+  // Logo ancorato sul bordo alto: network/qualità cedono il passo (sotto il logo).
+  const logoTopAnchored = isTopLogoAnchor(logoAnchorEff)
   const [blurOverlay, logoResult] = await Promise.all([
     applyBlur({
       posterBuf: freshBaseBuf,
@@ -1425,8 +1468,12 @@ export async function generatePosterBuffer(input: GenerationInput): Promise<Buff
             // Calibrazione geometrica landscape invisibile agli slider (+10 X /
             // -10 Y): si somma agli offset utente espliciti (anche 0), come
             // PORTRAIT_LOGO_TOP_OFFSET in portrait. Gli slider mostrano 0.
-            logoOffsetX: uOx + (isLandscape ? LANDSCAPE_LOGO_SHIFT_X : 0),
-            logoOffsetY: uOy + (isLandscape ? LANDSCAPE_LOGO_SHIFT_Y : 0),
+            // Con ancora attiva niente calibrazione X (gli offset sono relativi
+            // all'angolo); la Y resta solo per le ancore basse (stessa quota
+            // storica sopra la zona genere), non per quelle alte.
+            logoOffsetX: uOx + (isLandscape && logoAnchorEff === "auto" ? LANDSCAPE_LOGO_SHIFT_X : 0),
+            logoOffsetY: uOy + (isLandscape && !logoTopAnchored ? LANDSCAPE_LOGO_SHIFT_Y : 0),
+            anchor: logoAnchorEff,
             hasBadges: logoHasBadges,
             // Fondo logo in linea col badge genere (~10px dal bordo, vedi
             // costanti landscape in logo-layout.ts). In portrait margine
@@ -1723,7 +1770,13 @@ export async function generatePosterBuffer(input: GenerationInput): Promise<Buff
   // gruppo qualità si specchia a sinistra, la linguetta aggancia il bordo
   // sinistro. Regola pura (tutte le dipendenze sono risolte prima della cache
   // key), così il bitmap e la sua chiave restano coerenti.
-  const notchEdge: "right" | "left" = (
+  // Ancora qualità: SOLO Standard (Fresh/Card ignorano il parametro, byte-identici).
+  // Con ancora attiva il lato è quello scelto e non dipende più dagli occupanti
+  // dell'angolo destro; il bordo della linguetta lo segue (stessa chiave cache).
+  // Ancora fascia inferiore: stessa regola (solo Standard).
+  const bottomAnchorEff: "auto" | "bl" | "bc" | "br" = !isFresh && !isCard && isActiveBottomAnchor(bottomAnchor) ? bottomAnchor : "auto"
+  const qualityAnchorEff: "auto" | "tl" | "tr" = !isFresh && !isCard && isActiveQualityAnchor(qualityAnchor) ? qualityAnchor : "auto"
+  const notchEdge: "right" | "left" = qualityAnchorEff !== "auto" ? (qualityAnchorEff === "tl" ? "left" : "right") : (
     (isRibbonRankingStyle(rankingBadgeStyle) && ribbonSide === "right" && topBadge?.type === "rank")
     || (showComingSoon && effComingSoonSide === "right")
     || isTopBadgeNumberRightCorner({ topBadgeType: topBadge?.type, rankingBadgeStyle, extraBadgeStyle, ribbonSide, hasTopBadge: !!topBadge })
@@ -1949,7 +2002,9 @@ export async function generatePosterBuffer(input: GenerationInput): Promise<Buff
       // Notch: pillola a filo del bordo basso (come `bar`, Y tuning e shrink
       // anti-logo non si applicano). Portrait centrata, landscape a destra.
       const notchBody = badgeBody(safeGenreBadgeResult)
-      const notchLeft = anchorRight
+      const notchLeft = bottomAnchorEff !== "auto"
+        ? bottomAnchoredBodyLeft(bottomAnchorEff, notchBody.w, await inkRatios(safeGenreBadgeResult), CW) + combinedGenreOX
+        : anchorRight
         ? landscapeRightAnchorLeft(notchBody.w, CW, combinedGenreOX)
         : Math.round((CW - notchBody.w) / 2) + combinedGenreOX
       const notchTop = CH - notchBody.h
@@ -1966,7 +2021,9 @@ export async function generatePosterBuffer(input: GenerationInput): Promise<Buff
       // L'ancora posiziona il corpo visibile; la tela (con eventuale bleed)
       // segue per differenza — senza bleed è l'identico percorso storico.
       const genreBody = badgeBody(safeGenreBadgeResult)
-      const barBodyLeft = anchorRight
+      const barBodyLeft = anchorRight && bottomAnchorEff !== "auto"
+        ? bottomAnchoredBodyLeft(bottomAnchorEff, genreBody.w, await inkRatios(safeGenreBadgeResult), CW)
+        : anchorRight
         ? Math.min(CW - genreBody.w, Math.max(0, CW - genreBody.w - rightPadX + anchorShiftX))
         : (isLandscapeLeft
           ? logoAlignPadX(CW) + combinedGenreOX
@@ -2011,7 +2068,10 @@ export async function generatePosterBuffer(input: GenerationInput): Promise<Buff
           sepCenterShift = Math.round(((fullW - genreBadgeResult.w) / 2) * (genreBadgeScale / 100))
         }
       }
-      const genreLeftFor = (w: number) => anchorRight
+      const genreInkRatios = bottomAnchorEff !== "auto" && !genreAtTop ? await inkRatios(safeGenreBadgeResult) : null
+      const genreLeftFor = (w: number) => bottomAnchorEff !== "auto" && !genreAtTop
+        ? bottomAnchoredBodyLeft(bottomAnchorEff, w, genreInkRatios, CW) + combinedGenreOX
+        : anchorRight
         ? landscapeRightAnchorLeft(w, CW, combinedGenreOX - sepCenterShift - styleCornerShiftX)
         : (isLandscapeLeft
           ? logoAlignPadX(CW) + combinedGenreOX
@@ -2070,7 +2130,7 @@ export async function generatePosterBuffer(input: GenerationInput): Promise<Buff
         : CH - 20
       composites.push({
         input: row.png,
-        left: Math.max(0, Math.min(CW - row.w, Math.round((CW - row.w) / 2))),
+        left: Math.max(0, Math.min(CW - row.w, bottomAnchorEff !== "auto" ? bottomAnchoredBodyLeft(bottomAnchorEff, row.w, await inkRatios(row), CW) : Math.round((CW - row.w) / 2))),
         top: Math.max(0, Math.min(CH - row.h, legacyTop - row.h - 10)),
       })
       customRowRendered = true
@@ -2226,9 +2286,12 @@ export async function generatePosterBuffer(input: GenerationInput): Promise<Buff
   // Tuning editoriale globale (default per tutti i poster): pill network
   // +10px Y (module-scope NETWORK_LOGO_SHIFT_Y, shared with the anchor).
   let netTopLeftBottom: number | null = null
+  // Fondo (px) del network quando occupa la metà destra: serve SOLO alla qualità
+  // forzata a destra (ancora "tr"), che si impila sotto invece di coprirlo.
+  let netTopRightBottom: number | null = null
   // Modalità "in alto" (query `netPos=top` > mapping > config > defaults):
   // sempre all'angolo superiore. "auto" = specchio dinamico odierno.
-  const netForceTop = networkLogoPosition === "top"
+  const netForceTop = networkLogoPosition !== "auto"
   // La qualità legge da qui se il network è finito a destra in modo "top"
   // (trasloca a sinistra come col nastro a destra).
   let netAnchoredRight = false
@@ -2358,7 +2421,9 @@ export async function generatePosterBuffer(input: GenerationInput): Promise<Buff
         // shift a fianco del nastro sullo stesso lato (stessa matematica dei
         // rami storici) e shrink vs badge centrale. Il ramo "sopra il logo
         // film" non vale in "top": l'angolo è l'angolo.
-        const sideRight = rightRankRibbonOccupied || comingSoonRightOccupied
+        // tl/tr forzano il lato (sinistro/destro) a prescindere dal nastro;
+        // "top" lo deriva dall'occupante effettivo dell'angolo (storico).
+        const sideRight = networkLogoPosition === "tl" ? false : networkLogoPosition === "tr" ? true : (rightRankRibbonOccupied || comingSoonRightOccupied)
         const csExtent = ribbonLayout ? ribbonLayout.extent : 0
         const csOnSide = showComingSoon && !!ribbonLayout && !!safeComingSoonResult &&
           (sideRight ? effComingSoonSide === "right" : effComingSoonSide !== "right")
@@ -2447,7 +2512,7 @@ export async function generatePosterBuffer(input: GenerationInput): Promise<Buff
           // there is no room above the title) the historic top-left anchor
           // below applies.
           let aboveTitle: { top: number; left: number } | null = null
-          if (isCornerAnchoredStyle(topBadgeStyle) && topBadge && cornerRankRect) {
+          if (isCornerAnchoredStyle(topBadgeStyle) && topBadge && cornerRankRect && !logoTopAnchored) {
             const anchor = cornerNetworkAboveTitle({
               logoTop: logoResult.top,
               logoLeft: logoResult.left,
@@ -2503,7 +2568,7 @@ export async function generatePosterBuffer(input: GenerationInput): Promise<Buff
         // Above the title the network does not take the top-left corner:
         // quality keeps its corner anchor (netTopLeftBottom stays null).
         if (rightRankRibbonLeft === null && !mirrorNetworkBelow && !cornerAboveTitlePlaced) netTopLeftBottom = top + NETWORK_LOGO_SHIFT_Y + fittedRaw.h
-      } else if (logoResult && (finalRankBadge || hasComingSoonCorner || genreOnTop)) {
+      } else if (logoResult && !logoTopAnchored && (finalRankBadge || hasComingSoonCorner || genreOnTop)) {
         // Con logo film + badge alto (nastro Netflix, badge centrale
         // rank/extra, o Coming Soon): subito sopra il logo film
         // (in Cinematic Left allineato a sinistra come sopratitolo, non centrato).
@@ -2575,6 +2640,20 @@ export async function generatePosterBuffer(input: GenerationInput): Promise<Buff
         }
         if (rightRankRibbonLeft === null && !mirrorNetworkBelow) netTopLeftBottom = top + NETWORK_LOGO_SHIFT_Y + fittedRaw.h
       }
+      // Logo ancorato sul bordo alto: se la pill network (nella sua posizione
+      // finale) lo copre, scende SOTTO il logo — il logo non si muove mai.
+      // Mai in modalità fissa (coordinate assolute volute dall'utente) e mai
+      // senza ancora (percorso storico invariato).
+      if (logoTopAnchored && logoResult && !isFixedNetwork) {
+        const netL = left + networkLogoOffsetX
+        const netT = top + networkLogoOffsetY + NETWORK_LOGO_SHIFT_Y
+        if (rectsOverlap({ left: netL, top: netT, w: fittedRaw.w, h: fittedRaw.h }, logoResult, 6)) {
+          top = logoResult.top + logoResult.h + gap - NETWORK_LOGO_SHIFT_Y - networkLogoOffsetY
+          // Alimenta lo stacking qualità solo quando il network occupava il
+          // top-left (stessa formula dei rami storici).
+          if (netTopLeftBottom !== null) netTopLeftBottom = top + NETWORK_LOGO_SHIFT_Y + fittedRaw.h
+        }
+      }
       // In fissa le coordinate sono già gli actual finali (shift e offset
       // inclusi al freeze): composite esatto. In storica restano gli offset
       // post-ancoraggio + shift editoriale.
@@ -2586,6 +2665,7 @@ export async function generatePosterBuffer(input: GenerationInput): Promise<Buff
         netTopLeftBottom = finalNetTop + fittedRaw.h
       }
       netGeo = { top: finalNetTop, left: finalNetLeft, w: fittedRaw.w, h: fittedRaw.h, nominalW: netRawW, nominalH: netRawH, followTitle: !isFixedNetwork }
+      if (finalNetLeft + fittedRaw.w / 2 > CW / 2) netTopRightBottom = finalNetTop + fittedRaw.h
       composites.push({
         input: fittedRaw.png,
         // Offset applicati DOPO il posizionamento automatico (come il badge
@@ -2628,7 +2708,9 @@ export async function generatePosterBuffer(input: GenerationInput): Promise<Buff
     })
     // Network "in alto" finito a destra: la qualità trasloca a sinistra
     // come col nastro a destra (stesso branch, niente overlap sull'angolo).
-    const isRightRibbonCorner = (isNetflixRight && !!finalRankBadge) || isComingSoonRight || (!!networkLogoForLayout && netAnchoredRight) || isNumberRight
+    // Ancora attiva: "tl" = angolo sinistro (ramo storico "nastro a destra":
+    // sotto il network se a sinistra), "tr" = angolo destro. Auto = storico.
+    const isRightRibbonCorner = qualityAnchorEff === "tl" ? true : qualityAnchorEff === "tr" ? false : ((isNetflixRight && !!finalRankBadge) || isComingSoonRight || (!!networkLogoForLayout && netAnchoredRight) || isNumberRight)
 
     // Ancoraggio base portrait: top = netBaseTop - 10 + 5 (storia editoriale:
     // era -20); con i default di fabbrica (qoy +6) il box visibile cade a 39px
@@ -2662,6 +2744,24 @@ export async function generatePosterBuffer(input: GenerationInput): Promise<Buff
       // all'angolo destro standard — impilata sotto il logo network se presente.
       if (netTopLeftBottom !== null) {
         top = netTopLeftBottom + Math.round(6 * CH / 570)
+      }
+    } else if (qualityAnchorEff === "tr" && netTopRightBottom !== null) {
+      // Qualità forzata a destra con il network nello stesso angolo: sotto di lui.
+      top = netTopRightBottom + Math.round(6 * CH / 570)
+    }
+
+    // Logo ancorato sul bordo alto: se il box visibile della qualità (bitmap
+    // senza il padding ombra) lo copre, scende SOTTO il logo — il logo non si
+    // muove mai. Senza ancora attiva il ramo non esiste (percorso storico).
+    if (logoTopAnchored && logoResult) {
+      const qVisible = {
+        left: left + qualityBadgeOffsetX + qPad,
+        top: top + qualityBadgeOffsetY + qPad,
+        w: finalQualityBadge.w - 2 * qPad,
+        h: finalQualityBadge.h - 2 * qPad,
+      }
+      if (rectsOverlap(qVisible, logoResult, 6)) {
+        top = logoResult.top + logoResult.h + Math.round(6 * CH / 570) - qPad - qualityBadgeOffsetY
       }
     }
 
@@ -3018,15 +3118,17 @@ export async function generatePosterBuffer(input: GenerationInput): Promise<Buff
         const k = w / bottom.w
         return { left: inset * k, w: bodyW * k }
       }
+      const bottomInk = bottomAnchorEff !== "auto" && !barFlush ? await inkRatios({ png: fitted.png, w: fitted.w, h: fitted.h }) : null
       const topFor = (h: number) => barFlush ? CH - h : CH - h - margin + (isLandscapePills ? LANDSCAPE_BOTTOM_PILLS_SHIFT_Y : 0) + (isPortraitPills ? PORTRAIT_SEPARATE_SHIFT_Y : 0)
       const leftFor = (w: number) => {
         if (barFlush && !isNotchStep) return 0
         if (isNotchStep) {
           const body = notchBody(w)
-          if (!body) return isLandscape ? landscapeRightAnchorLeft(w, CW, 0) : Math.round((CW - w) / 2)
-          const bodyLeft = isLandscape ? landscapeRightAnchorLeft(body.w, CW, 0) : Math.round((CW - body.w) / 2)
+          if (!body) return bottomAnchorEff !== "auto" ? bottomAnchoredLeft(bottomAnchorEff, w, CW) : isLandscape ? landscapeRightAnchorLeft(w, CW, 0) : Math.round((CW - w) / 2)
+          const bodyLeft = bottomAnchorEff !== "auto" ? bottomAnchoredLeft(bottomAnchorEff, body.w, CW) : isLandscape ? landscapeRightAnchorLeft(body.w, CW, 0) : Math.round((CW - body.w) / 2)
           return bodyLeft - body.left
         }
+        if (bottomAnchorEff !== "auto") return bottomAnchoredBodyLeft(bottomAnchorEff, w, bottomInk, CW)
         return isLandscape
           ? landscapeRightAnchorLeft(w, CW, 0, 0) + (isLandscapePills ? LANDSCAPE_BOTTOM_PILLS_SHIFT_X : 0)
           : Math.round((CW - w) / 2)

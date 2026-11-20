@@ -122,6 +122,9 @@ export interface StremioPosterParamsInput {
    * esistenti non cambiano e il server risolve `auto` da solo).
    */
   readonly networkLogoPosition?: import("@/lib/types").NetworkLogoPosition
+  readonly logoAnchor?: import("@/lib/logo-layout").LogoAnchor
+  readonly qualityAnchor?: import("@/lib/badge-anchor").QualityAnchor
+  readonly bottomAnchor?: import("@/lib/badge-anchor").BottomAnchor
   /** Scala % del badge CLASSIFICA superiore (default 100). */
   readonly topBadgeScale?: number
   /** Offset px del badge CLASSIFICA superiore, solo stili centrati (default 0). */
@@ -499,8 +502,11 @@ export function buildStremioPosterSearchParams(input: StremioPosterParamsInput):
   if (input.title) params.set("title", input.title)
   if (!networkLogo) params.set("netLogo", "0")
   if (input.networkLogoFollowTitle === false) params.set("netFollow", "0")
-  if (input.networkLogoPosition === "top") {
-    params.set("netPos", "top")
+  if (input.logoAnchor && input.logoAnchor !== "auto") params.set("lanc", input.logoAnchor)
+  if (input.qualityAnchor && input.qualityAnchor !== "auto") params.set("qanc", input.qualityAnchor)
+  if (input.bottomAnchor && input.bottomAnchor !== "auto") params.set("banc", input.bottomAnchor)
+  if (input.networkLogoPosition && input.networkLogoPosition !== "auto") {
+    params.set("netPos", input.networkLogoPosition)
   }
   if (input.preRelease) params.set("pre", "1")
   if (input.hideLogo) params.set("hideLogo", "1")

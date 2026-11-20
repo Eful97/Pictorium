@@ -5,13 +5,15 @@
  * Firmato con HMAC-SHA256 per prevenire manomissioni.
  */
 
+import { LOGO_ANCHORS } from "@/lib/logo-layout"
+import { QUALITY_ANCHORS, BOTTOM_ANCHORS } from "@/lib/badge-anchor"
 import crypto from "node:crypto"
 import { z } from "zod"
 // Batch B: clamp condiviso da image-utils.ts (semantica standard, senza round)
 import { clamp } from "@/lib/image-utils"
 import { envWithFallback } from "@/lib/env-compat"
 import { BADGE_STYLES, RANKING_BADGE_STYLES, QUALITY_BADGE_STYLES, AGE_BADGE_STYLES, AWARD_BADGE_MODES, BADGE_FONTS, SEPARATE_RATINGS_STYLES, EXTRA_BADGE_STYLES, EXTRA_BADGE_FOLLOW_RANK } from "@/lib/badge-styles"
-import { POSTER_LAYOUTS, POSTER_FRESH_SCOPES } from "@/lib/types"
+import { POSTER_LAYOUTS, POSTER_FRESH_SCOPES, NETWORK_LOGO_POSITIONS } from "@/lib/types"
 import { QUALITY_GROUP_LAYOUTS } from "@/lib/badge-styles"
 import { retiredBadgeFamilyBindingsSchema } from "@/lib/validation"
 import { MAX_DISABLED_NETWORKS } from "@/lib/network-keys"
@@ -154,7 +156,10 @@ export const configTokenSchema = z.object({
   networkLogoOffsetX: z.number().finite().optional(),
   networkLogoOffsetY: z.number().finite().optional(),
   networkLogo: z.boolean(),
-  networkLogoPosition: z.enum(["auto", "top"]).optional(),
+  networkLogoPosition: z.enum(NETWORK_LOGO_POSITIONS).optional(),
+  logoAnchor: z.enum(LOGO_ANCHORS).optional(),
+  qualityAnchor: z.enum(QUALITY_ANCHORS).optional(),
+  bottomAnchor: z.enum(BOTTOM_ANCHORS).optional(),
   networkLogoFollowTitle: z.boolean().nullable().optional(),
   preRelease: z.boolean().optional(),
   posterShape: z.enum(["poster", "landscape"]).optional(),

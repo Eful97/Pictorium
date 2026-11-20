@@ -1,5 +1,6 @@
 "use client"
 
+import { NETWORK_LOGO_POSITION_CHOICES } from "@/lib/types"
 import { useEffect, useId, useState } from "react"
 import { SeparateRatingsStylePicker } from "@/components/ui/SeparateRatingsStylePicker"
 import { ChevronDown, Star, Trophy, Tv, Sparkles, Palette, Layers, Cloud, RotateCcw } from "lucide-react"
@@ -970,10 +971,12 @@ export function BadgeControls() {
                 {t("ui.networkLogoPosition")}
               </span>
               <div className="flex gap-1 flex-1 max-w-[190px]">
-                {(["auto", "top"] as const).map((pos) => (
+                {(NETWORK_LOGO_POSITION_CHOICES).map((pos) => (
                   <button
-                    key={pos}
+                    key={pos} data-testid={`netpos-${pos}`}
                     type="button"
+                    title={pos === "tl" ? t("ui.logoAnchorTL") : pos === "tr" ? t("ui.logoAnchorTR") : undefined}
+                    aria-label={pos === "tl" ? t("ui.logoAnchorTL") : pos === "tr" ? t("ui.logoAnchorTR") : undefined}
                     onClick={() => ed.setNetworkLogoPosition(pos)}
                     className={`flex-1 py-1 rounded-lg text-[11px] font-semibold transition duration-150 cursor-pointer ${
                       ed.networkLogoPosition === pos
@@ -981,7 +984,7 @@ export function BadgeControls() {
                         : "bg-white/5 text-muted hover:bg-white/10 hover:text-zinc-200"
                     }`}
                   >
-                    {pos === "auto" ? t("ui.auto") : t("ui.networkLogoPositionTop")}
+                    {pos === "auto" ? t("ui.auto") : pos === "tl" ? "↖" : "↗"}
                   </button>
                 ))}
               </div>

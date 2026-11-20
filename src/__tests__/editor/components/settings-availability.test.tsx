@@ -666,8 +666,8 @@ describe("SettingsPanel real-switch availability (both shapes, staged)", () => {
     expect(within(transformPanel()).getByText("ui.networkLogoPosition")).toBeInTheDocument()
     expect(within(transformPanel()).getByTestId("transform-netpos-group")).toBeInTheDocument()
     expect(within(transformPanel()).getByTestId("transform-geo-network")).toBeInTheDocument()
-    // Stage tuning through the real position buttons (top), then hide.
-    fireEvent.click(within(transformPanel()).getByText("ui.networkLogoPositionTop"))
+    // Stage tuning through the real position buttons (top-left), then hide.
+    fireEvent.click(within(transformPanel()).getByTestId("netpos-tl"))
     clickTab("ui.settingsTabInformation")
     ensureOff("ui.networkLogo")
     expect(puts).toHaveLength(0)
@@ -697,7 +697,7 @@ describe("SettingsPanel real-switch availability (both shapes, staged)", () => {
     await screen.findByText("ui.synced")
     expect(puts).toHaveLength(1)
     expect(puts[0].body["networkLogo"]).toBe(true)
-    expect(puts[0].body["networkLogoPosition"]).toBe("top")
+    expect(puts[0].body["networkLogoPosition"]).toBe("tl")
   })
 
   it("portrait: Information age switch hides the whole appearance age card, font stays on other consumers", async () => {
@@ -796,7 +796,7 @@ describe("SettingsPanel real-switch availability (both shapes, staged)", () => {
     expect(within(transformPanel()).getByTestId("landscape-netpos-group")).toBeInTheDocument()
     expect(within(transformPanel()).getByTestId("landscape-geo-network")).toBeInTheDocument()
     // Stage landscape position tuning through the real override buttons.
-    fireEvent.click(within(transformPanel()).getByText("ui.networkLogoPositionTop"))
+    fireEvent.click(within(transformPanel()).getByTestId("netpos-tl"))
     // Off through the real switch: profile override, zero persistence traffic.
     clickTab("ui.settingsTabInformation")
     ensureOff("ui.networkLogo")
@@ -823,6 +823,6 @@ describe("SettingsPanel real-switch availability (both shapes, staged)", () => {
     expect(ctx().defaultNetworkLogo).toBe(true)
     const land = puts[0].body["landscape"] as Record<string, unknown>
     expect(land["networkLogo"]).toBe(true)
-    expect(land["networkLogoPosition"]).toBe("top")
+    expect(land["networkLogoPosition"]).toBe("tl")
   })
 })
