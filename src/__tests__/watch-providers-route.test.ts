@@ -10,7 +10,7 @@ import { getDetails, getImages, getExternalIds } from "@/lib/tmdb"
 import { cacheClear } from "@/lib/cache"
 import { __resetTMDBSessionCache } from "@/lib/tmdb-session-cache"
 import * as posterService from "@/lib/poster-service"
-import { getWatchProviders } from "@/lib/watch-providers"
+import { getWatchProvidersResult } from "@/lib/watch-providers"
 
 vi.mock("@/lib/custom-rating", async (importOriginal) => ({
   ...(await importOriginal<typeof import("@/lib/custom-rating")>()),
@@ -103,11 +103,11 @@ vi.mock("@/lib/imdb-resolver", () => ({
 }))
 
 vi.mock("@/lib/watch-providers", () => ({
-  getWatchProviders: vi.fn(async () => [{ id: 8, name: "Netflix", logoPath: "/n.jpg" }]),
+  getWatchProvidersResult: vi.fn(async () => ({ providers: [{ id: 8, name: "Netflix", logoPath: "/n.jpg" }], failed: false })),
 }))
-const mockedProviders = vi.mocked(getWatchProviders)
+const mockedProviders = vi.mocked(getWatchProvidersResult)
 
-async function renderOnce(query: string, tmdbId: number): Promise<Record<string, unknown>> {
+async function renderOnce(query: string, tmdbId: number): Promise<Record<string, unknown> & { cacheControl: string }> {
   const seen: Array<Record<string, unknown>> = []
   vi.spyOn(posterService, "generatePosterBuffer").mockImplementation(async (genInput: unknown) => {
     seen.push(genInput as Record<string, unknown>)
@@ -129,7 +129,7 @@ async function renderOnce(query: string, tmdbId: number): Promise<Record<string,
   )
   expect(res.status).toBe(200)
   expect(seen.length).toBe(1)
-  return seen[0]
+  return { ...seen[0], cacheControl: res.headers.get("cache-control") ?? "" }
 }
 
 describe("route forwards watch providers", () => {
@@ -159,8 +159,19 @@ describe("route forwards watch providers", () => {
   })
 
   it("provider fetch failure/empty never breaks the render", async () => {
-    mockedProviders.mockResolvedValueOnce([])
+    mockedProviders.mockResolvedValueOnce({ providers: [], failed: false })
     const gen = await renderOnce("&wp=1", 99104)
     expect(gen.watchProviders ?? []).toEqual([])
+  })
+
+  it("a failed fetch gets the short degraded TTL; a genuine empty result keeps the normal one", async () => {
+    mockedProviders.mockResolvedValueOnce({ providers: [], failed: false })
+    const normal = await renderOnce("&wp=1", 99105)
+    cacheClear()
+    mockedProviders.mockResolvedValueOnce({ providers: [], failed: true })
+    const degraded = await renderOnce("&wp=1", 99106)
+    expect(degraded.cacheControl).not.toBe(normal.cacheControl)
+    expect(degraded.cacheControl).toContain("120")
+    expect(normal.cacheControl).not.toContain("max-age=120,")
   })
 })

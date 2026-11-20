@@ -1,6 +1,6 @@
 import { afterEach, describe, expect, it, vi } from "vitest"
 import { __clearTMDBCache } from "@/lib/tmdb"
-import { getWatchProviders, parseWatchProviders } from "@/lib/watch-providers"
+import { getWatchProviders, getWatchProvidersResult, parseWatchProviders } from "@/lib/watch-providers"
 
 const doc = {
   results: {
@@ -56,5 +56,27 @@ describe("getWatchProviders", () => {
     vi.restoreAllMocks()
     vi.spyOn(globalThis, "fetch").mockRejectedValue(new Error("down"))
     expect(await getWatchProviders("movie", 2, "IT", "test-key")).toEqual([])
+  })
+})
+
+describe("getWatchProvidersResult", () => {
+  afterEach(() => {
+    vi.restoreAllMocks()
+    __clearTMDBCache()
+  })
+
+  it("failed=false on success and on a region with no providers", async () => {
+    vi.spyOn(globalThis, "fetch").mockResolvedValue(Response.json(doc))
+    expect((await getWatchProvidersResult("tv", 1, "IT", "k")).failed).toBe(false)
+    expect(await getWatchProvidersResult("tv", 1, "US", "k")).toEqual({ providers: [], failed: false })
+  })
+
+  it("failed=true on 401 and on network error (distinct from 'no providers')", async () => {
+    vi.spyOn(globalThis, "fetch").mockResolvedValue(new Response("no", { status: 401 }))
+    expect(await getWatchProvidersResult("movie", 3, "IT", "bad")).toEqual({ providers: [], failed: true })
+    __clearTMDBCache()
+    vi.restoreAllMocks()
+    vi.spyOn(globalThis, "fetch").mockRejectedValue(new Error("down"))
+    expect((await getWatchProvidersResult("movie", 4, "IT", "k")).failed).toBe(true)
   })
 })

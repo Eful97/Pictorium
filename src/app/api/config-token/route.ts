@@ -85,6 +85,9 @@ export async function POST(req: NextRequest) {
       ...(defaults.disabledNetworks && defaults.disabledNetworks.length > 0
         ? { disabledNetworks: defaults.disabledNetworks }
         : {}),
+      ...(defaults.watchProviders === true
+        ? { watchProviders: true, ...(defaults.watchRegion ? { watchRegion: defaults.watchRegion } : {}) }
+        : {}),
       // Global BadgeLab family defaults are intentionally NOT baked here:
       // the token is a flat/back-compat config layer, so freezing the flat
       // map would shadow the server landscape profile at delivery (config >

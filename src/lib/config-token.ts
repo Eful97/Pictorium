@@ -220,6 +220,9 @@ export const configTokenSchema = z.object({
   disabledContentTags: z.array(z.string().max(40)).max(64).optional(),
   // 74 canonical marks + the Other-group sentinel (same list, never a key).
   disabledNetworks: z.array(z.string().max(40)).max(MAX_DISABLED_NETWORKS).optional(),
+  // "Dove guardare" (space-wide): switch + country, sanitized again at read time.
+  watchProviders: z.boolean().optional(),
+  watchRegion: z.string().max(2).optional(),
   disabledCatalogIds: z.array(z.string().max(80)).optional(),
   homeDisabledCatalogIds: z.array(z.string().max(80)).optional(),
   episodeMetadataSource: z.enum(["tmdb", "tvdb"]).optional(),
@@ -290,6 +293,9 @@ export const partialCatalogTokenSchema = z.object({
   disabledContentTags: z.array(z.string().max(40)).max(64).optional(),
   // 74 canonical marks + the Other-group sentinel (same list, never a key).
   disabledNetworks: z.array(z.string().max(40)).max(MAX_DISABLED_NETWORKS).optional(),
+  // "Dove guardare" (space-wide): switch + country, sanitized again at read time.
+  watchProviders: z.boolean().optional(),
+  watchRegion: z.string().max(2).optional(),
   disabledCatalogIds: z.array(z.string().max(80)).optional(),
   homeDisabledCatalogIds: z.array(z.string().max(80)).optional(),
   catalogOrder: z.array(z.string().max(80)).optional(),

@@ -988,11 +988,12 @@ export function resolvePosterRenderConfig(input: PosterRenderConfigInput): Poste
   const disabledNetworks: string[] = rawDnet !== null
     ? sanitizeDisabledNetworks(rawDnet.split(","))
     : sanitizeDisabledNetworks(configOverride?.disabledNetworks ?? sd.disabledNetworks ?? [])
-  // "Dove guardare" — catena: query `wp`/`wpr` > server defaults > OFF / paese
+  // "Dove guardare" — catena: query `wp`/`wpr` > config token > server defaults > OFF / paese
   // del poster. Regione sanitizzata a ogni livello (garbage cade al successivo).
   const rawWp = q.get("wp")
-  const watchProviders: boolean = rawWp !== null ? rawWp !== "0" : (sd.watchProviders ?? false)
-  const watchRegion: string | null = sanitizeWatchRegion(q.get("wpr")) ?? sanitizeWatchRegion(sd.watchRegion)
+  const watchProviders: boolean = rawWp !== null ? rawWp !== "0" : (configOverride?.watchProviders ?? sd.watchProviders ?? false)
+  const watchRegion: string | null = sanitizeWatchRegion(q.get("wpr"))
+    ?? sanitizeWatchRegion(configOverride?.watchRegion) ?? sanitizeWatchRegion(sd.watchRegion)
 
   // Custom rating provider row (display) — precedence: query `cr` > mapping
   // effettivo per formato > config token/profile > effective per-shape defaults > true

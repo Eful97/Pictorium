@@ -34,6 +34,26 @@ export function parseWatchProviders(json: unknown, region: string): WatchProvide
   return rows.sort((a, b) => a.prio - b.prio).map(({ id, name, logoPath }) => ({ id, name, logoPath }))
 }
 
+export interface WatchProvidersResult {
+  readonly providers: WatchProvider[]
+  /** true = fetch/parse failed (timeout, 401, rete): distinto da "nessun provider nel paese". */
+  readonly failed: boolean
+}
+
+export async function getWatchProvidersResult(
+  mediaType: "movie" | "tv",
+  tmdbId: number,
+  region: string,
+  apiKey: string | undefined,
+  signal?: AbortSignal,
+): Promise<WatchProvidersResult> {
+  try {
+    return { providers: parseWatchProviders(await getWatchProvidersRaw(mediaType, tmdbId, apiKey, signal), region), failed: false }
+  } catch {
+    return { providers: [], failed: true }
+  }
+}
+
 export async function getWatchProviders(
   mediaType: "movie" | "tv",
   tmdbId: number,
@@ -41,9 +61,5 @@ export async function getWatchProviders(
   apiKey: string | undefined,
   signal?: AbortSignal,
 ): Promise<WatchProvider[]> {
-  try {
-    return parseWatchProviders(await getWatchProvidersRaw(mediaType, tmdbId, apiKey, signal), region)
-  } catch {
-    return []
-  }
+  return (await getWatchProvidersResult(mediaType, tmdbId, region, apiKey, signal)).providers
 }

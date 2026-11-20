@@ -703,7 +703,7 @@ export function usePictorium(): PictoriumCtx {
   // so a cleared device wins over the namespace fill (same absent-vs-explicit
   // boundary as the space-wide exclusions below).
   const { token: localConfigToken, status: localConfigTokenStatus } =
-    useLocalConfigToken({ customCatalogs, rankingSourceMovie, rankingSourceSeries, catalogShapes, catalogShowEmojis, seasonalHalloweenKeywords, seasonalChristmasKeywords, disabledContentTags: editorCtx.defaultDisabledContentTags, disabledNetworks: editorCtx.defaultDisabledNetworks, ...(streamingSelections !== undefined ? { streamingSelections } : {}) })
+    useLocalConfigToken({ customCatalogs, rankingSourceMovie, rankingSourceSeries, catalogShapes, catalogShowEmojis, seasonalHalloweenKeywords, seasonalChristmasKeywords, disabledContentTags: editorCtx.defaultDisabledContentTags, disabledNetworks: editorCtx.defaultDisabledNetworks, watchProviders: editorCtx.defaultWatchProviders, watchRegion: editorCtx.defaultWatchRegion, ...(streamingSelections !== undefined ? { streamingSelections } : {}) })
 
   const trending = useTrending(tmdbKey, mdblistApiKey, editorCtx.defaultRegion, serverHasTmdbKey, {
     movieSource: rankingSourceMovie,

@@ -1,4 +1,4 @@
-import { getWatchProviders, type WatchProvider } from "@/lib/watch-providers"
+import { getWatchProvidersResult, type WatchProvidersResult } from "@/lib/watch-providers"
 import { sanitizeWatchRegion } from "@/lib/regions"
 import { NextRequest } from "next/server"
 import { initSharp } from "@/lib/sharp-config"
@@ -711,10 +711,13 @@ export async function GET(req: NextRequest, { params }: { params: Promise<RouteP
     // defaults > paese del poster. Cap 1500 ms e renderAbort: mai oltre il
     // caso peggiore, errore/timeout → lista vuota (poster invariato).
     const wpRegion = sanitizeWatchRegion(watchRegion ?? posterRegion.code)
-    const watchProvidersPromise: Promise<WatchProvider[]> = watchProviders && wpRegion
-      ? getWatchProviders(mediaType as "movie" | "tv", tmdbId, wpRegion, effTmdbKey,
+    const watchProvidersPromise: Promise<WatchProvidersResult> = watchProviders && wpRegion
+      ? getWatchProvidersResult(mediaType as "movie" | "tv", tmdbId, wpRegion, effTmdbKey,
           AbortSignal.any([renderAbort.signal, AbortSignal.timeout(WATCH_PROVIDERS_TIMEOUT_MS)]))
-      : Promise.resolve([])
+      : Promise.resolve({ providers: [], failed: false })
+    // Atteso qui (non allo step 10): l'esito degradato serve alla policy TTL sotto.
+    const watchProvidersResolved = await watchProvidersPromise
+    const watchProviderList = watchProvidersResolved.providers
 
     // Blur non-clean + stato display dei rating separati (display-state.ts).
     const {
@@ -729,6 +732,7 @@ export async function GET(req: NextRequest, { params }: { params: Promise<RouteP
       disabledContentTags, qQualityParam, liveQualityResult, ageCert, wikidataResult, wikidataRaceTimedOut,
       effectiveCustomUrl, originalBase, preDigital, preJw, preReleaseDetected, finalRank, animeRankResult,
       tmdbKeywords, imdbTop250, aggregated, dynamicTtlSec, immutablePoster,
+      watchProvidersDegraded: watchProvidersResolved.failed,
     }, titleMeta)
     const { ageLabel, ageEphemeral, ephemeralTtl, effectiveImmutable } = ephemeral
     // Task D: riassegnato sotto dal freshness cap (solo restrizione, mai estensione).
@@ -860,8 +864,6 @@ export async function GET(req: NextRequest, { params }: { params: Promise<RouteP
       titleMeta.tmdbNetworks = [fallbackName]
       titleMeta.tmdbNetworksDetailed = [{ name: fallbackName, logoPath: fallbackPath }]
     }
-
-    const watchProviderList = await watchProvidersPromise
 
     // 10. Generate poster buffer
     // Collettore geometria network per il debug (solo numeri): in fissa è la
