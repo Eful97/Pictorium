@@ -1,4 +1,5 @@
 import { getWatchProvidersResult, type WatchProvidersResult } from "@/lib/watch-providers"
+import { resolveBadgeOverflow } from "@/lib/badge-overflow"
 import { sanitizeWatchRegion } from "@/lib/regions"
 import { NextRequest } from "next/server"
 import { initSharp } from "@/lib/sharp-config"
@@ -704,6 +705,8 @@ export async function GET(req: NextRequest, { params }: { params: Promise<RouteP
       queryExtra, qNetLogo, networkLogo, networkLogoPosition, ribbonSide, ribbonEnabled, rankingBadgeAccent,
       logoAnchor,
       qualityAnchor,
+      topBadgeAnchor,
+      extraBadgeAnchor,
       bottomAnchor,
       networkLogoFollowTitle, networkFixedX, networkFixedY,
       watchProviders, watchRegion, typeIcon,
@@ -753,8 +756,13 @@ export async function GET(req: NextRequest, { params }: { params: Promise<RouteP
     // finestra si calcola sempre su STD_W (mai LAND_W).
     const badgeCanvasWidth = STD_W
     const topBadgeType: "rank" | "extra" = rankingEnabled ? "rank" : "extra"
-    const topBadgeAnchor = topBadgeSampleAnchor({ topBadgeType, rankingBadgeStyle, extraBadgeStyle, ribbonSide })
-    const topBadgeWindow = badgeSampleWindow(topBadgeAnchor, badgeCanvasWidth)
+    // `tanc` sposta il corpo rank, `xanc` il badge extra (tipo scelto come nel
+    // render: rank → tanc, extra → xanc). Solo Standard senza Coming Soon (il
+    // nastro occupa lo slot alto): la finestra di polarità segue la stessa gate.
+    const sampleTopAnchor = (!posterLayout || posterLayout === "standard") && !preRelease
+      ? (topBadgeType === "extra" ? extraBadgeAnchor : topBadgeAnchor) : "auto"
+    const topBadgeSampleSide = topBadgeSampleAnchor({ topBadgeType, rankingBadgeStyle, extraBadgeStyle, ribbonSide, topBadgeAnchor: sampleTopAnchor })
+    const topBadgeWindow = badgeSampleWindow(topBadgeSampleSide, badgeCanvasWidth)
     const qTopLightRaw = hardenedParams.get("tl")
     const qTopLightExplicit = qTopLightRaw === "1" || qTopLightRaw === "true" ? true : qTopLightRaw === "0" || qTopLightRaw === "false" ? false : null
     let topBadgeLight: boolean
@@ -796,6 +804,8 @@ export async function GET(req: NextRequest, { params }: { params: Promise<RouteP
     // gli altri toggle booleani in chiave) > default utente > off.
     const qGtop = hardenedParams.get("gtop")
     const genreTopWhenFree = qGtop !== null ? qGtop !== "0" : sd.genreTopWhenFree === true
+    // Overflow badge Auto (`bov`): query > config token > default > move. Globale.
+    const badgeOverflow = resolveBadgeOverflow({ query: hardenedParams.get("bov"), config: configOverride?.badgeOverflow, defaults: sd.badgeOverflow })
     // Task D — freshness cap dai fatti volatili consumati (vedi freshness.ts).
     const factCap = resolveFactCap({
       mediaType, tmdbId, posterRegion, t, scopedUser, effTmdbKey, effMdblistKey, effTvdbKey,
@@ -934,9 +944,12 @@ export async function GET(req: NextRequest, { params }: { params: Promise<RouteP
       wikidataResult, tmdbKeywords, locale, t,
       dateFormat,
       genreTopWhenFree,
+      badgeOverflow,
       qLabel, queryExtra, qNetLogo, networkLogo, networkLogoPosition, sd,
       logoAnchor,
       qualityAnchor,
+      topBadgeAnchor,
+      extraBadgeAnchor,
       bottomAnchor,
       networkLogoFollowTitle, networkFixedX, networkFixedY,
       onNetworkGeometry: isDebug && wantNetGeo ? (geo) => { netGeo = geo } : undefined,

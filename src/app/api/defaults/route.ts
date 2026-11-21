@@ -1,5 +1,6 @@
 import { LOGO_ANCHORS } from "@/lib/logo-layout"
-import { QUALITY_ANCHORS, BOTTOM_ANCHORS } from "@/lib/badge-anchor"
+import { BADGE_OVERFLOW_MODES } from "@/lib/badge-overflow"
+import { QUALITY_ANCHORS, BOTTOM_ANCHORS, TOP_BADGE_ANCHORS, EXTRA_BADGE_ANCHORS } from "@/lib/badge-anchor"
 import { NextRequest } from "next/server"
 import { getServerDefaultsChecked, setServerDefaults, getServerDefaultsForUser, getStoredUserDefaults, setServerDefaultsForUser, getInstanceEnvDefaults, type ServerDefaults } from "@/lib/server-defaults"
 import { cacheInvalidatePosterData } from "@/lib/cache"
@@ -178,6 +179,8 @@ const defaultsSchema = z.object({
   networkLogoPosition: z.enum(NETWORK_LOGO_POSITIONS).optional(),
   logoAnchor: z.enum(LOGO_ANCHORS).optional(),
   qualityAnchor: z.enum(QUALITY_ANCHORS).optional(),
+  topBadgeAnchor: z.enum(TOP_BADGE_ANCHORS).optional(),
+  extraBadgeAnchor: z.enum(EXTRA_BADGE_ANCHORS).optional(),
   bottomAnchor: z.enum(BOTTOM_ANCHORS).optional(),
   networkLogoFollowTitle: z.boolean().nullable().optional(),
   // Default logo film (null = auto-fit/0, mai spazzatura dallo storage).
@@ -230,6 +233,7 @@ const defaultsSchema = z.object({
   imageQualityLandscape: z.enum(["low", "medium", "high"]).optional(),
   imageQualityThumbnail: z.enum(["low", "medium", "high"]).optional(),
   genreTopWhenFree: z.boolean().optional(),
+  badgeOverflow: z.enum(BADGE_OVERFLOW_MODES).optional(),
   /**
    * Additive clear contract (transport only, never stored): profile keys to
    * delete after the normal merge/backfill, because omitting them cannot
@@ -316,6 +320,8 @@ const defaultsSchema = z.object({
     networkLogoPosition: z.enum(NETWORK_LOGO_POSITIONS).optional(),
     logoAnchor: z.enum(LOGO_ANCHORS).optional(),
     qualityAnchor: z.enum(QUALITY_ANCHORS).optional(),
+    topBadgeAnchor: z.enum(TOP_BADGE_ANCHORS).optional(),
+    extraBadgeAnchor: z.enum(EXTRA_BADGE_ANCHORS).optional(),
     bottomAnchor: z.enum(BOTTOM_ANCHORS).optional(),
     networkLogoFollowTitle: z.boolean().nullable().optional(),
     /**

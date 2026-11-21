@@ -15,15 +15,10 @@ import { defaultGradientHeightForPoster } from "@/lib/gradient-defaults"
 import { naturalGradientForPoster } from "@/lib/gradient-presets"
 import { GradientPresetRow } from "@/components/GradientPresetRow"
 import { SliderRow } from "@/components/SliderRow"
-import { QualityAnchorSelector } from "@/components/QualityAnchorSelector"
-import { BottomAnchorSelector } from "@/components/BottomAnchorSelector"
-import { LOGO_ANCHORS, type LogoAnchor } from "@/lib/logo-layout"
 import { resolveSeparateBadgeScaleFallback, separateBadgeScaleToUI, uiToSeparateBadgeScale, SEPARATE_BADGE_SCALE_UI_MIN, SEPARATE_BADGE_SCALE_UI_MAX, getSeparateRatingsStyleForShape, NUMBER_BADGE_BASE_OFFSET_X } from "@/lib/badge-styles"
 import { getBadgeOffsetRange } from "@/lib/badge-offset-ranges"
 import type { LandscapeBlurState } from "@/lib/contexts/PosterEditorContext"
 
-const LOGO_ANCHOR_GLYPH: Record<Exclude<LogoAnchor, "auto">, string> = { tl: "↖", tr: "↗", bl: "↙", bc: "↓", br: "↘" }
-const LOGO_ANCHOR_KEY = { auto: "ui.auto", tl: "ui.logoAnchorTL", tr: "ui.logoAnchorTR", bl: "ui.logoAnchorBL", bc: "ui.logoAnchorBC", br: "ui.logoAnchorBR" } as const
 
 export function TransformControls() {
   const selectedLogo = usePSelector((v) => v.selectedLogo)
@@ -266,20 +261,6 @@ export function TransformControls() {
         <SliderRow icon={<ArrowUpDown className="w-3.5 h-3.5" />} label="Y" value={ed.logoOffsetY} min={logoBounds.minY} max={logoBounds.maxY} boundsMin={logoBounds.minY} boundsMax={logoBounds.maxY} onChange={ed.setLogoOffsetY} onDoubleClick={() => ed.setLogoOffsetY(0)} editingValue={editingValue} editText={editText} setEditingValue={setEditingValue} setEditText={setEditText} editingKey="oy" />
         </fieldset>
         </div>
-        {ed.posterLayout === "standard" && (
-          <div className="space-y-1.5 pt-1" title={t("ui.logoAnchor")} data-testid="logo-anchor-group">
-            <span className="text-[11px] text-muted font-medium block">{t("ui.logoAnchor")}</span>
-            <div className="flex gap-1">
-              {LOGO_ANCHORS.map((a) => (
-                <button key={a} type="button" title={t(LOGO_ANCHOR_KEY[a])} aria-label={t(LOGO_ANCHOR_KEY[a])} aria-pressed={(ed.logoAnchor ?? "auto") === a} data-testid={`logo-anchor-${a}`}
-                  onClick={() => { ed.setLogoAnchor(a); ed.setLogoOffsetX(0); ed.setLogoOffsetY(0) }}
-                  className={`flex-1 py-1 rounded-lg text-[11px] font-semibold transition duration-150 cursor-pointer ${(ed.logoAnchor ?? "auto") === a ? "bg-white/20 text-foreground shadow-sm" : "bg-white/5 text-muted hover:bg-white/10"}`}>
-                  {a === "auto" ? t("ui.auto") : LOGO_ANCHOR_GLYPH[a]}
-                </button>
-              ))}
-            </div>
-          </div>
-        )}
         {isCardLayout && (
           <p className="text-[10px] text-muted italic leading-tight px-1">{t("ui.posterLayoutCardHint")}</p>
         )}
@@ -501,9 +482,6 @@ export function TransformControls() {
         />
         </fieldset>
         </div>
-        {ed.posterLayout === "standard" && (
-          <BottomAnchorSelector value={ed.bottomAnchor} onChange={ed.setBottomAnchor} />
-        )}
         {isCardLayout && (
           <p className="text-[10px] text-muted italic leading-tight px-1">{t("ui.posterLayoutCardHint")}</p>
         )}
@@ -576,9 +554,6 @@ export function TransformControls() {
           editingKey="qualityOY"
           suffix="px"
         />
-        {ed.posterLayout === "standard" && (
-          <QualityAnchorSelector value={ed.qualityAnchor} onChange={ed.setQualityAnchor} />
-        )}
       </div>
       )}
 

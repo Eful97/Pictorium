@@ -70,6 +70,8 @@ export const LANDSCAPE_RESET_KEYS = [
   "networkLogoPosition",
   "logoAnchor",
   "qualityAnchor",
+  "topBadgeAnchor",
+  "extraBadgeAnchor",
   "bottomAnchor",
   "networkLogoFollowTitle",
   "logoAlign",

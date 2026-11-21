@@ -1,7 +1,7 @@
 "use client"
 
 import { type LogoAnchor } from "@/lib/logo-layout"
-import { type QualityAnchor, type BottomAnchor } from "@/lib/badge-anchor"
+import { type QualityAnchor, type BottomAnchor, type TopBadgeAnchor, type ExtraBadgeAnchor } from "@/lib/badge-anchor"
 import React, { createContext, useContext, useState, useEffect, useCallback, useRef, useMemo, useSyncExternalStore } from "react"
 import type { SearchResult, TMDBImage, Mapping, CustomCatalogConfig, NetworkLogoPosition, PosterLayout, PosterFreshScope, PosterShape } from "./types"
 import { effectiveMappingForShape, DEFAULT_POSTER_FRESH_SCOPE } from "./types"
@@ -757,7 +757,11 @@ export function usePictorium(): PictoriumCtx {
     logoAnchor,
     setLogoAnchor,
     qualityAnchor,
+    topBadgeAnchor,
+    extraBadgeAnchor,
     setQualityAnchor,
+    setTopBadgeAnchor,
+    setExtraBadgeAnchor,
     bottomAnchor,
     setBottomAnchor,
     networkLogoFollowTitle, setNetworkLogoFollowTitle,
@@ -829,11 +833,14 @@ export function usePictorium(): PictoriumCtx {
     defaultNetworkLogoPosition,
     defaultLogoAnchor,
     defaultQualityAnchor,
+    defaultTopBadgeAnchor,
+    defaultExtraBadgeAnchor,
     defaultBottomAnchor,
     defaultNetworkLogoFollowTitle,
     defaultPreRelease,
     defaultDateFormat,
     defaultGenreTopWhenFree,
+    defaultBadgeOverflow,
     loadDefaultsToState,
     // Blur
     blurEnabled, setBlurEnabled,
@@ -1421,6 +1428,8 @@ export function usePictorium(): PictoriumCtx {
       networkLogoPosition: noPreview ? defaultNetworkLogoPosition : networkLogoPosition,
       logoAnchor: noPreview ? defaultLogoAnchor : logoAnchor,
       qualityAnchor: noPreview ? defaultQualityAnchor : qualityAnchor,
+      topBadgeAnchor: noPreview ? defaultTopBadgeAnchor : topBadgeAnchor,
+      extraBadgeAnchor: noPreview ? defaultExtraBadgeAnchor : extraBadgeAnchor,
       bottomAnchor: noPreview ? defaultBottomAnchor : bottomAnchor,
       networkLogoFollowTitle: noPreview ? defaultNetworkLogoFollowTitle : networkLogoFollowTitle,
       preRelease: noPreview ? defaultPreRelease : preRelease,
@@ -1469,6 +1478,7 @@ export function usePictorium(): PictoriumCtx {
       tmdbKey, lang, mdblistApiKey,
       dateFormat: defaultDateFormat,
       genreTopWhenFree: defaultGenreTopWhenFree,
+      badgeOverflow: defaultBadgeOverflow,
       // AIO multi-user: `u=` nel template + niente chiavi in chiaro quando il
       // namespace le ha server-side (il server risolve da namespace).
       userId: currentUserId,
@@ -1491,7 +1501,7 @@ export function usePictorium(): PictoriumCtx {
       urlPatternNuvioImdb: buildUrlPattern({ ...base, idPlaceholder: "{imdb_id}", shapePlaceholder: "{shape}" }),
       urlPatternNuvioAuto: buildUrlPattern({ ...base, idPlaceholder: "{tmdb_id|imdb_id|id}", shapePlaceholder: "{shape}" }),
     }
-    }, [globalBadges,rankingBadges, badgeGenre, badgeYear, badgeRating, badgeQuality, qualityBadgeStyle, qualityGroupLayout, awardBadgeStyle, defaultAwardBadgeStyle, customRatings, ratingSources, separateRatings, separateRatingsStyle, posterLayout, posterFreshScope, defaultPosterLayout, defaultPosterFreshScope, networkLogo, networkLogoPosition, logoAnchor, qualityAnchor, bottomAnchor, networkLogoFollowTitle, preRelease, ribbonSide, ribbonEnabled, posterShape, logoAlign, gradientHeight, blurIntensity, blurFade, blurDarkness, blurEnabled, landscapeBlur, landscapeDefaults, tintStrength, topShade, topShadeHeight, badgeStyle, rankingBadgeStyle, extraBadgeStyle, badgeFont, topBadgeScale, topBadgeOffsetX, topBadgeOffsetY, extraBadgeScale, extraBadgeOffsetX, extraBadgeOffsetY, genreBadgeScale, qualityBadgeScale, networkLogoScale, separateBadgeScale, separateBadgeOffsetX, separateBadgeOffsetY, genreBadgeOffsetX, genreBadgeOffsetY, qualityBadgeOffsetX, qualityBadgeOffsetY, networkLogoOffsetX, networkLogoOffsetY, tmdbKey, lang, mdblistApiKey, currentUserId, localConfigToken, serverKeyStatus, instanceHasTmdbKey, instanceHasMdblistKey, linkMode, navigation.previewId, defaultGlobalBadges, defaultRankingBadges, defaultBadgeStyle, defaultRankingBadgeStyle, defaultExtraBadgeStyle, defaultBadgeFont, defaultQualityBadgeStyle, defaultQualityGroupLayout, defaultBadgeGenre, defaultBadgeYear, defaultBadgeRating, defaultBadgeQuality, defaultAgeBadge, defaultAgeCountry, defaultAgeBadgeStyle, defaultCustomRatings, defaultRatingSources, defaultSeparateRatings, defaultSeparateRatingsStyle, defaultGradientHeight, defaultBlurIntensity, defaultBlurFade, defaultBlurDarkness, defaultBlurEnabled, defaultTintStrength, defaultTopShade, defaultTopShadeHeight, defaultNetworkLogo, defaultNetworkLogoPosition, defaultLogoAnchor, defaultQualityAnchor, defaultBottomAnchor, defaultNetworkLogoFollowTitle, defaultPreRelease, defaultDateFormat, defaultGenreTopWhenFree, defaultRibbonSide, defaultRibbonEnabled, defaultPosterShape, defaultLogoAlign, defaultTopBadgeScale, defaultTopBadgeOffsetX, defaultTopBadgeOffsetY, defaultExtraBadgeScale, defaultExtraBadgeOffsetX, defaultExtraBadgeOffsetY, defaultGenreBadgeScale, defaultQualityBadgeScale, defaultNetworkLogoScale, defaultSeparateBadgeScale, defaultSeparateBadgeOffsetX, defaultSeparateBadgeOffsetY, defaultGenreBadgeOffsetX, defaultGenreBadgeOffsetY, defaultQualityBadgeOffsetX, defaultQualityBadgeOffsetY, defaultNetworkLogoOffsetX, defaultNetworkLogoOffsetY]) // eslint-disable-line react-hooks/exhaustive-deps -- customBadge intentionally excluded to avoid loop
+    }, [defaultBadgeOverflow, globalBadges,rankingBadges, badgeGenre, badgeYear, badgeRating, badgeQuality, qualityBadgeStyle, qualityGroupLayout, awardBadgeStyle, defaultAwardBadgeStyle, customRatings, ratingSources, separateRatings, separateRatingsStyle, posterLayout, posterFreshScope, defaultPosterLayout, defaultPosterFreshScope, networkLogo, networkLogoPosition, logoAnchor, qualityAnchor, topBadgeAnchor, extraBadgeAnchor, bottomAnchor, networkLogoFollowTitle, preRelease, ribbonSide, ribbonEnabled, posterShape, logoAlign, gradientHeight, blurIntensity, blurFade, blurDarkness, blurEnabled, landscapeBlur, landscapeDefaults, tintStrength, topShade, topShadeHeight, badgeStyle, rankingBadgeStyle, extraBadgeStyle, badgeFont, topBadgeScale, topBadgeOffsetX, topBadgeOffsetY, extraBadgeScale, extraBadgeOffsetX, extraBadgeOffsetY, genreBadgeScale, qualityBadgeScale, networkLogoScale, separateBadgeScale, separateBadgeOffsetX, separateBadgeOffsetY, genreBadgeOffsetX, genreBadgeOffsetY, qualityBadgeOffsetX, qualityBadgeOffsetY, networkLogoOffsetX, networkLogoOffsetY, tmdbKey, lang, mdblistApiKey, currentUserId, localConfigToken, serverKeyStatus, instanceHasTmdbKey, instanceHasMdblistKey, linkMode, navigation.previewId, defaultGlobalBadges, defaultRankingBadges, defaultBadgeStyle, defaultRankingBadgeStyle, defaultExtraBadgeStyle, defaultBadgeFont, defaultQualityBadgeStyle, defaultQualityGroupLayout, defaultBadgeGenre, defaultBadgeYear, defaultBadgeRating, defaultBadgeQuality, defaultAgeBadge, defaultAgeCountry, defaultAgeBadgeStyle, defaultCustomRatings, defaultRatingSources, defaultSeparateRatings, defaultSeparateRatingsStyle, defaultGradientHeight, defaultBlurIntensity, defaultBlurFade, defaultBlurDarkness, defaultBlurEnabled, defaultTintStrength, defaultTopShade, defaultTopShadeHeight, defaultNetworkLogo, defaultNetworkLogoPosition, defaultLogoAnchor, defaultQualityAnchor, defaultTopBadgeAnchor, defaultExtraBadgeAnchor, defaultBottomAnchor, defaultNetworkLogoFollowTitle, defaultPreRelease, defaultDateFormat, defaultGenreTopWhenFree, defaultRibbonSide, defaultRibbonEnabled, defaultPosterShape, defaultLogoAlign, defaultTopBadgeScale, defaultTopBadgeOffsetX, defaultTopBadgeOffsetY, defaultExtraBadgeScale, defaultExtraBadgeOffsetX, defaultExtraBadgeOffsetY, defaultGenreBadgeScale, defaultQualityBadgeScale, defaultNetworkLogoScale, defaultSeparateBadgeScale, defaultSeparateBadgeOffsetX, defaultSeparateBadgeOffsetY, defaultGenreBadgeOffsetX, defaultGenreBadgeOffsetY, defaultQualityBadgeOffsetX, defaultQualityBadgeOffsetY, defaultNetworkLogoOffsetX, defaultNetworkLogoOffsetY]) // eslint-disable-line react-hooks/exhaustive-deps -- customBadge intentionally excluded to avoid loop
   const { urlPattern, urlPatternImdb, urlPatternAuto, urlPatternNuvio, urlPatternNuvioImdb, urlPatternNuvioAuto } = urlPatterns
 
   // --- Default live sul titolo corrente ---
@@ -1518,6 +1528,8 @@ export function usePictorium(): PictoriumCtx {
       networkLogo: defaultNetworkLogo, networkLogoPosition: defaultNetworkLogoPosition, networkLogoFollowTitle: defaultNetworkLogoFollowTitle, preRelease: defaultPreRelease, ribbonSide: defaultRibbonSide, ribbonEnabled: defaultRibbonEnabled, posterShape: defaultPosterShape,
       logoAnchor: defaultLogoAnchor,
       qualityAnchor: defaultQualityAnchor,
+      topBadgeAnchor: defaultTopBadgeAnchor,
+      extraBadgeAnchor: defaultExtraBadgeAnchor,
       bottomAnchor: defaultBottomAnchor,
       logoAlign: defaultLogoAlign, gradientHeight: defaultGradientHeight, blurIntensity: defaultBlurIntensity,
       tintStrength: defaultTintStrength, topShade: defaultTopShade, topShadeHeight: defaultTopShadeHeight, blurFade: defaultBlurFade, blurDarkness: defaultBlurDarkness,
@@ -1655,6 +1667,8 @@ export function usePictorium(): PictoriumCtx {
     if (changed("networkLogoPosition")) setNetworkLogoPosition(cur.networkLogoPosition as NetworkLogoPosition)
     if (changed("logoAnchor")) setLogoAnchor(cur.logoAnchor as LogoAnchor)
     if (changed("qualityAnchor")) setQualityAnchor(cur.qualityAnchor as QualityAnchor)
+    if (changed("topBadgeAnchor")) setTopBadgeAnchor(cur.topBadgeAnchor as TopBadgeAnchor)
+    if (changed("extraBadgeAnchor")) setExtraBadgeAnchor(cur.extraBadgeAnchor as ExtraBadgeAnchor)
     if (changed("bottomAnchor")) setBottomAnchor(cur.bottomAnchor as BottomAnchor)
     // Flat network follow/offsets propagate raw in portrait; in landscape the
     // open poster follows the effective view (server semantics: a flat OFF
@@ -2079,7 +2093,7 @@ export function usePictorium(): PictoriumCtx {
         // Preview WYSIWYG nel namespace (altrimenti mostra il globale).
         userId: currentUserId,
       },
-      { globalBadges, rankingBadges, badgeStyle, rankingBadgeStyle, extraBadgeStyle, badgeFont, qualityBadgeStyle, qualityGroupLayout, videoFormats, badgeGenre, badgeYear, badgeRating, badgeQuality, ageBadge: previewAgeBadge, ageCountry: previewAgeCountry, ageBadgeStyle: previewAgeBadgeStyle, awardBadgeStyle: previewAwardBadgeStyle, customRatings, ratingSources, separateRatings, separateRatingsStyle, posterLayout, posterFreshScope, customBadge, disabledContentTags: editorCtx.defaultDisabledContentTags ?? undefined, disabledNetworks: editorCtx.defaultDisabledNetworks ?? undefined, watchProviders: editorCtx.defaultWatchProviders, watchRegion: editorCtx.defaultWatchRegion, typeIcon: isLandscapePreview ? editorCtx.defaultTypeIconLandscape : editorCtx.defaultTypeIcon, gradientHeight: isLandscapePreview ? landscapeBlur.gradientHeight : gradientHeight, blurIntensity: isLandscapePreview ? landscapeBlur.blurIntensity : blurIntensity, blurFade: isLandscapePreview ? landscapeBlur.blurFade : blurFade, blurDarkness: isLandscapePreview ? landscapeBlur.blurDarkness : blurDarkness, blurEnabled: isLandscapePreview ? landscapeBlur.blurEnabled : blurEnabled, tintStrength: isLandscapePreview ? landscapeBlur.tintStrength : tintStrength, topShade: isLandscapePreview ? landscapeBlur.topShade : topShade, topShadeHeight: isLandscapePreview ? landscapeBlur.topShadeHeight : topShadeHeight, networkLogo, networkLogoPosition, logoAnchor, qualityAnchor, bottomAnchor, networkLogoFollowTitle, preRelease, ribbonSide, ribbonEnabled, posterShape, logoAlign, topBadgeScale, topBadgeOffsetX, topBadgeOffsetY, extraBadgeScale: extraBadgeScale ?? undefined, extraBadgeOffsetX: extraBadgeOffsetX ?? undefined, extraBadgeOffsetY: extraBadgeOffsetY ?? undefined, genreBadgeScale, qualityBadgeScale, networkLogoScale, separateBadgeScale, separateBadgeOffsetX, separateBadgeOffsetY, badgeItemTransforms, genreBadgeOffsetX, genreBadgeOffsetY, qualityBadgeOffsetX, qualityBadgeOffsetY, networkLogoOffsetX, networkLogoOffsetY, genreTopWhenFree: editorCtx.defaultGenreTopWhenFree },
+      { globalBadges, rankingBadges, badgeStyle, rankingBadgeStyle, extraBadgeStyle, badgeFont, qualityBadgeStyle, qualityGroupLayout, videoFormats, badgeGenre, badgeYear, badgeRating, badgeQuality, ageBadge: previewAgeBadge, ageCountry: previewAgeCountry, ageBadgeStyle: previewAgeBadgeStyle, awardBadgeStyle: previewAwardBadgeStyle, customRatings, ratingSources, separateRatings, separateRatingsStyle, posterLayout, posterFreshScope, customBadge, disabledContentTags: editorCtx.defaultDisabledContentTags ?? undefined, disabledNetworks: editorCtx.defaultDisabledNetworks ?? undefined, watchProviders: editorCtx.defaultWatchProviders, watchRegion: editorCtx.defaultWatchRegion, typeIcon: isLandscapePreview ? editorCtx.defaultTypeIconLandscape : editorCtx.defaultTypeIcon, gradientHeight: isLandscapePreview ? landscapeBlur.gradientHeight : gradientHeight, blurIntensity: isLandscapePreview ? landscapeBlur.blurIntensity : blurIntensity, blurFade: isLandscapePreview ? landscapeBlur.blurFade : blurFade, blurDarkness: isLandscapePreview ? landscapeBlur.blurDarkness : blurDarkness, blurEnabled: isLandscapePreview ? landscapeBlur.blurEnabled : blurEnabled, tintStrength: isLandscapePreview ? landscapeBlur.tintStrength : tintStrength, topShade: isLandscapePreview ? landscapeBlur.topShade : topShade, topShadeHeight: isLandscapePreview ? landscapeBlur.topShadeHeight : topShadeHeight, networkLogo, networkLogoPosition, logoAnchor, qualityAnchor, topBadgeAnchor, extraBadgeAnchor, bottomAnchor, networkLogoFollowTitle, preRelease, ribbonSide, ribbonEnabled, posterShape, logoAlign, topBadgeScale, topBadgeOffsetX, topBadgeOffsetY, extraBadgeScale: extraBadgeScale ?? undefined, extraBadgeOffsetX: extraBadgeOffsetX ?? undefined, extraBadgeOffsetY: extraBadgeOffsetY ?? undefined, genreBadgeScale, qualityBadgeScale, networkLogoScale, separateBadgeScale, separateBadgeOffsetX, separateBadgeOffsetY, badgeItemTransforms, genreBadgeOffsetX, genreBadgeOffsetY, qualityBadgeOffsetX, qualityBadgeOffsetY, networkLogoOffsetX, networkLogoOffsetY, genreTopWhenFree: editorCtx.defaultGenreTopWhenFree, badgeOverflow: editorCtx.defaultBadgeOverflow },
       localConfigToken,
     )
     setPreviewUrl(url)
@@ -2087,8 +2101,8 @@ export function usePictorium(): PictoriumCtx {
     previewBaseAuto, portraitBaseChoice, savedPortraitBase, logoText, logoFont, logoDisabled, autoWordmark,
     logoScale, logoScaleExplicit, logoOffsetX, logoOffsetY, backdropScale, backdropOffsetX, backdropOffsetY,
     metaInfo, trendRank, trending.mdblistAnimeList, topEdgeColor, bottomEdgeColor, accentColor, autoAccentColor, lang, tmdbKey,
-    editorCtx.defaultRegion, editorCtx.defaultDateFormat, editorCtx.defaultGenreTopWhenFree, currentUserId, localConfigToken, localConfigTokenStatus,
-    globalBadges, rankingBadges, badgeStyle, rankingBadgeStyle, extraBadgeStyle, badgeFont, qualityBadgeStyle, qualityGroupLayout, videoFormats, badgeGenre, badgeYear, badgeRating, badgeQuality, ageBadge, ageCountry, ageBadgeStyle, awardBadgeStyle, defaultAgeBadge, defaultAgeCountry, defaultAgeBadgeStyle, defaultAwardBadgeStyle, customRatings, ratingSources, separateRatings, separateRatingsStyle, posterLayout, posterFreshScope, customBadge, editorCtx.defaultDisabledContentTags, editorCtx.defaultDisabledNetworks, editorCtx.defaultWatchProviders, editorCtx.defaultWatchRegion, editorCtx.defaultTypeIcon, editorCtx.defaultTypeIconLandscape, gradientHeight, blurIntensity, blurFade, blurDarkness, blurEnabled, landscapeBlur, landscapeDefaults, tintStrength, topShade, topShadeHeight, networkLogo, networkLogoPosition, logoAnchor, qualityAnchor, bottomAnchor, networkLogoFollowTitle, preRelease, ribbonSide, ribbonEnabled, posterShape, logoAlign, topBadgeScale, topBadgeOffsetX, topBadgeOffsetY, extraBadgeScale, extraBadgeOffsetX, extraBadgeOffsetY, genreBadgeScale, qualityBadgeScale, networkLogoScale, separateBadgeScale, separateBadgeOffsetX, separateBadgeOffsetY, badgeItemTransforms, genreBadgeOffsetX, genreBadgeOffsetY, qualityBadgeOffsetX, qualityBadgeOffsetY, networkLogoOffsetX, networkLogoOffsetY])
+    editorCtx.defaultRegion, editorCtx.defaultDateFormat, editorCtx.defaultGenreTopWhenFree, editorCtx.defaultBadgeOverflow, currentUserId, localConfigToken, localConfigTokenStatus,
+    globalBadges, rankingBadges, badgeStyle, rankingBadgeStyle, extraBadgeStyle, badgeFont, qualityBadgeStyle, qualityGroupLayout, videoFormats, badgeGenre, badgeYear, badgeRating, badgeQuality, ageBadge, ageCountry, ageBadgeStyle, awardBadgeStyle, defaultAgeBadge, defaultAgeCountry, defaultAgeBadgeStyle, defaultAwardBadgeStyle, customRatings, ratingSources, separateRatings, separateRatingsStyle, posterLayout, posterFreshScope, customBadge, editorCtx.defaultDisabledContentTags, editorCtx.defaultDisabledNetworks, editorCtx.defaultWatchProviders, editorCtx.defaultWatchRegion, editorCtx.defaultTypeIcon, editorCtx.defaultTypeIconLandscape, gradientHeight, blurIntensity, blurFade, blurDarkness, blurEnabled, landscapeBlur, landscapeDefaults, tintStrength, topShade, topShadeHeight, networkLogo, networkLogoPosition, logoAnchor, qualityAnchor, topBadgeAnchor, extraBadgeAnchor, bottomAnchor, networkLogoFollowTitle, preRelease, ribbonSide, ribbonEnabled, posterShape, logoAlign, topBadgeScale, topBadgeOffsetX, topBadgeOffsetY, extraBadgeScale, extraBadgeOffsetX, extraBadgeOffsetY, genreBadgeScale, qualityBadgeScale, networkLogoScale, separateBadgeScale, separateBadgeOffsetX, separateBadgeOffsetY, badgeItemTransforms, genreBadgeOffsetX, genreBadgeOffsetY, qualityBadgeOffsetX, qualityBadgeOffsetY, networkLogoOffsetX, networkLogoOffsetY])
 
   // H2: gate anti stale-color. All'apertura di un titolo la preview non si
   // costruisce finché useRootColors non ha risolto i colori del poster
@@ -2549,6 +2563,8 @@ export function usePictorium(): PictoriumCtx {
     setNetworkLogoPosition(land?.networkLogoPosition ?? defaultNetworkLogoPosition)
     setLogoAnchor(land?.logoAnchor ?? defaultLogoAnchor)
     setQualityAnchor(land?.qualityAnchor ?? defaultQualityAnchor)
+    setTopBadgeAnchor(land?.topBadgeAnchor ?? defaultTopBadgeAnchor)
+    setExtraBadgeAnchor(land?.extraBadgeAnchor ?? defaultExtraBadgeAnchor)
     setBottomAnchor(land?.bottomAnchor ?? defaultBottomAnchor)
     setNetworkLogoFollowTitle(freshNetView.follow)
     setRibbonSide(land?.ribbonSide ?? defaultRibbonSide)
@@ -2676,6 +2692,8 @@ export function usePictorium(): PictoriumCtx {
       setNetworkLogoPosition(existing.networkLogoPosition ?? defaultNetworkLogoPosition)
       setLogoAnchor(existing.logoAnchor ?? defaultLogoAnchor)
       setQualityAnchor(existing.qualityAnchor ?? defaultQualityAnchor)
+      setTopBadgeAnchor(existing.topBadgeAnchor ?? defaultTopBadgeAnchor)
+      setExtraBadgeAnchor(existing.extraBadgeAnchor ?? defaultExtraBadgeAnchor)
       setBottomAnchor(existing.bottomAnchor ?? defaultBottomAnchor)
       setEpisodeGroupId(existing.episodeGroupId ?? null)
       setEpisodeThumbnailStills(sanitizeEpisodeThumbnailStills(existing.episodeThumbnailStills) ?? {})
@@ -3063,6 +3081,8 @@ export function usePictorium(): PictoriumCtx {
       setNetworkLogoPosition(eff?.networkLogoPosition ?? landDef?.networkLogoPosition ?? defaultNetworkLogoPosition)
       setLogoAnchor(eff?.logoAnchor ?? landDef?.logoAnchor ?? defaultLogoAnchor)
       setQualityAnchor(eff?.qualityAnchor ?? landDef?.qualityAnchor ?? defaultQualityAnchor)
+      setTopBadgeAnchor(eff?.topBadgeAnchor ?? landDef?.topBadgeAnchor ?? defaultTopBadgeAnchor)
+      setExtraBadgeAnchor(eff?.extraBadgeAnchor ?? landDef?.extraBadgeAnchor ?? defaultExtraBadgeAnchor)
       setBottomAnchor(eff?.bottomAnchor ?? landDef?.bottomAnchor ?? defaultBottomAnchor)
       // ribbonSide solo globale: i mapping storici con valore salvato lo ignorano,
       // così la preview resta sincrona con Stremio (side dal default d'istanza).
@@ -3329,6 +3349,8 @@ export function usePictorium(): PictoriumCtx {
       setNetworkLogoPosition(unmappedLand?.networkLogoPosition ?? defaultNetworkLogoPosition)
       setLogoAnchor(unmappedLand?.logoAnchor ?? defaultLogoAnchor)
       setQualityAnchor(unmappedLand?.qualityAnchor ?? defaultQualityAnchor)
+      setTopBadgeAnchor(unmappedLand?.topBadgeAnchor ?? defaultTopBadgeAnchor)
+      setExtraBadgeAnchor(unmappedLand?.extraBadgeAnchor ?? defaultExtraBadgeAnchor)
       setBottomAnchor(unmappedLand?.bottomAnchor ?? defaultBottomAnchor)
       setRibbonSide(defaultRibbonSide)
       setRibbonEnabled(unmappedLand?.ribbonEnabled ?? defaultRibbonEnabled)
@@ -3528,6 +3550,8 @@ export function usePictorium(): PictoriumCtx {
     defaultGlobalBadges, defaultRankingBadges, defaultBadgeGenre, defaultBadgeYear, defaultBadgeRating, defaultBadgeQuality, defaultAgeBadge, defaultAgeCountry, defaultAgeBadgeStyle, defaultAwardBadgeStyle, defaultCustomRatings, defaultSeparateRatings, defaultBadgeFont, defaultQualityBadgeStyle, defaultQualityGroupLayout, defaultVideoFormats, defaultNetworkLogo, defaultNetworkLogoPosition, defaultRibbonEnabled,
     defaultLogoAnchor,
     defaultQualityAnchor,
+    defaultTopBadgeAnchor,
+    defaultExtraBadgeAnchor,
     defaultBottomAnchor,
     topBadgeScale, topBadgeOffsetX, topBadgeOffsetY, extraBadgeScale, extraBadgeOffsetX, extraBadgeOffsetY, genreBadgeScale, qualityBadgeScale, networkLogoScale,
     separateBadgeScale,
@@ -3544,6 +3568,8 @@ export function usePictorium(): PictoriumCtx {
     setLogoScale, setLogoOffsetX, setLogoOffsetY, networkLogo, networkLogoPosition, networkLogoFollowTitle, ribbonEnabled, lang, episodeGroupId, episodeThumbnailStills, thumbnailRotationOverride, posterShape, posterLayout, posterFreshScope,
     logoAnchor,
     qualityAnchor,
+    topBadgeAnchor,
+    extraBadgeAnchor,
     bottomAnchor,
     defaultSashOrder, logoScaleExplicit,
     portraitBaseBackdropPath, portraitBaseLogoPath, logoAutoSelected,

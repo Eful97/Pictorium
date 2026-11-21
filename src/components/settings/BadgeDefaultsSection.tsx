@@ -1,6 +1,5 @@
 "use client"
 
-import { NETWORK_LOGO_POSITION_CHOICES } from "@/lib/types"
 import { useEffect, useState, useId, type ReactNode } from "react"
 import { SeparateRatingsStylePicker } from "@/components/ui/SeparateRatingsStylePicker"
 import { ArrowUpToLine, Award, ChevronDown, Flame, Layers, Menu, Palette, ShieldCheck, SlidersHorizontal, Sparkles, Star, Tag, Trophy, Tv, Type } from "lucide-react"
@@ -282,6 +281,12 @@ export function BadgeDefaultsSection({ active, shape, onPreviewFamilyChange, pre
   const [badgeQuality, setBadgeQuality] = scoped("badgeQuality", ed.defaultBadgeQuality, ed.setDefaultBadgeQuality)
   const [networkLogo, setNetworkLogo] = scoped("networkLogo", ed.defaultNetworkLogo, ed.setDefaultNetworkLogo)
   const [networkLogoPosition, setNetworkLogoPosition] = scoped("networkLogoPosition", ed.defaultNetworkLogoPosition, ed.setDefaultNetworkLogoPosition)
+  const [topBadgeAnchor, setTopBadgeAnchor] = scoped("topBadgeAnchor", ed.defaultTopBadgeAnchor, ed.setDefaultTopBadgeAnchor)
+  const [, setTopBadgeOffsetX] = scoped("topBadgeOffsetX", ed.defaultTopBadgeOffsetX, ed.setDefaultTopBadgeOffsetX)
+  const [, setTopBadgeOffsetY] = scoped("topBadgeOffsetY", ed.defaultTopBadgeOffsetY, ed.setDefaultTopBadgeOffsetY)
+  const [extraBadgeAnchor, setExtraBadgeAnchor] = scoped("extraBadgeAnchor", ed.defaultExtraBadgeAnchor, ed.setDefaultExtraBadgeAnchor)
+  const [, setExtraBadgeOffsetX] = scoped("extraBadgeOffsetX", ed.defaultExtraBadgeOffsetX, ed.setDefaultExtraBadgeOffsetX)
+  const [, setExtraBadgeOffsetY] = scoped("extraBadgeOffsetY", ed.defaultExtraBadgeOffsetY, ed.setDefaultExtraBadgeOffsetY)
   const [badgeStyle] = scoped("badgeStyle", ed.defaultBadgeStyle, ed.setDefaultBadgeStyle)
   const [rankingBadgeStyle, setRankingBadgeStyle] = scoped("rankingBadgeStyle", ed.defaultRankingBadgeStyle, ed.setDefaultRankingBadgeStyle)
   const [extraBadgeStyle, setExtraBadgeStyle] = scoped("extraBadgeStyle", ed.defaultExtraBadgeStyle, ed.setDefaultExtraBadgeStyle)
@@ -1946,31 +1951,6 @@ export function BadgeDefaultsSection({ active, shape, onPreviewFamilyChange, pre
             />
           </div>
 
-          {networkLogo && mode === undefined && (
-            <div className="flex items-center justify-between gap-3" title={t("ui.networkLogoPosition")}>
-              <span className="text-zinc-400 font-medium text-[11px] pl-5">
-                {t("ui.networkLogoPosition")}
-              </span>
-              <div className="flex gap-1 flex-1 max-w-[190px]">
-                {(NETWORK_LOGO_POSITION_CHOICES).map((pos) => (
-                  <button
-                    key={pos} data-testid={`netpos-${pos}`}
-                    type="button"
-                    title={pos === "tl" ? t("ui.logoAnchorTL") : pos === "tr" ? t("ui.logoAnchorTR") : undefined}
-                    aria-label={pos === "tl" ? t("ui.logoAnchorTL") : pos === "tr" ? t("ui.logoAnchorTR") : undefined}
-                    onClick={() => setNetworkLogoPosition(pos)}
-                    className={`flex-1 py-1 rounded-lg text-[11px] font-semibold transition duration-150 cursor-pointer ${
-                      networkLogoPosition === pos
-                        ? "bg-white/20 text-foreground shadow-sm"
-                        : "bg-white/5 text-muted hover:bg-white/10 hover:text-zinc-200"
-                    }`}
-                  >
-                    {pos === "auto" ? t("ui.auto") : pos === "tl" ? "↖" : "↗"}
-                  </button>
-                ))}
-              </div>
-            </div>
-          )}
 
           {/* "Dove guardare": space-wide (flat), staged like the other defaults. */}
           <div className="flex items-center justify-between border-t border-white/10 pt-2">

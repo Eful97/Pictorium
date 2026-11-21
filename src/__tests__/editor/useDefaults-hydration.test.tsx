@@ -101,6 +101,8 @@ const USER_SAVED = {
   networkLogoPosition: "auto",
   logoAnchor: "auto",
   qualityAnchor: "auto",
+  topBadgeAnchor: "auto",
+  extraBadgeAnchor: "auto",
   bottomAnchor: "auto",
   networkLogoFollowTitle: true,
   preRelease: false,

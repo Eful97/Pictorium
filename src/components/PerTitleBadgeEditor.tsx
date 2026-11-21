@@ -4,6 +4,8 @@ import { useEffect, useState } from "react"
 import { Move, X } from "lucide-react"
 import { Modal } from "@/components/ui/Modal"
 import { PosterBadgeDragLayer } from "@/components/settings/PosterBadgeDragLayer"
+import { DragGridToggle } from "@/components/settings/DragGridControls"
+import { readDragGrid, writeDragGrid } from "@/lib/drag-grid-pref"
 import { usePerTitleBadgeGeometry } from "@/lib/usePerTitleBadgeGeometry"
 import { readBadgeDragEnabled, writeBadgeDragEnabled } from "@/lib/badge-drag-pref"
 import { useT } from "@/lib/contexts/TranslationContext"
@@ -56,6 +58,10 @@ export function PerTitleBadgeEditor({
   // Same opt-out pointer preference as the settings editor: one user-facing
   // switch, never a render parameter.
   const [dragEnabled, setDragEnabled] = useState(true)
+  const [dragGrid, setDragGrid] = useState(false)
+  useEffect(() => {
+    setDragGrid(readDragGrid())
+  }, [])
   useEffect(() => {
     setDragEnabled(readBadgeDragEnabled(userId))
   }, [userId])
@@ -116,6 +122,15 @@ export function PerTitleBadgeEditor({
             <Move className="w-3.5 h-3.5" />
             <span>{t(dragEnabled ? "ui.badgeDragModeOn" : "ui.badgeDragModeOff")}</span>
           </button>
+          <DragGridToggle
+            compact
+            enabled={dragGrid}
+            onToggle={() => {
+              const next = !dragGrid
+              setDragGrid(next)
+              writeDragGrid(next)
+            }}
+          />
           <button
             type="button"
             data-testid="per-title-badge-editor-close"
@@ -142,6 +157,7 @@ export function PerTitleBadgeEditor({
               shape={shape}
               enabled={isOpen}
               dragMode={dragEnabled}
+              gridOn={dragGrid}
               targetLevel={targetLevel}
               adapter={adapter}
             />

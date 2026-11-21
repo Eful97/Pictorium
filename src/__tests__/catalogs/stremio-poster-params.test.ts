@@ -118,6 +118,18 @@ describe("buildStremioPosterSearchParams", () => {
     expect(rightParams.get("side")).toBe("right")
   })
 
+  it("emits xanc only when the extra badge anchor is active (auto omitted), independent of tanc", () => {
+    const base = { lang: "it", globalBadges: false, rankingBadges: false, badgeStyle: "pill", rankingBadgeStyle: "pill", blurEnabled: false } as const
+    expect(buildStremioPosterSearchParams({ ...base, extraBadgeAnchor: "auto" }).has("xanc")).toBe(false)
+    expect(buildStremioPosterSearchParams({ ...base }).has("xanc")).toBe(false)
+    const tl = buildStremioPosterSearchParams({ ...base, extraBadgeAnchor: "tl", topBadgeAnchor: "auto" })
+    expect(tl.get("xanc")).toBe("tl")
+    expect(tl.has("tanc")).toBe(false)
+    const tancOnly = buildStremioPosterSearchParams({ ...base, topBadgeAnchor: "tr" })
+    expect(tancOnly.get("tanc")).toBe("tr")
+    expect(tancOnly.has("xanc")).toBe(false)
+  })
+
   it("emits netPos only in top mode (cache-stable auto)", () => {
     expect(buildStremioPosterSearchParams({}).has("netPos")).toBe(false)
     expect(buildStremioPosterSearchParams({ networkLogoPosition: "auto" }).has("netPos")).toBe(false)

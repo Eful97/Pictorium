@@ -6,7 +6,7 @@
 // ---------------------------------------------------------------------------
 
 import { resolveLogoAnchor, type LogoAnchor } from "@/lib/logo-layout"
-import { resolveQualityAnchor, type QualityAnchor, resolveBottomAnchor, type BottomAnchor } from "@/lib/badge-anchor"
+import { resolveQualityAnchor, type QualityAnchor, resolveBottomAnchor, type BottomAnchor, resolveTopBadgeAnchor, type TopBadgeAnchor, resolveExtraBadgeAnchor, type ExtraBadgeAnchor } from "@/lib/badge-anchor"
 import type { PictoriumUserConfig } from "./config-token"
 import type { AwardBadgeMode } from "./badge-styles"
 import { normalizeSeasonalTheme, resolveEffectiveSeasonalTheme, type SeasonalTheme } from "./seasonal-theme"
@@ -572,6 +572,8 @@ export interface PosterRenderConfig {
   networkLogoPosition: NetworkLogoPosition
   logoAnchor: LogoAnchor
   qualityAnchor: QualityAnchor
+  topBadgeAnchor: TopBadgeAnchor
+  extraBadgeAnchor: ExtraBadgeAnchor
   bottomAnchor: BottomAnchor
   ribbonSide: "left" | "right"
   /**
@@ -1353,6 +1355,7 @@ export function resolvePosterRenderConfig(input: PosterRenderConfigInput): Poste
     ? qNetPosNorm
     : (savedNetPos ?? configNetPos ?? (isNetworkLogoPosition(defaultsNetPos) ? defaultsNetPos : "auto"))
   // logoAnchor (`lanc`): query valida vince; poi mapping effettivo per formato,
+  // topBadgeAnchor (`tanc`): query valida vince; poi mapping effettivo per formato,
   // qualityAnchor (`qanc`): query valida vince; poi mapping effettivo per formato,
   // bottomAnchor (`banc`): query valida vince; poi mapping effettivo per formato,
   // config token, defaults effettivi per formato, "auto". Garbage cade al livello successivo.
@@ -1367,6 +1370,18 @@ export function resolvePosterRenderConfig(input: PosterRenderConfigInput): Poste
     mapping: m?.qualityAnchor,
     config: configOverride?.qualityAnchor,
     defaults: esd.qualityAnchor ?? sd.qualityAnchor,
+  })
+  const topBadgeAnchor: TopBadgeAnchor = resolveTopBadgeAnchor({
+    query: q.get("tanc"),
+    mapping: m?.topBadgeAnchor,
+    config: configOverride?.topBadgeAnchor,
+    defaults: esd.topBadgeAnchor ?? sd.topBadgeAnchor,
+  })
+  const extraBadgeAnchor: ExtraBadgeAnchor = resolveExtraBadgeAnchor({
+    query: q.get("xanc"),
+    mapping: m?.extraBadgeAnchor,
+    config: configOverride?.extraBadgeAnchor,
+    defaults: esd.extraBadgeAnchor ?? sd.extraBadgeAnchor,
   })
   const bottomAnchor: BottomAnchor = resolveBottomAnchor({
     query: q.get("banc"),
@@ -1502,6 +1517,8 @@ export function resolvePosterRenderConfig(input: PosterRenderConfigInput): Poste
     networkLogoPosition,
     logoAnchor,
     qualityAnchor,
+    topBadgeAnchor,
+    extraBadgeAnchor,
     bottomAnchor,
     ribbonSide,
     ribbonEnabled,

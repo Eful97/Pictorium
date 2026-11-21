@@ -1,3 +1,4 @@
+import { isActiveTopBadgeAnchor } from "./badge-anchor"
 import { normalizeExtraBadgeStyleForRender, type BadgeStyle, type RankingBadgeStyle, type ExtraBadgeStyle, type ExtraBadgeFollowRank, isRibbonRankingStyle } from "./badge-styles"
 
 export type BadgeSampleAnchor = "center" | "left" | "right"
@@ -9,6 +10,8 @@ export function topBadgeSampleAnchor(params: {
   readonly rankingBadgeStyle: RankingBadgeStyle
   readonly extraBadgeStyle?: ExtraBadgeStyle | ExtraBadgeFollowRank | string | null
   readonly ribbonSide?: string | null
+  /** Ancora `tanc` già risolta per il render Standard (auto/assente = centro). */
+  readonly topBadgeAnchor?: string | null
 }): BadgeSampleAnchor {
   const topBadgeType = params.topBadgeType ?? "rank"
   const eff = resolveTopBadgeStyle({
@@ -18,6 +21,10 @@ export function topBadgeSampleAnchor(params: {
   })
   if (isRibbonRankingStyle(eff)) {
     return params.ribbonSide === "right" ? "right" : "left"
+  }
+  // Corpo centrato spostato in angolo (tl/tr): la polarità si misura lì.
+  if (isActiveTopBadgeAnchor(params.topBadgeAnchor) && !isCornerAnchoredStyle(eff)) {
+    return params.topBadgeAnchor === "tr" ? "right" : "left"
   }
   if (isTopBadgeNumberRightCorner({
     topBadgeType: topBadgeType === "extra" ? "extra" : "rank",

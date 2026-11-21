@@ -1,5 +1,5 @@
 import { LOGO_ANCHORS, isLogoAnchor } from "@/lib/logo-layout"
-import { QUALITY_ANCHORS, isQualityAnchor, BOTTOM_ANCHORS, isBottomAnchor } from "@/lib/badge-anchor"
+import { QUALITY_ANCHORS, isQualityAnchor, BOTTOM_ANCHORS, isBottomAnchor, TOP_BADGE_ANCHORS, isTopBadgeAnchor, EXTRA_BADGE_ANCHORS, isExtraBadgeAnchor } from "@/lib/badge-anchor"
 import { z } from "zod"
 import { BADGE_STYLES, RANKING_BADGE_STYLES, EXTRA_BADGE_STYLES, EXTRA_BADGE_FOLLOW_RANK, QUALITY_BADGE_STYLES, AGE_BADGE_STYLES, BADGE_FONTS, SEPARATE_RATINGS_STYLES, DEFAULT_AGE_BADGE_STYLE, DEFAULT_AWARD_BADGE_MODE, DEFAULT_BADGE_FONT, DEFAULT_BADGE_STYLE, DEFAULT_QUALITY_BADGE_STYLE, DEFAULT_RANKING_BADGE_STYLE, isAgeBadgeStyle, isAwardBadgeMode, isBadgeFont, isBadgeStyle, isExtraBadgeStyle, isExtraFollowRank, isQualityBadgeStyle, isRankingBadgeStyle, DEFAULT_QUALITY_BADGE_OFFSET_X_LANDSCAPE, DEFAULT_QUALITY_BADGE_OFFSET_Y_LANDSCAPE, QUALITY_GROUP_LAYOUTS, DEFAULT_QUALITY_GROUP_LAYOUT, isQualityGroupLayout } from "./badge-styles"
 import { KNOWN_VIDEO_FORMATS } from "./av-specs"
@@ -52,6 +52,8 @@ const landscapeSchema = z.object({
   networkLogo: z.boolean().optional(), networkLogoPosition: z.enum(NETWORK_LOGO_POSITIONS).optional(),
   logoAnchor: z.enum(LOGO_ANCHORS).optional(),
   qualityAnchor: z.enum(QUALITY_ANCHORS).optional(),
+  topBadgeAnchor: z.enum(TOP_BADGE_ANCHORS).optional(),
+  extraBadgeAnchor: z.enum(EXTRA_BADGE_ANCHORS).optional(),
   bottomAnchor: z.enum(BOTTOM_ANCHORS).optional(),
   preRelease: z.boolean().optional(),
   ribbonEnabled: z.boolean().optional(), ribbonSide: z.enum(["left", "right"]).optional(),
@@ -129,6 +131,8 @@ export const visualPresetValuesSchema = z.object({
   defaultNetworkLogo: z.boolean(), defaultNetworkLogoPosition: z.enum(NETWORK_LOGO_POSITIONS), defaultPreRelease: z.boolean(),
   defaultLogoAnchor: z.enum(LOGO_ANCHORS).optional(),
   defaultQualityAnchor: z.enum(QUALITY_ANCHORS).optional(),
+  defaultTopBadgeAnchor: z.enum(TOP_BADGE_ANCHORS).optional(),
+  defaultExtraBadgeAnchor: z.enum(EXTRA_BADGE_ANCHORS).optional(),
   defaultBottomAnchor: z.enum(BOTTOM_ANCHORS).optional(),
   // Follow aggiunto dopo: opzionale per non invalidare preset salvati
   // (legacy senza campo) né forzare lo stato editor; null/assente = eredita.
@@ -381,6 +385,8 @@ export const PRESET_FLAT_TO_LANDSCAPE: Record<string, keyof LandscapeServerDefau
   defaultNetworkLogoPosition: "networkLogoPosition",
   defaultLogoAnchor: "logoAnchor",
   defaultQualityAnchor: "qualityAnchor",
+  defaultTopBadgeAnchor: "topBadgeAnchor",
+  defaultExtraBadgeAnchor: "extraBadgeAnchor",
   defaultBottomAnchor: "bottomAnchor",
   defaultNetworkLogoFollowTitle: "networkLogoFollowTitle",
   defaultPreRelease: "preRelease",
@@ -1327,6 +1333,8 @@ export const MAPPING_SHAPE_LAND_KEYS = [
   "networkLogoPosition",
   "logoAnchor",
   "qualityAnchor",
+  "topBadgeAnchor",
+  "extraBadgeAnchor",
   "bottomAnchor",
   "ribbonEnabled",
   "customBadge",
@@ -1407,6 +1415,8 @@ const MAPPING_SHAPE_PROFILE_KEY: Record<MappingShapeLandKey, string> = {
   networkLogoPosition: "networkLogoPosition",
   logoAnchor: "logoAnchor",
   qualityAnchor: "qualityAnchor",
+  topBadgeAnchor: "topBadgeAnchor",
+  extraBadgeAnchor: "extraBadgeAnchor",
   bottomAnchor: "bottomAnchor",
   ribbonEnabled: "ribbonEnabled",
   // Identity (flat bare name = profile key): the formerly-shared visuals.
@@ -1458,6 +1468,8 @@ export const MAPPING_SHAPE_FACTORY: Record<MappingShapeLandKey, unknown> = {
   networkLogoPosition: "auto",
   logoAnchor: "auto",
   qualityAnchor: "auto",
+  topBadgeAnchor: "auto",
+  extraBadgeAnchor: "auto",
   bottomAnchor: "auto",
   ribbonEnabled: true,
   // Formerly-shared visuals (explicit-null-shadows, see types.ts): the
@@ -1530,6 +1542,10 @@ export function mappingShapeChainEffective(
       return { known: true, value: isLogoAnchor(raw) ? raw : "auto" }
     case "qualityAnchor":
       return { known: true, value: isQualityAnchor(raw) ? raw : "auto" }
+    case "topBadgeAnchor":
+      return { known: true, value: isTopBadgeAnchor(raw) ? raw : "auto" }
+    case "extraBadgeAnchor":
+      return { known: true, value: isExtraBadgeAnchor(raw) ? raw : "auto" }
     case "bottomAnchor":
       return { known: true, value: isBottomAnchor(raw) ? raw : "auto" }
     case "badgeStyle":

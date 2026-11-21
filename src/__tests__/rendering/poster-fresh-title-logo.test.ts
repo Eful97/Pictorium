@@ -537,6 +537,8 @@ describe("editor Fresh-100 wiring (shared resolver, no baked 75)", () => {
         networkLogoPosition: "auto",
         logoAnchor: "auto",
         qualityAnchor: "auto",
+        topBadgeAnchor: "auto",
+        extraBadgeAnchor: "auto",
         bottomAnchor: "auto",
         networkLogoFollowTitle: true,
         ribbonEnabled: true,

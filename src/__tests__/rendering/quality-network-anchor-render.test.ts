@@ -11,6 +11,7 @@ import type { WikidataResult } from "@/lib/awards"
 import type { ServerDefaults } from "@/lib/server-defaults"
 import type { NetworkLogoPosition } from "@/lib/types"
 import type { QualityAnchor } from "@/lib/badge-anchor"
+import type { BadgeGeometryReport } from "@/lib/badge-layout"
 
 async function darkPoster(): Promise<Buffer> {
   return sharp({ create: { width: STD_W, height: STD_H, channels: 3, background: "#101010" } }).jpeg().toBuffer()
@@ -18,7 +19,7 @@ async function darkPoster(): Promise<Buffer> {
 
 interface Opts { quality?: string | null; network?: boolean; netPos?: NetworkLogoPosition; qualityAnchor?: QualityAnchor }
 
-async function render(o: Opts): Promise<Buffer> {
+async function render(o: Opts, geoOut?: { geo: BadgeGeometryReport | null }): Promise<Buffer> {
   const network = o.network === true
   return generatePosterBuffer({
     posterBuf: await darkPoster(),
@@ -49,7 +50,15 @@ async function render(o: Opts): Promise<Buffer> {
     quality: o.quality ?? null,
     ...(o.netPos !== undefined ? { networkLogoPosition: o.netPos } : {}),
     ...(o.qualityAnchor !== undefined ? { qualityAnchor: o.qualityAnchor } : {}),
+    onBadgeGeometry: (g: BadgeGeometryReport) => { if (geoOut) geoOut.geo = g },
   })
+}
+
+type Rect = { top: number; left: number; w: number; h: number }
+function geoRect(g: BadgeGeometryReport | null, key: "quality" | "network"): Rect {
+  const b = (g?.families as Record<string, Rect | undefined> | undefined)?.[key]
+  if (!b) throw new Error(`no ${key} geometry`)
+  return { top: b.top, left: b.left, w: b.w, h: b.h }
 }
 
 async function raw(buf: Buffer) {
@@ -110,15 +119,19 @@ describe("network position tl/tr (Standard render)", () => {
     expect(await brightCount(tl, ...RIGHT)).toBeLessThan(50)
   })
 
-  it("network tr + qualità tr: la qualità si impila SOTTO il network, senza coprirlo", async () => {
-    const both = await render({ network: true, netPos: "tr", quality: "4K", qualityAnchor: "tr" })
-    const netOnly = await render({ network: true, netPos: "tr" })
-    const none = await render({ quality: null })
-    // Il network resta intatto dove sta (differenza nulla nella sua fascia alta)...
-    const bandTop = [W / 2, 0, W, 60] as const
-    expect(await diffMass(both, netOnly, ...bandTop)).toBeLessThan(30)
-    // ...e la qualità compare comunque a destra, più in basso.
-    expect(await diffMass(both, netOnly, W / 2, 60, W, 220)).toBeGreaterThan(300)
-    expect(await diffMass(both, none, ...LEFT)).toBeLessThan(30)
+  // Ancore manuali entrambe (netPos tr + qanc tr): posizione fissa, nessuno
+  // stacking della qualità sotto il network; la sovrapposizione è accettata.
+  it("network tr + qualità tr (manuali): nessuno stacking, ognuno resta nel suo angolo", async () => {
+    const bothGeo: { geo: BadgeGeometryReport | null } = { geo: null }
+    const netGeo: { geo: BadgeGeometryReport | null } = { geo: null }
+    const qGeo: { geo: BadgeGeometryReport | null } = { geo: null }
+    const both = await render({ network: true, netPos: "tr", quality: "4K", qualityAnchor: "tr" }, bothGeo)
+    await render({ network: true, netPos: "tr" }, netGeo)
+    await render({ quality: "4K", qualityAnchor: "tr" }, qGeo)
+    // Qualità: stessa posizione d'angolo di quando è sola (non scende sotto il network)...
+    expect(geoRect(bothGeo.geo, "quality")).toEqual(geoRect(qGeo.geo, "quality"))
+    // ...e il network non si sposta per la qualità.
+    expect(geoRect(bothGeo.geo, "network")).toEqual(geoRect(netGeo.geo, "network"))
+    expect(await diffMass(both, await render({ quality: null }), ...RIGHT)).toBeGreaterThan(300)
   })
 })

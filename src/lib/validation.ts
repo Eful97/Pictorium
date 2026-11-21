@@ -1,5 +1,5 @@
 import { LOGO_ANCHORS } from "@/lib/logo-layout"
-import { QUALITY_ANCHORS, BOTTOM_ANCHORS } from "@/lib/badge-anchor"
+import { QUALITY_ANCHORS, BOTTOM_ANCHORS, TOP_BADGE_ANCHORS, EXTRA_BADGE_ANCHORS } from "@/lib/badge-anchor"
 import { z } from "zod"
 import { BADGE_STYLES, RANKING_BADGE_STYLES, QUALITY_BADGE_STYLES, AGE_BADGE_STYLES, AWARD_BADGE_MODES, BADGE_FONTS, SEPARATE_RATINGS_STYLES, EXTRA_BADGE_STYLES, EXTRA_BADGE_FOLLOW_RANK } from "./badge-styles"
 import { TEXT_LOGO_MAX_LENGTH } from "./text-logo"
@@ -262,6 +262,8 @@ export const mappingSchema = z.object({
   networkLogoPosition: z.enum(NETWORK_LOGO_POSITIONS).nullable().optional(),
   logoAnchor: z.enum(LOGO_ANCHORS).nullable().optional(),
   qualityAnchor: z.enum(QUALITY_ANCHORS).nullable().optional(),
+  topBadgeAnchor: z.enum(TOP_BADGE_ANCHORS).nullable().optional(),
+  extraBadgeAnchor: z.enum(EXTRA_BADGE_ANCHORS).nullable().optional(),
   bottomAnchor: z.enum(BOTTOM_ANCHORS).nullable().optional(),
   ribbonSide: z.enum(["left", "right"]).nullable().optional(),
   ribbonEnabled: z.boolean().nullable().optional(),
@@ -350,6 +352,8 @@ export const mappingSchema = z.object({
     networkLogoPosition: z.enum(NETWORK_LOGO_POSITIONS).nullable().optional(),
     logoAnchor: z.enum(LOGO_ANCHORS).nullable().optional(),
     qualityAnchor: z.enum(QUALITY_ANCHORS).nullable().optional(),
+    topBadgeAnchor: z.enum(TOP_BADGE_ANCHORS).nullable().optional(),
+    extraBadgeAnchor: z.enum(EXTRA_BADGE_ANCHORS).nullable().optional(),
     bottomAnchor: z.enum(BOTTOM_ANCHORS).nullable().optional(),
     ribbonEnabled: z.boolean().nullable().optional(),
     // Visuali per-titolo con indipendenza per formato (stessa regola degli
@@ -522,6 +526,8 @@ export const posterQuerySchema = z.object({
   netPos: boundedQueryString(8),
   lanc: boundedQueryString(8),
   qanc: boundedQueryString(8),
+  tanc: boundedQueryString(8),
+  xanc: boundedQueryString(8),
   banc: boundedQueryString(8),
   // Segui-spazio: politica di rivalidazione (non forza render). Solo 0/1.
   live: z.enum(["0", "1"]).optional(),

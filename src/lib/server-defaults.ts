@@ -1,5 +1,5 @@
 import { type LogoAnchor } from "@/lib/logo-layout"
-import { type QualityAnchor, type BottomAnchor } from "@/lib/badge-anchor"
+import { type QualityAnchor, type BottomAnchor, type TopBadgeAnchor } from "@/lib/badge-anchor"
 import fs from "node:fs/promises"
 import { existsSync, readFileSync } from "node:fs"
 import path from "node:path"
@@ -128,6 +128,8 @@ export interface LandscapeServerDefaults {
   networkLogoPosition?: import("@/lib/types").NetworkLogoPosition
   logoAnchor?: import("@/lib/types").LogoAnchor
   qualityAnchor?: import("@/lib/types").QualityAnchor
+  topBadgeAnchor?: import("@/lib/types").TopBadgeAnchor
+  extraBadgeAnchor?: import("@/lib/types").ExtraBadgeAnchor
   bottomAnchor?: import("@/lib/types").BottomAnchor
   /**
    * Logo-block alignment override ("left"/"center"); absent/null = follow the
@@ -287,6 +289,8 @@ export interface ServerDefaults {
   networkLogoPosition?: import("@/lib/types").NetworkLogoPosition
   logoAnchor?: import("@/lib/types").LogoAnchor
   qualityAnchor?: import("@/lib/types").QualityAnchor
+  topBadgeAnchor?: import("@/lib/types").TopBadgeAnchor
+  extraBadgeAnchor?: import("@/lib/types").ExtraBadgeAnchor
   bottomAnchor?: import("@/lib/types").BottomAnchor
   /** Scala % logo film (null = auto-fit per aspect, comportamento storico). */
   logoScale?: number | null
@@ -401,6 +405,7 @@ export interface ServerDefaults {
   imageQualityThumbnail?: ImageQuality
   /** Portrait: genere/voto nello slot alto quando non c'è badge superiore (default false). */
   genreTopWhenFree?: boolean
+  badgeOverflow?: "move" | "hide"
   /**
    * Tuning di resa specifico per il canvas landscape 16:9 (default globali
    * orizzontali). I campi flat restano i default portrait E il fallback per

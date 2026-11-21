@@ -124,6 +124,8 @@ export interface StremioPosterParamsInput {
   readonly networkLogoPosition?: import("@/lib/types").NetworkLogoPosition
   readonly logoAnchor?: import("@/lib/logo-layout").LogoAnchor
   readonly qualityAnchor?: import("@/lib/badge-anchor").QualityAnchor
+  readonly topBadgeAnchor?: import("@/lib/badge-anchor").TopBadgeAnchor
+  readonly extraBadgeAnchor?: import("@/lib/badge-anchor").ExtraBadgeAnchor
   readonly bottomAnchor?: import("@/lib/badge-anchor").BottomAnchor
   /** Scala % del badge CLASSIFICA superiore (default 100). */
   readonly topBadgeScale?: number
@@ -254,6 +256,7 @@ export interface StremioPosterParamsInput {
   readonly dateFormat?: DateFormat | null
   /** Genere in alto con slot libero: emesso `gtop=1` solo quando acceso (URL esistenti invariati). */
   readonly genreTopWhenFree?: boolean | null
+  readonly badgeOverflow?: "move" | "hide" | null
   readonly config?: string | null
   readonly user?: string | null
   readonly region?: string | null
@@ -499,11 +502,14 @@ export function buildStremioPosterSearchParams(input: StremioPosterParamsInput):
     params.set("df", input.dateFormat)
   }
   if (input.genreTopWhenFree === true) params.set("gtop", "1")
+  if (input.badgeOverflow === "hide") params.set("bov", "hide")
   if (input.title) params.set("title", input.title)
   if (!networkLogo) params.set("netLogo", "0")
   if (input.networkLogoFollowTitle === false) params.set("netFollow", "0")
   if (input.logoAnchor && input.logoAnchor !== "auto") params.set("lanc", input.logoAnchor)
   if (input.qualityAnchor && input.qualityAnchor !== "auto") params.set("qanc", input.qualityAnchor)
+  if (input.topBadgeAnchor && input.topBadgeAnchor !== "auto") params.set("tanc", input.topBadgeAnchor)
+  if (input.extraBadgeAnchor && input.extraBadgeAnchor !== "auto") params.set("xanc", input.extraBadgeAnchor)
   if (input.bottomAnchor && input.bottomAnchor !== "auto") params.set("banc", input.bottomAnchor)
   if (input.networkLogoPosition && input.networkLogoPosition !== "auto") {
     params.set("netPos", input.networkLogoPosition)

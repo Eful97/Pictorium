@@ -869,6 +869,8 @@ describe("save freezes the scope per shape", () => {
           networkLogoPosition: "auto",
           logoAnchor: "auto",
           qualityAnchor: "auto",
+          topBadgeAnchor: "auto",
+          extraBadgeAnchor: "auto",
           bottomAnchor: "auto",
           networkLogoFollowTitle: true,
           ribbonEnabled: true,

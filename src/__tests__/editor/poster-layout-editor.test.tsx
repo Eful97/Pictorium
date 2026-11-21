@@ -702,6 +702,8 @@ describe("save freezes the layout per shape", () => {
           networkLogoPosition: "auto",
           logoAnchor: "auto",
           qualityAnchor: "auto",
+          topBadgeAnchor: "auto",
+          extraBadgeAnchor: "auto",
           bottomAnchor: "auto",
           networkLogoFollowTitle: true,
           ribbonEnabled: true,

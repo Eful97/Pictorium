@@ -1,7 +1,10 @@
 import type { LogoAnchor } from "./logo-layout"
 export type { LogoAnchor }
-import type { QualityAnchor, BottomAnchor } from "./badge-anchor"
+import type { QualityAnchor, BottomAnchor, TopBadgeAnchor, ExtraBadgeAnchor } from "./badge-anchor"
+import { ANCHOR_CHOICES_REL, ANCHOR_POSITIONS, LOGO_RELATIVE_POSITIONS } from "./badge-anchor"
 export type { QualityAnchor }
+export type { TopBadgeAnchor }
+export type { ExtraBadgeAnchor }
 export type { BottomAnchor }
 import type { BadgeStyle, RankingBadgeStyle, QualityBadgeStyle, QualityGroupLayout, BadgeFont, SeparateRatingsStyle, ExtraBadgeStyle, ExtraBadgeFollowRank, AgeBadgeStyle, AwardBadgeMode } from "./badge-styles"
 import type { QualityMarkId } from "./quality-badge-pack"
@@ -93,20 +96,22 @@ export function isPosterFreshScope(value: unknown): value is PosterFreshScope {
  * nastro rank/preset o Coming Soon a destra, sinistra in tutti gli altri
  * casi — anche in vista Stremio). Catena: query > mapping > config token >
  * server defaults > "auto".
- * "tl" / "tr" (solo Standard): angolo alto sinistro / destro FORZATO, qualunque
- * sia il lato del nastro. Stesso comportamento di "top" per il resto (stacking
- * sotto Coming Soon e badge d'angolo, shrink vs badge centrale); la posizione
- * fissa (follow OFF) resta prioritaria su tutte.
+ * Posizioni fisse (solo Standard): "tl" "tc" "tr" "ml" "mc" "mr" "bl" "bc" "br"
+ * (vedi ANCHOR_POSITIONS) sono ancore MANUALI: il box va a anchorRect, i badge
+ * in auto le evitano (pass finale). "tl"/"tr" sono storiche: angolo alto
+ * FORZATO, stacking sotto Coming Soon e badge d'angolo, shrink vs badge
+ * centrale. "top" resta legacy e NON è manuale. La posizione fissa (follow OFF)
+ * resta prioritaria su tutte.
  */
-export const NETWORK_LOGO_POSITIONS = ["auto", "top", "tl", "tr"] as const
+export const NETWORK_LOGO_POSITIONS = ["auto", "top", ...ANCHOR_POSITIONS, ...LOGO_RELATIVE_POSITIONS] as const
 export type NetworkLogoPosition = (typeof NETWORK_LOGO_POSITIONS)[number]
 
 /**
- * Valori OFFERTI dal selettore (Auto + angoli alti). `top` resta valido in URL,
- * mapping e default già salvati (comportamento invariato) ma non ha più un
- * pulsante: gli angoli espliciti sono più chiari e prevedibili.
+ * Valori OFFERTI dal selettore: `auto` + le 9 posizioni (`ANCHOR_CHOICES`).
+ * `top` resta valido in URL, mapping e default già salvati (legacy, NON
+ * manuale) ma non ha più un pulsante.
  */
-export const NETWORK_LOGO_POSITION_CHOICES = ["auto", "tl", "tr"] as const
+export const NETWORK_LOGO_POSITION_CHOICES = ANCHOR_CHOICES_REL
 
 export function isNetworkLogoPosition(value: unknown): value is NetworkLogoPosition {
   return typeof value === "string" && (NETWORK_LOGO_POSITIONS as readonly string[]).includes(value)
@@ -442,6 +447,8 @@ export interface Mapping {
   networkLogoPosition?: NetworkLogoPosition | null
   logoAnchor?: LogoAnchor | null
   qualityAnchor?: QualityAnchor | null
+  topBadgeAnchor?: TopBadgeAnchor | null
+  extraBadgeAnchor?: ExtraBadgeAnchor | null
   bottomAnchor?: BottomAnchor | null
   ribbonSide?: "left" | "right" | null
   /** Nastro stile Netflix all'angolo (false = badge classifica centrato). Default ON. */
@@ -625,6 +632,8 @@ export interface LandscapeSettings {
   networkLogoPosition?: NetworkLogoPosition | null
   logoAnchor?: LogoAnchor | null
   qualityAnchor?: QualityAnchor | null
+  topBadgeAnchor?: TopBadgeAnchor | null
+  extraBadgeAnchor?: ExtraBadgeAnchor | null
   bottomAnchor?: BottomAnchor | null
   /** Nastro stile Netflix all'angolo (default ON). */
   ribbonEnabled?: boolean | null
@@ -770,6 +779,8 @@ export function effectiveMappingForShape(mapping: Mapping | null, shape: PosterS
     networkLogoPosition: l.networkLogoPosition ?? mapping.networkLogoPosition,
     logoAnchor: l.logoAnchor ?? mapping.logoAnchor,
     qualityAnchor: l.qualityAnchor ?? mapping.qualityAnchor,
+    topBadgeAnchor: l.topBadgeAnchor ?? mapping.topBadgeAnchor,
+    extraBadgeAnchor: l.extraBadgeAnchor ?? mapping.extraBadgeAnchor,
     bottomAnchor: l.bottomAnchor ?? mapping.bottomAnchor,
     ribbonEnabled: l.ribbonEnabled ?? mapping.ribbonEnabled,
   }

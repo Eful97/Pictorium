@@ -244,6 +244,7 @@ export function buildStremioPosterUrl(input: BuildStremioPosterUrlInput): URL {
     customBadge,
     dateFormat: sd.dateFormat ?? undefined,
     genreTopWhenFree: sd.genreTopWhenFree ?? undefined,
+    badgeOverflow: sd.badgeOverflow ?? undefined,
     title: mapping?.title ?? undefined,
     networkLogo: eff?.networkLogo ?? sd.networkLogo,
     // Follow spento effettivo viaggia (acceso/assente resta omesso per URL e
@@ -254,6 +255,8 @@ export function buildStremioPosterUrl(input: BuildStremioPosterUrlInput): URL {
     networkLogoPosition: eff?.networkLogoPosition ?? sd.networkLogoPosition,
     logoAnchor: eff?.logoAnchor ?? sd.logoAnchor,
     qualityAnchor: eff?.qualityAnchor ?? sd.qualityAnchor,
+    topBadgeAnchor: eff?.topBadgeAnchor ?? sd.topBadgeAnchor,
+    extraBadgeAnchor: eff?.extraBadgeAnchor ?? sd.extraBadgeAnchor,
     bottomAnchor: eff?.bottomAnchor ?? sd.bottomAnchor,
     preRelease: sd.preRelease,
     // hideLogo viaggia solo sul banner (il chiamante lo imposta insieme a

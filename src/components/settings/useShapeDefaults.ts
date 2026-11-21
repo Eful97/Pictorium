@@ -106,6 +106,8 @@ export const BADGE_VISUAL_LAND_KEYS = [
   "networkLogoPosition",
   "logoAnchor",
   "qualityAnchor",
+  "topBadgeAnchor",
+  "extraBadgeAnchor",
   "bottomAnchor",
   "networkLogoFollowTitle",
   "preRelease",

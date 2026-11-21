@@ -20,7 +20,7 @@ const base = { posterW: 500, posterH: 750, logoScale: 75, logoOffsetX: 0, logoOf
 describe("logo anchor: guards", () => {
   it("riconosce solo i valori ammessi", () => {
     for (const a of LOGO_ANCHORS) expect(isLogoAnchor(a)).toBe(true)
-    for (const bad of ["tc", "top", "", null, undefined, 3]) expect(isLogoAnchor(bad)).toBe(false)
+    for (const bad of ["top", "xx", "", null, undefined, 3]) expect(isLogoAnchor(bad)).toBe(false)
     expect(isActiveLogoAnchor("auto")).toBe(false)
     expect(isActiveLogoAnchor("tl")).toBe(true)
     expect(isTopLogoAnchor("tl")).toBe(true)
@@ -107,7 +107,7 @@ describe("logo anchor: resolution chain", () => {
   })
 
   it("valori non validi cadono al livello successivo, mai errore", () => {
-    expect(resolveLogoAnchor({ query: "tc", mapping: "zz", config: 5, defaults: "bc" })).toBe("bc")
+    expect(resolveLogoAnchor({ query: "xx", mapping: "zz", config: 5, defaults: "bc" })).toBe("bc")
     expect(resolveLogoAnchor({ query: "", mapping: null, config: undefined, defaults: "nope" })).toBe("auto")
   })
 })

@@ -1,5 +1,5 @@
 import type { LogoAnchor } from "@/lib/logo-layout"
-import type { QualityAnchor, BottomAnchor } from "@/lib/badge-anchor"
+import type { QualityAnchor, BottomAnchor, TopBadgeAnchor, ExtraBadgeAnchor } from "@/lib/badge-anchor"
 import { getDomain } from "./utils"
 import {
   resolveEffectiveNetworkFollow,
@@ -86,6 +86,7 @@ interface BadgeParams {
   dateFormat?: DateFormat | null
   /** Genere/voto nello slot alto libero (portrait, default globale). */
   genreTopWhenFree?: boolean | null
+  badgeOverflow?: "move" | "hide" | null
   gradientHeight: number
   blurIntensity: number
   blurFade: number
@@ -144,6 +145,8 @@ interface BadgeParams {
   networkLogoPosition?: NetworkLogoPosition
   logoAnchor?: LogoAnchor
   qualityAnchor?: QualityAnchor
+  topBadgeAnchor?: TopBadgeAnchor
+  extraBadgeAnchor?: ExtraBadgeAnchor
   bottomAnchor?: BottomAnchor
   /**
    * Il network segue il titolo (preview WYSIWYG, esplicito quando definito:
@@ -403,6 +406,8 @@ export function buildUrlPattern(bp: BadgeParams & {
     networkLogoPosition: bp.networkLogoPosition,
     logoAnchor: bp.logoAnchor,
     qualityAnchor: bp.qualityAnchor,
+    topBadgeAnchor: bp.topBadgeAnchor,
+    extraBadgeAnchor: bp.extraBadgeAnchor,
     bottomAnchor: bp.bottomAnchor,
     networkLogoFollowTitle: bp.networkLogoFollowTitle,
     preRelease: bp.preRelease,
@@ -433,6 +438,7 @@ export function buildUrlPattern(bp: BadgeParams & {
     networkLogoOffsetY: bp.networkLogoOffsetY,
     dateFormat: bp.dateFormat ?? undefined,
     genreTopWhenFree: bp.genreTopWhenFree ?? undefined,
+    badgeOverflow: bp.badgeOverflow ?? undefined,
   })
   // Template che l'utente copia per sé (come la manifest URL con chiavi):
   // qui le chiavi sono volute — Stremio non invia header custom, quindi il
@@ -579,6 +585,7 @@ export function buildPreviewUrl(ps: PosterState, bp: BadgeParams, configToken?: 
   params.push(`df=${ps.dateFormat ?? "locale"}`)
   // Sempre esplicito come `df` (WYSIWYG contro un default salvato diverso).
   params.push(`gtop=${bp.genreTopWhenFree ? "1" : "0"}`)
+  params.push(`bov=${bp.badgeOverflow === "hide" ? "hide" : "move"}`)
   params.push(`gradHeight=${bp.gradientHeight}`)
   params.push(`blur=${bp.blurIntensity}`)
   params.push(`bf=${bp.blurFade}`)
@@ -637,6 +644,8 @@ export function buildPreviewUrl(ps: PosterState, bp: BadgeParams, configToken?: 
   params.push(`netPos=${isNetworkLogoPosition(bp.networkLogoPosition) ? bp.networkLogoPosition : "auto"}`)
   params.push(`lanc=${bp.logoAnchor ?? "auto"}`)
   params.push(`qanc=${bp.qualityAnchor ?? "auto"}`)
+  params.push(`tanc=${bp.topBadgeAnchor ?? "auto"}`)
+  params.push(`xanc=${bp.extraBadgeAnchor ?? "auto"}`)
   params.push(`banc=${bp.bottomAnchor ?? "auto"}`)
   // Esplicito quando definito (come netPos): senza, un mapping salvato con
   // follow spento scavalcerebbe lo stato editor e viceversa (desync
@@ -859,6 +868,8 @@ export interface DefaultsPreviewParams {
   defaultNetworkLogoPosition?: NetworkLogoPosition
   defaultLogoAnchor?: LogoAnchor
   defaultQualityAnchor?: QualityAnchor
+  defaultTopBadgeAnchor?: TopBadgeAnchor
+  defaultExtraBadgeAnchor?: ExtraBadgeAnchor
   defaultBottomAnchor?: BottomAnchor
   /** Il network segue il titolo (default globale, per-shape via `landscape`).
    *  Emesso solo quando definito: default legacy = URL invariati. */
@@ -899,6 +910,7 @@ export interface DefaultsPreviewParams {
   previewShape?: "portrait" | "landscape" | null
   defaultDateFormat?: DateFormat | null
   defaultGenreTopWhenFree?: boolean | null
+  defaultBadgeOverflow?: "move" | "hide" | null
   defaultRegion?: string
   /** Effective top-badge priority for the previewed shape (portrait flat or
    *  landscape profile override): always emitted explicitly as `sash=` so
@@ -969,6 +981,7 @@ export type DefaultsPreviewFamily =
   | "quality"
   | "logo"
   | "gradient"
+  | "position"
 
 /**
  * CONFIGURED eligibility, not live data: can the DEFAULTS PREVIEW of the
@@ -1044,7 +1057,7 @@ export function buildDefaultsPreviewUrl(bp: DefaultsPreviewParams): string {
   const previewSash: readonly SashBucket[] =
     bp.previewFamily === "rank"
       ? (isDefaultsPreviewRankConfigured(bp) ? ["rank"] : withoutRankSash)
-      : bp.previewFamily === "info" || bp.previewFamily === "extra"
+      : bp.previewFamily === "info" || bp.previewFamily === "extra" || bp.previewFamily === "position"
         ? withoutRankSash
         : effPreviewSash
   params.push(`sash=${previewSash.join(",")}`)
@@ -1195,6 +1208,8 @@ export function buildDefaultsPreviewUrl(bp: DefaultsPreviewParams): string {
   params.push(`netPos=${isNetworkLogoPosition(landNetPos) ? landNetPos : "auto"}`)
   params.push(`lanc=${pick(land.logoAnchor ?? undefined, bp.defaultLogoAnchor) ?? "auto"}`)
   params.push(`qanc=${pick(land.qualityAnchor ?? undefined, bp.defaultQualityAnchor) ?? "auto"}`)
+  params.push(`tanc=${pick(land.topBadgeAnchor ?? undefined, bp.defaultTopBadgeAnchor) ?? "auto"}`)
+  params.push(`xanc=${pick(land.extraBadgeAnchor ?? undefined, bp.defaultExtraBadgeAnchor) ?? "auto"}`)
   params.push(`banc=${pick(land.bottomAnchor ?? undefined, bp.defaultBottomAnchor) ?? "auto"}`)
   params.push(`ribbon=${pick(land.ribbonEnabled, bp.defaultRibbonEnabled) === false ? "0" : "1"}`)
   // Effetto pre-digitale SEMPRE esplicito in preview (come ribbon/sep/cr):
@@ -1239,6 +1254,7 @@ export function buildDefaultsPreviewUrl(bp: DefaultsPreviewParams): string {
   if (bp.defaultRegion) params.push(`region=${encodeURIComponent(bp.defaultRegion)}`)
   if (bp.defaultDateFormat) params.push(`df=${bp.defaultDateFormat}`)
   params.push(`gtop=${bp.defaultGenreTopWhenFree ? "1" : "0"}`)
+  params.push(`bov=${bp.defaultBadgeOverflow === "hide" ? "hide" : "move"}`)
 
   const qs = "?" + params.join("&")
   const demo = resolveDemoMedia(bp.demoMedia)

@@ -166,6 +166,21 @@ describe("extra preview family prioritizes the extra-bucket sample", () => {
     expect(params.get("sash")).toBe([...DEFAULT_SASH_ORDER].filter((b) => b !== "rank").join(","))
   })
 
+  it("position family drops rank without forcing a sample (anchors visible under Fresh ranked scope)", async () => {
+    localStorage.setItem(
+      "badgeDefaults",
+      JSON.stringify({ defaultPosterLayout: "fresh", defaultSashOrder: [...DEFAULT_SASH_ORDER] }),
+    )
+    renderPreview({ previewFamily: "position", previewShape: "portrait" })
+    await act(async () => {
+      await vi.advanceTimersByTimeAsync(500)
+    })
+    const params = lastPreviewUrl()
+    expect(params.get("sash")).toBe([...DEFAULT_SASH_ORDER].filter((b) => b !== "rank").join(","))
+    expect(params.get("extra")).toBeNull()
+    expect(params.get("freshScope")).toBe("ranked")
+  })
+
   it("info family still forces the first enabled sample (other demos unchanged)", async () => {
     localStorage.setItem(
       "badgeDefaults",

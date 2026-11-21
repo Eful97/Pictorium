@@ -1,7 +1,8 @@
 "use client"
 
+import { pickBadgeOverflow, type BadgeOverflow } from "@/lib/badge-overflow"
 import { isLogoAnchor, type LogoAnchor } from "@/lib/logo-layout"
-import { isQualityAnchor, type QualityAnchor, isBottomAnchor, type BottomAnchor } from "@/lib/badge-anchor"
+import { isQualityAnchor, type QualityAnchor, isBottomAnchor, type BottomAnchor, isTopBadgeAnchor, type TopBadgeAnchor, isExtraBadgeAnchor, type ExtraBadgeAnchor } from "@/lib/badge-anchor"
 import { useState, useEffect, useCallback, useRef } from "react"
 import type { BadgeStyle, RankingBadgeStyle, ExtraBadgeStyle, ExtraBadgeFollowRank } from "./badge-styles"
 import type { NetworkLogoPosition, PosterLayout, PosterFreshScope, PosterShape } from "./types"
@@ -189,6 +190,8 @@ export interface DefaultsState {
   defaultNetworkLogoPosition: NetworkLogoPosition
   defaultLogoAnchor: LogoAnchor
   defaultQualityAnchor: QualityAnchor
+  defaultTopBadgeAnchor: TopBadgeAnchor
+  defaultExtraBadgeAnchor: ExtraBadgeAnchor
   defaultBottomAnchor: BottomAnchor
   /** Il network segue il titolo di default (true = layout storico). */
   defaultNetworkLogoFollowTitle: boolean
@@ -232,6 +235,7 @@ export interface DefaultsState {
   defaultImageQualityThumbnail: ImageQuality
   /** Portrait: genere/voto nello slot alto libero (default false). */
   defaultGenreTopWhenFree: boolean
+  defaultBadgeOverflow: BadgeOverflow
   region: string
   globalBadges: boolean
   rankingBadges: boolean
@@ -256,6 +260,8 @@ export interface DefaultsState {
   networkLogoPosition: NetworkLogoPosition
   logoAnchor: LogoAnchor
   qualityAnchor: QualityAnchor
+  topBadgeAnchor: TopBadgeAnchor
+  extraBadgeAnchor: ExtraBadgeAnchor
   bottomAnchor: BottomAnchor
   /** Il network segue il titolo nel poster in editing (false = posizione assoluta). */
   networkLogoFollowTitle: boolean
@@ -417,6 +423,8 @@ const DEFAULT_FLAT_DEFAULTS: Omit<DefaultsState, "landscape"> = {
   defaultNetworkLogoPosition: "auto",
   defaultLogoAnchor: "auto",
   defaultQualityAnchor: "auto",
+  defaultTopBadgeAnchor: "auto",
+  defaultExtraBadgeAnchor: "auto",
   defaultBottomAnchor: "auto",
   defaultNetworkLogoFollowTitle: true,
   defaultPreRelease: false,
@@ -441,6 +449,7 @@ const DEFAULT_FLAT_DEFAULTS: Omit<DefaultsState, "landscape"> = {
   defaultImageQualityLandscape: DEFAULT_IMAGE_QUALITY,
   defaultImageQualityThumbnail: DEFAULT_IMAGE_QUALITY,
   defaultGenreTopWhenFree: false,
+  defaultBadgeOverflow: "move",
   defaultRegion: "IT",
   region: "IT",
   globalBadges: true,
@@ -459,6 +468,8 @@ const DEFAULT_FLAT_DEFAULTS: Omit<DefaultsState, "landscape"> = {
   networkLogoPosition: "auto",
   logoAnchor: "auto",
   qualityAnchor: "auto",
+  topBadgeAnchor: "auto",
+  extraBadgeAnchor: "auto",
   bottomAnchor: "auto",
   networkLogoFollowTitle: true,
   preRelease: false,
@@ -682,11 +693,15 @@ interface StoredDefaults {
   defaultNetworkLogoPosition?: NetworkLogoPosition
   defaultLogoAnchor?: LogoAnchor
   defaultQualityAnchor?: QualityAnchor
+  defaultTopBadgeAnchor?: TopBadgeAnchor
+  defaultExtraBadgeAnchor?: ExtraBadgeAnchor
   defaultBottomAnchor?: BottomAnchor
   defaultNetworkLogoFollowTitle?: boolean
   networkLogoPosition?: NetworkLogoPosition
   logoAnchor?: LogoAnchor
   qualityAnchor?: QualityAnchor
+  topBadgeAnchor?: TopBadgeAnchor
+  extraBadgeAnchor?: ExtraBadgeAnchor
   bottomAnchor?: BottomAnchor
   networkLogoFollowTitle?: boolean
   defaultPreRelease?: boolean
@@ -739,6 +754,8 @@ interface StoredDefaults {
   defaultImageQualityThumbnail?: ImageQuality
   imageQualityThumbnail?: ImageQuality
   defaultGenreTopWhenFree?: boolean
+  defaultBadgeOverflow?: string | null
+  badgeOverflow?: string | null
   genreTopWhenFree?: boolean
   defaultRegion?: string
   region?: string
@@ -1111,6 +1128,10 @@ function buildFromStored(d: StoredDefaults | null): DefaultsState {
     defaultQualityAnchor: isQualityAnchor(d.defaultQualityAnchor)
       ? d.defaultQualityAnchor
       : (isQualityAnchor(d.qualityAnchor) ? d.qualityAnchor : "auto"),
+    defaultTopBadgeAnchor: isTopBadgeAnchor(d.defaultTopBadgeAnchor)
+      ? d.defaultTopBadgeAnchor
+      : (isTopBadgeAnchor(d.topBadgeAnchor) ? d.topBadgeAnchor : "auto"),
+    defaultExtraBadgeAnchor: isExtraBadgeAnchor(d.defaultExtraBadgeAnchor) ? d.defaultExtraBadgeAnchor : "auto",
     defaultBottomAnchor: isBottomAnchor(d.defaultBottomAnchor)
       ? d.defaultBottomAnchor
       : (isBottomAnchor(d.bottomAnchor) ? d.bottomAnchor : "auto"),
@@ -1162,6 +1183,7 @@ function buildFromStored(d: StoredDefaults | null): DefaultsState {
     defaultImageQualityLandscape: pickImageQuality(d.defaultImageQualityLandscape ?? d.imageQualityLandscape),
     defaultImageQualityThumbnail: pickImageQuality(d.defaultImageQualityThumbnail ?? d.imageQualityThumbnail),
     defaultGenreTopWhenFree: (d.defaultGenreTopWhenFree ?? d.genreTopWhenFree) === true,
+    defaultBadgeOverflow: pickBadgeOverflow(d.defaultBadgeOverflow ?? d.badgeOverflow),
     defaultRegion: normalizeRegion(d.defaultRegion ?? d.region),
     region: normalizeRegion(d.region ?? d.defaultRegion),
     globalBadges: d.globalBadges ?? d.defaultGlobalBadges ?? true,
@@ -1193,6 +1215,12 @@ function buildFromStored(d: StoredDefaults | null): DefaultsState {
     qualityAnchor: isQualityAnchor(d.qualityAnchor)
       ? d.qualityAnchor
       : (isQualityAnchor(d.defaultQualityAnchor) ? d.defaultQualityAnchor : "auto"),
+    topBadgeAnchor: isTopBadgeAnchor(d.topBadgeAnchor)
+      ? d.topBadgeAnchor
+      : (isTopBadgeAnchor(d.defaultTopBadgeAnchor) ? d.defaultTopBadgeAnchor : "auto"),
+    extraBadgeAnchor: isExtraBadgeAnchor(d.extraBadgeAnchor)
+      ? d.extraBadgeAnchor
+      : (isExtraBadgeAnchor(d.defaultExtraBadgeAnchor) ? d.defaultExtraBadgeAnchor : "auto"),
     bottomAnchor: isBottomAnchor(d.bottomAnchor)
       ? d.bottomAnchor
       : (isBottomAnchor(d.defaultBottomAnchor) ? d.defaultBottomAnchor : "auto"),
@@ -1372,6 +1400,8 @@ export function defaultsToPayload(d: DefaultsState): Record<string, unknown> {
     networkLogoPosition: d.defaultNetworkLogoPosition,
     logoAnchor: d.defaultLogoAnchor,
     qualityAnchor: d.defaultQualityAnchor,
+    topBadgeAnchor: d.defaultTopBadgeAnchor,
+    extraBadgeAnchor: d.defaultExtraBadgeAnchor,
     bottomAnchor: d.defaultBottomAnchor,
     networkLogoFollowTitle: d.defaultNetworkLogoFollowTitle,
     preRelease: d.defaultPreRelease,
@@ -1405,6 +1435,8 @@ export function defaultsToPayload(d: DefaultsState): Record<string, unknown> {
     imageQualityLandscape: d.defaultImageQualityLandscape,
     imageQualityThumbnail: d.defaultImageQualityThumbnail,
     genreTopWhenFree: d.defaultGenreTopWhenFree,
+    // Assente = move (default): non si persiste "move" per non cambiare i default salvati.
+    badgeOverflow: pickBadgeOverflow(d.defaultBadgeOverflow) === "hide" ? "hide" : undefined,
     videoFormats: d.defaultVideoFormats,
     logoScale: d.defaultLogoScale ?? null,
     logoOffsetX: d.defaultLogoOffsetX ?? null,

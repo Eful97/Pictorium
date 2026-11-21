@@ -6,6 +6,8 @@ import { useShapeBadgeGeometryDefaults } from "@/components/settings/useShapeDef
 import type { BadgeDragGeometryAdapter } from "@/lib/badge-drag-adapter"
 import type { BadgeFamilyMove, BadgeGeometryFamily, BadgeItemMove } from "@/components/settings/useShapeDefaults"
 import { useBadgeDragGeometry } from "@/lib/useBadgeDragGeometry"
+import { effectiveSnapThreshold } from "@/lib/drag-snap"
+import { DragGridOverlay } from "@/components/settings/DragGridControls"
 import { FRESH_TITLE_LOGO_MAX_SCALE, STANDARD_TITLE_LOGO_MAX_SCALE } from "@/lib/logo-selection"
 import { VIDEO_FORMAT_OPTIONS } from "@/lib/av-specs"
 import {
@@ -226,6 +228,8 @@ interface DragState {
   readonly additive: boolean
   dx: number
   dy: number
+  /** Alt held: snapping (magnet + grid) is off for this move. */
+  alt: boolean
 }
 
 /** Marquee (rubber band) over the empty poster background, screen px. */
@@ -285,6 +289,7 @@ export function PosterBadgeDragLayer({
   shape,
   enabled,
   dragMode = true,
+  gridOn = false,
   targetLevel = "group",
   adapter,
   "data-testid": testId,
@@ -297,6 +302,8 @@ export function PosterBadgeDragLayer({
   enabled: boolean
   /** Pointer move enabled (the editor's drag-mode toggle). Resize ignores it. */
   dragMode?: boolean
+  /** Editor alignment grid: overlay drawn and snapping to its lines. */
+  gridOn?: boolean
   /**
    * Which target kind the overlay paints/hit-tests: whole groups (families) or
    * single badges (items). Only ONE is hit-testable at a time, so overlapping
@@ -619,8 +626,9 @@ export function PosterBadgeDragLayer({
       box: BadgeDragBox | null
       rawDelta: { x: number; y: number }
       displayWidth: number
+      alt: boolean
     }): { delta: { x: number; y: number }; guides: readonly BadgeSnapGuide[] } | null => {
-      const { targets, box, rawDelta, displayWidth } = input
+      const { targets, box, rawDelta, displayWidth, alt } = input
       if (!shown || targets.length === 0) return null
       // A press without a movement is a CLICK: it selects (and may collapse a
       // multi-selection) but never snaps the element onto a neighbour. Magnet
@@ -629,7 +637,7 @@ export function PosterBadgeDragLayer({
       if (Math.round(rawDelta.x) === 0 && Math.round(rawDelta.y) === 0) {
         return { delta: { x: 0, y: 0 }, guides: [] }
       }
-      const threshold = snapThresholdCanvas(displayWidth, shown.canvasW)
+      const threshold = effectiveSnapThreshold(snapThresholdCanvas(displayWidth, shown.canvasW), alt)
       if (targets.length === 1) {
         const only = targets[0]
         if (!box) return null
@@ -641,6 +649,7 @@ export function PosterBadgeDragLayer({
           threshold,
           allowX: shown.fixedX[only.family] !== true,
           excludeItemId: only.kind === "item" ? only.id : undefined,
+          grid: gridOn,
         })
         return { delta: move.delta, guides: move.guides }
       }
@@ -657,10 +666,11 @@ export function PosterBadgeDragLayer({
         delta: rawDelta,
         threshold,
         excludeItemIds: targets.flatMap((target) => (target.kind === "item" ? [target.id] : [])),
+        grid: gridOn,
       })
       return { delta: move.delta, guides: move.guides }
     },
-    [boxOf, shown],
+    [boxOf, shown, gridOn],
   )
 
   const commit = useCallback(
@@ -679,6 +689,7 @@ export function PosterBadgeDragLayer({
         box: boxOf(state.target),
         rawDelta: raw,
         displayWidth: box.width,
+        alt: state.alt,
       })
       if (!move) return
       const delta = move.delta
@@ -848,13 +859,14 @@ export function PosterBadgeDragLayer({
       additive,
       dx: 0,
       dy: 0,
+      alt: e.altKey,
     })
   }
 
   const onPointerMove = (e: React.PointerEvent<HTMLDivElement>) => {
     if (!drag || e.pointerId !== drag.pointerId) return
     e.stopPropagation()
-    setDrag({ ...drag, dx: e.clientX - drag.startX, dy: e.clientY - drag.startY })
+    setDrag({ ...drag, dx: e.clientX - drag.startX, dy: e.clientY - drag.startY, alt: e.altKey })
   }
 
   const onPointerUp = (e: React.PointerEvent<HTMLDivElement>) => {
@@ -909,6 +921,7 @@ export function PosterBadgeDragLayer({
       box: boxOf(target),
       rawDelta: delta,
       displayWidth: 0,
+      alt: false,
     })
     if (!move || (move.delta.x === 0 && move.delta.y === 0)) return
     write(targets, move.delta)
@@ -1179,6 +1192,7 @@ export function PosterBadgeDragLayer({
             canvasW: shown.canvasW,
           }),
           displayWidth: drag.displayWidth,
+          alt: drag.alt,
         })
       : null
   const dragScreenDelta =
@@ -1345,6 +1359,7 @@ export function PosterBadgeDragLayer({
           }}
         />
       )}
+      {gridOn ? <DragGridOverlay /> : null}
       {/* Editor-only alignment guides: the poster centre while dragging, plus a
           solid line on every axis the box snapped to. Never rendered into the
           poster itself. */}

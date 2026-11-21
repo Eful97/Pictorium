@@ -16,7 +16,7 @@ import {
 describe("bottom anchor: guardie e catena", () => {
   it("riconosce solo i valori ammessi", () => {
     for (const a of BOTTOM_ANCHORS) expect(isBottomAnchor(a)).toBe(true)
-    for (const bad of ["tl", "tr", "tc", "", null, undefined, 3]) expect(isBottomAnchor(bad)).toBe(false)
+    for (const bad of ["top", "xx", "", null, undefined, 3]) expect(isBottomAnchor(bad)).toBe(false)
     expect(isActiveBottomAnchor("auto")).toBe(false)
     expect(isActiveBottomAnchor("bc")).toBe(true)
   })
@@ -25,7 +25,7 @@ describe("bottom anchor: guardie e catena", () => {
     expect(resolveBottomAnchor({ query: "BR", mapping: "bl", config: "bc", defaults: "bl" })).toBe("br")
     expect(resolveBottomAnchor({ query: "auto", mapping: "bl" })).toBe("auto")
     expect(resolveBottomAnchor({ mapping: "bl", defaults: "br" })).toBe("bl")
-    expect(resolveBottomAnchor({ query: "tl", mapping: "zz", config: 4, defaults: "bc" })).toBe("bc")
+    expect(resolveBottomAnchor({ query: "xx", mapping: "zz", config: 4, defaults: "bc" })).toBe("bc")
     expect(resolveBottomAnchor({})).toBe("auto")
   })
 })

@@ -52,7 +52,7 @@ const MAPPING_SUPPORTED: ReadonlySet<string> = new Set<string>([
   "posterLayout", "posterFreshScope",
   "badgeFont", "qualityBadgeStyle", "videoFormats",
   "networkLogo", "networkLogoPosition", "networkLogoFollowTitle",
-  "logoAnchor", "qualityAnchor", "bottomAnchor",
+  "logoAnchor", "qualityAnchor", "topBadgeAnchor", "extraBadgeAnchor", "bottomAnchor",
   "preRelease", "ribbonEnabled",
   "gradientHeight", "blurEnabled", "blurIntensity", "blurFade",
   "blurDarkness", "tintStrength", "topShade", "topShadeHeight",

@@ -5,8 +5,9 @@
  * Firmato con HMAC-SHA256 per prevenire manomissioni.
  */
 
+import { BADGE_OVERFLOW_MODES } from "@/lib/badge-overflow"
 import { LOGO_ANCHORS } from "@/lib/logo-layout"
-import { QUALITY_ANCHORS, BOTTOM_ANCHORS } from "@/lib/badge-anchor"
+import { QUALITY_ANCHORS, BOTTOM_ANCHORS, TOP_BADGE_ANCHORS, EXTRA_BADGE_ANCHORS } from "@/lib/badge-anchor"
 import crypto from "node:crypto"
 import { z } from "zod"
 // Batch B: clamp condiviso da image-utils.ts (semantica standard, senza round)
@@ -159,7 +160,10 @@ export const configTokenSchema = z.object({
   networkLogoPosition: z.enum(NETWORK_LOGO_POSITIONS).optional(),
   logoAnchor: z.enum(LOGO_ANCHORS).optional(),
   qualityAnchor: z.enum(QUALITY_ANCHORS).optional(),
+  topBadgeAnchor: z.enum(TOP_BADGE_ANCHORS).optional(),
+  extraBadgeAnchor: z.enum(EXTRA_BADGE_ANCHORS).optional(),
   bottomAnchor: z.enum(BOTTOM_ANCHORS).optional(),
+  badgeOverflow: z.enum(BADGE_OVERFLOW_MODES).optional(),
   networkLogoFollowTitle: z.boolean().nullable().optional(),
   preRelease: z.boolean().optional(),
   posterShape: z.enum(["poster", "landscape"]).optional(),

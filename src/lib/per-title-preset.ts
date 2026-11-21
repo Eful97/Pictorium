@@ -106,6 +106,8 @@ export type PerTitleVisualBareKey =
   | "networkLogoPosition"
   | "logoAnchor"
   | "qualityAnchor"
+  | "topBadgeAnchor"
+  | "extraBadgeAnchor"
   | "bottomAnchor"
   | "networkLogoFollowTitle"
   | "preRelease"
@@ -340,6 +342,8 @@ export function projectPerTitleVisualPreset(
     "networkLogo", "networkLogoPosition",
     "logoAnchor",
     "qualityAnchor",
+    "topBadgeAnchor",
+    "extraBadgeAnchor",
     "bottomAnchor",
     "preRelease", "ribbonEnabled",
     "topBadgeScale", "topBadgeOffsetX", "topBadgeOffsetY",

@@ -1,8 +1,5 @@
 "use client"
 
-import { NETWORK_LOGO_POSITION_CHOICES } from "@/lib/types"
-import { QualityAnchorSelector } from "@/components/QualityAnchorSelector"
-import { BottomAnchorSelector } from "@/components/BottomAnchorSelector"
 import { useState, useRef } from "react"
 import { SeparateRatingsStylePicker } from "@/components/ui/SeparateRatingsStylePicker"
 import { useT } from "@/lib/contexts/TranslationContext"
@@ -15,10 +12,7 @@ import { buildDefaultsPreviewUrlFromEditor } from "@/components/settings/Default
 import type { DefaultsPreviewDemoMedia } from "@/lib/poster-url"
 import { SliderRow } from "@/components/SliderRow"
 import { Toggle } from "@/components/Toggle"
-import { LOGO_ANCHORS, type LogoAnchor } from "@/lib/logo-layout"
 
-const LOGO_ANCHOR_GLYPH: Record<Exclude<LogoAnchor, "auto">, string> = { tl: "↖", tr: "↗", bl: "↙", bc: "↓", br: "↘" }
-const LOGO_ANCHOR_KEY = { auto: "ui.auto", tl: "ui.logoAnchorTL", tr: "ui.logoAnchorTR", bl: "ui.logoAnchorBL", bc: "ui.logoAnchorBC", br: "ui.logoAnchorBR" } as const
 import { isBottomSeparateRatingsStyle, getSeparateBadgeDefaultScale, getSeparateRatingsStyleForShape, separateBadgeScaleToUI, uiToSeparateBadgeScale, SEPARATE_BADGE_SCALE_UI_MIN, SEPARATE_BADGE_SCALE_UI_MAX, DEFAULT_QUALITY_BADGE_OFFSET_X, DEFAULT_QUALITY_BADGE_OFFSET_Y, NUMBER_BADGE_BASE_OFFSET_X } from "@/lib/badge-styles"
 import { NATURAL_GRADIENT_DEFAULTS, type GradientPresetValues } from "@/lib/gradient-presets"
 import { GradientPresetRow } from "@/components/GradientPresetRow"
@@ -158,41 +152,11 @@ function PortraitEffectiveGeometry({ editVal, editTxt, setEditVal, setEditTxt, e
         <fieldset disabled={isCardAll} className="contents">
           {slider(<ArrowLeftRight className="w-3.5 h-3.5" />, "X", ed.defaultLogoOffsetX ?? 0, defOffRangeX.min, defOffRangeX.max, defOffRangeX.boundsMin, defOffRangeX.boundsMax, (v) => { ed.setDefaultLogoOffsetX(v) }, () => { ed.setDefaultLogoOffsetX(null) }, "dlogoOX", "px", 1)}
           {slider(<ArrowUpDown className="w-3.5 h-3.5" />, "Y", ed.defaultLogoOffsetY ?? 0, defOffRangeY.min, defOffRangeY.max, defOffRangeY.boundsMin, defOffRangeY.boundsMax, (v) => { ed.setDefaultLogoOffsetY(v) }, () => { ed.setDefaultLogoOffsetY(null) }, "dlogoOY", "px", 1)}
-          <div className="space-y-1.5 pt-1" title={t("ui.logoAnchor")} data-testid="transform-logoanchor-group">
-            <span className="text-[11px] text-muted font-medium block">{t("ui.logoAnchor")}</span>
-            <div className="flex gap-1">
-              {LOGO_ANCHORS.map((a) => (
-                <button key={a} type="button" title={t(LOGO_ANCHOR_KEY[a])} aria-label={t(LOGO_ANCHOR_KEY[a])} aria-pressed={(ed.defaultLogoAnchor ?? "auto") === a} data-testid={`logo-anchor-${a}`}
-                  onClick={() => { ed.setDefaultLogoAnchor(a); ed.setDefaultLogoOffsetX(0); ed.setDefaultLogoOffsetY(0) }}
-                  className={`flex-1 py-1 rounded-lg text-[11px] font-semibold transition duration-150 cursor-pointer ${(ed.defaultLogoAnchor ?? "auto") === a ? "bg-white/20 text-foreground shadow-sm" : "bg-white/5 text-muted hover:bg-white/10 hover:text-zinc-200"}`}>
-                  {a === "auto" ? t("ui.auto") : LOGO_ANCHOR_GLYPH[a]}
-                </button>
-              ))}
-            </div>
-          </div>
         </fieldset>
       </div>
       {cardNotes()}
     </div>
   )
-  // Network position group (Auto alignment only; lives INSIDE the network card): the title-logo alignment selector
-  // is removed — Auto always (portrait center, landscape left by server
-  // contract). Only the network-position override lives here, and only while
-  // the network logo is enabled (no empty Position card when off).
-  const netPosGroup = netActive ? (
-    <div data-testid="transform-geo-position">
-      <div className="space-y-1.5" title={t("ui.networkLogoPosition")} data-testid="transform-netpos-group">
-        <span className="text-[11px] text-muted font-medium block">{t("ui.networkLogoPosition")}</span>
-          <div className="flex gap-1">
-            {(NETWORK_LOGO_POSITION_CHOICES).map((pos) => (
-              <button key={pos} data-testid={`netpos-${pos}`} type="button" title={pos === "tl" ? t("ui.logoAnchorTL") : pos === "tr" ? t("ui.logoAnchorTR") : undefined} aria-label={pos === "tl" ? t("ui.logoAnchorTL") : pos === "tr" ? t("ui.logoAnchorTR") : undefined} onClick={() => ed.setDefaultNetworkLogoPosition(pos)} aria-pressed={ed.defaultNetworkLogoPosition === pos} className={`flex-1 py-1 rounded-lg text-[11px] font-semibold transition duration-150 cursor-pointer ${ed.defaultNetworkLogoPosition === pos ? "bg-white/20 text-foreground shadow-sm" : "bg-white/5 text-muted hover:bg-white/10 hover:text-zinc-200"}`}>
-                {pos === "auto" ? t("ui.auto") : pos === "tl" ? "↖" : "↗"}
-              </button>
-            ))}
-          </div>
-      </div>
-    </div>
-  ) : null
   const rankCard = (
     <div {...famAttrs("rank")} className="bg-surface/50 border border-surface2/60 rounded-xl p-3.5 space-y-2.5 shadow-sm animate-fade-in">
       <div className="flex items-center justify-between">
@@ -251,9 +215,6 @@ function PortraitEffectiveGeometry({ editVal, editTxt, setEditVal, setEditTxt, e
             {slider(<ArrowUpDown className="w-3.5 h-3.5" />, "Y", ed.defaultGenreBadgeOffsetY, defOffRangeY.min, defOffRangeY.max, defOffRangeY.boundsMin, defOffRangeY.boundsMax, (v) => { ed.setDefaultGenreBadgeOffsetY(v) }, () => { ed.setDefaultGenreBadgeOffsetY(0) }, "gby", "px", 1)}
           </fieldset>
         </div>
-        {ed.defaultPosterLayout === "standard" && (
-          <BottomAnchorSelector value={ed.defaultBottomAnchor} onChange={ed.setDefaultBottomAnchor} testId="transform-bottom-anchor-group" />
-        )}
         {cardNotes()}
       </div>
     </div>
@@ -289,9 +250,6 @@ function PortraitEffectiveGeometry({ editVal, editTxt, setEditVal, setEditTxt, e
         {slider(<ArrowLeftRight className="w-3.5 h-3.5" />, "X", ed.defaultQualityBadgeOffsetX, defOffRangeX.min, defOffRangeX.max, defOffRangeX.boundsMin, defOffRangeX.boundsMax, (v) => { ed.setDefaultQualityBadgeOffsetX(v) }, () => { ed.setDefaultQualityBadgeOffsetX(DEFAULT_QUALITY_BADGE_OFFSET_X) }, "qbx", "px", 1)}
         {slider(<ArrowUpDown className="w-3.5 h-3.5" />, "Y", ed.defaultQualityBadgeOffsetY, defOffRangeY.min, defOffRangeY.max, defOffRangeY.boundsMin, defOffRangeY.boundsMax, (v) => { ed.setDefaultQualityBadgeOffsetY(v) }, () => { ed.setDefaultQualityBadgeOffsetY(DEFAULT_QUALITY_BADGE_OFFSET_Y) }, "qby", "px", 1)}
         <BadgeItemTransformControls previewUrl={itemPreviewUrl ?? ""} family="quality" shape="poster" className="pt-1.5 border-t border-white/5" />
-        {ed.defaultPosterLayout === "standard" && (
-          <QualityAnchorSelector value={ed.defaultQualityAnchor} onChange={ed.setDefaultQualityAnchor} testId="transform-quality-anchor-group" />
-        )}
       </div>
     </div>
   )
@@ -333,7 +291,6 @@ function PortraitEffectiveGeometry({ editVal, editTxt, setEditVal, setEditTxt, e
         <span className="text-zinc-300">{t("ui.followTitleLogo")}</span>
         <Toggle value={followOn} onChange={onFollowChange} label={t("ui.followTitleLogo")} disabled={isCardAll || freezing || (followOn && followOffDisabled)} />
       </div>
-      {netPosGroup}
       <div className="space-y-1.5 pt-1">
         {slider(<Search className="w-3.5 h-3.5" />, t("ui.scale"), ed.defaultNetworkLogoScale, 50, 150, 10, 200, (v) => { ed.setDefaultNetworkLogoScale(v) }, () => { ed.setDefaultNetworkLogoScale(100) }, "nls", "%")}
         <div title={isCardAll ? t("ui.posterLayoutCardControlsNote") : (isCardRanked ? t("ui.posterLayoutCardFallbackNote") : undefined)} aria-disabled={isCardAll || undefined}>
@@ -1005,9 +962,6 @@ export function TransformPanel({ active, previewShape, onPreviewShapeChange, onP
           />
           </fieldset>
           </div>
-          {ed.defaultPosterLayout === "standard" && (
-            <BottomAnchorSelector value={ed.defaultBottomAnchor} onChange={ed.setDefaultBottomAnchor} testId="transform-bottom-anchor-group-lg" />
-          )}
           {isCardAllDefaults && (
             <p className="text-[10px] text-muted italic leading-tight px-1">{t("ui.posterLayoutCardControlsNote")}</p>
           )}
@@ -1111,9 +1065,6 @@ export function TransformPanel({ active, previewShape, onPreviewShapeChange, onP
             editingKey="qby"
             suffix="px"
           />
-          {ed.defaultPosterLayout === "standard" && (
-            <QualityAnchorSelector value={ed.defaultQualityAnchor} onChange={ed.setDefaultQualityAnchor} testId="transform-quality-anchor-group-lg" />
-          )}
         </div>
       </div>
       )}
@@ -1249,28 +1200,6 @@ export function TransformPanel({ active, previewShape, onPreviewShapeChange, onP
             label={t("ui.followTitleLogo")}
             disabled={isCardAllDefaults || netFreezing || (portraitFollowOn && followOffDisabled)}
           />
-        </div>
-        <div className="space-y-1.5" title={t("ui.networkLogoPosition")} data-testid="transform-geo-position">
-          <span className="text-[11px] text-muted font-medium block">{t("ui.networkLogoPosition")}</span>
-          <div className="flex gap-1">
-            {(NETWORK_LOGO_POSITION_CHOICES).map((pos) => (
-              <button
-                key={pos} data-testid={`netpos-${pos}`}
-                type="button"
-                title={pos === "tl" ? t("ui.logoAnchorTL") : pos === "tr" ? t("ui.logoAnchorTR") : undefined}
-                aria-label={pos === "tl" ? t("ui.logoAnchorTL") : pos === "tr" ? t("ui.logoAnchorTR") : undefined}
-                onClick={() => ed.setDefaultNetworkLogoPosition(pos)}
-                aria-pressed={ed.defaultNetworkLogoPosition === pos}
-                className={`flex-1 py-1 rounded-lg text-[11px] font-semibold transition duration-150 cursor-pointer ${
-                  ed.defaultNetworkLogoPosition === pos
-                    ? "bg-white/20 text-foreground shadow-sm"
-                    : "bg-white/5 text-muted hover:bg-white/10 hover:text-zinc-200"
-                }`}
-              >
-                {pos === "auto" ? t("ui.auto") : pos === "tl" ? "↖" : "↗"}
-              </button>
-            ))}
-          </div>
         </div>
 
         <div className="space-y-1.5 pt-1">

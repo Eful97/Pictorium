@@ -18,8 +18,9 @@
 // (mapping/defaults utente) non vengono mai toccati: solo la query.
 // ---------------------------------------------------------------------------
 
+import { isBadgeOverflow } from "@/lib/badge-overflow"
 import { isLogoAnchor } from "@/lib/logo-layout"
-import { isQualityAnchor, isBottomAnchor } from "@/lib/badge-anchor"
+import { isQualityAnchor, isTopBadgeAnchor, isExtraBadgeAnchor, isBottomAnchor } from "@/lib/badge-anchor"
 import { envWithFallback } from "./env-compat"
 import { GENRE_FALLBACK } from "./badges"
 import { isRankKey } from "./i18n"
@@ -178,11 +179,11 @@ export const POSTER_CACHE_ALLOWLIST: ReadonlySet<string> = new Set([
   // seasonal-theme.ts).
   "theme",
   // Funzionali (letti dalla route / poster-config, mai stile libero).
-  "badges", "ranking", "bg", "by", "br", "bq", "qbs", "awardstyle", "ribbon", "cr", "sep", "netLogo", "netPos", "lanc", "qanc", "banc", "netFollow", "wp", "wpr", "ti",
+  "badges", "ranking", "bg", "by", "br", "bq", "qbs", "awardstyle", "ribbon", "cr", "sep", "netLogo", "netPos", "lanc", "qanc", "tanc", "xanc", "banc", "netFollow", "wp", "wpr", "ti",
   "age", "agecountry", "agebs",
   "pre", "side", "hideLogo", "tint", "be", "preview", "u", "user",
   "config", "c", "api_key", "mdblist_key", "simkl_key", "tvdb_key",
-  "region", "country", "logoFit", "debug", "netgeo", "df", "gtop",
+  "region", "country", "logoFit", "debug", "netgeo", "df", "gtop", "bov",
   // Segui-spazio: politica di rivalidazione (entra in chiave/ETag via serializzazione).
   "live",
   // Effective-accent display sync (server-only, Stage 1): read-only JSON
@@ -654,6 +655,18 @@ export function hardenPosterSearchParams(
     if (isQualityAnchor(v)) params.set("qanc", v)
     else params.delete("qanc")
   }
+  // tanc: enum finita (TOP_BADGE_ANCHORS) — stesso collasso di qanc.
+  if (params.has("tanc")) {
+    const v = (params.get("tanc") || "").toLowerCase()
+    if (isTopBadgeAnchor(v)) params.set("tanc", v)
+    else params.delete("tanc")
+  }
+  // xanc: stessa enum finita (EXTRA_BADGE_ANCHORS) — collasso identico a tanc.
+  if (params.has("xanc")) {
+    const v = (params.get("xanc") || "").toLowerCase()
+    if (isExtraBadgeAnchor(v)) params.set("xanc", v)
+    else params.delete("xanc")
+  }
   // banc: enum finita (BOTTOM_ANCHORS) — garbage collassato come netPos.
   if (params.has("banc")) {
     const v = (params.get("banc") || "").toLowerCase()
@@ -662,6 +675,12 @@ export function hardenPosterSearchParams(
   }
   // netPos: enum finita (auto/top/tl/tr) — garbage collassato (stesso render
   // di auto, che il server risolve da solo).
+  // bov: enum finita (move|hide). "move" è il default; garbage = param rimosso.
+  if (params.has("bov")) {
+    const v = (params.get("bov") || "").toLowerCase()
+    if (isBadgeOverflow(v)) params.set("bov", v)
+    else params.delete("bov")
+  }
   if (params.has("netPos")) {
     const v = (params.get("netPos") || "").toLowerCase()
     if (isNetworkLogoPosition(v)) params.set("netPos", v)

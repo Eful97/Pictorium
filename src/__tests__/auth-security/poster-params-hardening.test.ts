@@ -63,6 +63,7 @@ describe("POSTER_CACHE_ALLOWLIST", () => {
   it("lanc (logo anchor) entra nella chiave cache e il garbage non frammenta la cache", () => {
     expect(POSTER_CACHE_ALLOWLIST.has("lanc")).toBe(true)
     expect(POSTER_CACHE_ALLOWLIST.has("qanc")).toBe(true)
+    expect(POSTER_CACHE_ALLOWLIST.has("tanc")).toBe(true)
     expect(POSTER_CACHE_ALLOWLIST.has("banc")).toBe(true)
     const a = normalizePosterCacheParams(new URLSearchParams("lanc=tl"))
     const b = normalizePosterCacheParams(new URLSearchParams("lanc=br"))

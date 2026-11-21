@@ -151,6 +151,9 @@ export function normalizePosterCacheParams(searchParams: URLSearchParams): URLSe
     const value = params.get(key)
     if (value !== null && value !== "0") params.set(key, "1")
   }
+  // bov: enum (move | hide). "move" = default byte-identico: si collassa su assente
+  // così i due URL convergono sulla stessa chiave cache (stessi pixel).
+  if (params.get("bov") === "move") params.delete("bov")
   params.delete("rv")
   params.delete("v")
   // rk: ephemeral list-rank context (position in the originating selected
