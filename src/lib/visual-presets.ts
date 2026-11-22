@@ -82,6 +82,10 @@ export const visualPresetValuesSchema = z.object({
   defaultAgeBadge: z.boolean().default(false),
   defaultAgeCountry: z.string().max(8).default(DEFAULT_AGE_COUNTRY),
   defaultAgeBadgeStyle: z.enum(AGE_BADGE_STYLES).nullable().default(DEFAULT_AGE_BADGE_STYLE),
+  // Icona tipo della forma del preset (portrait = `defaultTypeIcon`,
+  // landscape = `defaultTypeIconLandscape` nello stato). Assente = OFF, come
+  // l'età: applicare un preset legacy spegne l'icona invece di lasciarla viva.
+  defaultTypeIcon: z.boolean().default(false),
   defaultRatingSources: z.array(z.string().max(20)).max(20),
   defaultSashOrder: z.array(z.enum(SASH_BUCKETS)).max(SASH_BUCKETS.length),
   defaultBadgeStyle: z.enum(BADGE_STYLES), defaultRankingBadgeStyle: z.enum(RANKING_BADGE_STYLES),
@@ -801,7 +805,16 @@ function applyPortraitIsolatedWithMap(
       }
     }
   }
-  return { ...current, ...portraitPatchWithMap(preset, map), landscape } as unknown as VisualPresetValues
+  return { ...current, ...portraitPatchWithMap(preset, map), defaultTypeIcon: preset.defaultTypeIcon ?? false, landscape } as unknown as VisualPresetValues
+}
+
+/**
+ * L'icona tipo landscape vive in un flat separato (`defaultTypeIconLandscape`),
+ * non nel profilo: l'apply landscape lo scrive esplicitamente, il flat
+ * portrait resta quello vivo.
+ */
+function withLandscapeTypeIcon(applied: VisualPresetValues, preset: VisualPresetValues): VisualPresetValues {
+  return { ...applied, defaultTypeIconLandscape: preset.defaultTypeIcon ?? false } as unknown as VisualPresetValues
 }
 
 /**
@@ -815,7 +828,7 @@ function applyPortraitIsolatedWithMap(
 export function applyLandscapeIsolated(current: VisualPresetValues, preset: VisualPresetValues): VisualPresetValues {
   const currentLand = { ...(((current.landscape ?? {}) as unknown) as Record<string, unknown>) }
   const patch = landscapeProfilePatch(preset) as unknown as Record<string, unknown>
-  return { ...current, landscape: { ...currentLand, ...patch } } as unknown as VisualPresetValues
+  return withLandscapeTypeIcon({ ...current, landscape: { ...currentLand, ...patch } } as unknown as VisualPresetValues, preset)
 }
 
 /**
@@ -829,7 +842,7 @@ export function applyLandscapeIsolated(current: VisualPresetValues, preset: Visu
 export function applyPersonalLandscapeIsolated(current: VisualPresetValues, preset: VisualPresetValues): VisualPresetValues {
   const currentLand = { ...(((current.landscape ?? {}) as unknown) as Record<string, unknown>) }
   const patch = personalLandscapeProfilePatch(preset) as unknown as Record<string, unknown>
-  return { ...current, landscape: { ...currentLand, ...patch } } as unknown as VisualPresetValues
+  return withLandscapeTypeIcon({ ...current, landscape: { ...currentLand, ...patch } } as unknown as VisualPresetValues, preset)
 }
 
 /**
