@@ -43,4 +43,15 @@ describe("preset e icona tipo", () => {
       expect(off.defaultTypeIcon).toBe(true)
     }
   })
+
+  it("dove guardare: ogni apply (entrambe le forme) usa il valore del preset, legacy = OFF", () => {
+    const withWp = { ...live, defaultWatchProviders: true } as VisualPresetValues
+    for (const apply of [applyPortraitIsolated, applyPersonalPortraitIsolated, applyLandscapeIsolated, applyPersonalLandscapeIsolated]) {
+      expect(rec(apply(withWp, { ...base, defaultWatchProviders: false })).defaultWatchProviders).toBe(false)
+      expect(rec(apply({ ...live, defaultWatchProviders: false } as VisualPresetValues, { ...base, defaultWatchProviders: true })).defaultWatchProviders).toBe(true)
+    }
+    const legacy: Record<string, unknown> = { ...base }
+    delete legacy.defaultWatchProviders
+    expect(visualPresetValuesSchema.parse(legacy).defaultWatchProviders).toBe(false)
+  })
 })

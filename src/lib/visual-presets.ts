@@ -86,6 +86,9 @@ export const visualPresetValuesSchema = z.object({
   // landscape = `defaultTypeIconLandscape` nello stato). Assente = OFF, come
   // l'età: applicare un preset legacy spegne l'icona invece di lasciarla viva.
   defaultTypeIcon: z.boolean().default(false),
+  // Riga "dove guardare": un solo toggle per entrambe le forme (la regione
+  // resta config, mai nel preset). Assente = OFF come l'icona tipo.
+  defaultWatchProviders: z.boolean().default(false),
   defaultRatingSources: z.array(z.string().max(20)).max(20),
   defaultSashOrder: z.array(z.enum(SASH_BUCKETS)).max(SASH_BUCKETS.length),
   defaultBadgeStyle: z.enum(BADGE_STYLES), defaultRankingBadgeStyle: z.enum(RANKING_BADGE_STYLES),
@@ -805,16 +808,21 @@ function applyPortraitIsolatedWithMap(
       }
     }
   }
-  return { ...current, ...portraitPatchWithMap(preset, map), defaultTypeIcon: preset.defaultTypeIcon ?? false, landscape } as unknown as VisualPresetValues
+  return { ...current, ...portraitPatchWithMap(preset, map), defaultTypeIcon: preset.defaultTypeIcon ?? false, defaultWatchProviders: preset.defaultWatchProviders ?? false, landscape } as unknown as VisualPresetValues
 }
 
 /**
  * L'icona tipo landscape vive in un flat separato (`defaultTypeIconLandscape`),
  * non nel profilo: l'apply landscape lo scrive esplicitamente, il flat
- * portrait resta quello vivo.
+ * portrait resta quello vivo. "Dove guardare" è un toggle unico per entrambe
+ * le forme: ogni apply lo scrive.
  */
 function withLandscapeTypeIcon(applied: VisualPresetValues, preset: VisualPresetValues): VisualPresetValues {
-  return { ...applied, defaultTypeIconLandscape: preset.defaultTypeIcon ?? false } as unknown as VisualPresetValues
+  return {
+    ...applied,
+    defaultTypeIconLandscape: preset.defaultTypeIcon ?? false,
+    defaultWatchProviders: preset.defaultWatchProviders ?? false,
+  } as unknown as VisualPresetValues
 }
 
 /**
