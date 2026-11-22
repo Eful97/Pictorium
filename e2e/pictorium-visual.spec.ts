@@ -411,8 +411,9 @@ test.describe("poster API — functional", () => {
   })
 
   test("pre-release split: past theatrical date renders the In theaters badge, future stays upcoming", async ({ request }) => {
-    // Matrix (id 603) is absent from the mock JW responses → jwAvailable null.
-    // Unknown availability no longer disqualifies: with rd inside the 120-day
+    // Matrix (id 603) is in the mock JW responses with CINEMA-only offers →
+    // jwAvailable false (positive proof of no digital availability; unknown
+    // null would NOT qualify). With rd inside the 120-day
     // theatrical window pre=1 renders the pre-digital overlay. The PHASE
     // decides the badge: a past theatrical date is already in theaters
     // (centered "In theaters" extra badge, no ribbon), a future date keeps
