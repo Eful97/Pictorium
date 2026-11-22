@@ -30,6 +30,21 @@ export interface ChangelogRelease {
  *  (which bumps on every commit and would leave the dot permanently on). */
 export const CHANGELOG: ChangelogRelease[] = [
   {
+    version: "1.28.1",
+    date: "2026-11-22",
+    title: "Release 1.28.1",
+    items: [
+      { type: "feature", text: "Place every badge where you want it: a new Position tab with nine spots on a 3x3 grid for logo, network, quality, ranking, extra and genre badges, or Auto" },
+      { type: "feature", text: "Put network, quality, ranking and genre badges right above or below the title logo" },
+      { type: "feature", text: "Choose what happens when a badge has no room: move it out of the way or hide it" },
+      { type: "feature", text: "Show an optional alignment grid while dragging badges in the preview, with snapping" },
+      { type: "feature", text: "Show where to watch with a row of streaming provider icons on the poster, saved in presets" },
+      { type: "feature", text: "Add an optional movie or TV icon to the genre row, saved per shape in presets" },
+      { type: "feature", text: "Show an In theaters badge on films now in cinemas, instead of Coming soon" },
+      { type: "fix", text: "Show the Coming soon ribbon only when release availability is certain" },
+    ],
+  },
+  {
     version: "1.28.0",
     date: "2026-11-16",
     title: "Release 1.28.0",
