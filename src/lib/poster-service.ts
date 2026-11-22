@@ -110,6 +110,13 @@ async function inkRatios(badge: { png: Buffer; w: number; h: number; bleed?: Bad
   return { offset: (ink.x - body.x) / body.w, width: ink.w / body.w }
 }
 
+/** Scala minima di genere + riga rating per farli entrare "sotto il logo". */
+const BELOW_LOGO_MIN_SCALE = 0.4
+/** Il logo (ancora Auto) sale per tenere i badge "sotto il logo" almeno a questa scala. */
+const LOGO_LIFT_TARGET_SCALE = 0.8
+/** Salita massima del logo, in frazione dell'altezza canvas. */
+const LOGO_LIFT_MAX_FRAC = 0.15
+
 /** Respiro minimo tra inchiostro del badge genere e logo titolo. */
 const LOGO_BADGE_GAP = 6
 
@@ -1575,6 +1582,7 @@ export async function generatePosterBuffer(input: GenerationInput): Promise<Buff
   // basso a destra (composeFreshOverlay) — qui nessun composite storico.
   // Card: il bitmap riusato alimenta lo slot titolo dentro la card (blocco
   // 6c) — qui nessun composite storico.
+  let logoScrimLayer: { top: number } | null = null
   if (logoResult && !isFresh && !isCard) {
     // Rete di sicurezza per la leggibilità: quando il logo e la fascia di poster
     // sotto hanno quasi la stessa luminosità, il logo sparisce. La selezione a
@@ -1602,7 +1610,7 @@ export async function generatePosterBuffer(input: GenerationInput): Promise<Buff
         left: Math.min(Math.max(0, Math.round(logoResult.left + logoResult.w / 2 - sw / 2)), Math.max(0, CW - sw)),
       }
     })().catch(() => null)
-    if (scrim) composites.push(scrim)
+    if (scrim) { composites.push(scrim); logoScrimLayer = scrim }
     composites.push(logoResult)
   }
 
@@ -1979,7 +1987,7 @@ export async function generatePosterBuffer(input: GenerationInput): Promise<Buff
   // La cache resta valida (chiave senza scala): la scala si applica a valle.
   // Tutta la matematica di posizione/overlap sotto usa già le dimensioni
   // scalate. La posizione del badge genere usa safeGenreBadgeResult.h.
-  const [rankBadgeForLayout, genreBadgeForLayout, qualityBadgeForLayout, networkLogoForLayout] = await Promise.all([
+  let [rankBadgeForLayout, genreBadgeForLayout, qualityBadgeForLayout, networkLogoForLayout] = await Promise.all([
     rankBadgeResult
       ? (async () => {
           // Landscape: scala % + riduzione -20px in UN solo resize (prima due
@@ -2018,6 +2026,93 @@ export async function generatePosterBuffer(input: GenerationInput): Promise<Buff
         })()
       : Promise.resolve(null),
   ])
+  // Riga rating custom: resa qui (non più nel blocco sotto) perché "sotto il
+  // logo" ne misura l'altezza per ridurre genere + riga finché stanno sotto.
+  let customRowBitmap: Awaited<ReturnType<typeof renderMultiRatings>> | null = null
+  if (badgesEnabled !== false && input.ratings?.length && !isBottomStyle && !isFresh && !isCard) {
+    // Optional enrichment must never prevent the original poster from rendering.
+    customRowBitmap = await renderMultiRatings(input.ratings, CW - 40, genreBadgeLight, badgeFont).catch(() => null)
+  }
+  // Box visibile del logo (inchiostro, non la tela con padding trasparente) e
+  // margine inferiore della fascia genere/rating per le posizioni relative:
+  // stesse quote dell'Auto (centro badge a `targetCenter` dal fondo), così
+  // "sotto il logo" non perde spazio rispetto al "bottom center".
+  const relGapPx = Math.round(8 * CH / 570)
+  const relMarginPx = Math.round(18 * CH / 570)
+  const relAny = !!logoResult && (netRel !== null || qualityRel !== null || bottomRel !== null || topRel !== null)
+  const relLogoInk = relAny && logoResult ? await inkBounds(logoResult.input) : null
+  const relBandBottomMargin = genreBadgeForLayout
+    ? Math.max(0, Math.round(targetCenter - badgeBody(genreBadgeForLayout).h / 2))
+    : relMarginPx
+  // Badge che chiedono un lato del logo, in ordine d'impilamento (fascia,
+  // qualità, network, rank/extra); misura sui bitmap pre-fit (la colonna
+  // separati collegata alla qualità non è inclusa).
+  type RelEntry = { key: "band" | "quality" | "network" | "top"; side: LogoRelativePosition; h: number; bm: number }
+  const relEntries: RelEntry[] = []
+  if (relAny) {
+    const gH = genreBadgeForLayout ? badgeBody(genreBadgeForLayout).h : 0
+    const rH = customRowBitmap?.h ?? 0
+    if (bottomRel) relEntries.push({ key: "band", side: bottomRel, h: gH + rH + (gH > 0 && rH > 0 ? relGapPx : 0), bm: relBandBottomMargin })
+    if (qualityRel && qualityBadgeForLayout) relEntries.push({ key: "quality", side: qualityRel, h: badgeBody(qualityBadgeForLayout).h, bm: relMarginPx })
+    if (netRel && networkLogoForLayout) relEntries.push({ key: "network", side: netRel, h: badgeBody(networkLogoForLayout).h, bm: relMarginPx })
+    if (topRel && rankBadgeForLayout) relEntries.push({ key: "top", side: topRel, h: badgeBody(rankBadgeForLayout).h, bm: relMarginPx })
+  }
+  // Logo in Auto: se i badge "sotto il logo" scalerebbero sotto LOGO_LIFT_TARGET_SCALE,
+  // il logo sale quanto serve (max LOGO_LIFT_MAX_FRAC del canvas) per tenerli più
+  // grandi e omogenei. Solo ancora logo Auto e nessun badge richiesto sopra (non
+  // gli si toglie spazio); ancora manuale = il logo non si muove mai.
+  if (relAny && logoResult && logoAnchorEff === "auto" && !relEntries.some((e) => e.side === "above" && e.h > 0)) {
+    const es = relEntries.filter((e) => e.side === "below" && e.h > 0)
+    if (es.length > 0) {
+      const total = es.reduce((n, e) => n + e.h, 0)
+      const gaps = (es.length - 1) * relGapPx
+      const inkTop0 = logoResult.top + (relLogoInk?.y ?? 0)
+      const inkBottom0 = inkTop0 + (relLogoInk?.h ?? logoResult.h)
+      const room = CH - es[es.length - 1].bm - (inkBottom0 + relGapPx)
+      const need = Math.ceil(total * LOGO_LIFT_TARGET_SCALE) + gaps
+      const lift = Math.min(Math.max(0, need - room), Math.round(CH * LOGO_LIFT_MAX_FRAC), Math.max(0, inkTop0 - 2 * relMarginPx))
+      if (lift > 0) {
+        (logoResult as { top: number }).top -= lift
+        if (logoScrimLayer) logoScrimLayer.top = Math.max(0, logoScrimLayer.top - lift)
+      }
+    }
+  }
+  const relLogoTop = logoResult ? logoResult.top + (relLogoInk?.y ?? 0) : 0
+  const relLogoBottom = logoResult ? relLogoTop + (relLogoInk?.h ?? logoResult.h) : 0
+  // Posizioni "sopra/sotto il logo": se un badge non entra dal lato chiesto (tra
+  // il logo e il margine, dopo i badge già impilati su quel lato) si riduce
+  // (shrink-only, floor BELOW_LOGO_MIN_SCALE) invece di ribaltarsi sull'altro
+  // lato. Sotto il floor resta il ribaltamento.
+  if (relAny && logoResult) {
+    // Scala comune per lato: tutti i badge che chiedono lo stesso lato si
+    // riducono insieme (altrimenti i primi impilati consumano lo spazio e
+    // l'ultimo finisce a scala minima e ribaltato).
+    const entries = relEntries
+    const sideScale = (side: LogoRelativePosition): number => {
+      const es = entries.filter((e) => e.side === side && e.h > 0)
+      if (es.length === 0) return 1
+      const total = es.reduce((n, e) => n + e.h, 0)
+      const gaps = (es.length - 1) * relGapPx
+      const room = side === "above"
+        ? relLogoTop - relGapPx - relMarginPx
+        : CH - es[es.length - 1].bm - (relLogoBottom + relGapPx)
+      if (room <= 0 || total + gaps <= room) return 1
+      return Math.max(BELOW_LOGO_MIN_SCALE, Math.floor(((room - gaps) / total) * 100) / 100)
+    }
+    const sideK = { above: sideScale("above"), below: sideScale("below") }
+    const kOf = (key: RelEntry["key"]): number => {
+      const e = entries.find((x) => x.key === key)
+      return e ? sideK[e.side] : 1
+    }
+    const kBand = kOf("band"), kQuality = kOf("quality"), kNetwork = kOf("network"), kTop = kOf("top")
+    if (kBand < 1) {
+      if (genreBadgeForLayout) genreBadgeForLayout = await scaleBitmapForLayout(genreBadgeForLayout, kBand * 100)
+      if (customRowBitmap) customRowBitmap = await scaleBitmapForLayout(customRowBitmap, kBand * 100)
+    }
+    if (kQuality < 1 && qualityBadgeForLayout) qualityBadgeForLayout = await scaleBitmapForLayout(qualityBadgeForLayout, kQuality * 100)
+    if (kNetwork < 1 && networkLogoForLayout) networkLogoForLayout = await scaleBitmapForLayout(networkLogoForLayout, kNetwork * 100)
+    if (kTop < 1 && rankBadgeForLayout) rankBadgeForLayout = await scaleBitmapForLayout(rankBadgeForLayout, kTop * 100)
+  }
   const [safeGenreBadgeResult, safeRankBadgeResult, safeQualityBadgeResult, safeComingSoonResult] = await Promise.all([
     genreBadgeForLayout ? fitBadgeToCanvas(genreBadgeForLayout, CW, CH) : Promise.resolve(null),
     rankBadgeForLayout ? fitBadgeToCanvas(rankBadgeForLayout, CW, CH) : Promise.resolve(null),
@@ -2204,9 +2299,7 @@ export async function generatePosterBuffer(input: GenerationInput): Promise<Buff
   // with badges OFF, independently of the top slot, which answers only to
   // `rankingEnabled`.
   if (badgesEnabled !== false && input.ratings?.length && !isBottomStyle && !isFresh && !isCard) {
-    // Optional enrichment must never prevent the original poster from rendering.
     // La riga sta sopra il badge genere, in basso: stessa polarità del fondo.
-    const customRowBitmap = await renderMultiRatings(input.ratings, CW - 40, genreBadgeLight, badgeFont).catch(() => null)
     const row = customRowBitmap
     if (row) {
       const legacyTop = safeGenreBadgeResult && !genreAtTop
@@ -4008,9 +4101,11 @@ export async function generatePosterBuffer(input: GenerationInput): Promise<Buff
   if (logoResult && (netRel || qualityRel || bottomRel || topRel)) {
     type RelFam = "genre" | "rating" | "separate" | "quality" | "network" | "top"
     type RelBox = { left: number; top: number; w: number; h: number }
-    const relGap = Math.round(8 * CH / 570)
+    const relGap = relGapPx
     const relMarginX = Math.round(18 * CW / 380)
-    const relMarginY = Math.round(18 * CH / 570)
+    const relMarginY = relMarginPx
+    // Margine inferiore per famiglia: la fascia genere/rating/pillole usa quello dell'Auto.
+    const relBottomMargin = (fam: RelFam): number => (fam === "genre" || fam === "rating" || fam === "separate" ? relBandBottomMargin : relMarginY)
     const relSepLinked = !isBottomStyle && qualityStackAnchor !== null
     // Box VISIBILE, come il report finale: qualità e colonna separati sono
     // ristretti all'inchiostro (stessa formula del report geometria, più sotto).
@@ -4099,19 +4194,19 @@ export async function generatePosterBuffer(input: GenerationInput): Promise<Buff
     // Un cursore per lato: si impila dal logo verso l'esterno. Se il badge non
     // sta dal lato chiesto (finirebbe sopra il logo per il clamp) passa
     // all'altro lato; se non sta in nessuno dei due resta sul lato chiesto.
-    const relCursor = { above: logoResult.top - relGap, below: logoResult.top + logoResult.h + relGap }
-    const relFits = (s: LogoRelativePosition, h: number) =>
-      s === "above" ? relCursor.above - h >= relMarginY : relCursor.below + h <= CH - relMarginY
+    const relCursor = { above: relLogoTop - relGap, below: relLogoBottom + relGap }
+    const relFits = (s: LogoRelativePosition, h: number, fam: RelFam) =>
+      s === "above" ? relCursor.above - h >= relMarginY : relCursor.below + h <= CH - relBottomMargin(fam)
     for (const entry of relOrder.flatMap((fam) => relFamSide.filter((x) => x.fam === fam))) {
       const fam = entry.fam
       const box = await relBoxOf(fam)
       if (!box) continue
       const other: LogoRelativePosition = entry.side === "above" ? "below" : "above"
-      const side = !relFits(entry.side, box.h) && relFits(other, box.h) ? other : entry.side
+      const side = !relFits(entry.side, box.h, fam) && relFits(other, box.h, fam) ? other : entry.side
       // Stacking con dimensioni NON offsettate; clamp verticale nel canvas.
       let tTop = side === "above" ? relCursor.above - box.h : relCursor.below
       if (tTop < relMarginY) tTop = relMarginY
-      if (tTop + box.h > CH - relMarginY) tTop = Math.max(0, CH - relMarginY - box.h)
+      if (tTop + box.h > CH - relBottomMargin(fam)) tTop = Math.max(0, CH - relBottomMargin(fam) - box.h)
       if (side === "above") relCursor.above = tTop - relGap
       else relCursor.below = tTop + box.h + relGap
       const tLeft = Math.max(relMarginX, Math.min(CW - box.w - relMarginX, Math.round(relCx - box.w / 2)))

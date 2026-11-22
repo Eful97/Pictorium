@@ -83,6 +83,16 @@ describe("banc above / below: la fascia genere si posiziona rispetto al logo", (
     near(cx(genre), cx(logo))
   })
 
+  it("below con logo in basso: il genere si riduce e resta sotto il logo (non si ribalta sopra)", async () => {
+    const baseline = rectOf(await render({ genre: true, lanc: "bc" }), "genre")
+    const geo = await render({ banc: "below", genre: true, lanc: "bc" })
+    const logo = rectOf(geo, "logo")
+    const genre = rectOf(geo, "genre")
+    expect(genre.top).toBeGreaterThanOrEqual(logo.top + logo.h)
+    expect(genre.top + genre.h).toBeLessThanOrEqual(STD_H)
+    expect(genre.h).toBeLessThan(baseline.h)
+  })
+
   it("above: genere sopra il logo", async () => {
     const geo = await render({ banc: "above", genre: true })
     const logo = rectOf(geo, "logo")
