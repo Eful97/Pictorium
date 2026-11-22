@@ -20,7 +20,7 @@ import {
   TOP_BADGE_ANCHORS,
   EXTRA_BADGE_ANCHORS,
 } from "@/lib/badge-anchor"
-import { LOGO_ANCHORS, isLogoAnchor } from "@/lib/logo-layout"
+import { LOGO_ANCHORS } from "@/lib/logo-layout"
 import { NETWORK_LOGO_POSITIONS, NETWORK_LOGO_POSITION_CHOICES, isNetworkLogoPosition } from "@/lib/types"
 import { normalizePosterCacheParams } from "@/lib/poster-runtime-cache"
 import { hardenPosterSearchParams } from "@/lib/poster-params-hardening"

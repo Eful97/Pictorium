@@ -83,7 +83,6 @@ const bottom = (x: Rect) => x.top + x.h
 const near = (a: number, b: number) => expect(Math.abs(a - b)).toBeLessThanOrEqual(2)
 const GAP = Math.round(8 * STD_H / 570)
 const MARGIN_X = Math.round(18 * STD_W / 380)
-const MARGIN_Y = Math.round(18 * STD_H / 570)
 
 describe("netPos above / below", () => {
   it("above: network sopra il logo, bottom = logo.top - gap, centrato sul logo", async () => {

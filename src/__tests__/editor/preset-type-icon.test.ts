@@ -15,7 +15,8 @@ const rec = (v: VisualPresetValues) => v as unknown as Record<string, unknown>
 
 describe("preset e icona tipo", () => {
   it("un preset legacy senza campo parse a OFF", () => {
-    const { defaultTypeIcon: _drop, ...legacy } = base
+    const legacy: Record<string, unknown> = { ...base }
+    delete legacy.defaultTypeIcon
     expect(visualPresetValuesSchema.parse(legacy).defaultTypeIcon).toBe(false)
   })
 

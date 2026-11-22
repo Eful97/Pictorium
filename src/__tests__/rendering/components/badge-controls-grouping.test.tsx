@@ -143,7 +143,8 @@ describe("BadgeControls families: six groups, each control exactly once", () => 
     }
     // Accent picker (native color + hex field) lives in the common family.
     expect(common.querySelector('input[type="color"]')).not.toBeNull()
-    expect(within(common).getByText("ui.networkLogoPosition")).toBeInTheDocument()
+    // Network position lives in the Posizione tab, never here.
+    expect(screen.queryByText("ui.networkLogoPosition")).toBeNull()
   })
 
   it("quality style selector offers every enum style, premium included", () => {

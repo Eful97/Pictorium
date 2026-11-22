@@ -84,7 +84,6 @@ async function render(o: Opts): Promise<Rendered> {
 
 const W = STD_W
 const NET_PAD_X = Math.round((18 * STD_W) / 380) // margine corner (netPadX)
-const RANK_GAP = Math.round((6 * STD_H) / 570)
 
 function box(r: Rendered, key: "rank" | "extra" | "quality" | "network") {
   const b = r.geo?.families[key]

@@ -1,5 +1,3 @@
-import { type LogoAnchor } from "@/lib/logo-layout"
-import { type QualityAnchor, type BottomAnchor, type TopBadgeAnchor } from "@/lib/badge-anchor"
 import fs from "node:fs/promises"
 import { existsSync, readFileSync } from "node:fs"
 import path from "node:path"

@@ -93,8 +93,6 @@ function rect(r: Rendered, key: "rank" | "quality" | "network" | "genre" | "logo
 }
 const bottom = (x: Rect) => x.top + x.h
 
-const W = STD_W
-const H = STD_H
 const LOGO_BIG = { w: 900, h: 300, offsetY: 120 }
 const LOGO_SMALL = { w: 220, h: 80, offsetY: 120 }
 
