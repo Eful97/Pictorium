@@ -337,7 +337,9 @@ describe("per-item corrections inside the staged settings session", () => {
     expect(ctx().defaultBadgeItemTransforms).toBe("rating:slot:1=130,5,0")
     expect(screen.queryByTestId("settings-conflict")).toBeNull()
     expect(puts).toHaveLength(0)
-  })
+    // Same wall-clock budget as the siblings above: real panel mount + debounce
+    // exceed the 5 s default under full-suite CPU contention, not on a hang.
+  }, 15000)
 })
 
 /**
