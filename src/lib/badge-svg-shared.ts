@@ -1189,16 +1189,18 @@ export function buildGenreEditorialSvg(genreName: string, voteStr: string, yearS
   const fs = Math.round(fs0 * 0.92)
   const ls = round2(fs * EDITORIAL_TRACKING_EM)
   const ink = bottomLight ? "rgba(0,0,0,0.85)" : "rgba(255,255,255,0.95)"
-  const segs: { kind: "text" | "star"; text: string }[] = []
+  const segs: { kind: "text" | "star" | "icon"; text: string }[] = []
   const pushSep = () => { if (segs.length) segs.push({ kind: "text", text: "·" }) }
-  if (opts.showGenre && genreName) segs.push({ kind: "text", text: genreName.toLocaleUpperCase() })
+  if (opts.typeIcon) segs.push({ kind: "icon", text: "" })
+  if (opts.showGenre && genreName) { pushSep(); segs.push({ kind: "text", text: genreName.toLocaleUpperCase() }) }
   if (opts.showYear && yearStr) { pushSep(); segs.push({ kind: "text", text: yearStr }) }
   if (opts.showRating && voteStr) { pushSep(); segs.push({ kind: "star", text: voteStr }) }
   const gap = Math.round(fs * 0.55)
   const starW = Math.round(fs * 0.8)
   const starGap = Math.round(fs * 0.25)
   const textW = (text: string) => estimateTextWidth(text, fs, "oswald") + ls * Math.max(0, [...text].length - 1)
-  const widths = segs.map((sg) => (sg.kind === "star" ? starW + starGap : 0) + textW(sg.text))
+  const iconW = Math.round(fs * 0.8)
+  const widths = segs.map((sg) => sg.kind === "icon" ? iconW : (sg.kind === "star" ? starW + starGap : 0) + textW(sg.text))
   const contentW = widths.reduce((acc, w) => acc + w, 0) + gap * Math.max(0, segs.length - 1)
   const pad = Math.round(fs * 0.6)
   const ruleGap = Math.round(fs * 0.4)
@@ -1213,7 +1215,10 @@ export function buildGenreEditorialSvg(genreName: string, voteStr: string, yearS
   let x = pad
   let out = ""
   segs.forEach((sg, i) => {
-    if (sg.kind === "star") {
+    if (sg.kind === "icon" && opts.typeIcon) {
+      const k = iconW / TYPE_ICON_INK_W
+      out += `<path fill-rule="evenodd" transform="translate(${round2(x - 3 * k)},${round2(ty - 12 * k)}) scale(${round2(k)})" d="${TYPE_ICON_PATHS[opts.typeIcon]}"/>`
+    } else if (sg.kind === "star") {
       const r = starW / 2
       out += `<g transform="translate(${round2(x + r)},${round2(ty + r * 0.0955)})"><path d="${starPath(r)}"/></g>`
       out += textEl(sg.text, x + starW + starGap, widths[i] - starW - starGap)
