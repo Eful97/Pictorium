@@ -280,7 +280,7 @@ export function BadgeDefaultsSection({ active, shape, onPreviewFamilyChange, pre
   const [ribbonSide, setRibbonSide] = scoped("ribbonSide", ed.defaultRibbonSide, ed.setDefaultRibbonSide)
   const [badgeQuality, setBadgeQuality] = scoped("badgeQuality", ed.defaultBadgeQuality, ed.setDefaultBadgeQuality)
   const [networkLogo, setNetworkLogo] = scoped("networkLogo", ed.defaultNetworkLogo, ed.setDefaultNetworkLogo)
-  const [networkLogoPosition, setNetworkLogoPosition] = scoped("networkLogoPosition", ed.defaultNetworkLogoPosition, ed.setDefaultNetworkLogoPosition)
+  const [networkLogoPosition] = scoped("networkLogoPosition", ed.defaultNetworkLogoPosition, ed.setDefaultNetworkLogoPosition)
   const [badgeStyle] = scoped("badgeStyle", ed.defaultBadgeStyle, ed.setDefaultBadgeStyle)
   const [rankingBadgeStyle, setRankingBadgeStyle] = scoped("rankingBadgeStyle", ed.defaultRankingBadgeStyle, ed.setDefaultRankingBadgeStyle)
   const [extraBadgeStyle, setExtraBadgeStyle] = scoped("extraBadgeStyle", ed.defaultExtraBadgeStyle, ed.setDefaultExtraBadgeStyle)
@@ -1600,6 +1600,15 @@ export function BadgeDefaultsSection({ active, shape, onPreviewFamilyChange, pre
                 />
               </div>
               </fieldset>
+              {/* Icona tipo film/serie: glifo davanti alla riga; verticale e landscape indipendenti (segue la forma in modifica). */}
+              <div className="flex items-center justify-between" title={t("ui.typeIconHint")}>
+                <span className="text-muted">{t("ui.typeIconLabel")}</span>
+                <Toggle
+                  value={isLandscape ? ed.defaultTypeIconLandscape === true : ed.defaultTypeIcon === true}
+                  onChange={isLandscape ? ed.setDefaultTypeIconLandscape : ed.setDefaultTypeIcon}
+                  label={t("ui.typeIconLabel")}
+                />
+              </div>
             </div>
           )}
 
@@ -1936,28 +1945,29 @@ export function BadgeDefaultsSection({ active, shape, onPreviewFamilyChange, pre
             />
           </div>
 
-          {networkLogo && mode === undefined && (
-            <div className="flex items-center justify-between gap-3" title={t("ui.networkLogoPosition")}>
-              <span className="text-zinc-400 font-medium text-[11px] pl-5">
-                {t("ui.networkLogoPosition")}
-              </span>
-              <div className="flex gap-1 flex-1 max-w-[190px]">
-                {(["auto", "top"] as const).map((pos) => (
-                  <button
-                    key={pos}
-                    type="button"
-                    onClick={() => setNetworkLogoPosition(pos)}
-                    className={`flex-1 py-1 rounded-lg text-[11px] font-semibold transition duration-150 cursor-pointer ${
-                      networkLogoPosition === pos
-                        ? "bg-white/20 text-foreground shadow-sm"
-                        : "bg-white/5 text-muted hover:bg-white/10 hover:text-zinc-200"
-                    }`}
-                  >
-                    {pos === "auto" ? t("ui.auto") : t("ui.networkLogoPositionTop")}
-                  </button>
-                ))}
-              </div>
-            </div>
+
+          {/* "Dove guardare": space-wide (flat), staged like the other defaults. */}
+          <div className="flex items-center justify-between border-t border-white/10 pt-2">
+            <span className="text-zinc-300 font-medium">{t("ui.watchProvidersLabel")}</span>
+            <Toggle
+              value={ed.defaultWatchProviders === true}
+              onChange={ed.setDefaultWatchProviders}
+              label={t("ui.watchProvidersLabel")}
+            />
+          </div>
+          <p className="text-[11px] text-zinc-400 leading-relaxed">{t("ui.watchProvidersHint")}</p>
+          {ed.defaultWatchProviders === true && (
+            <select
+              aria-label={t("ui.watchRegionLabel")}
+              value={ed.defaultWatchRegion ?? ""}
+              onChange={(e) => ed.setDefaultWatchRegion(e.target.value || null)}
+              className="w-full rounded-lg border border-white/10 bg-white/[0.04] px-2 py-1.5 text-xs text-zinc-200"
+            >
+              <option value="">{t("ui.watchRegionSame")}</option>
+              {REGIONS.map((r) => (
+                <option key={r.code} value={r.code}>{`${r.flag} ${r.label}`}</option>
+              ))}
+            </select>
           )}
         </div>
       </div>

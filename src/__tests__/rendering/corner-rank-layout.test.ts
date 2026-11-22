@@ -3,6 +3,7 @@ import {
   cornerNetworkAboveTitle,
   cornerRankTop,
   NETWORK_LOGO_SHIFT_Y,
+  NETWORK_ABOVE_LOGO_LIFT,
   stackNetworkBelowCornerRank,
 } from "@/lib/poster-service"
 
@@ -87,16 +88,16 @@ describe("cornerNetworkAboveTitle", () => {
     // Portrait formula minus the visible shift: the composited pill
     // (+SHIFT_Y) sits exactly `gap` above the title.
     expect(anchor).toEqual({
-      top: 300 - 36 - 5 - NETWORK_LOGO_SHIFT_Y,
+      top: 300 - 36 - 5 - NETWORK_LOGO_SHIFT_Y - NETWORK_ABOVE_LOGO_LIFT,
       left: Math.round(280 + (229 - 90) / 2),
     })
-    expect(anchor!.top + NETWORK_LOGO_SHIFT_Y + 36).toBe(300 - 5)
+    expect(anchor!.top + NETWORK_LOGO_SHIFT_Y + 36).toBe(300 - 5 - NETWORK_ABOVE_LOGO_LIFT)
   })
 
   it("centers on the title box in Cinematic Left too, not on the canvas", () => {
     const anchor = cornerNetworkAboveTitle({ ...BASE, logoLeft: 46 })
     expect(anchor!.left).toBe(Math.round(46 + (229 - 90) / 2))
-    expect(anchor!.top).toBe(300 - 36 - 5 - NETWORK_LOGO_SHIFT_Y)
+    expect(anchor!.top).toBe(300 - 36 - 5 - NETWORK_LOGO_SHIFT_Y - NETWORK_ABOVE_LOGO_LIFT)
   })
 
   it("follows a shifted title (nonzero offsetX)", () => {
@@ -113,7 +114,7 @@ describe("cornerNetworkAboveTitle", () => {
   it("allows a flush anchor exactly at the top edge", () => {
     const anchor = cornerNetworkAboveTitle({
       ...BASE,
-      logoTop: 36 + 5 + NETWORK_LOGO_SHIFT_Y,
+      logoTop: 36 + 5 + NETWORK_LOGO_SHIFT_Y + NETWORK_ABOVE_LOGO_LIFT,
     })
     expect(anchor!.top).toBe(0)
   })
@@ -123,7 +124,7 @@ describe("cornerNetworkAboveTitle", () => {
       ...BASE,
       visibleShiftY: 0,
     })
-    expect(anchor!.top).toBe(300 - 36 - 5)
+    expect(anchor!.top).toBe(300 - 36 - 5 - NETWORK_ABOVE_LOGO_LIFT)
   })
 
   it("recenters exactly when the network box shrinks", () => {

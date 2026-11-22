@@ -124,6 +124,11 @@ export interface LandscapeServerDefaults {
   networkLogo?: boolean
   /** Network logo placement ("auto" = dynamic mirror, "top" = ribbon-side corner). */
   networkLogoPosition?: import("@/lib/types").NetworkLogoPosition
+  logoAnchor?: import("@/lib/types").LogoAnchor
+  qualityAnchor?: import("@/lib/types").QualityAnchor
+  topBadgeAnchor?: import("@/lib/types").TopBadgeAnchor
+  extraBadgeAnchor?: import("@/lib/types").ExtraBadgeAnchor
+  bottomAnchor?: import("@/lib/types").BottomAnchor
   /**
    * Logo-block alignment override ("left"/"center"); absent/null = follow the
    * flat (flat null = per-shape auto: portrait "center", landscape "left").
@@ -253,6 +258,7 @@ export interface ServerDefaults {
    * Entra nella cache key perché cambia la base servita ai non mappati.
    */
   defaultRotationIncludeNonClean?: boolean
+  defaultRotationIncludeOriginal?: boolean
   /** Rotazione giornaliera backdrop landscape (anche titoli non salvati). Default OFF. */
   defaultAutoRotateBackdrop?: boolean
   /** Esclude i poster clean TMDB dalla selezione automatica (catena lingua -> originale -> primo). Default OFF. */
@@ -280,6 +286,11 @@ export interface ServerDefaults {
   networkLogo?: boolean
   /** Posizione del logo network ("auto" = specchio dinamico, "top" = angolo alto lato nastro). */
   networkLogoPosition?: import("@/lib/types").NetworkLogoPosition
+  logoAnchor?: import("@/lib/types").LogoAnchor
+  qualityAnchor?: import("@/lib/types").QualityAnchor
+  topBadgeAnchor?: import("@/lib/types").TopBadgeAnchor
+  extraBadgeAnchor?: import("@/lib/types").ExtraBadgeAnchor
+  bottomAnchor?: import("@/lib/types").BottomAnchor
   /** Scala % logo film (null = auto-fit per aspect, comportamento storico). */
   logoScale?: number | null
   /** Offset px logo film (null = 0). */
@@ -393,6 +404,7 @@ export interface ServerDefaults {
   imageQualityThumbnail?: ImageQuality
   /** Portrait: genere/voto nello slot alto quando non c'è badge superiore (default false). */
   genreTopWhenFree?: boolean
+  badgeOverflow?: "move" | "hide"
   /**
    * Tuning di resa specifico per il canvas landscape 16:9 (default globali
    * orizzontali). I campi flat restano i default portrait E il fallback per
@@ -455,6 +467,14 @@ export interface ServerDefaults {
    * can never resurrect. Absent/empty = historical behavior.
    */
   disabledNetworks?: string[]
+  /** "Dove guardare": fila di icone provider flatrate (default OFF). Query `wp`. */
+  watchProviders?: boolean
+  /** Paese dei provider (codice REGIONS); assente = paese del poster. Query `wpr`. */
+  watchRegion?: string
+  /** Icona tipo (film/serie) sui poster verticali (default OFF). Query `ti`. */
+  typeIcon?: boolean
+  /** Icona tipo sui landscape, indipendente dal verticale (default OFF). Query `ti`. */
+  typeIconLandscape?: boolean
   /**
    * Custom seasonal keywords per theme (user-scoped setting): extra
    * whole-word/phrase matches for the automatic catalog-name recognition
@@ -536,6 +556,7 @@ const CATALOG_ONLY_DEFAULT_KEYS: ReadonlySet<string> = new Set(CATALOG_ONLY_DEFA
  */
 const TRUE_ONLY_VISUAL_DEFAULTS: ReadonlySet<string> = new Set([
   "defaultRotationIncludeNonClean",
+  "defaultRotationIncludeOriginal",
 ])
 
 /**

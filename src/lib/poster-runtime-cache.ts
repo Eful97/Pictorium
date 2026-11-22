@@ -18,6 +18,7 @@ import { isPosterLayout, isPosterFreshScope, DEFAULT_POSTER_FRESH_SCOPE } from "
 import { POSTER_CACHE_ALLOWLIST, parseListRankParam, sanitizePortraitBaseBackdropPath } from "./poster-params-hardening"
 import { sanitizeDisabledContentTags } from "./content-tags"
 import { sanitizeDisabledNetworks } from "./network-keys"
+import { sanitizeWatchRegion } from "./regions"
 import { canonicalizeBadgeItemTransforms } from "./badge-item-transforms"
 import { normalizeLogoFont, sanitizeLogoText } from "./text-logo"
 import { DEFAULT_IMAGE_QUALITY, POSTER_ENCODE_QUALITY, type ImageQuality } from "./image-quality"
@@ -128,7 +129,7 @@ const INFLIGHT_TIMEOUT_MS = 60_000
 // che mantengono il proprio valore semantico.
 const POSTER_BOOLEAN_CACHE_PARAMS: ReadonlySet<string> = new Set([
   "badges", "ranking", "bg", "by", "br", "bq", "ribbon", "cr", "sep",
-  "netLogo", "netFollow", "pre", "hideLogo", "be", "gtop",
+  "netLogo", "netFollow", "pre", "hideLogo", "be", "gtop", "wp", "ti",
 ])
 
 export function normalizePosterCacheParams(searchParams: URLSearchParams): URLSearchParams {
@@ -150,6 +151,9 @@ export function normalizePosterCacheParams(searchParams: URLSearchParams): URLSe
     const value = params.get(key)
     if (value !== null && value !== "0") params.set(key, "1")
   }
+  // bov: enum (move | hide). "move" = default byte-identico: si collassa su assente
+  // così i due URL convergono sulla stessa chiave cache (stessi pixel).
+  if (params.get("bov") === "move") params.delete("bov")
   params.delete("rv")
   params.delete("v")
   // rk: ephemeral list-rank context (position in the originating selected
@@ -161,6 +165,12 @@ export function normalizePosterCacheParams(searchParams: URLSearchParams): URLSe
     const rkN = parseListRankParam(rkRaw)
     if (rkN !== null) params.set("rk", String(rkN))
     else params.delete("rk")
+  }
+  const wpr = params.get("wpr")
+  if (wpr !== null) {
+    const region = sanitizeWatchRegion(wpr)
+    if (region) params.set("wpr", region)
+    else params.delete("wpr")
   }
   params.delete(POSTER_REFRESH_PARAM)
 

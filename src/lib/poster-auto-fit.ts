@@ -1,5 +1,6 @@
 import sharp from "sharp"
 import { rankPostersByFit } from "@/lib/poster-fit-score"
+import { isActiveLogoAnchor, type LogoAnchor } from "@/lib/logo-layout"
 import { concurrentMap } from "@/lib/episode-ordering"
 import { envWithFallback } from "@/lib/env-compat"
 import type { PosterShape } from "@/lib/types"
@@ -40,6 +41,8 @@ interface SelectBestLogoFitPosterInput {
   readonly logoScale?: number | null
   readonly logoOffsetX?: number | null
   readonly logoOffsetY?: number | null
+  /** Ancora d'angolo del logo (Standard): lo scoring analizza dove il logo sarà davvero. */
+  readonly logoAnchor?: LogoAnchor | null
   readonly hasBadges: boolean
   /** Formato canvas: "landscape" candida sfondi 16:9 e analizza a 768×432
    *  con layout Cinematic Left. Default "poster". */
@@ -90,7 +93,7 @@ function cacheKey(candidates: readonly PosterCandidate[], input: SelectBestLogoF
   const posterSignature = candidates.map((poster) =>
     `${poster.file_path}:${poster.vote_average ?? "x"}:${poster.width ?? "x"}:${poster.height ?? "x"}`,
   ).join(",")
-  return `auto-fit:${posterSignature}:${input.logoPath}:${input.logoScale ?? "auto"}:${input.logoOffsetX ?? 0}:${input.logoOffsetY ?? 0}:${input.hasBadges}:${input.shape ?? "poster"}`
+  return `auto-fit:${posterSignature}:${input.logoPath}:${input.logoScale ?? "auto"}:${input.logoOffsetX ?? 0}:${input.logoOffsetY ?? 0}:${input.hasBadges}:${input.shape ?? "poster"}${isActiveLogoAnchor(input.logoAnchor) ? `:anchor=${input.logoAnchor}` : ""}`
 }
 
 function cacheGet(key: string): PosterFitSelection | null {
@@ -163,11 +166,12 @@ export async function rankBestFitPosters(
   hasBadges: boolean,
   offsetYVariants?: number[],
   shape?: PosterShape,
+  anchor?: LogoAnchor | null,
 ): Promise<RankedFitResult[]> {
   if (posterEntries.length === 0) return []
 
   const ranked = await withTimeout(
-    rankPostersByFit(posterEntries, logoBuffer, logoScale, logoOffsetX, logoOffsetY, hasBadges, offsetYVariants, shape),
+    rankPostersByFit(posterEntries, logoBuffer, logoScale, logoOffsetX, logoOffsetY, hasBadges, offsetYVariants, shape, anchor),
     posterEntries.map((p) => ({ posterPath: p.posterPath, score: 0, metrics: { cleanliness: 0, contrast: 0, detailPenalty: 0, badgeReadability: 0 }, reasons: [] })),
     AUTO_FIT_TIMEOUT_MS,
   )
@@ -248,6 +252,7 @@ export async function selectBestLogoFitPosterPath(input: SelectBestLogoFitPoster
     input.hasBadges,
     [-20, 0, 20],
     input.shape,
+    input.logoAnchor,
   )
 
   const selectedPosterPath = selectAcceptedPosterPath(rankedResults, fallbackResult.posterPath)

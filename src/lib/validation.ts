@@ -1,7 +1,9 @@
+import { LOGO_ANCHORS } from "@/lib/logo-layout"
+import { QUALITY_ANCHORS, BOTTOM_ANCHORS, TOP_BADGE_ANCHORS, EXTRA_BADGE_ANCHORS } from "@/lib/badge-anchor"
 import { z } from "zod"
 import { BADGE_STYLES, RANKING_BADGE_STYLES, QUALITY_BADGE_STYLES, AGE_BADGE_STYLES, AWARD_BADGE_MODES, BADGE_FONTS, SEPARATE_RATINGS_STYLES, EXTRA_BADGE_STYLES, EXTRA_BADGE_FOLLOW_RANK } from "./badge-styles"
 import { TEXT_LOGO_MAX_LENGTH } from "./text-logo"
-import { POSTER_LAYOUTS, POSTER_FRESH_SCOPES, RETIRED_BADGE_FAMILY_IDS, type RetiredBadgeFamilyBindings, type RetiredBadgeFamilyFollows } from "./types"
+import { POSTER_LAYOUTS, POSTER_FRESH_SCOPES, NETWORK_LOGO_POSITIONS, RETIRED_BADGE_FAMILY_IDS, type RetiredBadgeFamilyBindings, type RetiredBadgeFamilyFollows } from "./types"
 import { QUALITY_GROUP_LAYOUTS } from "./badge-styles"
 import { MAX_EPISODE_STILL_OVERRIDES, sanitizeEpisodeThumbnailStills } from "./episode-stills"
 import { MAX_QUALITY_MARKS, canonicalQualityMarkSelection } from "./quality-badge-pack"
@@ -242,6 +244,9 @@ export const mappingSchema = z.object({
   autoRotateClean: z.boolean().nullable().optional(),
   /** Opt-in: language posters in the portrait 24h rotation (absent = legacy). */
   rotationIncludeNonClean: z.boolean().nullable().optional(),
+  /** Opt-in: original-language posters in the rotation (absent = legacy). */
+  rotationIncludeOriginal: z.boolean().nullable().optional(),
+  rotationOriginalLanguage: z.string().min(1).max(8).nullable().optional(),
   /** Subset of cleanPosters that are non-clean TMDB posters (logo suppression). */
   rotationNonCleanPosters: z.array(z.string()).nullable().optional(),
   /**
@@ -257,7 +262,12 @@ export const mappingSchema = z.object({
   excludedPosters: z.array(z.string()).nullable().optional(),
   logoDisabled: z.boolean().nullable().optional(),
   networkLogo: z.boolean().nullable().optional(),
-  networkLogoPosition: z.enum(["auto", "top"]).nullable().optional(),
+  networkLogoPosition: z.enum(NETWORK_LOGO_POSITIONS).nullable().optional(),
+  logoAnchor: z.enum(LOGO_ANCHORS).nullable().optional(),
+  qualityAnchor: z.enum(QUALITY_ANCHORS).nullable().optional(),
+  topBadgeAnchor: z.enum(TOP_BADGE_ANCHORS).nullable().optional(),
+  extraBadgeAnchor: z.enum(EXTRA_BADGE_ANCHORS).nullable().optional(),
+  bottomAnchor: z.enum(BOTTOM_ANCHORS).nullable().optional(),
   ribbonSide: z.enum(["left", "right"]).nullable().optional(),
   ribbonEnabled: z.boolean().nullable().optional(),
   posterShape: z.enum(["poster", "landscape"]).nullable().optional(),
@@ -342,7 +352,12 @@ export const mappingSchema = z.object({
     qualityBadgeStyle: z.enum(QUALITY_BADGE_STYLES).nullable().optional(),
     videoFormats: qualityMarkListSchema.nullable().optional(),
     networkLogo: z.boolean().nullable().optional(),
-    networkLogoPosition: z.enum(["auto", "top"]).nullable().optional(),
+    networkLogoPosition: z.enum(NETWORK_LOGO_POSITIONS).nullable().optional(),
+    logoAnchor: z.enum(LOGO_ANCHORS).nullable().optional(),
+    qualityAnchor: z.enum(QUALITY_ANCHORS).nullable().optional(),
+    topBadgeAnchor: z.enum(TOP_BADGE_ANCHORS).nullable().optional(),
+    extraBadgeAnchor: z.enum(EXTRA_BADGE_ANCHORS).nullable().optional(),
+    bottomAnchor: z.enum(BOTTOM_ANCHORS).nullable().optional(),
     ribbonEnabled: z.boolean().nullable().optional(),
     // Visuali per-titolo con indipendenza per formato (stessa regola degli
     // altri: chiave PRESENTE nel profilo — inclusa null — vince sul flat,
@@ -512,6 +527,11 @@ export const posterQuerySchema = z.object({
   lauto: boundedQueryString(4),
   df: boundedQueryString(8),
   netPos: boundedQueryString(8),
+  lanc: boundedQueryString(8),
+  qanc: boundedQueryString(8),
+  tanc: boundedQueryString(8),
+  xanc: boundedQueryString(8),
+  banc: boundedQueryString(8),
   // Segui-spazio: politica di rivalidazione (non forza render). Solo 0/1.
   live: z.enum(["0", "1"]).optional(),
   // Cache-busting del ranking: token deterministico client-side (non forza render).

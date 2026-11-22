@@ -4,6 +4,7 @@ import { getSeparateBadgeDefaultScale, getSeparateRatingsStyleForShape, isAgeBad
 import { canonicalizeBadgeItemTransforms } from "@/lib/badge-item-transforms"
 import { sanitizeDisabledContentTags } from "@/lib/content-tags"
 import { sanitizeDisabledNetworks } from "@/lib/network-keys"
+import { sanitizeWatchRegion } from "@/lib/regions"
 import type { AgeBadgeStyle } from "@/lib/badge-styles"
 import type { QualityMarkId } from "@/lib/quality-badge-pack"
 import { parseMinQuality, type StreamQuality } from "@/lib/quality-tiers"
@@ -78,6 +79,11 @@ export interface StremioPosterParamsInput {
    * solo quando non-vuoti (stesso contratto di `dct` sopra).
    */
   readonly disabledNetworks?: readonly string[] | null
+  /** "Dove guardare": emesso come `wp=1` (+ `wpr`) solo quando ON. */
+  readonly watchProviders?: boolean | null
+  readonly watchRegion?: string | null
+  /** Icona tipo film/serie: emesso come `ti=1` solo quando ON. */
+  readonly typeIcon?: boolean | null
   readonly badgeStyle?: BadgeStyle
   readonly rankingBadgeStyle?: RankingBadgeStyle
   /** Standalone extra-badge style: emitted as `xbs` only when defined (incl. "follow-rank" sentinel). */
@@ -116,6 +122,11 @@ export interface StremioPosterParamsInput {
    * esistenti non cambiano e il server risolve `auto` da solo).
    */
   readonly networkLogoPosition?: import("@/lib/types").NetworkLogoPosition
+  readonly logoAnchor?: import("@/lib/logo-layout").LogoAnchor
+  readonly qualityAnchor?: import("@/lib/badge-anchor").QualityAnchor
+  readonly topBadgeAnchor?: import("@/lib/badge-anchor").TopBadgeAnchor
+  readonly extraBadgeAnchor?: import("@/lib/badge-anchor").ExtraBadgeAnchor
+  readonly bottomAnchor?: import("@/lib/badge-anchor").BottomAnchor
   /** Scala % del badge CLASSIFICA superiore (default 100). */
   readonly topBadgeScale?: number
   /** Offset px del badge CLASSIFICA superiore, solo stili centrati (default 0). */
@@ -245,6 +256,7 @@ export interface StremioPosterParamsInput {
   readonly dateFormat?: DateFormat | null
   /** Genere in alto con slot libero: emesso `gtop=1` solo quando acceso (URL esistenti invariati). */
   readonly genreTopWhenFree?: boolean | null
+  readonly badgeOverflow?: "move" | "hide" | null
   readonly config?: string | null
   readonly user?: string | null
   readonly region?: string | null
@@ -479,16 +491,28 @@ export function buildStremioPosterSearchParams(input: StremioPosterParamsInput):
     const ids = [...new Set(sanitizeDisabledNetworks(input.disabledNetworks))].sort()
     if (ids.length > 0) params.set("dnet", ids.join(","))
   }
+  if (input.watchProviders === true) {
+    params.set("wp", "1")
+    const wpr = sanitizeWatchRegion(input.watchRegion)
+    if (wpr) params.set("wpr", wpr)
+  }
+  if (input.typeIcon === true) params.set("ti", "1")
   if (input.customBadge) params.set("extra", input.customBadge)
   if (input.dateFormat && input.dateFormat !== "locale") {
     params.set("df", input.dateFormat)
   }
   if (input.genreTopWhenFree === true) params.set("gtop", "1")
+  if (input.badgeOverflow === "hide") params.set("bov", "hide")
   if (input.title) params.set("title", input.title)
   if (!networkLogo) params.set("netLogo", "0")
   if (input.networkLogoFollowTitle === false) params.set("netFollow", "0")
-  if (input.networkLogoPosition === "top") {
-    params.set("netPos", "top")
+  if (input.logoAnchor && input.logoAnchor !== "auto") params.set("lanc", input.logoAnchor)
+  if (input.qualityAnchor && input.qualityAnchor !== "auto") params.set("qanc", input.qualityAnchor)
+  if (input.topBadgeAnchor && input.topBadgeAnchor !== "auto") params.set("tanc", input.topBadgeAnchor)
+  if (input.extraBadgeAnchor && input.extraBadgeAnchor !== "auto") params.set("xanc", input.extraBadgeAnchor)
+  if (input.bottomAnchor && input.bottomAnchor !== "auto") params.set("banc", input.bottomAnchor)
+  if (input.networkLogoPosition && input.networkLogoPosition !== "auto") {
+    params.set("netPos", input.networkLogoPosition)
   }
   if (input.preRelease) params.set("pre", "1")
   if (input.hideLogo) params.set("hideLogo", "1")

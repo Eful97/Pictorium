@@ -102,6 +102,8 @@ export interface BadgeDragItem {
 
 export type BadgeDragAxis = "x" | "y"
 
+import { DRAG_GRID_SNAP_PCT, dragGridLinePcts } from "./drag-snap"
+
 /** Editor-only snap radius (screen px): never a render value. */
 export const BADGE_DRAG_SNAP_SCREEN_PX = 6
 
@@ -711,6 +713,8 @@ export function resolveBadgeReset(input: {
 interface SnapTarget {
   readonly pos: number
   readonly center: boolean
+  /** Own tolerance (canvas px); absent = the drag's snap radius. */
+  readonly tol?: number
 }
 
 /**
@@ -723,8 +727,9 @@ function snapTargets(
   family: BadgeDragFamily,
   axis: BadgeDragAxis,
   excludeItemId?: string,
+  grid = false,
 ): SnapTarget[] {
-  return snapTargetsFor(geometry, [family], axis, excludeItemId === undefined ? [] : [excludeItemId])
+  return snapTargetsFor(geometry, [family], axis, excludeItemId === undefined ? [] : [excludeItemId], grid)
 }
 
 /**
@@ -738,6 +743,7 @@ function snapTargetsFor(
   excludeFamilies: readonly BadgeDragFamily[],
   axis: BadgeDragAxis,
   excludeItemIds: readonly string[],
+  grid = false,
 ): SnapTarget[] {
   const center = axis === "x" ? geometry.canvasW / 2 : geometry.canvasH / 2
   const targets: SnapTarget[] = [{ pos: center, center: true }]
@@ -771,6 +777,13 @@ function snapTargetsFor(
       targets.push({ pos: box.top + box.h, center: false })
     }
   }
+  if (grid) {
+    // Editor alignment grid: 5% lines plus thirds, each within 1.5% of the axis.
+    const size = axis === "x" ? geometry.canvasW : geometry.canvasH
+    for (const pct of dragGridLinePcts()) {
+      targets.push({ pos: (pct / 100) * size, center: pct === 50, tol: (DRAG_GRID_SNAP_PCT / 100) * size })
+    }
+  }
   return targets
 }
 
@@ -800,7 +813,7 @@ function snapAxis(
     for (const anchor of anchors) {
       const snappedDelta = target.pos - start - anchor
       const distance = Math.abs(snappedDelta - delta)
-      if (distance > threshold || distance >= bestDistance) continue
+      if (distance > (target.tol ?? threshold) || distance >= bestDistance) continue
       bestDistance = distance
       best = {
         delta: snappedDelta,
@@ -832,18 +845,20 @@ export function computeBadgeDragSnap(input: {
   readonly allowX?: boolean
   /** Dragged badge ITEM (excluded from its own snap targets). */
   readonly excludeItemId?: string
+  /** Also snap to the editor alignment grid (5% lines + thirds). */
+  readonly grid?: boolean
 }): BadgeSnapResult {
   const { geometry, family, box, delta, threshold, allowX = true, excludeItemId } = input
   if (!geometry) return { delta: { x: delta.x, y: delta.y }, guides: [] }
   const x = allowX
     ? snapAxis(
         { start: box.left, size: box.w, delta: delta.x, threshold, axis: "x" },
-        snapTargets(geometry, family, "x", excludeItemId),
+        snapTargets(geometry, family, "x", excludeItemId, input.grid === true),
       )
     : { delta: delta.x, guide: null }
   const y = snapAxis(
     { start: box.top, size: box.h, delta: delta.y, threshold, axis: "y" },
-    snapTargets(geometry, family, "y", excludeItemId),
+    snapTargets(geometry, family, "y", excludeItemId, input.grid === true),
   )
   const guides: BadgeSnapGuide[] = []
   if (x.guide) guides.push(x.guide)
@@ -985,6 +1000,8 @@ export function resolveBadgeDragDelta(
     readonly allowX?: boolean
     /** Dragged badge ITEM (excluded from its own snap targets). */
     readonly excludeItemId?: string
+    /** Editor alignment grid snapping (off = historic behaviour). */
+    readonly grid?: boolean
   },
 ): BadgeDragMove {
   const { geometry, box, allowX = true } = input
@@ -1125,9 +1142,12 @@ export function resolveBadgeSelectionDragDelta(input: {
   readonly threshold: number
   /** Selected ITEM identities, excluded from their own snap targets. */
   readonly excludeItemIds?: readonly string[]
+  /** Editor alignment grid snapping (off = historic behaviour). */
+  readonly grid?: boolean
 }): BadgeDragMove {
   const { geometry, members, delta, threshold } = input
   const excludeItemIds = input.excludeItemIds ?? []
+  const grid = input.grid === true
   const xMembers = members.filter((m) => m.fixedX !== true)
   const xUnion = unionBox(xMembers.map((m) => m.box))
   const yUnion = unionBox(members.map((m) => m.box))
@@ -1143,12 +1163,12 @@ export function resolveBadgeSelectionDragDelta(input: {
     xMembers.length > 0
       ? snapAxis(
           { start: xUnion.left, size: xUnion.w, delta: delta.x, threshold, axis: "x" },
-          snapTargetsFor(geometry, excludeFamilies, "x", excludeItemIds),
+          snapTargetsFor(geometry, excludeFamilies, "x", excludeItemIds, grid),
         )
       : { delta: 0, guide: null }
   const ySnap = snapAxis(
     { start: yUnion.top, size: yUnion.h, delta: delta.y, threshold, axis: "y" },
-    snapTargetsFor(geometry, excludeFamilies, "y", excludeItemIds),
+    snapTargetsFor(geometry, excludeFamilies, "y", excludeItemIds, grid),
   )
 
   // Shared travel: the intersection over every member (strictest bound wins).

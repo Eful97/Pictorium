@@ -963,30 +963,6 @@ export function BadgeControls() {
             </span>
             <Toggle value={ed.networkLogo} onChange={(v) => ed.setNetworkLogo(v)} label={t("ui.networkLogo")} />
           </div>
-
-          {ed.networkLogo && (
-            <div className="flex items-center justify-between gap-3" title={t("ui.networkLogoPosition")}>
-              <span className="text-zinc-400 font-medium text-[11px] pl-5">
-                {t("ui.networkLogoPosition")}
-              </span>
-              <div className="flex gap-1 flex-1 max-w-[190px]">
-                {(["auto", "top"] as const).map((pos) => (
-                  <button
-                    key={pos}
-                    type="button"
-                    onClick={() => ed.setNetworkLogoPosition(pos)}
-                    className={`flex-1 py-1 rounded-lg text-[11px] font-semibold transition duration-150 cursor-pointer ${
-                      ed.networkLogoPosition === pos
-                        ? "bg-white/20 text-white shadow-sm"
-                        : "bg-white/5 text-muted hover:bg-white/10 hover:text-zinc-200"
-                    }`}
-                  >
-                    {pos === "auto" ? t("ui.auto") : t("ui.networkLogoPositionTop")}
-                  </button>
-                ))}
-              </div>
-            </div>
-          )}
         </div>
 
         <div className="pt-2 border-t border-surface2/50">

@@ -104,6 +104,11 @@ export type PerTitleVisualBareKey =
   | "videoFormats"
   | "networkLogo"
   | "networkLogoPosition"
+  | "logoAnchor"
+  | "qualityAnchor"
+  | "topBadgeAnchor"
+  | "extraBadgeAnchor"
+  | "bottomAnchor"
   | "networkLogoFollowTitle"
   | "preRelease"
   | "ribbonEnabled"
@@ -335,6 +340,11 @@ export function projectPerTitleVisualPreset(
     "posterLayout", "posterFreshScope",
     "badgeFont", "qualityBadgeStyle", "qualityGroupLayout", "videoFormats",
     "networkLogo", "networkLogoPosition",
+    "logoAnchor",
+    "qualityAnchor",
+    "topBadgeAnchor",
+    "extraBadgeAnchor",
+    "bottomAnchor",
     "preRelease", "ribbonEnabled",
     "topBadgeScale", "topBadgeOffsetX", "topBadgeOffsetY",
     "genreBadgeScale", "genreBadgeOffsetX", "genreBadgeOffsetY",

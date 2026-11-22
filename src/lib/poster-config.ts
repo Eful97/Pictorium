@@ -5,10 +5,12 @@
 // isolamento. Semantica identica all'originale — nessuna logica di rendering.
 // ---------------------------------------------------------------------------
 
+import { resolveLogoAnchor, type LogoAnchor } from "@/lib/logo-layout"
+import { resolveQualityAnchor, type QualityAnchor, resolveBottomAnchor, type BottomAnchor, resolveTopBadgeAnchor, type TopBadgeAnchor, resolveExtraBadgeAnchor, type ExtraBadgeAnchor } from "@/lib/badge-anchor"
 import type { PictoriumUserConfig } from "./config-token"
 import type { AwardBadgeMode } from "./badge-styles"
 import { normalizeSeasonalTheme, resolveEffectiveSeasonalTheme, type SeasonalTheme } from "./seasonal-theme"
-import { effectiveMappingForShape, isPosterLayout, isPosterFreshScope, DEFAULT_POSTER_LAYOUT, DEFAULT_POSTER_FRESH_SCOPE, type Mapping, type NetworkLogoPosition, type PosterLayout, type PosterFreshScope, type PosterShape } from "./types"
+import { effectiveMappingForShape, isNetworkLogoPosition, isPosterLayout, isPosterFreshScope, DEFAULT_POSTER_LAYOUT, DEFAULT_POSTER_FRESH_SCOPE, type Mapping, type NetworkLogoPosition, type PosterLayout, type PosterFreshScope, type PosterShape } from "./types"
 import type { FanartSections } from "./fanart"
 import { effectiveDefaultsForShape } from "./server-defaults-shape"
 import type { ServerDefaults } from "./server-defaults"
@@ -18,6 +20,7 @@ import { parseMinQuality, type StreamQuality } from "./quality-tiers"
 import { parseSashOrder, normalizeSashOrder, DEFAULT_SASH_ORDER, NEXT_EPISODE_BADGE_KEY, type SashBucket } from "./badge-priority"
 import { sanitizeDisabledContentTags } from "./content-tags"
 import { sanitizeDisabledNetworks } from "./network-keys"
+import { sanitizeWatchRegion } from "./regions"
 import { parseBadgeItemTransforms, type BadgeItemTransformMap } from "./badge-item-transforms"
 import {
   isBadgeStyle,
@@ -493,6 +496,12 @@ export interface PosterRenderConfig {
    * Skippati prima dei path locale e fallback TMDB, mai resurrect.
    */
   disabledNetworks: string[]
+  /** "Dove guardare" (`wp`): fila provider flatrate al posto del logo network. */
+  watchProviders: boolean
+  /** Paese provider (`wpr`, codice REGIONS) o null = paese del poster. */
+  watchRegion: string | null
+  /** Icona tipo film/serie (`ti`): default per forma (portrait/landscape indipendenti). */
+  typeIcon: boolean
   /** Riga rating custom provider (display). Default ON quando il provider è configurato. */
   customRatings: boolean
   ratingSources: string[]
@@ -561,6 +570,11 @@ export interface PosterRenderConfig {
    * (specchio dinamico odierno, byte-identico).
    */
   networkLogoPosition: NetworkLogoPosition
+  logoAnchor: LogoAnchor
+  qualityAnchor: QualityAnchor
+  topBadgeAnchor: TopBadgeAnchor
+  extraBadgeAnchor: ExtraBadgeAnchor
+  bottomAnchor: BottomAnchor
   ribbonSide: "left" | "right"
   /**
    * Nastro stile Netflix all'angolo — catena: query `ribbon` > mapping
@@ -983,6 +997,17 @@ export function resolvePosterRenderConfig(input: PosterRenderConfigInput): Poste
   const disabledNetworks: string[] = rawDnet !== null
     ? sanitizeDisabledNetworks(rawDnet.split(","))
     : sanitizeDisabledNetworks(configOverride?.disabledNetworks ?? sd.disabledNetworks ?? [])
+  // "Dove guardare" — catena: query `wp`/`wpr` > config token > server defaults > OFF / paese
+  // del poster. Regione sanitizzata a ogni livello (garbage cade al successivo).
+  const rawWp = q.get("wp")
+  const watchProviders: boolean = rawWp !== null ? rawWp !== "0" : (configOverride?.watchProviders ?? sd.watchProviders ?? false)
+  const watchRegion: string | null = sanitizeWatchRegion(q.get("wpr"))
+    ?? sanitizeWatchRegion(configOverride?.watchRegion) ?? sanitizeWatchRegion(sd.watchRegion)
+  // Icona tipo — query `ti` > default per forma (`typeIcon` portrait / `typeIconLandscape`) > OFF.
+  const rawTi = q.get("ti")
+  const typeIcon: boolean = rawTi !== null
+    ? rawTi !== "0"
+    : ((posterShape === "landscape" ? sd.typeIconLandscape : sd.typeIcon) ?? false)
 
   // Custom rating provider row (display) — precedence: query `cr` > mapping
   // effettivo per formato > config token/profile > effective per-shape defaults > true
@@ -1318,22 +1343,52 @@ export function resolvePosterRenderConfig(input: PosterRenderConfigInput): Poste
     ? rawNetLogo !== "0"
     : (m?.networkLogo ?? (configOverride !== null ? configOverride.networkLogo : undefined) ?? esd.networkLogo ?? sd.networkLogo ?? true)
   const qNetLogo = networkLogo ? (rawNetLogo ?? (configOverride !== null ? (configOverride.networkLogo ? "1" : null) : null)) : "0"
-  // Posizione logo network: query esplicita (`top` o `auto`) vince sempre;
+  // Posizione logo network: query esplicita (auto/top/tl/tr) vince sempre;
   // poi il valore effettivo per formato (profilo landscape vince sul flat),
   // poi config token, poi server defaults. Assente o garbage cade al livello successivo della catena.
   const qNetPosRaw = q.get("netPos")
   const qNetPosNorm = (qNetPosRaw || "").toLowerCase()
-  const savedNetPos = m?.networkLogoPosition === "top" || m?.networkLogoPosition === "auto"
-    ? m.networkLogoPosition
-    : null
-  const configNetPos = configOverride?.networkLogoPosition === "top" || configOverride?.networkLogoPosition === "auto"
-    ? configOverride.networkLogoPosition
-    : null
-  const networkLogoPosition: NetworkLogoPosition = qNetPosNorm === "top"
-    ? "top"
-    : qNetPosNorm === "auto"
-      ? "auto"
-      : (savedNetPos ?? configNetPos ?? ((esd.networkLogoPosition ?? sd.networkLogoPosition) === "top" ? "top" : "auto"))
+  const savedNetPos = isNetworkLogoPosition(m?.networkLogoPosition) ? (m?.networkLogoPosition ?? null) : null
+  const configNetPos = isNetworkLogoPosition(configOverride?.networkLogoPosition) ? (configOverride?.networkLogoPosition ?? null) : null
+  const defaultsNetPos = esd.networkLogoPosition ?? sd.networkLogoPosition
+  const networkLogoPosition: NetworkLogoPosition = isNetworkLogoPosition(qNetPosNorm)
+    ? qNetPosNorm
+    : (savedNetPos ?? configNetPos ?? (isNetworkLogoPosition(defaultsNetPos) ? defaultsNetPos : "auto"))
+  // logoAnchor (`lanc`): query valida vince; poi mapping effettivo per formato,
+  // topBadgeAnchor (`tanc`): query valida vince; poi mapping effettivo per formato,
+  // qualityAnchor (`qanc`): query valida vince; poi mapping effettivo per formato,
+  // bottomAnchor (`banc`): query valida vince; poi mapping effettivo per formato,
+  // config token, defaults effettivi per formato, "auto". Garbage cade al livello successivo.
+  const logoAnchor: LogoAnchor = resolveLogoAnchor({
+    query: q.get("lanc"),
+    mapping: m?.logoAnchor,
+    config: configOverride?.logoAnchor,
+    defaults: esd.logoAnchor ?? sd.logoAnchor,
+  })
+  const qualityAnchor: QualityAnchor = resolveQualityAnchor({
+    query: q.get("qanc"),
+    mapping: m?.qualityAnchor,
+    config: configOverride?.qualityAnchor,
+    defaults: esd.qualityAnchor ?? sd.qualityAnchor,
+  })
+  const topBadgeAnchor: TopBadgeAnchor = resolveTopBadgeAnchor({
+    query: q.get("tanc"),
+    mapping: m?.topBadgeAnchor,
+    config: configOverride?.topBadgeAnchor,
+    defaults: esd.topBadgeAnchor ?? sd.topBadgeAnchor,
+  })
+  const extraBadgeAnchor: ExtraBadgeAnchor = resolveExtraBadgeAnchor({
+    query: q.get("xanc"),
+    mapping: m?.extraBadgeAnchor,
+    config: configOverride?.extraBadgeAnchor,
+    defaults: esd.extraBadgeAnchor ?? sd.extraBadgeAnchor,
+  })
+  const bottomAnchor: BottomAnchor = resolveBottomAnchor({
+    query: q.get("banc"),
+    mapping: m?.bottomAnchor,
+    config: configOverride?.bottomAnchor,
+    defaults: esd.bottomAnchor ?? sd.bottomAnchor,
+  })
   // Ribbon side: explicit query wins, then config token, then live spaces
   // follow effective defaults. Otherwise portrait keeps the legacy behavior
   // (saved flat side ignored). Landscape follows the documented per-shape
@@ -1424,6 +1479,9 @@ export function resolvePosterRenderConfig(input: PosterRenderConfigInput): Poste
     sashOrder,
     disabledContentTags,
     disabledNetworks,
+    watchProviders,
+    watchRegion,
+    typeIcon,
     customRatings,
     ratingSources,
     separateRatings,
@@ -1457,6 +1515,11 @@ export function resolvePosterRenderConfig(input: PosterRenderConfigInput): Poste
     qNetLogo,
     networkLogo,
     networkLogoPosition,
+    logoAnchor,
+    qualityAnchor,
+    topBadgeAnchor,
+    extraBadgeAnchor,
+    bottomAnchor,
     ribbonSide,
     ribbonEnabled,
     rankingBadgeAccent,

@@ -395,12 +395,12 @@ describe("Badge appearance owns styles (no visibility toggles, no duplicates)", 
 })
 
 describe("Transform geometry gates both shapes (active-first, hidden inactive)", () => {
-  it("portrait: only active groups render (inactive hidden, no hints); logo/position/gradient stay", async () => {
+  it("portrait: only active groups render (inactive hidden, no hints); logo/gradient stay (position moved to Posizione)", async () => {
     const { ctx } = renderTransformPortrait()
     await act(async () => {})
     // Logo/position/gradient independent: always present.
     expect(screen.getByTestId("transform-geo-logo")).toBeInTheDocument()
-    expect(screen.getByTestId("transform-geo-position")).toBeInTheDocument()
+    expect(screen.queryByTestId("transform-geo-position")).toBeNull()
     expect(screen.getByTestId("transform-geo-gradient")).toBeInTheDocument()
     // Rank/extra/meta/quality/network active by default; separate off -> hidden.
     const order = ["transform-geo-rank", "transform-geo-extra", "transform-geo-meta", "transform-geo-quality", "transform-geo-network"]
@@ -647,6 +647,9 @@ describe("SettingsPanel real-switch availability (both shapes, staged)", () => {
   function transformPanel(): HTMLElement {
     return screen.getByRole("tabpanel", { name: "ui.transform" })
   }
+  function positionPanel(): HTMLElement {
+    return screen.getByRole("tabpanel", { name: "ui.position" })
+  }
 
   // The visible Badge tabpanel (rankings/information/appearance mount
   // simultaneously with siblings hidden): scopes testid queries to the
@@ -662,12 +665,14 @@ describe("SettingsPanel real-switch availability (both shapes, staged)", () => {
     // Baseline on: network geometry + the full position subgroup with label.
     clickTab("ui.settingsTabInformation")
     ensureOn("ui.networkLogo")
+    clickTab("ui.position")
+    expect(within(positionPanel()).getByText("ui.networkLogoPosition")).toBeInTheDocument()
+    expect(within(positionPanel()).getByTestId("transform-netpos-group")).toBeInTheDocument()
     clickTab("ui.settingsTabTransform")
-    expect(within(transformPanel()).getByText("ui.networkLogoPosition")).toBeInTheDocument()
-    expect(within(transformPanel()).getByTestId("transform-netpos-group")).toBeInTheDocument()
     expect(within(transformPanel()).getByTestId("transform-geo-network")).toBeInTheDocument()
-    // Stage tuning through the real position buttons (top), then hide.
-    fireEvent.click(within(transformPanel()).getByText("ui.networkLogoPositionTop"))
+    // Stage tuning through the real position buttons (top-left), then hide.
+    clickTab("ui.position")
+    fireEvent.click(within(positionPanel()).getByTestId("netpos-tl"))
     clickTab("ui.settingsTabInformation")
     ensureOff("ui.networkLogo")
     expect(puts).toHaveLength(0)
@@ -687,8 +692,9 @@ describe("SettingsPanel real-switch availability (both shapes, staged)", () => {
     // Re-enabling through the real switch exposes everything again.
     clickTab("ui.settingsTabInformation")
     ensureOn("ui.networkLogo")
+    clickTab("ui.position")
+    expect(within(positionPanel()).getByText("ui.networkLogoPosition")).toBeInTheDocument()
     clickTab("ui.settingsTabTransform")
-    expect(within(transformPanel()).getByText("ui.networkLogoPosition")).toBeInTheDocument()
     expect(within(transformPanel()).getByTestId("transform-geo-network")).toBeInTheDocument()
     expect(puts).toHaveLength(0)
     expect(storageSnapshot()).toBe(before)
@@ -697,7 +703,7 @@ describe("SettingsPanel real-switch availability (both shapes, staged)", () => {
     await screen.findByText("ui.synced")
     expect(puts).toHaveLength(1)
     expect(puts[0].body["networkLogo"]).toBe(true)
-    expect(puts[0].body["networkLogoPosition"]).toBe("top")
+    expect(puts[0].body["networkLogoPosition"]).toBe("tl")
   })
 
   it("portrait: Information age switch hides the whole appearance age card, font stays on other consumers", async () => {
@@ -791,12 +797,13 @@ describe("SettingsPanel real-switch availability (both shapes, staged)", () => {
     setShape("landscape")
     clickTab("ui.settingsTabInformation")
     ensureOn("ui.networkLogo")
-    clickTab("ui.settingsTabTransform")
-    expect(within(transformPanel()).getByText("ui.networkLogoPosition")).toBeInTheDocument()
-    expect(within(transformPanel()).getByTestId("landscape-netpos-group")).toBeInTheDocument()
-    expect(within(transformPanel()).getByTestId("landscape-geo-network")).toBeInTheDocument()
+    clickTab("ui.position")
+    expect(within(positionPanel()).getByText("ui.networkLogoPosition")).toBeInTheDocument()
+    expect(within(positionPanel()).getByTestId("landscape-netpos-group")).toBeInTheDocument()
     // Stage landscape position tuning through the real override buttons.
-    fireEvent.click(within(transformPanel()).getByText("ui.networkLogoPositionTop"))
+    fireEvent.click(within(positionPanel()).getByTestId("netpos-tl"))
+    clickTab("ui.settingsTabTransform")
+    expect(within(transformPanel()).getByTestId("landscape-geo-network")).toBeInTheDocument()
     // Off through the real switch: profile override, zero persistence traffic.
     clickTab("ui.settingsTabInformation")
     ensureOff("ui.networkLogo")
@@ -823,6 +830,6 @@ describe("SettingsPanel real-switch availability (both shapes, staged)", () => {
     expect(ctx().defaultNetworkLogo).toBe(true)
     const land = puts[0].body["landscape"] as Record<string, unknown>
     expect(land["networkLogo"]).toBe(true)
-    expect(land["networkLogoPosition"]).toBe("top")
+    expect(land["networkLogoPosition"]).toBe("tl")
   })
 })

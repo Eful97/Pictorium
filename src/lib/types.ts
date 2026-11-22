@@ -1,3 +1,11 @@
+import type { LogoAnchor } from "./logo-layout"
+export type { LogoAnchor }
+import type { QualityAnchor, BottomAnchor, TopBadgeAnchor, ExtraBadgeAnchor } from "./badge-anchor"
+import { ANCHOR_CHOICES_REL, ANCHOR_POSITIONS, LOGO_RELATIVE_POSITIONS } from "./badge-anchor"
+export type { QualityAnchor }
+export type { TopBadgeAnchor }
+export type { ExtraBadgeAnchor }
+export type { BottomAnchor }
 import type { BadgeStyle, RankingBadgeStyle, QualityBadgeStyle, QualityGroupLayout, BadgeFont, SeparateRatingsStyle, ExtraBadgeStyle, ExtraBadgeFollowRank, AgeBadgeStyle, AwardBadgeMode } from "./badge-styles"
 import type { QualityMarkId } from "./quality-badge-pack"
 
@@ -88,12 +96,27 @@ export function isPosterFreshScope(value: unknown): value is PosterFreshScope {
  * nastro rank/preset o Coming Soon a destra, sinistra in tutti gli altri
  * casi — anche in vista Stremio). Catena: query > mapping > config token >
  * server defaults > "auto".
+ * Posizioni fisse (solo Standard): "tl" "tc" "tr" "ml" "mc" "mr" "bl" "bc" "br"
+ * (vedi ANCHOR_POSITIONS) sono ancore MANUALI: il box va a anchorRect, i badge
+ * in auto le evitano (pass finale). "tl"/"tr" sono storiche: angolo alto
+ * FORZATO, stacking sotto Coming Soon e badge d'angolo, shrink vs badge
+ * centrale. "top" resta legacy e NON è manuale. La posizione fissa (follow OFF)
+ * resta prioritaria su tutte.
  */
-export type NetworkLogoPosition = "auto" | "top"
+export const NETWORK_LOGO_POSITIONS = ["auto", "top", ...ANCHOR_POSITIONS, ...LOGO_RELATIVE_POSITIONS] as const
+export type NetworkLogoPosition = (typeof NETWORK_LOGO_POSITIONS)[number]
+
+/**
+ * Valori OFFERTI dal selettore: `auto` + le 9 posizioni (`ANCHOR_CHOICES`).
+ * `top` resta valido in URL, mapping e default già salvati (legacy, NON
+ * manuale) ma non ha più un pulsante.
+ */
+export const NETWORK_LOGO_POSITION_CHOICES = ANCHOR_CHOICES_REL
 
 export function isNetworkLogoPosition(value: unknown): value is NetworkLogoPosition {
-  return value === "auto" || value === "top"
+  return typeof value === "string" && (NETWORK_LOGO_POSITIONS as readonly string[]).includes(value)
 }
+
 
 export interface SearchResult {
   id: number
@@ -394,6 +417,15 @@ export interface Mapping {
    */
   rotationIncludeNonClean?: boolean | null
   /**
+   * Opt-in: allow posters in the title's ORIGINAL language in the portrait 24h
+   * rotation, independent of "my language" (`rotationIncludeNonClean`). The
+   * title's `original_language` is frozen in `rotationOriginalLanguage` so the
+   * server filters without a TMDB fetch. Absent/null/false = legacy.
+   */
+  rotationIncludeOriginal?: boolean | null
+  /** ISO 639-1 `original_language` of the title, saved with the opt-in above. */
+  rotationOriginalLanguage?: string | null
+  /**
    * Subset of `cleanPosters` that are NON-clean TMDB posters
    * (`iso_639_1 !== null`). The renderer cannot re-check TMDB language when
    * only the saved mapping is available, so this metadata drives the
@@ -422,6 +454,11 @@ export interface Mapping {
   networkLogo?: boolean | null
   /** Posizione del logo network ("auto" = specchio dinamico, "top" = angolo alto lato nastro). */
   networkLogoPosition?: NetworkLogoPosition | null
+  logoAnchor?: LogoAnchor | null
+  qualityAnchor?: QualityAnchor | null
+  topBadgeAnchor?: TopBadgeAnchor | null
+  extraBadgeAnchor?: ExtraBadgeAnchor | null
+  bottomAnchor?: BottomAnchor | null
   ribbonSide?: "left" | "right" | null
   /** Nastro stile Netflix all'angolo (false = badge classifica centrato). Default ON. */
   ribbonEnabled?: boolean | null
@@ -602,6 +639,11 @@ export interface LandscapeSettings {
   networkLogo?: boolean | null
   /** Ancoraggio logo network ("auto" = specchio dinamico). */
   networkLogoPosition?: NetworkLogoPosition | null
+  logoAnchor?: LogoAnchor | null
+  qualityAnchor?: QualityAnchor | null
+  topBadgeAnchor?: TopBadgeAnchor | null
+  extraBadgeAnchor?: ExtraBadgeAnchor | null
+  bottomAnchor?: BottomAnchor | null
   /** Nastro stile Netflix all'angolo (default ON). */
   ribbonEnabled?: boolean | null
   /**
@@ -744,6 +786,11 @@ export function effectiveMappingForShape(mapping: Mapping | null, shape: PosterS
     videoFormats: l.videoFormats ?? mapping.videoFormats,
     networkLogo: l.networkLogo ?? mapping.networkLogo,
     networkLogoPosition: l.networkLogoPosition ?? mapping.networkLogoPosition,
+    logoAnchor: l.logoAnchor ?? mapping.logoAnchor,
+    qualityAnchor: l.qualityAnchor ?? mapping.qualityAnchor,
+    topBadgeAnchor: l.topBadgeAnchor ?? mapping.topBadgeAnchor,
+    extraBadgeAnchor: l.extraBadgeAnchor ?? mapping.extraBadgeAnchor,
+    bottomAnchor: l.bottomAnchor ?? mapping.bottomAnchor,
     ribbonEnabled: l.ribbonEnabled ?? mapping.ribbonEnabled,
   }
 }

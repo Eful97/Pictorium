@@ -12,6 +12,7 @@ import { buildDefaultsPreviewUrlFromEditor } from "@/components/settings/Default
 import type { DefaultsPreviewDemoMedia } from "@/lib/poster-url"
 import { SliderRow } from "@/components/SliderRow"
 import { Toggle } from "@/components/Toggle"
+
 import { isBottomSeparateRatingsStyle, getSeparateBadgeDefaultScale, getSeparateRatingsStyleForShape, separateBadgeScaleToUI, uiToSeparateBadgeScale, SEPARATE_BADGE_SCALE_UI_MIN, SEPARATE_BADGE_SCALE_UI_MAX, DEFAULT_QUALITY_BADGE_OFFSET_X, DEFAULT_QUALITY_BADGE_OFFSET_Y, NUMBER_BADGE_BASE_OFFSET_X } from "@/lib/badge-styles"
 import { NATURAL_GRADIENT_DEFAULTS, type GradientPresetValues } from "@/lib/gradient-presets"
 import { GradientPresetRow } from "@/components/GradientPresetRow"
@@ -156,25 +157,6 @@ function PortraitEffectiveGeometry({ editVal, editTxt, setEditVal, setEditTxt, e
       {cardNotes()}
     </div>
   )
-  // Position card (Auto alignment only): the title-logo alignment selector
-  // is removed — Auto always (portrait center, landscape left by server
-  // contract). Only the network-position override lives here, and only while
-  // the network logo is enabled (no empty Position card when off).
-  const positionCard = netActive ? (
-    <div className="bg-surface/50 border border-surface2/60 rounded-xl p-3.5 space-y-2.5 shadow-sm animate-fade-in">
-      <span className="text-zinc-200 font-semibold text-xs">{t("ui.position")}</span>
-      <div className="space-y-1.5" title={t("ui.networkLogoPosition")} data-testid="transform-netpos-group">
-        <span className="text-[11px] text-muted font-medium block">{t("ui.networkLogoPosition")}</span>
-          <div className="flex gap-1">
-            {(["auto", "top"] as const).map((pos) => (
-              <button key={pos} type="button" onClick={() => ed.setDefaultNetworkLogoPosition(pos)} aria-pressed={ed.defaultNetworkLogoPosition === pos} className={`flex-1 py-1 rounded-lg text-[11px] font-semibold transition duration-150 cursor-pointer ${ed.defaultNetworkLogoPosition === pos ? "bg-white/20 text-foreground shadow-sm" : "bg-white/5 text-muted hover:bg-white/10 hover:text-zinc-200"}`}>
-                {pos === "auto" ? t("ui.auto") : t("ui.networkLogoPositionTop")}
-              </button>
-            ))}
-          </div>
-      </div>
-    </div>
-  ) : null
   const rankCard = (
     <div {...famAttrs("rank")} className="bg-surface/50 border border-surface2/60 rounded-xl p-3.5 space-y-2.5 shadow-sm animate-fade-in">
       <div className="flex items-center justify-between">
@@ -376,7 +358,6 @@ function PortraitEffectiveGeometry({ editVal, editTxt, setEditVal, setEditTxt, e
   return (
     <>
       <div hidden={hideFor("logo")} data-testid="transform-geo-logo">{logoCard}</div>
-      {positionCard && <div data-testid="transform-geo-position">{positionCard}</div>}
       {ordered.map((g) => (
         <div key={g.key} hidden={g.hidden}>
           <AvailabilityGate active name={g.name} hint="" testId={g.testId}>
@@ -709,39 +690,6 @@ export function TransformPanel({ active, previewShape, onPreviewShapeChange, onP
           <p className="text-[10px] text-muted italic leading-tight px-1">{t("ui.posterLayoutCardFallbackNote")}</p>
         )}
       </div>
-      {/* Network position home (moved from the Badge tab): title-logo
-          alignment is Auto-only (no selector). Portrait flat here, landscape
-          override in the landscape section. */}
-      {geometryOnly && (
-      <div className="bg-surface/50 border border-surface2/60 rounded-xl p-3.5 space-y-2.5 shadow-sm animate-fade-in">
-        <span className="text-zinc-200 font-semibold text-xs">{t("ui.position")}</span>
-        <div className="space-y-1.5" title={t("ui.networkLogoPosition")}>
-          <span className="text-[11px] text-muted font-medium block">{t("ui.networkLogoPosition")}</span>
-          {geometryOnly && !ed.defaultNetworkLogo && (
-            <p data-testid="transform-netpos-inactive" className="text-[11px] text-zinc-400 italic leading-snug">{t("ui.activateInTabHint", { name: t("ui.networkLogo"), tab: t("ui.settingsTabInformation") })}</p>
-          )}
-          <fieldset disabled={geometryOnly && !ed.defaultNetworkLogo} className="contents">
-          <div className="flex gap-1">
-            {(["auto", "top"] as const).map((pos) => (
-              <button
-                key={pos}
-                type="button"
-                onClick={() => ed.setDefaultNetworkLogoPosition(pos)}
-                aria-pressed={ed.defaultNetworkLogoPosition === pos}
-                className={`flex-1 py-1 rounded-lg text-[11px] font-semibold transition duration-150 cursor-pointer ${
-                  ed.defaultNetworkLogoPosition === pos
-                    ? "bg-white/20 text-foreground shadow-sm"
-                    : "bg-white/5 text-muted hover:bg-white/10 hover:text-zinc-200"
-                }`}
-              >
-                {pos === "auto" ? t("ui.auto") : t("ui.networkLogoPositionTop")}
-              </button>
-            ))}
-          </div>
-          </fieldset>
-        </div>
-      </div>
-      )}
       {!ed.defaultRankingBadges && geometryOnly && (
         <TransformInactive name={t("ui.rankFamily")} tab={t("ui.settingsTabInformation")} />
       )}

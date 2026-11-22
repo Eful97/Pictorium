@@ -19,6 +19,7 @@ import { resolveSeparateBadgeScaleFallback, separateBadgeScaleToUI, uiToSeparate
 import { getBadgeOffsetRange } from "@/lib/badge-offset-ranges"
 import type { LandscapeBlurState } from "@/lib/contexts/PosterEditorContext"
 
+
 export function TransformControls() {
   const selectedLogo = usePSelector((v) => v.selectedLogo)
   const logoBounds = usePSelector((v) => v.logoBounds)

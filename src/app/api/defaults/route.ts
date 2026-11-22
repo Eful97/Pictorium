@@ -1,3 +1,6 @@
+import { LOGO_ANCHORS } from "@/lib/logo-layout"
+import { BADGE_OVERFLOW_MODES } from "@/lib/badge-overflow"
+import { QUALITY_ANCHORS, BOTTOM_ANCHORS, TOP_BADGE_ANCHORS, EXTRA_BADGE_ANCHORS } from "@/lib/badge-anchor"
 import { NextRequest } from "next/server"
 import { getServerDefaultsChecked, setServerDefaults, getServerDefaultsForUser, getStoredUserDefaults, setServerDefaultsForUser, getInstanceEnvDefaults, type ServerDefaults } from "@/lib/server-defaults"
 import { cacheInvalidatePosterData } from "@/lib/cache"
@@ -10,7 +13,7 @@ import { createLogger } from "@/lib/logger"
 import { z } from "zod"
 import { MAX_DISABLED_NETWORKS } from "@/lib/network-keys"
 import { BADGE_STYLES, RANKING_BADGE_STYLES, QUALITY_BADGE_STYLES, AGE_BADGE_STYLES, AWARD_BADGE_MODES, BADGE_FONTS, SEPARATE_RATINGS_STYLES, EXTRA_BADGE_STYLES, EXTRA_BADGE_FOLLOW_RANK } from "@/lib/badge-styles"
-import { POSTER_LAYOUTS, POSTER_FRESH_SCOPES } from "@/lib/types"
+import { POSTER_LAYOUTS, POSTER_FRESH_SCOPES, NETWORK_LOGO_POSITIONS } from "@/lib/types"
 import { QUALITY_GROUP_LAYOUTS } from "@/lib/badge-styles"
 import { readJsonBody, BodyTooLargeError, DEFAULT_MAX_BODY_BYTES } from "@/lib/read-body"
 import { envWithFallback } from "@/lib/env-compat"
@@ -163,6 +166,7 @@ const defaultsSchema = z.object({
   autoRotateClean: z.boolean().optional(),
   /** Default rotazione poster: Solo clean / Clean + lingua (assente = OFF storico). */
   defaultRotationIncludeNonClean: z.boolean().optional(),
+  defaultRotationIncludeOriginal: z.boolean().optional(),
   defaultAutoRotateBackdrop: z.boolean().optional(),
   disableCleanPosters: z.boolean().optional(),
   // Automazioni globali (default ON): flat names on the wire; absent = ON so
@@ -173,7 +177,12 @@ const defaultsSchema = z.object({
   defaultPortraitFitEnabled: z.boolean().optional(),
   defaultLandscapeFitEnabled: z.boolean().optional(),
   networkLogo: z.boolean().optional(),
-  networkLogoPosition: z.enum(["auto", "top"]).optional(),
+  networkLogoPosition: z.enum(NETWORK_LOGO_POSITIONS).optional(),
+  logoAnchor: z.enum(LOGO_ANCHORS).optional(),
+  qualityAnchor: z.enum(QUALITY_ANCHORS).optional(),
+  topBadgeAnchor: z.enum(TOP_BADGE_ANCHORS).optional(),
+  extraBadgeAnchor: z.enum(EXTRA_BADGE_ANCHORS).optional(),
+  bottomAnchor: z.enum(BOTTOM_ANCHORS).optional(),
   networkLogoFollowTitle: z.boolean().nullable().optional(),
   // Default logo film (null = auto-fit/0, mai spazzatura dallo storage).
   logoScale: z.number().nullable().optional(),
@@ -225,6 +234,7 @@ const defaultsSchema = z.object({
   imageQualityLandscape: z.enum(["low", "medium", "high"]).optional(),
   imageQualityThumbnail: z.enum(["low", "medium", "high"]).optional(),
   genreTopWhenFree: z.boolean().optional(),
+  badgeOverflow: z.enum(BADGE_OVERFLOW_MODES).optional(),
   /**
    * Additive clear contract (transport only, never stored): profile keys to
    * delete after the normal merge/backfill, because omitting them cannot
@@ -308,7 +318,12 @@ const defaultsSchema = z.object({
     customRatings: z.boolean().optional(),
     separateRatings: z.boolean().optional(),
     networkLogo: z.boolean().optional(),
-    networkLogoPosition: z.enum(["auto", "top"]).optional(),
+    networkLogoPosition: z.enum(NETWORK_LOGO_POSITIONS).optional(),
+    logoAnchor: z.enum(LOGO_ANCHORS).optional(),
+    qualityAnchor: z.enum(QUALITY_ANCHORS).optional(),
+    topBadgeAnchor: z.enum(TOP_BADGE_ANCHORS).optional(),
+    extraBadgeAnchor: z.enum(EXTRA_BADGE_ANCHORS).optional(),
+    bottomAnchor: z.enum(BOTTOM_ANCHORS).optional(),
     networkLogoFollowTitle: z.boolean().nullable().optional(),
     /**
      * Logo-block alignment override ("left"/"center"); absent/null = follow
@@ -352,6 +367,10 @@ const defaultsSchema = z.object({
   // 74 canonical marks + the Other-group sentinel (same list, never a key).
   disabledContentTags: z.array(z.string().max(40)).max(64).optional(),
   disabledNetworks: z.array(z.string().max(40)).max(MAX_DISABLED_NETWORKS).optional(),
+  watchProviders: z.boolean().optional(),
+  watchRegion: z.string().max(2).optional(),
+  typeIcon: z.boolean().optional(),
+  typeIconLandscape: z.boolean().optional(),
 })
 
 function isPlainLandscapeRecord(v: unknown): v is Record<string, unknown> {

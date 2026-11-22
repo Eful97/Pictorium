@@ -1,3 +1,5 @@
+import type { LogoAnchor } from "@/lib/logo-layout"
+import type { QualityAnchor, BottomAnchor, TopBadgeAnchor, ExtraBadgeAnchor } from "@/lib/badge-anchor"
 import { getDomain } from "./utils"
 import {
   resolveEffectiveNetworkFollow,
@@ -27,10 +29,19 @@ import type { LandscapeServerDefaults } from "./server-defaults"
 import { DEFAULT_SASH_ORDER, NEXT_EPISODE_BADGE_KEY, type SashBucket } from "./badge-priority"
 import { sanitizeDisabledContentTags } from "./content-tags"
 import { sanitizeDisabledNetworks } from "./network-keys"
+import { sanitizeWatchRegion } from "./regions"
+
+/** `wp=0|1` esplicito (lo staged OFF deve vincere sul default salvato), `wpr` solo se valido e ON. */
+function pushWatchProviderParams(params: string[], on: boolean | null | undefined, region: string | null | undefined): void {
+  if (on == null) return
+  params.push(`wp=${on ? "1" : "0"}`)
+  const wpr = on ? sanitizeWatchRegion(region) : null
+  if (wpr) params.push(`wpr=${wpr}`)
+}
 import { normalizeLogoFont, sanitizeLogoText } from "./text-logo"
 import type { QualityMarkId } from "./quality-badge-pack"
 import type { PosterShape, NetworkLogoPosition, PosterLayout, PosterFreshScope } from "./types"
-import { isPosterLayout } from "./types"
+import { isPosterLayout, isNetworkLogoPosition } from "./types"
 import type { DateFormat } from "./release-badge"
 
 interface BadgeParams {
@@ -75,6 +86,7 @@ interface BadgeParams {
   dateFormat?: DateFormat | null
   /** Genere/voto nello slot alto libero (portrait, default globale). */
   genreTopWhenFree?: boolean | null
+  badgeOverflow?: "move" | "hide" | null
   gradientHeight: number
   blurIntensity: number
   blurFade: number
@@ -131,6 +143,11 @@ interface BadgeParams {
   networkLogo?: boolean
   /** Ancoraggio orizzontale del logo network (preview WYSIWYG, sempre esplicito). */
   networkLogoPosition?: NetworkLogoPosition
+  logoAnchor?: LogoAnchor
+  qualityAnchor?: QualityAnchor
+  topBadgeAnchor?: TopBadgeAnchor
+  extraBadgeAnchor?: ExtraBadgeAnchor
+  bottomAnchor?: BottomAnchor
   /**
    * Il network segue il titolo (preview WYSIWYG, esplicito quando definito:
    * assente = legacy invariato).
@@ -174,6 +191,11 @@ interface BadgeParams {
   disabledContentTags?: readonly string[] | null
   /** Mark network disabilitati space-wide (stesso contratto di cui sopra). */
   disabledNetworks?: readonly string[] | null
+  /** "Dove guardare": `wp=0|1` esplicito quando definito, `wpr` solo se valido. */
+  watchProviders?: boolean | null
+  watchRegion?: string | null
+  /** Icona tipo film/serie già risolta per la forma: `ti=0|1` esplicito quando definito. */
+  typeIcon?: boolean | null
 }
 
 interface PosterState {
@@ -382,6 +404,11 @@ export function buildUrlPattern(bp: BadgeParams & {
     topShadeHeight: bp.topShadeHeight,
     networkLogo: bp.networkLogo,
     networkLogoPosition: bp.networkLogoPosition,
+    logoAnchor: bp.logoAnchor,
+    qualityAnchor: bp.qualityAnchor,
+    topBadgeAnchor: bp.topBadgeAnchor,
+    extraBadgeAnchor: bp.extraBadgeAnchor,
+    bottomAnchor: bp.bottomAnchor,
     networkLogoFollowTitle: bp.networkLogoFollowTitle,
     preRelease: bp.preRelease,
     ribbonSide: bp.ribbonSide,
@@ -411,6 +438,7 @@ export function buildUrlPattern(bp: BadgeParams & {
     networkLogoOffsetY: bp.networkLogoOffsetY,
     dateFormat: bp.dateFormat ?? undefined,
     genreTopWhenFree: bp.genreTopWhenFree ?? undefined,
+    badgeOverflow: bp.badgeOverflow ?? undefined,
   })
   // Template che l'utente copia per sé (come la manifest URL con chiavi):
   // qui le chiavi sono volute — Stremio non invia header custom, quindi il
@@ -557,6 +585,7 @@ export function buildPreviewUrl(ps: PosterState, bp: BadgeParams, configToken?: 
   params.push(`df=${ps.dateFormat ?? "locale"}`)
   // Sempre esplicito come `df` (WYSIWYG contro un default salvato diverso).
   params.push(`gtop=${bp.genreTopWhenFree ? "1" : "0"}`)
+  params.push(`bov=${bp.badgeOverflow === "hide" ? "hide" : "move"}`)
   params.push(`gradHeight=${bp.gradientHeight}`)
   params.push(`blur=${bp.blurIntensity}`)
   params.push(`bf=${bp.blurFade}`)
@@ -612,7 +641,12 @@ export function buildPreviewUrl(ps: PosterState, bp: BadgeParams, configToken?: 
   params.push(`netLogo=${bp.networkLogo !== false ? "1" : "0"}`)
   // SEMPRE esplicito (come ribbon/side): senza, un mapping salvato con
   // posizione forzata scavalcerebbe lo stato editor (desync WYSIWYG).
-  params.push(`netPos=${bp.networkLogoPosition === "top" ? "top" : "auto"}`)
+  params.push(`netPos=${isNetworkLogoPosition(bp.networkLogoPosition) ? bp.networkLogoPosition : "auto"}`)
+  params.push(`lanc=${bp.logoAnchor ?? "auto"}`)
+  params.push(`qanc=${bp.qualityAnchor ?? "auto"}`)
+  params.push(`tanc=${bp.topBadgeAnchor ?? "auto"}`)
+  params.push(`xanc=${bp.extraBadgeAnchor ?? "auto"}`)
+  params.push(`banc=${bp.bottomAnchor ?? "auto"}`)
   // Esplicito quando definito (come netPos): senza, un mapping salvato con
   // follow spento scavalcerebbe lo stato editor e viceversa (desync
   // WYSIWYG). Assente = URL legacy invariati.
@@ -649,6 +683,8 @@ export function buildPreviewUrl(ps: PosterState, bp: BadgeParams, configToken?: 
     const ids = [...new Set(sanitizeDisabledNetworks(bp.disabledNetworks))].sort()
     params.push(`dnet=${encodeURIComponent(ids.join(","))}`)
   }
+  pushWatchProviderParams(params, bp.watchProviders, bp.watchRegion)
+  if (bp.typeIcon != null) params.push(`ti=${bp.typeIcon ? "1" : "0"}`)
   // Cornice stagionale (scelta per-titolo sopra il contesto lista di
   // origine, su entrambi i canvas col proprio asset — portrait 500×750,
   // landscape 768×432; senza contesto né scelta nessun parametro (URL
@@ -830,6 +866,11 @@ export interface DefaultsPreviewParams {
   defaultNetworkLogoOffsetY?: number
   defaultNetworkLogo?: boolean
   defaultNetworkLogoPosition?: NetworkLogoPosition
+  defaultLogoAnchor?: LogoAnchor
+  defaultQualityAnchor?: QualityAnchor
+  defaultTopBadgeAnchor?: TopBadgeAnchor
+  defaultExtraBadgeAnchor?: ExtraBadgeAnchor
+  defaultBottomAnchor?: BottomAnchor
   /** Il network segue il titolo (default globale, per-shape via `landscape`).
    *  Emesso solo quando definito: default legacy = URL invariati. */
   defaultNetworkLogoFollowTitle?: boolean | null
@@ -869,6 +910,7 @@ export interface DefaultsPreviewParams {
   previewShape?: "portrait" | "landscape" | null
   defaultDateFormat?: DateFormat | null
   defaultGenreTopWhenFree?: boolean | null
+  defaultBadgeOverflow?: "move" | "hide" | null
   defaultRegion?: string
   /** Effective top-badge priority for the previewed shape (portrait flat or
    *  landscape profile override): always emitted explicitly as `sash=` so
@@ -883,6 +925,11 @@ export interface DefaultsPreviewParams {
   defaultDisabledContentTags?: readonly string[] | null
   /** Mark network disabilitati space-wide di default (stesso contratto). */
   defaultDisabledNetworks?: readonly string[] | null
+  /** "Dove guardare" di default (stesso contratto di `watchProviders`). */
+  defaultWatchProviders?: boolean | null
+  defaultWatchRegion?: string | null
+  /** Icona tipo già risolta per la forma in anteprima (`ti=0|1` esplicito). */
+  defaultTypeIcon?: boolean | null
   /** Preview-only editing family: `rank` targets the rank bucket (`sash=rank`
    *  when the configured preview can paint a rank; otherwise the actual
    *  without-ranking composition, never an empty third state); `info`/`extra`
@@ -934,6 +981,7 @@ export type DefaultsPreviewFamily =
   | "quality"
   | "logo"
   | "gradient"
+  | "position"
 
 /**
  * CONFIGURED eligibility, not live data: can the DEFAULTS PREVIEW of the
@@ -1009,7 +1057,7 @@ export function buildDefaultsPreviewUrl(bp: DefaultsPreviewParams): string {
   const previewSash: readonly SashBucket[] =
     bp.previewFamily === "rank"
       ? (isDefaultsPreviewRankConfigured(bp) ? ["rank"] : withoutRankSash)
-      : bp.previewFamily === "info" || bp.previewFamily === "extra"
+      : bp.previewFamily === "info" || bp.previewFamily === "extra" || bp.previewFamily === "position"
         ? withoutRankSash
         : effPreviewSash
   params.push(`sash=${previewSash.join(",")}`)
@@ -1026,6 +1074,8 @@ export function buildDefaultsPreviewUrl(bp: DefaultsPreviewParams): string {
     const ids = [...new Set(sanitizeDisabledNetworks(bp.defaultDisabledNetworks))].sort()
     params.push(`dnet=${encodeURIComponent(ids.join(","))}`)
   }
+  pushWatchProviderParams(params, bp.defaultWatchProviders, bp.defaultWatchRegion)
+  if (bp.defaultTypeIcon != null) params.push(`ti=${bp.defaultTypeIcon ? "1" : "0"}`)
   // Preview-only info sample (Informazioni family): explicit `extra=` wins
   // over the computed badge exactly like an editor custom badge; ignored when
   // ranking is off, so a disabled master never shows a phantom sample.
@@ -1154,7 +1204,13 @@ export function buildDefaultsPreviewUrl(bp: DefaultsPreviewParams): string {
     params.push(`noy=${previewLandscape ? netOn.y : (pick(land.networkLogoOffsetY, bp.defaultNetworkLogoOffsetY) ?? 0)}`)
   }
   params.push(`netLogo=${pick(land.networkLogo, bp.defaultNetworkLogo) !== false ? "1" : "0"}`)
-  params.push(`netPos=${pick(land.networkLogoPosition ?? undefined, bp.defaultNetworkLogoPosition) === "top" ? "top" : "auto"}`)
+  const landNetPos = pick(land.networkLogoPosition ?? undefined, bp.defaultNetworkLogoPosition)
+  params.push(`netPos=${isNetworkLogoPosition(landNetPos) ? landNetPos : "auto"}`)
+  params.push(`lanc=${pick(land.logoAnchor ?? undefined, bp.defaultLogoAnchor) ?? "auto"}`)
+  params.push(`qanc=${pick(land.qualityAnchor ?? undefined, bp.defaultQualityAnchor) ?? "auto"}`)
+  params.push(`tanc=${pick(land.topBadgeAnchor ?? undefined, bp.defaultTopBadgeAnchor) ?? "auto"}`)
+  params.push(`xanc=${pick(land.extraBadgeAnchor ?? undefined, bp.defaultExtraBadgeAnchor) ?? "auto"}`)
+  params.push(`banc=${pick(land.bottomAnchor ?? undefined, bp.defaultBottomAnchor) ?? "auto"}`)
   params.push(`ribbon=${pick(land.ribbonEnabled, bp.defaultRibbonEnabled) === false ? "0" : "1"}`)
   // Effetto pre-digitale SEMPRE esplicito in preview (come ribbon/sep/cr):
   // senza, un default salvato ON scavalcerebbe il toggle staged (desync
@@ -1198,6 +1254,7 @@ export function buildDefaultsPreviewUrl(bp: DefaultsPreviewParams): string {
   if (bp.defaultRegion) params.push(`region=${encodeURIComponent(bp.defaultRegion)}`)
   if (bp.defaultDateFormat) params.push(`df=${bp.defaultDateFormat}`)
   params.push(`gtop=${bp.defaultGenreTopWhenFree ? "1" : "0"}`)
+  params.push(`bov=${bp.defaultBadgeOverflow === "hide" ? "hide" : "move"}`)
 
   const qs = "?" + params.join("&")
   const demo = resolveDemoMedia(bp.demoMedia)

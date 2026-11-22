@@ -1,4 +1,5 @@
 "use client"
+import { useLandscapeProfile, type LandKey } from "@/components/settings/useLandscapeProfile"
 import { useRef } from "react"
 
 import {
@@ -17,7 +18,6 @@ import {
   X,
 } from "lucide-react"
 import { useT } from "@/lib/contexts/TranslationContext"
-import { usePosterEditor } from "@/lib/contexts/PosterEditorContext"
 import { usePSelector } from "@/lib/context"
 import { isFollowOffDisabled, neutralFollowOffsets } from "@/lib/network-freeze"
 import { resolveNetworkShapeView } from "@/lib/network-follow"
@@ -29,6 +29,7 @@ import type { DefaultsPreviewDemoMedia, DefaultsPreviewFamily } from "@/lib/post
 import type { PosterElementId } from "@/components/settings/PosterElementNavigation"
 import { SliderRow } from "@/components/SliderRow"
 import { Toggle } from "@/components/Toggle"
+
 import { separateBadgeScaleToUI, uiToSeparateBadgeScale, SEPARATE_BADGE_SCALE_UI_MIN, SEPARATE_BADGE_SCALE_UI_MAX, NUMBER_BADGE_BASE_OFFSET_X } from "@/lib/badge-styles"
 import { getBadgeOffsetRange } from "@/lib/badge-offset-ranges"
 import { GradientPresetRow } from "@/components/GradientPresetRow"
@@ -66,7 +67,6 @@ interface Props {
   geometryOnly?: boolean
 }
 
-type LandKey = keyof LandscapeServerDefaults
 
 /**
  * Sezione default Orizzontale (profilo `landscape` dei default server):
@@ -83,15 +83,7 @@ type LandKey = keyof LandscapeServerDefaults
  */
 export function LandscapeDefaultsSection({ editVal, editTxt, setEditVal, setEditTxt, onPreviewFamilyChange, demoMedia, previewFamily, controlsVisible, element, geometryOnly }: Props) {
   const { t, lang } = useT()
-  const ed = usePosterEditor()
-  const land = ed.landscape
-  const set = (patch: Partial<LandscapeServerDefaults>) => ed.setLandscape(patch)
-  // Key/group reset: applied-preset snapshot when present, otherwise the
-  // documented clear-to-inherit contract (persisted through `landscapeReset`).
-  const resetKeys = (keys: readonly LandKey[]) => {
-    if (ed.resetLandscapeKeys) ed.resetLandscapeKeys(keys)
-    else set(Object.fromEntries(keys.map((key) => [key, undefined])) as Partial<LandscapeServerDefaults>)
-  }
+  const { ed, land, set, resetKeys, famAttrs } = useLandscapeProfile(onPreviewFamilyChange)
   const clear = (key: LandKey) => resetKeys([key])
   const isOver = (key: LandKey) => land[key] !== undefined
   const resetLabel = t("ui.reset")
@@ -105,11 +97,6 @@ export function LandscapeDefaultsSection({ editVal, editTxt, setEditVal, setEdit
   // Preview-family scope (U2): same helper as the other settings cards —
   // explicit press or keyboard focus reports only (never hover), no focus
   // moves, no unmounts.
-  const famAttrs = (family: DefaultsPreviewFamily) => ({
-    "data-preview-family": family,
-    onFocusCapture: () => onPreviewFamilyChange?.(family),
-    onPointerDownCapture: () => onPreviewFamilyChange?.(family),
-  })
   // Unified workspace filter (same contract as TransformPanel): null shows
   // everything (legacy). Ratings and sources share the separate geometry.
   const hideFor = (...els: PosterElementId[]): boolean | undefined =>
@@ -522,7 +509,7 @@ export function LandscapeDefaultsSection({ editVal, editTxt, setEditVal, setEdit
       {
         key: "genre", active: isGenreStyleActive(effLandFlags), hidden: hideFor("genre"),
         name: t("ui.genreRatingBadge"), testId: "landscape-geo-genre",
-        node: scaleGroup(t("ui.genreRatingBadge"), <Star className="w-3.5 h-3.5 text-amber-400" />, "genreBadgeScale", "genreBadgeOffsetX", "genreBadgeOffsetY", ed.defaultGenreBadgeScale, ed.defaultGenreBadgeOffsetX, ed.defaultGenreBadgeOffsetY, "lsg", "genre", undefined, isCardAllLand ? "offsets" : undefined),
+        node: (<>{scaleGroup(t("ui.genreRatingBadge"), <Star className="w-3.5 h-3.5 text-amber-400" />, "genreBadgeScale", "genreBadgeOffsetX", "genreBadgeOffsetY", ed.defaultGenreBadgeScale, ed.defaultGenreBadgeOffsetX, ed.defaultGenreBadgeOffsetY, "lsg", "genre", undefined, isCardAllLand ? "offsets" : undefined)}</>),
       },
       {
         key: "quality", active: isQualityStyleActive(effLandFlags), hidden: hideFor("quality"),
@@ -616,7 +603,7 @@ export function LandscapeDefaultsSection({ editVal, editTxt, setEditVal, setEdit
       {
         key: "network", active: landNetworkOn, hidden: hideFor("logo"),
         name: t("ui.networkLogo"), testId: "landscape-geo-network",
-        node: scaleGroup(t("ui.networkLogo"), <Tv className="w-3.5 h-3.5 text-sky-400" />, "networkLogoScale", "networkLogoOffsetX", "networkLogoOffsetY", ed.defaultNetworkLogoScale, ed.defaultNetworkLogoOffsetX, ed.defaultNetworkLogoOffsetY, "lsn", "logo", "networkLogoFollowTitle", isCardAllLand ? "follow-offsets" : undefined),
+        node: (<>{scaleGroup(t("ui.networkLogo"), <Tv className="w-3.5 h-3.5 text-sky-400" />, "networkLogoScale", "networkLogoOffsetX", "networkLogoOffsetY", ed.defaultNetworkLogoScale, ed.defaultNetworkLogoOffsetX, ed.defaultNetworkLogoOffsetY, "lsn", "logo", "networkLogoFollowTitle", isCardAllLand ? "follow-offsets" : undefined)}</>),
       },
     ]
     // Inactive elements stay completely hidden (user request supersedes the
@@ -749,48 +736,6 @@ export function LandscapeDefaultsSection({ editVal, editTxt, setEditVal, setEdit
         )}
       </div>
 
-      {/* Network position override (moved home from the Badge tab):
-          title-logo alignment is Auto-only (no selector). Reset follows the
-          flat. Rendered only while the network logo is enabled — never an
-          empty Position card. */}
-      {geometryOnly && landNetworkOn && (
-      <div className="bg-surface/50 border border-surface2/60 rounded-xl p-3.5 space-y-2.5 shadow-sm animate-fade-in">
-        <div className="flex items-center justify-between px-1">
-          <span className="font-semibold text-zinc-200">{t("ui.position")}</span>
-          {isOver("networkLogoPosition") && (
-            <button
-              type="button"
-              title={resetLabel}
-              aria-label={resetLabel}
-              onClick={() => resetKeys(["networkLogoPosition"])}
-              className="text-xs text-muted hover:text-accent transition-colors px-2 py-0.5 rounded-md border border-border/50 hover:border-accent/30 cursor-pointer"
-            >
-              {resetLabel}
-            </button>
-          )}
-        </div>
-        <div className="space-y-1.5" title={t("ui.networkLogoPosition")} data-testid="landscape-netpos-group">
-          <span className="text-[11px] text-muted font-medium block">{t("ui.networkLogoPosition")}</span>
-          <div className="flex gap-1">
-            {(["auto", "top"] as const).map((pos) => (
-              <button
-                key={pos}
-                type="button"
-                onClick={() => set({ networkLogoPosition: pos })}
-                aria-pressed={(land.networkLogoPosition ?? ed.defaultNetworkLogoPosition) === pos}
-                className={`flex-1 py-1 rounded-lg text-[11px] font-semibold transition duration-150 cursor-pointer ${
-                  (land.networkLogoPosition ?? ed.defaultNetworkLogoPosition) === pos
-                    ? "bg-white/20 text-foreground shadow-sm"
-                    : "bg-white/5 text-muted hover:bg-white/10 hover:text-zinc-200"
-                }`}
-              >
-                {pos === "auto" ? t("ui.auto") : t("ui.networkLogoPositionTop")}
-              </button>
-            ))}
-          </div>
-        </div>
-      </div>
-      )}
       {/* Stesso ordine del Verticale: badge classifica, extra, genere,
           qualità, network — sfumatura per ultima. */}
       <div className="bg-surface/50 border border-surface2/60 rounded-xl p-3.5 space-y-3 shadow-sm">
@@ -801,6 +746,7 @@ export function LandscapeDefaultsSection({ editVal, editTxt, setEditVal, setEdit
         {scaleGroup(t("ui.sash_extra"), <Sparkles className="w-3.5 h-3.5 text-emerald-400" />, "extraBadgeScale", "extraBadgeOffsetX", "extraBadgeOffsetY", ed.defaultExtraBadgeScale ?? land.topBadgeScale ?? ed.defaultTopBadgeScale, ed.defaultExtraBadgeOffsetX ?? land.topBadgeOffsetX ?? ed.defaultTopBadgeOffsetX, ed.defaultExtraBadgeOffsetY ?? land.topBadgeOffsetY ?? ed.defaultTopBadgeOffsetY, "lse", "info")}
         <hr hidden={hideFor("info") && hideFor("genre")} className="border-surface2/50" />
         {scaleGroup(t("ui.genreRatingBadge"), <Star className="w-3.5 h-3.5 text-amber-400" />, "genreBadgeScale", "genreBadgeOffsetX", "genreBadgeOffsetY", ed.defaultGenreBadgeScale, ed.defaultGenreBadgeOffsetX, ed.defaultGenreBadgeOffsetY, "lsg", "genre", undefined, isCardAllLand ? "offsets" : undefined)}
+        
         <hr hidden={hideFor("genre") && hideFor("quality")} className="border-surface2/50" />
         {scaleGroup(t("ui.badgeQuality"), <Sparkles className="w-3.5 h-3.5 text-purple-400" />, "qualityBadgeScale", "qualityBadgeOffsetX", "qualityBadgeOffsetY", ed.defaultQualityBadgeScale, ed.defaultQualityBadgeOffsetX, ed.defaultQualityBadgeOffsetY, "lsq", "quality")}
         <BadgeItemTransformControls previewUrl={freezePreviewUrl} family="quality" shape="landscape" className="pt-1.5 border-t border-white/5" />

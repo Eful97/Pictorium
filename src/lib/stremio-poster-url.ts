@@ -187,6 +187,9 @@ export function buildStremioPosterUrl(input: BuildStremioPosterUrlInput): URL {
     // emesse come `dct`/`dnet` solo quando non-vuote (URL legacy invariati).
     disabledContentTags: sd.disabledContentTags ?? undefined,
     disabledNetworks: sd.disabledNetworks ?? undefined,
+    watchProviders: sd.watchProviders ?? undefined,
+    watchRegion: sd.watchRegion ?? undefined,
+    typeIcon: (effShape === "landscape" ? input.defaults.typeIconLandscape : input.defaults.typeIcon) ?? undefined,
     badgeStyle: eff?.badgeStyle ?? sd.badgeStyle,
     rankingBadgeStyle: eff?.rankingBadgeStyle ?? sd.rankingBadgeStyle,
     extraBadgeStyle: eff?.extraBadgeStyle ?? shapeExtraStyle ?? undefined,
@@ -241,6 +244,7 @@ export function buildStremioPosterUrl(input: BuildStremioPosterUrlInput): URL {
     customBadge,
     dateFormat: sd.dateFormat ?? undefined,
     genreTopWhenFree: sd.genreTopWhenFree ?? undefined,
+    badgeOverflow: sd.badgeOverflow ?? undefined,
     title: mapping?.title ?? undefined,
     networkLogo: eff?.networkLogo ?? sd.networkLogo,
     // Follow spento effettivo viaggia (acceso/assente resta omesso per URL e
@@ -249,6 +253,11 @@ export function buildStremioPosterUrl(input: BuildStremioPosterUrlInput): URL {
     // Ancoraggio network: effettivo per formato (profilo landscape vince sul
     // flat), poi default globale (come networkLogo).
     networkLogoPosition: eff?.networkLogoPosition ?? sd.networkLogoPosition,
+    logoAnchor: eff?.logoAnchor ?? sd.logoAnchor,
+    qualityAnchor: eff?.qualityAnchor ?? sd.qualityAnchor,
+    topBadgeAnchor: eff?.topBadgeAnchor ?? sd.topBadgeAnchor,
+    extraBadgeAnchor: eff?.extraBadgeAnchor ?? sd.extraBadgeAnchor,
+    bottomAnchor: eff?.bottomAnchor ?? sd.bottomAnchor,
     preRelease: sd.preRelease,
     // hideLogo viaggia solo sul banner (il chiamante lo imposta insieme a
     // forceShape): poster/preview/Stremio non lo vedono mai.

@@ -1,3 +1,6 @@
+import { renderWatchProviderRow } from "@/lib/watch-providers-render"
+import { renderTypeIcon } from "@/lib/type-icon-render"
+import type { WatchProvider } from "@/lib/watch-providers"
 import sharp from "sharp"
 import type { RatingItem } from "./custom-rating/types"
 import { renderMultiRatings, MAX_CUSTOM_RATINGS } from "./multi-rating-renderer"
@@ -8,7 +11,7 @@ import { renderSeparateRatingStack, renderSeparateRatingsBottom, renderSeparateR
 import { cacheGet, cacheSet } from "./cache"
 import { GENRE_FALLBACK, cinematicVignetteSVG, cinematicCornerGradientSVG, topShadeSVG } from "./badges"
 import { applyBlur } from "./blur"
-import { STD_W, STD_H, extractBadgeColor, extractSceneTint, fitBadgeToCanvas, fitCompositeToCanvas, isValidHex, BadgeRender, PosterComposite, badgeBody, badgeCanvasForBody, scaleBadgeBleed, topBandMeanRGB, bottomBandMeanRGB, effectiveTopBackgroundLuminance, effectiveBottomBackgroundLuminance, adaptiveAccentHexForBand, insertFrostedGlassUnderlays, opaqueComponents, tightenBoxesToInk } from "./poster-render-helpers"
+import { STD_W, STD_H, extractBadgeColor, extractSceneTint, fitBadgeToCanvas, fitCompositeToCanvas, isValidHex, BadgeRender, PosterComposite, badgeBody, badgeCanvasForBody, type BadgeBleed, scaleBadgeBleed, topBandMeanRGB, bottomBandMeanRGB, effectiveTopBackgroundLuminance, effectiveBottomBackgroundLuminance, adaptiveAccentHexForBand, insertFrostedGlassUnderlays, opaqueComponents, tightenBoxesToInk } from "./poster-render-helpers"
 import { LAND_W, LAND_H } from "./image-utils"
 import { normalizeAutomaticAccentHex } from "./accent-color"
 import type { EffectiveAccentMeta } from "./effective-accent"
@@ -18,7 +21,8 @@ import { renderGenreBadge, renderRankingBadge, renderExtraBadge, renderComingSoo
 import { buildLogoScrim, logoContrast, logoInkLuminance, logoScrimStrength, posterLogoZoneLuminance } from "./logo-contrast"
 import { renderFirstMatchingNetworkLogoBadge, renderFirstMatchingNetworkRawBadge, renderFirstMatchingNetworkLogoBadgeHybrid, renderFirstMatchingNetworkRawBadgeHybrid, type NetworkCandidate } from "./network-svgs"
 import { isNetworkFixedPosition } from "./network-follow"
-import { computeLogoLayout, logoAlignPadX, PORTRAIT_LOGO_MAX_HEIGHT_PCT, PORTRAIT_LOGO_TOP_OFFSET, LANDSCAPE_LOGO_MAX_WIDTH_PCT, LANDSCAPE_LOGO_MAX_HEIGHT_PCT, LANDSCAPE_LOGO_BOTTOM_MARGIN_PCT, LANDSCAPE_LOGO_TOP_OFFSET, LANDSCAPE_LOGO_SHIFT_X, LANDSCAPE_LOGO_SHIFT_Y } from "./logo-layout"
+import { isActiveQualityAnchor, isLogoRelativePosition, type LogoRelativePosition, type QualityAnchor, isActiveTopBadgeAnchor, type TopBadgeAnchor, type ExtraBadgeAnchor, isActiveBottomAnchor, bottomAnchoredLeft, bottomAnchoredBodyLeft, type BodyInkRatios, type BottomAnchor, anchorRect, anchorCol, anchorRow, isAnchorPosition, type AnchorChoice, type AnchorPosition } from "./badge-anchor"
+import { computeLogoLayout, logoAlignPadX, isActiveLogoAnchor, isTopLogoAnchor, type LogoAnchor,PORTRAIT_LOGO_MAX_HEIGHT_PCT, PORTRAIT_LOGO_TOP_OFFSET, LANDSCAPE_LOGO_MAX_WIDTH_PCT, LANDSCAPE_LOGO_MAX_HEIGHT_PCT, LANDSCAPE_LOGO_BOTTOM_MARGIN_PCT, LANDSCAPE_LOGO_TOP_OFFSET, LANDSCAPE_LOGO_SHIFT_X, LANDSCAPE_LOGO_SHIFT_Y } from "./logo-layout"
 import { logoDefaultScaleFromAspect, FRESH_TITLE_LOGO_DEFAULT_SCALE } from "./logo-selection"
 import fs from "fs"
 import path from "path"
@@ -45,15 +49,15 @@ import { DEFAULT_IMAGE_QUALITY, POSTER_ENCODE_QUALITY, type ImageQuality } from 
 import { qualityBadgeIconPath } from "./quality-badge-styles"
 import type { QualityBadgeStyle } from "./badge-styles"
 import { isRankKey } from "./i18n"
-import { composeFreshOverlay, composeFreshOverlaySplit, isEffectiveFreshLayout, isFreshRank, prepareFreshReconstructedBackground, type ComposeFreshInput, type FreshOverlayGeometry } from "./fresh-layout"
+import { composeFreshOverlay, composeFreshOverlaySplit, freshMetaRows, isEffectiveFreshLayout, isFreshRank, prepareFreshReconstructedBackground, type ComposeFreshInput, type FreshOverlayGeometry } from "./fresh-layout"
 import { renderCardPoster, aggregateCardRating, cardMetadataBand, type CardOverlayGeometry } from "./card-layout"
 import { cardLayoutGeometry, isCardRankDisplayable } from "./card-layout-geometry"
 import { isEffectiveCardLayout, type CardSkin } from "./card-layout-skins"
 import { resolveProviderGlassAccent } from "./provider-brand-palette"
 import { applyBadgeItemTransform, badgeItemTransform, effectiveBadgeItemTransforms, homeIdForPainted, isNeutralBadgeItemTransform, isQualityItemId, isRatingItemId, ratingSlotItemId, serializeBadgeItemTransforms, type BadgeItemTransformMap } from "./badge-item-transforms"
-import { type CornerRankRect, isCornerAnchoredStyle, resolveTopBadgeStyle, genreBadgeConsumesAccent, topBadgeConsumesAccent, cornerRankTop, cornerAnchoredLeft, isTopBadgeNumberRightCorner, numberSharesComingSoonCorner, type NetworkGeometry, type BadgeGeometryFamily, type BadgeGeometryLayout, type BadgeGeometryBox, type BadgeGeometryReport, type BadgeGeometryItem, NETWORK_LOGO_SHIFT_Y, cornerNetworkAboveTitle, stackNetworkBelowCornerRank, landscapeRightAnchorLeft } from "./badge-layout"
+import { type CornerRankRect, isCornerAnchoredStyle, resolveTopBadgeStyle, genreBadgeConsumesAccent, topBadgeConsumesAccent, cornerRankTop, cornerAnchoredLeft, isTopBadgeNumberRightCorner, numberSharesComingSoonCorner, type NetworkGeometry, type BadgeGeometryFamily, type BadgeGeometryLayout, type BadgeGeometryBox, type BadgeGeometryReport, type BadgeGeometryItem, NETWORK_LOGO_SHIFT_Y, NETWORK_ABOVE_LOGO_LIFT, cornerNetworkAboveTitle, stackNetworkBelowCornerRank, landscapeRightAnchorLeft } from "./badge-layout"
 import { type QualityBadgeGroupResult, renderQualityBadgeGroup } from "./quality-badges"
-export { type CornerRankRect, isCornerAnchoredStyle, resolveTopBadgeStyle, genreBadgeConsumesAccent, topBadgeConsumesAccent, cornerRankTop, cornerAnchoredLeft, isNumberRightCorner, isTopBadgeNumberRightCorner, numberSharesComingSoonCorner, type NetworkGeometry, type BadgeGeometryFamily, type BadgeGeometryLayout, type BadgeGeometryBox, type BadgeGeometryReport, type BadgeGeometryItem, NETWORK_LOGO_SHIFT_Y, type CornerNetworkAboveTitleInput, cornerNetworkAboveTitle, stackNetworkBelowCornerRank } from "./badge-layout"
+export { type CornerRankRect, isCornerAnchoredStyle, resolveTopBadgeStyle, genreBadgeConsumesAccent, topBadgeConsumesAccent, cornerRankTop, cornerAnchoredLeft, isNumberRightCorner, isTopBadgeNumberRightCorner, numberSharesComingSoonCorner, type NetworkGeometry, type BadgeGeometryFamily, type BadgeGeometryLayout, type BadgeGeometryBox, type BadgeGeometryReport, type BadgeGeometryItem, NETWORK_LOGO_SHIFT_Y, NETWORK_ABOVE_LOGO_LIFT, type CornerNetworkAboveTitleInput, cornerNetworkAboveTitle, stackNetworkBelowCornerRank } from "./badge-layout"
 export { __resetQualityIconCacheForTests, renderQualityIconBadge, renderColorIconBadge, renderPremiumIconBadge, renderAvKnockoutBadge, type QualityBadgeItem, type QualityBadgeGroupResult, type QualityHomeGhost, renderQualityBadgeGroup } from "./quality-badges"
 
 // ---------------------------------------------------------------------------
@@ -94,6 +98,25 @@ async function inkBounds(png: Buffer): Promise<{ x: number; y: number; w: number
   return x1 < 0 ? null : { x: x0, y: y0, w: x1 - x0 + 1, h: y1 - y0 + 1 }
 }
 
+/**
+ * Rapporti (offset, larghezza) dell'inchiostro visibile rispetto al CORPO del
+ * badge: input di `bottomAnchoredBodyLeft`. Costo (un decode sharp) solo con
+ * ancora inferiore attiva. Null = bitmap senza inchiostro.
+ */
+async function inkRatios(badge: { png: Buffer; w: number; h: number; bleed?: BadgeBleed }): Promise<BodyInkRatios | null> {
+  const body = badgeBody(badge)
+  const ink = await inkBounds(badge.png)
+  if (!ink || body.w <= 0) return null
+  return { offset: (ink.x - body.x) / body.w, width: ink.w / body.w }
+}
+
+/** Scala minima di genere + riga rating per farli entrare "sotto il logo". */
+const BELOW_LOGO_MIN_SCALE = 0.4
+/** Il logo (ancora Auto) sale per tenere i badge "sotto il logo" almeno a questa scala. */
+const LOGO_LIFT_TARGET_SCALE = 0.8
+/** Salita massima del logo, in frazione dell'altezza canvas. */
+const LOGO_LIFT_MAX_FRAC = 0.15
+
 /** Respiro minimo tra inchiostro del badge genere e logo titolo. */
 const LOGO_BADGE_GAP = 6
 
@@ -105,6 +128,15 @@ const LOGO_BADGE_GAP = 6
  * piena e sale sopra il logo (`dy` negativo sul top). Nessuna collisione →
  * stesso oggetto e `dy` 0 (byte-identico allo storico).
  */
+/** Sovrapposizione di due box `{left,top,w,h}` con margine di respiro `m` (px). */
+function rectsOverlap(
+  a: { left: number; top: number; w: number; h: number },
+  b: { left: number; top: number; w: number; h: number },
+  m = 0,
+): boolean {
+  return a.left < b.left + b.w + m && a.left + a.w > b.left - m && a.top < b.top + b.h + m && a.top + a.h > b.top - m
+}
+
 async function shrinkAwayFromRect<T extends BadgeRender>(
   badge: T,
   rect: { top: number; left: number; w: number; h: number },
@@ -354,6 +386,10 @@ export interface GenerationInput {
   tmdbStudios: readonly string[]
   /** Mappa name -> logo_path TMDB per fallback (SVG first -> TMDB). */
   tmdbNetworksDetailed?: readonly NetworkCandidate[]
+  /** "Dove guardare": provider flatrate già risolti dalla route; se presenti sostituiscono il logo network. */
+  watchProviders?: readonly WatchProvider[]
+  /** Icona tipo film/serie in basso a sinistra (`ti`), default OFF. */
+  typeIcon?: boolean
   productionCompaniesDetailed?: readonly NetworkCandidate[]
   tvType: string | null
   tvStatus: string | null
@@ -379,6 +415,9 @@ export interface GenerationInput {
    * the bottom (query `gtop` > default utente; default false).
    */
   genreTopWhenFree?: boolean
+  /** Overflow dei badge in Auto (`bov`): "hide" = le famiglie che il layout sposterebbe o
+   *  ridimensionerebbe per una collisione non si disegnano (manuali/rank/extra mai). */
+  badgeOverflow?: "move" | "hide"
   t: BadgeT
   qLabel: string | null
   queryExtra: string | null
@@ -397,6 +436,33 @@ export interface GenerationInput {
    * (byte-identico al passato).
    */
   networkLogoPosition?: NetworkLogoPosition
+  /**
+   * Ancora d'angolo del logo titolo (solo Standard; Fresh/Card la ignorano).
+   * "auto" (default) = posizione storica, byte-identica. Vedi `LogoAnchor`.
+   */
+  logoAnchor?: LogoAnchor
+  /**
+   * Ancora d'angolo del badge qualità (solo Standard; Fresh/Card la ignorano).
+   * "auto" (default) = lato storico, byte-identico. Vedi `QualityAnchor`.
+   */
+  qualityAnchor?: QualityAnchor
+  /**
+   * Ancora d'angolo del badge superiore centrato (rank/extra; solo Standard,
+   * Fresh/Card la ignorano; corner/numerale e nastro Netflix non la usano).
+   * "auto" (default) = posizione centrata storica, byte-identica. Vedi `TopBadgeAnchor`.
+   */
+  topBadgeAnchor?: TopBadgeAnchor
+  /**
+   * Ancora d'angolo del badge EXTRA (`xanc`): stesse regole di `topBadgeAnchor`,
+   * ma indipendente. Si applica solo se il badge superiore è di tipo extra.
+   */
+  extraBadgeAnchor?: ExtraBadgeAnchor
+  /**
+   * Ancora della fascia inferiore: genere, riga rating personalizzata e riga
+   * rating separati bottom (solo Standard; Fresh/Card ignorano). Cambia solo
+   * l'asse X. "auto" (default) = storico, byte-identico. Vedi `BottomAnchor`.
+   */
+  bottomAnchor?: BottomAnchor
   /**
    * Il network segue il layout storico ancorato al titolo (default true =
    * comportamento attuale). false + coordinate fisse valorizzate = posizione
@@ -532,6 +598,15 @@ export interface GenerationInput {
    * "Coming Soon". Solo film, indipendente dai toggle badges/ranking.
    */
   preRelease?: boolean
+  /**
+   * Fase teatrale del rilevamento pre-digitale (solo film): true = già uscito
+   * in sala (data teatrale passata), false = non ancora uscito. Cambia
+   * l'etichetta del badge ("Al cinema" vs "Prossimamente") e, per la fase in
+   * sala, spegne velo scuro e sfocatura: resta il solo badge. Il nastro
+   * angolare resta legato al solo "Prossimamente". Ignorato con `preRelease`
+   * false.
+   */
+  preInTheaters?: boolean
   /**
    * Formato canvas (prova orizzontale): "poster" (500×750, default) o
    * "landscape" (768×432, base = backdrop TMDB). La route costruisce già
@@ -821,6 +896,8 @@ export async function renderCardMainBadge(args: {
   readonly showGenre: boolean
   readonly showYear: boolean
   readonly showRating: boolean
+  /** Icona tipo film/serie inline (stessa riga del genere). */
+  readonly typeIcon?: "movie" | "tv" | null
   readonly badgePw: number
   readonly CW: number
   readonly badgeStyle: BadgeStyle
@@ -830,11 +907,11 @@ export async function renderCardMainBadge(args: {
   readonly nativeScale: number
 }): Promise<{ png: Buffer; w: number; h: number } | null> {
   const vote = args.aggregate ?? 0
-  const key = badgeCacheKey("card-genre", args.genreName, vote, args.CW, args.year, args.badgeStyle, args.badgeFont, args.accentColor, args.bottomLight, args.showGenre, args.showYear, args.showRating, args.nativeScale)
+  const key = badgeCacheKey("card-genre", args.genreName, vote, args.CW, args.year, args.badgeStyle, args.badgeFont, args.accentColor, args.bottomLight, args.showGenre, args.showYear, args.showRating, args.nativeScale, args.typeIcon ?? null)
   const cached = cacheGet<{ png: Buffer; w: number; h: number }>(key)
   if (cached) return cached
   return coalesceBadgeRender(key, () =>
-    renderGenreBadge(args.genreName ?? "", vote, args.badgePw, args.year, args.badgeStyle, args.accentColor, args.bottomLight, { showGenre: args.showGenre, showYear: args.showYear, showRating: args.showRating }, args.nativeScale, args.badgeFont)
+    renderGenreBadge(args.genreName ?? "", vote, args.badgePw, args.year, args.badgeStyle, args.accentColor, args.bottomLight, { showGenre: args.showGenre, showYear: args.showYear, showRating: args.showRating, typeIcon: args.typeIcon ?? null }, args.nativeScale, args.badgeFont)
       .then((r) => { if (r) cacheSet(key, r, ["badge"], BADGE_CACHE_TTL); return r }),
   )
 }
@@ -963,13 +1040,14 @@ export async function generatePosterBuffer(input: GenerationInput): Promise<Buff
     networkLogoOffsetX, networkLogoOffsetY,
     mediaType, finalRank, animeRankResult,
     mapping, tmdbNetworks, productionCompanies, tmdbStudios,
-    tmdbNetworksDetailed, productionCompaniesDetailed,
+    tmdbNetworksDetailed, productionCompaniesDetailed, watchProviders, typeIcon,
     tvType, tvStatus, releaseDate, firstAirDate,
     lastAirDate, seasonCount, nextEpisodeAirDate, numberOfEpisodes, originCountries, genreIds,
     wikidataResult, tmdbKeywords, locale, t,
-    qLabel, queryExtra, qNetLogo, networkLogo, networkLogoPosition = "auto", networkLogoFollowTitle, networkFixedX, networkFixedY, onNetworkGeometry, onBadgeGeometry, badgeItemTransforms, badgeHomeGhosts, onAccentMeta, sd, accentOverride, imdbTop250, whatsonFeatures,
+    qLabel, queryExtra, qNetLogo, networkLogo, networkLogoPosition = "auto", logoAnchor = "auto", qualityAnchor = "auto", topBadgeAnchor = "auto", extraBadgeAnchor = "auto", bottomAnchor = "auto", networkLogoFollowTitle, networkFixedX, networkFixedY, onNetworkGeometry, onBadgeGeometry, badgeItemTransforms, badgeHomeGhosts, onAccentMeta, sd, accentOverride, imdbTop250, whatsonFeatures,
     logoSrc, backdropSrc, analysisKey,
     preRelease = false,
+    preInTheaters = false,
     hideLogo = false,
     seasonalTheme = null,
     logoScrimDisabled,
@@ -1103,14 +1181,18 @@ export async function generatePosterBuffer(input: GenerationInput): Promise<Buff
   // contenuto con il proprio selettore (`preRelease`), quindi resta visibile
   // anche con le classifiche o gli extra spenti. Il custom (`extra=`) è invece
   // soggetto al master: quando gli extra sono spenti non può risuscitarlo.
-  // Reso come nastro angolare rosso in alto a sinistra (non pill centrale).
+  // Fase teatrale: un film già uscito in sala usa l'etichetta "Al cinema"
+  // (badge extra normale, nessun nastro); solo il non-ancora-uscito resta
+  // "Prossimamente" col nastro angolare rosso.
   const comingSoonLabel = t("badge.comingSoon")
+  const inTheatersLabel = t("badge.inTheaters")
+  const preReleaseLabel = preInTheaters ? inTheatersLabel : comingSoonLabel
   if (preRelease && !gatedQueryExtra) {
     const isUpcoming = computed.upcomingRelease
       && topBadge?.type === "extra"
       && topBadge.label === computed.upcomingRelease
     if (!isUpcoming) {
-      topBadge = { type: "extra" as const, label: comingSoonLabel }
+      topBadge = { type: "extra" as const, label: preReleaseLabel }
     }
   }
   const showComingSoon = !!preRelease && !gatedQueryExtra
@@ -1173,6 +1255,15 @@ export async function generatePosterBuffer(input: GenerationInput): Promise<Buff
   // 1. Backdrop composite layer
   // -----------------------------------------------------------------------
   const composites: PosterComposite[] = []
+  // Famiglie registrate per il pass "auto evita manuali" (prima del report
+  // geometria): ogni layer pushato da una famiglia viene spostato insieme al suo box.
+  const famLayers: Record<"network" | "quality" | "genre" | "separate" | "rating", PosterComposite[]> = { network: [], quality: [], genre: [], separate: [], rating: [] }
+  // Famiglie AUTO spostate o ridimensionate da una collisione (solo `badgeOverflow=hide`
+  // le nasconde). Il pass sotto e i collettori di shrink/drop le registrano.
+  const displaced = new Set<"network" | "quality" | "genre" | "separate" | "rating">()
+  // Riga rating personalizzata (fascia bottom): box visibile per il pass.
+  let ratingBox: { left: number; top: number; w: number; h: number } | null = null
+  const pushFam = (fam: keyof typeof famLayers, layer: PosterComposite) => { composites.push(layer); famLayers[fam].push(layer) }
   // Placche `vetro` che ricevono lo sfondo sfocato reale (sezione 7).
   const glassLayers = new Set<PosterComposite>()
   // Sigma extra per-layer della sfocatura vetro (solo il gradino: superficie a
@@ -1365,6 +1456,14 @@ export async function generatePosterBuffer(input: GenerationInput): Promise<Buff
   // Logo baked-in in entrambi i formati (hideLogo esplicito lo salta:
   // veicolo del banner Nuvio pulito). In landscape valgono i vincoli del
   // canvas 16:9 — stessi di context.tsx e poster-fit-score.ts (Golden Rule).
+  // Ancora d'angolo del logo: SOLO Standard (Fresh/Card hanno il proprio motore
+  // di layout e la ignorano). "auto" = percorso storico byte-identico.
+  const logoAnchorEff: LogoAnchor = !isFresh && !isCard && isActiveLogoAnchor(logoAnchor) ? logoAnchor : "auto"
+  // Logo ancorato sul bordo alto: network/qualità cedono il passo (sotto il logo).
+  const logoTopAnchored = isTopLogoAnchor(logoAnchorEff)
+  // Riga centrale (ml/mc/mr): corpo centrato, niente calibrazione Y landscape
+  // della fascia bassa (`LANDSCAPE_LOGO_SHIFT_Y` resta solo auto e riga b).
+  const logoMidAnchored = isActiveLogoAnchor(logoAnchorEff) && anchorRow(logoAnchorEff) === "m"
   const [blurOverlay, logoResult] = await Promise.all([
     applyBlur({
       posterBuf: freshBaseBuf,
@@ -1402,8 +1501,12 @@ export async function generatePosterBuffer(input: GenerationInput): Promise<Buff
             // Calibrazione geometrica landscape invisibile agli slider (+10 X /
             // -10 Y): si somma agli offset utente espliciti (anche 0), come
             // PORTRAIT_LOGO_TOP_OFFSET in portrait. Gli slider mostrano 0.
-            logoOffsetX: uOx + (isLandscape ? LANDSCAPE_LOGO_SHIFT_X : 0),
-            logoOffsetY: uOy + (isLandscape ? LANDSCAPE_LOGO_SHIFT_Y : 0),
+            // Con ancora attiva niente calibrazione X (gli offset sono relativi
+            // all'angolo); la Y resta solo per le ancore basse (stessa quota
+            // storica sopra la zona genere), non per quelle alte.
+            logoOffsetX: uOx + (isLandscape && logoAnchorEff === "auto" ? LANDSCAPE_LOGO_SHIFT_X : 0),
+            logoOffsetY: uOy + (isLandscape && !logoTopAnchored && !logoMidAnchored ? LANDSCAPE_LOGO_SHIFT_Y : 0),
+            anchor: logoAnchorEff,
             hasBadges: logoHasBadges,
             // Fondo logo in linea col badge genere (~10px dal bordo, vedi
             // costanti landscape in logo-layout.ts). In portrait margine
@@ -1452,8 +1555,11 @@ export async function generatePosterBuffer(input: GenerationInput): Promise<Buff
   // Velo pre-digitale: sopra poster/vignetta ma sotto logo e badge (restano
   // luminosi e leggibili). Stato del contenuto con il proprio selettore
   // (`preRelease`), indipendente dal master "Badge extra" e dalle classifiche.
+  // Solo fase "non ancora uscito": un film già in sala mostra il solo badge
+  // "Al cinema", con artwork nitido e non scurito (la sfocatura finale è
+  // legata a `showComingSoon`, quindi già assente in questa fase).
   // Costante cachata, nessun cambio di output a flag spento.
-  if (preRelease) {
+  if (preRelease && !preInTheaters) {
     composites.push({ input: await getPreReleaseDim(CW, CH), top: 0, left: 0 })
   }
   // Ombra lineare superiore (default 50 × 25% canvas): sopra vignetta/velo
@@ -1476,6 +1582,7 @@ export async function generatePosterBuffer(input: GenerationInput): Promise<Buff
   // basso a destra (composeFreshOverlay) — qui nessun composite storico.
   // Card: il bitmap riusato alimenta lo slot titolo dentro la card (blocco
   // 6c) — qui nessun composite storico.
+  let logoScrimLayer: { top: number } | null = null
   if (logoResult && !isFresh && !isCard) {
     // Rete di sicurezza per la leggibilità: quando il logo e la fascia di poster
     // sotto hanno quasi la stessa luminosità, il logo sparisce. La selezione a
@@ -1503,7 +1610,7 @@ export async function generatePosterBuffer(input: GenerationInput): Promise<Buff
         left: Math.min(Math.max(0, Math.round(logoResult.left + logoResult.w / 2 - sw / 2)), Math.max(0, CW - sw)),
       }
     })().catch(() => null)
-    if (scrim) composites.push(scrim)
+    if (scrim) { composites.push(scrim); logoScrimLayer = scrim }
     composites.push(logoResult)
   }
 
@@ -1549,6 +1656,10 @@ export async function generatePosterBuffer(input: GenerationInput): Promise<Buff
   // preservata: il raw resta usato solo se la pill matcha (stesso match,
   // resa diversa: pill stilizzata vs colori originali). Il doppio
   // download/scan TMDB è eliminato dalla memo in network-svgs.
+  // Download dei loghi provider in parallelo al ramo network (mai throw → null).
+  const watchRowPromise = watchProviders && watchProviders.length > 0
+    ? renderWatchProviderRow(watchProviders, Math.round(badgePw * 0.09))
+    : Promise.resolve(null)
   let [pillLogoResult, rawLogoResult] = netLogoEnabled
     ? await Promise.all([
         hasDetailed
@@ -1568,6 +1679,14 @@ export async function generatePosterBuffer(input: GenerationInput): Promise<Buff
     rawLogoResult = pillLogoResult
       ? await renderFirstMatchingNetworkRawBadgeHybrid(demoCandidates, badgePw, topLight, undefined, disabledNetworks)
       : null
+  }
+  // "Dove guardare": con provider disponibili la fila sostituisce il logo
+  // network (stesso slot/bitmap, quindi stesso layout). Vuota o con download
+  // falliti → null e il ramo network sopra resta com'è oggi.
+  const watchRow = await watchRowPromise
+  if (watchRow) {
+    pillLogoResult = { ...watchRow, networkKey: "__watch_providers", matchedName: "watch-providers" }
+    rawLogoResult = pillLogoResult
   }
   const networkLogoResult = pillLogoResult
   // Network: sempre visibile quando abilitato, subito sopra il logo film, quasi attaccato — SVG resta raw, TMDB fallback è A (ricolor + ombra) per non risultare scuro.
@@ -1685,10 +1804,54 @@ export async function generatePosterBuffer(input: GenerationInput): Promise<Buff
   // gruppo qualità si specchia a sinistra, la linguetta aggancia il bordo
   // sinistro. Regola pura (tutte le dipendenze sono risolte prima della cache
   // key), così il bitmap e la sua chiave restano coerenti.
-  const notchEdge: "right" | "left" = (
+  // Ancora qualità: SOLO Standard (Fresh/Card ignorano il parametro, byte-identici).
+  // Con ancora attiva il lato è quello scelto e non dipende più dagli occupanti
+  // dell'angolo destro; il bordo della linguetta lo segue (stessa chiave cache).
+  // Ancora fascia inferiore: stessa regola (solo Standard).
+  const bottomAnchorEff: AnchorChoice = !isFresh && !isCard && isActiveBottomAnchor(bottomAnchor) ? bottomAnchor : "auto"
+  const qualityAnchorEff: AnchorChoice = !isFresh && !isCard && isActiveQualityAnchor(qualityAnchor) ? qualityAnchor : "auto"
+  // Ancora MANUALE = posizione fissa (angolo + offset X/Y): nessuno scalino,
+  // shrink o cambio lato per evitare altri elementi. I badge in auto continuano
+  // a evitarla; le sovrapposizioni tra manuali sono accettate. netPos "top" è
+  // legacy e NON manuale (vedi networkManual, nel blocco network).
+  // Posizioni relative al logo (above/below; netPos/qanc/banc/tanc/xanc): sono
+  // MANUALI (fisse, mai spostate per collisioni) ma senza anchorRect. La base e
+  // il percorso auto del family; il blocco "sopra/sotto il logo" (prima del
+  // pass) le porta rispetto al logo finale. Senza logo reso, o in Fresh/Card,
+  // valgono come auto (nessun effetto, byte-identico).
+  const logoRelOk = !isFresh && !isCard && !!logoResult
+  const netRel: LogoRelativePosition | null = logoRelOk && isLogoRelativePosition(networkLogoPosition) ? networkLogoPosition : null
+  const qualityRel: LogoRelativePosition | null = logoRelOk && isLogoRelativePosition(qualityAnchor) ? qualityAnchor : null
+  const bottomRel: LogoRelativePosition | null = logoRelOk && isLogoRelativePosition(bottomAnchor) ? bottomAnchor : null
+  const bottomManual = bottomAnchorEff !== "auto" || bottomRel !== null
+  const qualityManual = qualityAnchorEff !== "auto" || qualityRel !== null
+  // Ancora del badge superiore centrato (rank/extra). Attiva solo se il corpo
+  // è davvero centrato: niente nastro Netflix (rank), niente corner/numerale
+  // (già nell'angolo). Fresh/Card: mai attiva. Auto = nessun effetto.
+  // Lo slot dipende dal tipo del badge superiore: extra → xanc, rank → tanc.
+  const slotAnchor = topBadge?.type === "extra" ? extraBadgeAnchor : topBadgeAnchor
+  const topBadgeAnchorEff: AnchorChoice = !isFresh && !isCard && isActiveTopBadgeAnchor(slotAnchor) ? slotAnchor : "auto"
+  // Coming Soon occupa lo slot alto e il corpo rank non viene disegnato
+  // (`rankBadgeKey` nullo): con il nastro attivo l'ancora non ha nulla da
+  // spostare e non deve trasferire quality/network sull'angolo destro.
+  // `topAnchorActive` = percorso storico tl/tr (corpo centrato spostato
+  // all'angolo, niente corner). `topFixedActive` = posizione fissa estesa
+  // (7 nuove + tl/tr su stili corner): corpo via `anchorRect` nel blocco rank.
+  const topAnchorActive = (topBadgeAnchorEff === "tl" || topBadgeAnchorEff === "tr") && !!topBadge && !showComingSoon
+    && !(isRibbonRankingStyle(rankingBadgeStyle) && topBadge?.type === "rank")
+    && !isCornerAnchoredStyle(topBadgeStyle)
+  const topFixedActive = isActiveTopBadgeAnchor(topBadgeAnchorEff) && !!topBadge && !showComingSoon
+    && !(isRibbonRankingStyle(rankingBadgeStyle) && topBadge?.type === "rank")
+    && !topAnchorActive
+  const topRel: LogoRelativePosition | null = logoRelOk && !!topBadge && !showComingSoon
+    && !(isRibbonRankingStyle(rankingBadgeStyle) && topBadge?.type === "rank")
+    && isLogoRelativePosition(slotAnchor) ? slotAnchor : null
+  const topRightAnchored = topAnchorActive && topBadgeAnchorEff === "tr"
+  const notchEdge: "right" | "left" = isActiveQualityAnchor(qualityAnchorEff) ? (anchorCol(qualityAnchorEff) === "l" ? "left" : "right") : (
     (isRibbonRankingStyle(rankingBadgeStyle) && ribbonSide === "right" && topBadge?.type === "rank")
     || (showComingSoon && effComingSoonSide === "right")
     || isTopBadgeNumberRightCorner({ topBadgeType: topBadge?.type, rankingBadgeStyle, extraBadgeStyle, ribbonSide, hasTopBadge: !!topBadge })
+    || topRightAnchored
     || (!!networkLogo && networkLogoPosition === "top")
   ) ? "left" : "right"
 
@@ -1704,11 +1867,19 @@ export async function generatePosterBuffer(input: GenerationInput): Promise<Buff
   // Standard, mai la barra full-width): stessa decisione del ramo rank
   // (`rankBadgeKey` nullo) + nessun nastro Coming Soon. Sopra il badge legge
   // la polarità della banda alta (`topLight`), come i badge superiori.
+  // Ancora manuale in fascia bassa: il genere resta nella fascia nell'angolo
+  // scelto, mai spostato in alto (genreTopWhenFree ignorato).
   const genreAtTop = input.genreTopWhenFree === true && shape !== "landscape" && !isFresh && !isCard
-    && badgeStyle !== "bar" && !notchMaterialOf(badgeStyle) && !topBadge && !showComingSoon
+    && badgeStyle !== "bar" && !notchMaterialOf(badgeStyle) && !topBadge && !showComingSoon && !bottomManual
   const genreLight = genreAtTop ? topBadgeLight : genreBadgeLight
+  // Icona tipo: glifo inline nella riga del badge genere standard (Fresh/Card
+  // non usano questo percorso: lì resta il fallback standalone).
+  const genreTypeIcon: "movie" | "tv" | null = typeIcon && !isFresh && !isCard ? mediaType : null
+  // Fresh/Card disegnano il glifo nella propria riga genere: se l'overlay lo
+  // ha posato il fallback standalone non serve.
+  let typeIconInlineAux = false
   const genreBadgeKey = hasGenreBadge
-    ? badgeCacheKey("genre", genreName, voteAverage, CW, year, badgeStyle, badgeFont, genreStdAccent, genreLight, badgeGenre, badgeYear, badgeRating, genreBadgeScale)
+    ? badgeCacheKey("genre", genreName, voteAverage, CW, year, badgeStyle, badgeFont, genreStdAccent, genreLight, badgeGenre, badgeYear, badgeRating, genreBadgeScale, genreTypeIcon)
     : null
   // The award logo mode is part of the cache identity: the logo bitmap can
   // never be served for a textual request (or vice versa). Non-award extras
@@ -1758,7 +1929,7 @@ export async function generatePosterBuffer(input: GenerationInput): Promise<Buff
     genreBadgeKey
       ? (cacheGet<BadgeRender>(genreBadgeKey)
           || coalesceBadgeRender(genreBadgeKey, () =>
-                renderGenreBadge(genreName ?? "", voteAverage ?? 0, badgePw, year, badgeStyle, genreStdAccent, genreLight, { showGenre: badgeGenre, showYear: badgeYear, showRating: badgeRating }, badgeStyle === "bar" ? genreBadgeScale : 100, badgeFont)
+                renderGenreBadge(genreName ?? "", voteAverage ?? 0, badgePw, year, badgeStyle, genreStdAccent, genreLight, { showGenre: badgeGenre, showYear: badgeYear, showRating: badgeRating, typeIcon: genreTypeIcon }, badgeStyle === "bar" ? genreBadgeScale : 100, badgeFont)
                 .then((r) => { if (r) cacheSet(genreBadgeKey, r, ["badge"], BADGE_CACHE_TTL); return r })
             ))
       : Promise.resolve(null)
@@ -1816,7 +1987,7 @@ export async function generatePosterBuffer(input: GenerationInput): Promise<Buff
   // La cache resta valida (chiave senza scala): la scala si applica a valle.
   // Tutta la matematica di posizione/overlap sotto usa già le dimensioni
   // scalate. La posizione del badge genere usa safeGenreBadgeResult.h.
-  const [rankBadgeForLayout, genreBadgeForLayout, qualityBadgeForLayout, networkLogoForLayout] = await Promise.all([
+  let [rankBadgeForLayout, genreBadgeForLayout, qualityBadgeForLayout, networkLogoForLayout] = await Promise.all([
     rankBadgeResult
       ? (async () => {
           // Landscape: scala % + riduzione -20px in UN solo resize (prima due
@@ -1855,6 +2026,93 @@ export async function generatePosterBuffer(input: GenerationInput): Promise<Buff
         })()
       : Promise.resolve(null),
   ])
+  // Riga rating custom: resa qui (non più nel blocco sotto) perché "sotto il
+  // logo" ne misura l'altezza per ridurre genere + riga finché stanno sotto.
+  let customRowBitmap: Awaited<ReturnType<typeof renderMultiRatings>> | null = null
+  if (badgesEnabled !== false && input.ratings?.length && !isBottomStyle && !isFresh && !isCard) {
+    // Optional enrichment must never prevent the original poster from rendering.
+    customRowBitmap = await renderMultiRatings(input.ratings, CW - 40, genreBadgeLight, badgeFont).catch(() => null)
+  }
+  // Box visibile del logo (inchiostro, non la tela con padding trasparente) e
+  // margine inferiore della fascia genere/rating per le posizioni relative:
+  // stesse quote dell'Auto (centro badge a `targetCenter` dal fondo), così
+  // "sotto il logo" non perde spazio rispetto al "bottom center".
+  const relGapPx = Math.round(8 * CH / 570)
+  const relMarginPx = Math.round(18 * CH / 570)
+  const relAny = !!logoResult && (netRel !== null || qualityRel !== null || bottomRel !== null || topRel !== null)
+  const relLogoInk = relAny && logoResult ? await inkBounds(logoResult.input) : null
+  const relBandBottomMargin = genreBadgeForLayout
+    ? Math.max(0, Math.round(targetCenter - badgeBody(genreBadgeForLayout).h / 2))
+    : relMarginPx
+  // Badge che chiedono un lato del logo, in ordine d'impilamento (fascia,
+  // qualità, network, rank/extra); misura sui bitmap pre-fit (la colonna
+  // separati collegata alla qualità non è inclusa).
+  type RelEntry = { key: "band" | "quality" | "network" | "top"; side: LogoRelativePosition; h: number; bm: number }
+  const relEntries: RelEntry[] = []
+  if (relAny) {
+    const gH = genreBadgeForLayout ? badgeBody(genreBadgeForLayout).h : 0
+    const rH = customRowBitmap?.h ?? 0
+    if (bottomRel) relEntries.push({ key: "band", side: bottomRel, h: gH + rH + (gH > 0 && rH > 0 ? relGapPx : 0), bm: relBandBottomMargin })
+    if (qualityRel && qualityBadgeForLayout) relEntries.push({ key: "quality", side: qualityRel, h: badgeBody(qualityBadgeForLayout).h, bm: relMarginPx })
+    if (netRel && networkLogoForLayout) relEntries.push({ key: "network", side: netRel, h: badgeBody(networkLogoForLayout).h, bm: relMarginPx })
+    if (topRel && rankBadgeForLayout) relEntries.push({ key: "top", side: topRel, h: badgeBody(rankBadgeForLayout).h, bm: relMarginPx })
+  }
+  // Logo in Auto: se i badge "sotto il logo" scalerebbero sotto LOGO_LIFT_TARGET_SCALE,
+  // il logo sale quanto serve (max LOGO_LIFT_MAX_FRAC del canvas) per tenerli più
+  // grandi e omogenei. Solo ancora logo Auto e nessun badge richiesto sopra (non
+  // gli si toglie spazio); ancora manuale = il logo non si muove mai.
+  if (relAny && logoResult && logoAnchorEff === "auto" && !relEntries.some((e) => e.side === "above" && e.h > 0)) {
+    const es = relEntries.filter((e) => e.side === "below" && e.h > 0)
+    if (es.length > 0) {
+      const total = es.reduce((n, e) => n + e.h, 0)
+      const gaps = (es.length - 1) * relGapPx
+      const inkTop0 = logoResult.top + (relLogoInk?.y ?? 0)
+      const inkBottom0 = inkTop0 + (relLogoInk?.h ?? logoResult.h)
+      const room = CH - es[es.length - 1].bm - (inkBottom0 + relGapPx)
+      const need = Math.ceil(total * LOGO_LIFT_TARGET_SCALE) + gaps
+      const lift = Math.min(Math.max(0, need - room), Math.round(CH * LOGO_LIFT_MAX_FRAC), Math.max(0, inkTop0 - 2 * relMarginPx))
+      if (lift > 0) {
+        (logoResult as { top: number }).top -= lift
+        if (logoScrimLayer) logoScrimLayer.top = Math.max(0, logoScrimLayer.top - lift)
+      }
+    }
+  }
+  const relLogoTop = logoResult ? logoResult.top + (relLogoInk?.y ?? 0) : 0
+  const relLogoBottom = logoResult ? relLogoTop + (relLogoInk?.h ?? logoResult.h) : 0
+  // Posizioni "sopra/sotto il logo": se un badge non entra dal lato chiesto (tra
+  // il logo e il margine, dopo i badge già impilati su quel lato) si riduce
+  // (shrink-only, floor BELOW_LOGO_MIN_SCALE) invece di ribaltarsi sull'altro
+  // lato. Sotto il floor resta il ribaltamento.
+  if (relAny && logoResult) {
+    // Scala comune per lato: tutti i badge che chiedono lo stesso lato si
+    // riducono insieme (altrimenti i primi impilati consumano lo spazio e
+    // l'ultimo finisce a scala minima e ribaltato).
+    const entries = relEntries
+    const sideScale = (side: LogoRelativePosition): number => {
+      const es = entries.filter((e) => e.side === side && e.h > 0)
+      if (es.length === 0) return 1
+      const total = es.reduce((n, e) => n + e.h, 0)
+      const gaps = (es.length - 1) * relGapPx
+      const room = side === "above"
+        ? relLogoTop - relGapPx - relMarginPx
+        : CH - es[es.length - 1].bm - (relLogoBottom + relGapPx)
+      if (room <= 0 || total + gaps <= room) return 1
+      return Math.max(BELOW_LOGO_MIN_SCALE, Math.floor(((room - gaps) / total) * 100) / 100)
+    }
+    const sideK = { above: sideScale("above"), below: sideScale("below") }
+    const kOf = (key: RelEntry["key"]): number => {
+      const e = entries.find((x) => x.key === key)
+      return e ? sideK[e.side] : 1
+    }
+    const kBand = kOf("band"), kQuality = kOf("quality"), kNetwork = kOf("network"), kTop = kOf("top")
+    if (kBand < 1) {
+      if (genreBadgeForLayout) genreBadgeForLayout = await scaleBitmapForLayout(genreBadgeForLayout, kBand * 100)
+      if (customRowBitmap) customRowBitmap = await scaleBitmapForLayout(customRowBitmap, kBand * 100)
+    }
+    if (kQuality < 1 && qualityBadgeForLayout) qualityBadgeForLayout = await scaleBitmapForLayout(qualityBadgeForLayout, kQuality * 100)
+    if (kNetwork < 1 && networkLogoForLayout) networkLogoForLayout = await scaleBitmapForLayout(networkLogoForLayout, kNetwork * 100)
+    if (kTop < 1 && rankBadgeForLayout) rankBadgeForLayout = await scaleBitmapForLayout(rankBadgeForLayout, kTop * 100)
+  }
   const [safeGenreBadgeResult, safeRankBadgeResult, safeQualityBadgeResult, safeComingSoonResult] = await Promise.all([
     genreBadgeForLayout ? fitBadgeToCanvas(genreBadgeForLayout, CW, CH) : Promise.resolve(null),
     rankBadgeForLayout ? fitBadgeToCanvas(rankBadgeForLayout, CW, CH) : Promise.resolve(null),
@@ -1905,7 +2163,9 @@ export async function generatePosterBuffer(input: GenerationInput): Promise<Buff
       // Notch: pillola a filo del bordo basso (come `bar`, Y tuning e shrink
       // anti-logo non si applicano). Portrait centrata, landscape a destra.
       const notchBody = badgeBody(safeGenreBadgeResult)
-      const notchLeft = anchorRight
+      const notchLeft = bottomAnchorEff !== "auto"
+        ? bottomAnchoredBodyLeft(bottomAnchorEff, notchBody.w, await inkRatios(safeGenreBadgeResult), CW) + combinedGenreOX
+        : anchorRight
         ? landscapeRightAnchorLeft(notchBody.w, CW, combinedGenreOX)
         : Math.round((CW - notchBody.w) / 2) + combinedGenreOX
       const notchTop = CH - notchBody.h
@@ -1913,7 +2173,7 @@ export async function generatePosterBuffer(input: GenerationInput): Promise<Buff
       const notchCanvas = badgeCanvasForBody(notchLeft, notchTop, safeGenreBadgeResult)
       const notchLayer = { input: safeGenreBadgeResult.png, top: notchCanvas.top, left: notchCanvas.left }
       if (notchMaterial === "vetro") glassLayers.add(notchLayer)
-      composites.push(notchLayer)
+      pushFam("genre", notchLayer)
     } else if (badgeStyle === "bar") {
       // In landscape la barra è resa a badgePw (non full-width): col banner
       // va a destra come gli altri stili; altrimenti (portrait) resta
@@ -1922,7 +2182,9 @@ export async function generatePosterBuffer(input: GenerationInput): Promise<Buff
       // L'ancora posiziona il corpo visibile; la tela (con eventuale bleed)
       // segue per differenza — senza bleed è l'identico percorso storico.
       const genreBody = badgeBody(safeGenreBadgeResult)
-      const barBodyLeft = anchorRight
+      const barBodyLeft = anchorRight && bottomAnchorEff !== "auto"
+        ? bottomAnchoredBodyLeft(bottomAnchorEff, genreBody.w, await inkRatios(safeGenreBadgeResult), CW)
+        : anchorRight
         ? Math.min(CW - genreBody.w, Math.max(0, CW - genreBody.w - rightPadX + anchorShiftX))
         : (isLandscapeLeft
           ? logoAlignPadX(CW) + combinedGenreOX
@@ -1930,7 +2192,7 @@ export async function generatePosterBuffer(input: GenerationInput): Promise<Buff
       const barBodyTop = CH - genreBody.h
       genreBadgeRect = { top: barBodyTop, left: barBodyLeft, w: genreBody.w, h: genreBody.h }
       const barCanvas = badgeCanvasForBody(barBodyLeft, barBodyTop, safeGenreBadgeResult)
-      composites.push({ input: safeGenreBadgeResult.png, top: barCanvas.top, left: barCanvas.left })
+      pushFam("genre", { input: safeGenreBadgeResult.png, top: barCanvas.top, left: barCanvas.left })
     } else {
       // Offset solo stili centrati: la barra resta ancorata full-width.
       // In Cinematic Left la riga metadati sta sotto il logo a sinistra.
@@ -1944,9 +2206,16 @@ export async function generatePosterBuffer(input: GenerationInput): Promise<Buff
       const styleLiftY = anchorRight && (badgeStyle === "shadow" || badgeStyle === "minimal") ? 10 : 0
       // In alto (slot libero): corpo sulla griglia superiore di network/qualità
       // (netBaseTop), offset utente applicati come in basso.
+      // Fascia inferiore in riga t/m (`banc` tl/tc/tr/ml/mc/mr): il corpo va
+      // alla posizione `anchorRect` (t = griglia superiore netBaseTop, m = centrato)
+      // + offset Y utente. La riga b resta la quota storica.
+      const genreRowTopMargin = Math.round(18 * CH / 570)
+      const genreBandRowPos: AnchorPosition | null = isActiveBottomAnchor(bottomAnchorEff) && anchorRow(bottomAnchorEff) !== "b" ? bottomAnchorEff : null
       const genreTopFor = genreAtTop
         ? (h: number) => Math.round(Math.max(0, Math.min(CH - h, Math.round(18 * CH / 570) + combinedGenreOY)))
-        : (h: number) => Math.round(Math.min(CH - h, CH - h - Math.max(0, Math.round(targetCenter - h / 2)) + combinedGenreOY - styleCornerShiftY - styleLiftY))
+        : genreBandRowPos
+          ? (h: number) => anchorRect(genreBandRowPos, { canvasW: CW, canvasH: CH, w: 0, h, marginX: 0, marginTop: genreRowTopMargin, marginBottom: genreRowTopMargin }).top + combinedGenreOY
+          : (h: number) => Math.round(Math.min(CH - h, CH - h - Math.max(0, Math.round(targetCenter - h / 2)) + combinedGenreOY - styleCornerShiftY - styleLiftY))
       // Separati attivi: il segmento ★ sparisce e la pill si restringe —
       // ancorata a destra, la massa visiva andrebbe a destra. Si compensa di
       // metà larghezza rimossa così il centro resta dov'era con ★ (solo
@@ -1955,19 +2224,22 @@ export async function generatePosterBuffer(input: GenerationInput): Promise<Buff
       // divergono con shrink overflow e metriche dei font).
       let sepCenterShift = 0
       if (anchorRight && genreBadgeResult && (input.separateRatings?.length ?? 0) > 0) {
-        const fullKey = badgeCacheKey("genre", genreName, voteAverage, CW, year, badgeStyle, badgeFont, genreStdAccent, genreBadgeLight, badgeGenre, badgeYear, true, genreBadgeScale)
+        const fullKey = badgeCacheKey("genre", genreName, voteAverage, CW, year, badgeStyle, badgeFont, genreStdAccent, genreBadgeLight, badgeGenre, badgeYear, true, genreBadgeScale, genreTypeIcon)
         const fullHit = cacheGet<{ png: Buffer; w: number; h: number }>(fullKey)
         const fullW = fullHit
           ? fullHit.w
           : await coalesceBadgeRender(fullKey, () =>
-              renderGenreBadge(genreName ?? "", voteAverage ?? 0, badgePw, year, badgeStyle, genreStdAccent, genreBadgeLight, { showGenre: badgeGenre, showYear: badgeYear, showRating: true }, 100, badgeFont)
+              renderGenreBadge(genreName ?? "", voteAverage ?? 0, badgePw, year, badgeStyle, genreStdAccent, genreBadgeLight, { showGenre: badgeGenre, showYear: badgeYear, showRating: true, typeIcon: genreTypeIcon }, 100, badgeFont)
                 .then((r) => { if (r) cacheSet(fullKey, r, ["badge"], BADGE_CACHE_TTL); return r }),
             ).then((r) => (r ? r.w : null), () => null)
         if (fullW != null && fullW > genreBadgeResult.w) {
           sepCenterShift = Math.round(((fullW - genreBadgeResult.w) / 2) * (genreBadgeScale / 100))
         }
       }
-      const genreLeftFor = (w: number) => anchorRight
+      const genreInkRatios = bottomAnchorEff !== "auto" && !genreAtTop ? await inkRatios(safeGenreBadgeResult) : null
+      const genreLeftFor = (w: number) => bottomAnchorEff !== "auto" && !genreAtTop
+        ? bottomAnchoredBodyLeft(bottomAnchorEff, w, genreInkRatios, CW) + combinedGenreOX
+        : anchorRight
         ? landscapeRightAnchorLeft(w, CW, combinedGenreOX - sepCenterShift - styleCornerShiftX)
         : (isLandscapeLeft
           ? logoAlignPadX(CW) + combinedGenreOX
@@ -1979,13 +2251,16 @@ export async function generatePosterBuffer(input: GenerationInput): Promise<Buff
       // del badge (alpha reale, non la riserva d'ombra trasparente) arriva a
       // meno di 6px dal logo, il badge si riduce (shrink-only, floor 0.7, come
       // le righe separate). Il logo non si muove mai.
-      const logoInk = logoResult ? await inkBounds(logoResult.input) : null
+      // Ancora manuale in basso: nessun riduzione/abbassamento vs logo (il genere
+      // resta dov'è; le sovrapposizioni con il logo sono accettate).
+      const logoInk = logoResult && !bottomManual ? await inkBounds(logoResult.input) : null
       const logoInkRect = logoResult && logoInk
         ? { left: logoResult.left + logoInk.x, top: logoResult.top + logoInk.y, w: logoInk.w, h: logoInk.h }
         : null
       const logoFit = logoInkRect
         ? await shrinkAwayFromRect(safeGenreBadgeResult, logoInkRect, (body) => ({ top: genreTopFor(body.h), left: genreLeftFor(body.w) }))
         : { badge: safeGenreBadgeResult, dy: 0 }
+      if (logoFit.dy !== 0 || logoFit.badge !== safeGenreBadgeResult) displaced.add("genre")
       const genreBox = logoFit.badge
       const genreBody = badgeBody(genreBox)
       const genreTop = Math.max(0, genreTopFor(genreBody.h) + logoFit.dy)
@@ -1994,7 +2269,7 @@ export async function generatePosterBuffer(input: GenerationInput): Promise<Buff
       const genreCanvas = badgeCanvasForBody(genreLeft, genreTop, genreBox)
       const genreLayer = { input: genreBox.png, top: genreCanvas.top, left: genreCanvas.left }
       if (badgeStyle === "vetro") glassLayers.add(genreLayer)
-      composites.push(genreLayer)
+      pushFam("genre", genreLayer)
     }
   }
   if (genreBadgeRect) {
@@ -2009,26 +2284,32 @@ export async function generatePosterBuffer(input: GenerationInput): Promise<Buff
   // senza dati: non inventa/fallback provider mentre la route sopprime
   // genere/anno/voto).
   let customRowRendered = false
+  // Y di una riga della fascia bottom in posizione t*/m* (banc): stessa ancora
+  // del genere. Con genere: t sotto il genere, m sopra (come oggi la riga sta
+  // sopra il genere). Senza genere: anchorRect sulla griglia superiore.
+  const bandRowTop = (pos: AnchorPosition, h: number): number => {
+    const g = genreBadgeRect
+    if (g) return Math.max(0, Math.min(CH - h, anchorRow(pos) === "t" ? g.top + g.h + 10 : g.top - h - 10))
+    return anchorRect(pos, { canvasW: CW, canvasH: CH, w: 0, h, marginX: 0, marginTop: Math.round(18 * CH / 570), marginBottom: Math.round(18 * CH / 570) }).top
+  }
+  const ratingBandPos: AnchorPosition | null = isActiveBottomAnchor(bottomAnchorEff) && anchorRow(bottomAnchorEff) !== "b" ? bottomAnchorEff : null
   // Fresh/Card: i valori vivono come righe testo nella colonna meta / banda card (sotto).
   // Custom row belongs to the lower genre/rating group (same `!== false`
   // master as the genre row and the separate-ratings row below): it hides
   // with badges OFF, independently of the top slot, which answers only to
   // `rankingEnabled`.
   if (badgesEnabled !== false && input.ratings?.length && !isBottomStyle && !isFresh && !isCard) {
-    // Optional enrichment must never prevent the original poster from rendering.
     // La riga sta sopra il badge genere, in basso: stessa polarità del fondo.
-    const customRowBitmap = await renderMultiRatings(input.ratings, CW - 40, genreBadgeLight, badgeFont).catch(() => null)
     const row = customRowBitmap
     if (row) {
       const legacyTop = safeGenreBadgeResult && !genreAtTop
         ? (badgeStyle === "bar" || notchMaterialOf(badgeStyle) ? CH - safeGenreBadgeResult.h
           : CH - safeGenreBadgeResult.h - Math.max(0, Math.round(targetCenter - safeGenreBadgeResult.h / 2)) + combinedGenreOY)
         : CH - 20
-      composites.push({
-        input: row.png,
-        left: Math.max(0, Math.min(CW - row.w, Math.round((CW - row.w) / 2))),
-        top: Math.max(0, Math.min(CH - row.h, legacyTop - row.h - 10)),
-      })
+      const ratingLeft = Math.max(0, Math.min(CW - row.w, bottomAnchorEff !== "auto" ? bottomAnchoredBodyLeft(bottomAnchorEff, row.w, await inkRatios(row), CW) : Math.round((CW - row.w) / 2)))
+      const ratingTop = ratingBandPos ? bandRowTop(ratingBandPos, row.h) : Math.max(0, Math.min(CH - row.h, legacyTop - row.h - 10))
+      pushFam("rating", { input: row.png, left: ratingLeft, top: ratingTop })
+      ratingBox = { left: ratingLeft, top: ratingTop, w: row.w, h: row.h }
       customRowRendered = true
     }
   }
@@ -2038,6 +2319,8 @@ export async function generatePosterBuffer(input: GenerationInput): Promise<Buff
   // storico byte-identico); la tela segue per differenza nel composite.
   let finalRankLeft: number | null = null
   let finalRankTop = 0
+  // Composite del corpo rank/extra Standard (per il blocco "sopra/sotto il logo").
+  let topRankLayer: PosterComposite | null = null
   if (safeRankBadgeResult) {
     // Il nastro Netflix è ancorato a sinistra SOLO quando il badge è davvero un
     // ranking "netflix" (type rank). Un badge extra va SEMPRE
@@ -2081,6 +2364,15 @@ export async function generatePosterBuffer(input: GenerationInput): Promise<Buff
         mirrorRight,
         offsetX: combinedTopOX + resolveNumberBadgeBaseOffsetX(topBadge?.type, topBadgeStyle),
       })
+    } else if (topAnchorActive) {
+      // Ancora attiva (tl/tr): il corpo centrato va all'angolo scelto, con lo
+      // stesso margine netPadX dei corner; offset X relativi all'angolo.
+      left = cornerAnchoredLeft({
+        canvasW: CW,
+        badgeW: rankBody.w,
+        mirrorRight: topBadgeAnchorEff === "tr",
+        offsetX: combinedTopOX,
+      })
     } else {
       // Badge grande al centro, dimensione invariata: in caso di sovrapposizione
       // si rimpiccioliscono i badge laterali (network e qualità agli angoli opposti).
@@ -2120,6 +2412,18 @@ export async function generatePosterBuffer(input: GenerationInput): Promise<Buff
         })
       : pillTopGap
     finalRankTop = isCentered ? combinedTopOY + cornerTop : 0
+    // Ancora fissa (`tanc`/`xanc` manuale, vedi `topFixedActive`): il corpo va
+    // alla posizione `anchorRect` (margini: netPadX laterale, pillTopGap in
+    // alto e in basso, specchio del margine superiore) + offset relativi alla
+    // posizione. Il nastro Netflix non entra qui (`topFixedActive` lo esclude).
+    if (topFixedActive && isActiveTopBadgeAnchor(topBadgeAnchorEff) && isCentered) {
+      const fixed = anchorRect(topBadgeAnchorEff, {
+        canvasW: CW, canvasH: CH, w: rankBody.w, h: rankBody.h,
+        marginX: Math.round(18 * CW / 380), marginTop: pillTopGap, marginBottom: pillTopGap,
+      })
+      finalRankLeft = fixed.left + combinedTopOX
+      finalRankTop = fixed.top + combinedTopOY
+    }
 
     // Il badge centrale resta invariato — la gestione overlap vive nei blocchi
     // network/qualità qui sotto (shrink dei laterali).
@@ -2128,9 +2432,15 @@ export async function generatePosterBuffer(input: GenerationInput): Promise<Buff
   // (network/qualità): il badge rank/extra, o il genere spostato in alto.
   const genreOnTop = genreAtTop && !!genreBadgeRect
   const topCenterRect: { left: number; top: number; w: number; h: number } | null =
-    finalRankBadge && finalRankLeft !== null
+    finalRankBadge && finalRankLeft !== null && !topAnchorActive
       ? { left: finalRankLeft, top: finalRankTop, w: badgeBody(finalRankBadge).w, h: badgeBody(finalRankBadge).h }
       : (genreOnTop ? genreBadgeRect : null)
+  // Ancora attiva: il corpo nell'angolo non fa shrink dei laterali; i laterali
+  // che lo toccano scendono sotto di lui (drop-below, sotto network/qualità).
+  const topAnchorRankRect: { left: number; top: number; w: number; h: number } | null =
+    topAnchorActive && finalRankBadge && finalRankLeft !== null
+      ? { left: finalRankLeft, top: finalRankTop, w: badgeBody(finalRankBadge).w, h: badgeBody(finalRankBadge).h }
+      : null
   // Fresh: il rank vive nel numerale vetro (sotto); qui solo gli extra.
   // Card: il rank vive nel numerale della card (blocco 6c); qui solo gli extra.
   if (finalRankBadge && finalRankLeft !== null && !isFresh && !isCard) {
@@ -2139,6 +2449,7 @@ export async function generatePosterBuffer(input: GenerationInput): Promise<Buff
     const rankLayer = { input: finalRankBadge.png, top: rankCanvas.top, left: rankCanvas.left }
     if (topBadgeStyle === "vetro" || topBadgeStyle === "notch-vetro") glassLayers.add(rankLayer)
     composites.push(rankLayer)
+    topRankLayer = rankLayer
   }
   // Nastro Coming Soon: angolo in alto (a sinistra; a destra con side="right"), sopra il badge centrale
   // (quando coesistono per custom esplicito) e sopra il velo pre-digitale.
@@ -2184,7 +2495,10 @@ export async function generatePosterBuffer(input: GenerationInput): Promise<Buff
   let netTopLeftBottom: number | null = null
   // Modalità "in alto" (query `netPos=top` > mapping > config > defaults):
   // sempre all'angolo superiore. "auto" = specchio dinamico odierno.
-  const netForceTop = networkLogoPosition === "top"
+  // Relativa senza logo reso = auto (nessun effetto); relativa con logo = angolo
+  // forzato come le manuali (il ramo `networkManual` la posiziona, poi il blocco
+  // relativo la sposta sopra/sotto il logo).
+  const netForceTop = netRel !== null || (networkLogoPosition !== "auto" && !isLogoRelativePosition(networkLogoPosition))
   // La qualità legge da qui se il network è finito a destra in modo "top"
   // (trasloca a sinistra come col nastro a destra).
   let netAnchoredRight = false
@@ -2196,6 +2510,12 @@ export async function generatePosterBuffer(input: GenerationInput): Promise<Buff
     networkLogoFollowTitle !== false,
     { x: networkFixedX ?? null, y: networkFixedY ?? null },
   )
+  // Ancora manuale tl/tr (netPos): posizione fissa, nessun adattamento; la
+  // fissa (follow OFF) resta prioritaria. "top" è legacy: non manuale.
+  // Manuale = tl/tr storici + le 7 posizioni estese (`anchorRect`, vedi sotto).
+  // `top` (legacy) e `auto` non sono manuali.
+  const networkManual = !isFresh && !isCard && !isFixedNetwork
+    && (isAnchorPosition(networkLogoPosition) || netRel !== null)
   // Actual finale per il freeze senza salto (solo numeri): valorizzato al
   // composite, null se il network non viene reso.
   let netGeo: NetworkGeometry | null = null
@@ -2247,6 +2567,7 @@ export async function generatePosterBuffer(input: GenerationInput): Promise<Buff
           netH: netRawH,
           gap,
         })
+        if (stacked !== null) displaced.add("network")
         return stacked !== null ? { top: stacked, left: netPadX } : { top, left }
       }
 
@@ -2293,6 +2614,7 @@ export async function generatePosterBuffer(input: GenerationInput): Promise<Buff
             if (scale <= minScale) break
           }
           if (curW !== box.w || curH !== box.h) {
+            displaced.add("network")
             const png = await sharp(box.png).resize(curW, curH).toBuffer()
             const bleed = box.bleed ? scaleBadgeBleed(box.bleed, curW / box.w, curH / box.h) : undefined
             return { ...box, png, w: curW, h: curH, ...(bleed ? { bleed } : {}) }
@@ -2314,11 +2636,19 @@ export async function generatePosterBuffer(input: GenerationInput): Promise<Buff
         // shift a fianco del nastro sullo stesso lato (stessa matematica dei
         // rami storici) e shrink vs badge centrale. Il ramo "sopra il logo
         // film" non vale in "top": l'angolo è l'angolo.
-        const sideRight = rightRankRibbonOccupied || comingSoonRightOccupied
+        // tl/tr forzano il lato (sinistro/destro) a prescindere dal nastro;
+        // "top" lo deriva dall'occupante effettivo dell'angolo (storico).
+        const sideRight = networkLogoPosition === "tl" ? false : networkLogoPosition === "tr" ? true : (rightRankRibbonOccupied || comingSoonRightOccupied)
         const csExtent = ribbonLayout ? ribbonLayout.extent : 0
         const csOnSide = showComingSoon && !!ribbonLayout && !!safeComingSoonResult &&
           (sideRight ? effComingSoonSide === "right" : effComingSoonSide !== "right")
-        if (sideRight && rightRankRibbonLeft !== null) {
+        if (networkManual) {
+          // Ancora manuale: angolo + offset, nessuno scalino/shrink/cambio lato
+          // (ribbon, Coming Soon, rank e logo non lo spostano). Il fondo finale
+          // alimenta la qualità auto più sotto.
+          top = netPadY
+          left = sideRight ? rightAnchoredLeft : netPadX
+        } else if (sideRight && rightRankRibbonLeft !== null) {
           // Stessa riga a fianco del nastro destro (specchio Nuvio).
           top = netPadY
           left = Math.max(0, rightRankRibbonLeft - 10 - fittedRaw.w)
@@ -2339,6 +2669,7 @@ export async function generatePosterBuffer(input: GenerationInput): Promise<Buff
               const overlapX = left < ribbonRight + 6 && netRight > finalRankLeft - 6
               const overlapY = top < finalRankTop + finalRankBody.h + 4 && netBottom > finalRankTop - 4
               if (overlapX && overlapY) {
+                displaced.add("network")
                 left = Math.round(ribbonRight + 10)
                 const maxLeft = CW - fittedRaw.w - netPadX
                 if (left > maxLeft) left = maxLeft
@@ -2346,16 +2677,18 @@ export async function generatePosterBuffer(input: GenerationInput): Promise<Buff
             }
           }
         }
-        // Corner rank at the same corner: stack below the pill instead of
-        // shrinking in place (corner-style only, no-op otherwise).
-        const cornerStackedTop = stackBelowCornerRank(top, left)
-        top = cornerStackedTop.top
-        left = cornerStackedTop.left
-        fittedRaw = await shrinkToAvoidRank(fittedRaw, top, left)
-        // Solo a sinistra alimenta lo stacking qualità (a destra la qualità
-        // ha già traslocato a sinistra, niente da impilare).
-        if (!sideRight) netTopLeftBottom = top + NETWORK_LOGO_SHIFT_Y + fittedRaw.h
-        else netAnchoredRight = true
+        if (!networkManual) {
+          // Corner rank at the same corner: stack below the pill instead of
+          // shrinking in place (corner-style only, no-op otherwise).
+          const cornerStackedTop = stackBelowCornerRank(top, left)
+          top = cornerStackedTop.top
+          left = cornerStackedTop.left
+          fittedRaw = await shrinkToAvoidRank(fittedRaw, top, left)
+          // Solo a sinistra alimenta lo stacking qualità (a destra la qualità
+          // ha già traslocato a sinistra, niente da impilare).
+          if (!sideRight) netTopLeftBottom = top + NETWORK_LOGO_SHIFT_Y + fittedRaw.h
+          else netAnchoredRight = true
+        } else if (sideRight) netAnchoredRight = true
       } else if (isLandscape && logoResult) {
         // Landscape with a title logo: never above the logo (bottom zone) —
         // always on top: beside the ribbon when it takes the left corner
@@ -2403,7 +2736,7 @@ export async function generatePosterBuffer(input: GenerationInput): Promise<Buff
           // there is no room above the title) the historic top-left anchor
           // below applies.
           let aboveTitle: { top: number; left: number } | null = null
-          if (isCornerAnchoredStyle(topBadgeStyle) && topBadge && cornerRankRect) {
+          if (isCornerAnchoredStyle(topBadgeStyle) && topBadge && cornerRankRect && !logoTopAnchored) {
             const anchor = cornerNetworkAboveTitle({
               logoTop: logoResult.top,
               logoLeft: logoResult.left,
@@ -2459,11 +2792,11 @@ export async function generatePosterBuffer(input: GenerationInput): Promise<Buff
         // Above the title the network does not take the top-left corner:
         // quality keeps its corner anchor (netTopLeftBottom stays null).
         if (rightRankRibbonLeft === null && !mirrorNetworkBelow && !cornerAboveTitlePlaced) netTopLeftBottom = top + NETWORK_LOGO_SHIFT_Y + fittedRaw.h
-      } else if (logoResult && (finalRankBadge || hasComingSoonCorner || genreOnTop)) {
+      } else if (logoResult && !logoTopAnchored && (finalRankBadge || hasComingSoonCorner || genreOnTop)) {
         // Con logo film + badge alto (nastro Netflix, badge centrale
         // rank/extra, o Coming Soon): subito sopra il logo film
         // (in Cinematic Left allineato a sinistra come sopratitolo, non centrato).
-        top = Math.max(0, logoResult.top - fittedRaw.h - gap)
+        top = Math.max(0, logoResult.top - fittedRaw.h - gap - NETWORK_ABOVE_LOGO_LIFT)
         left = isLandscapeLeft ? logoResult.left : Math.round((CW - fittedRaw.w) / 2)
         const cornerStackedLogoTop = stackBelowCornerRank(top, left)
         top = cornerStackedLogoTop.top
@@ -2531,9 +2864,59 @@ export async function generatePosterBuffer(input: GenerationInput): Promise<Buff
         }
         if (rightRankRibbonLeft === null && !mirrorNetworkBelow) netTopLeftBottom = top + NETWORK_LOGO_SHIFT_Y + fittedRaw.h
       }
+      // Logo ancorato sul bordo alto: se la pill network (nella sua posizione
+      // finale) lo copre, scende SOTTO il logo — il logo non si muove mai.
+      // Mai in modalità fissa (coordinate assolute volute dall'utente) e mai
+      // senza ancora (percorso storico invariato).
+      if (logoTopAnchored && logoResult && !isFixedNetwork && !networkManual) {
+        const netL = left + networkLogoOffsetX
+        const netT = top + networkLogoOffsetY + NETWORK_LOGO_SHIFT_Y
+        if (rectsOverlap({ left: netL, top: netT, w: fittedRaw.w, h: fittedRaw.h }, logoResult, 6)) {
+          displaced.add("network")
+          top = logoResult.top + logoResult.h + gap - NETWORK_LOGO_SHIFT_Y - networkLogoOffsetY
+          // Alimenta lo stacking qualità solo quando il network occupava il
+          // top-left (stessa formula dei rami storici).
+          if (netTopLeftBottom !== null) netTopLeftBottom = top + NETWORK_LOGO_SHIFT_Y + fittedRaw.h
+        }
+      }
+      // Ancora attiva (tl/tr): il network che copre il corpo rank scende sotto
+      // di lui; il rank non si muove mai, mai in modalità fissa. Se copre anche
+      // il logo titolo, scende sotto il logo (due passate: le discese sono solo
+      // verso il basso). Il fondo alimenta lo stacking qualità come gli altri rami.
+      if (topAnchorRankRect && !isFixedNetwork && !networkManual) {
+        const dropBlockers = [topAnchorRankRect, ...(logoResult ? [logoResult] : [])]
+        let droppedBelowRank = false
+        for (let pass = 0; pass < 2; pass++) {
+          let moved = false
+          for (const b of dropBlockers) {
+            const netBox = { left: left + networkLogoOffsetX, top: top + networkLogoOffsetY + NETWORK_LOGO_SHIFT_Y, w: fittedRaw.w, h: fittedRaw.h }
+            if (rectsOverlap(netBox, b, 6)) {
+              top = b.top + b.h + gap - NETWORK_LOGO_SHIFT_Y - networkLogoOffsetY
+              moved = true
+            }
+          }
+          if (!moved) break
+          droppedBelowRank = true
+          displaced.add("network")
+        }
+        if (droppedBelowRank && netTopLeftBottom !== null) netTopLeftBottom = top + NETWORK_LOGO_SHIFT_Y + fittedRaw.h
+      }
       // In fissa le coordinate sono già gli actual finali (shift e offset
       // inclusi al freeze): composite esatto. In storica restano gli offset
       // post-ancoraggio + shift editoriale.
+      // Posizione fissa estesa (7 nuove; tl/tr restano sul ramo storico): il
+      // bitmap network È il box visibile, quindi `anchorRect` lo posiziona
+      // direttamente (margine laterale netPadX, margine alto/basso = quota
+      // storica del network `netBaseTop + NETWORK_LOGO_SHIFT_Y`).
+      if (networkManual && isAnchorPosition(networkLogoPosition) && networkLogoPosition !== "tl" && networkLogoPosition !== "tr") {
+        const netY = Math.round(18 * CH / 570) + NETWORK_LOGO_SHIFT_Y
+        const fixedNet = anchorRect(networkLogoPosition, {
+          canvasW: CW, canvasH: CH, w: fittedRaw.w, h: fittedRaw.h,
+          marginX: Math.round(18 * CW / 380), marginTop: netY, marginBottom: netY,
+        })
+        top = fixedNet.top - networkLogoOffsetY - NETWORK_LOGO_SHIFT_Y
+        left = fixedNet.left - networkLogoOffsetX
+      }
       const finalNetTop = isFixedNetwork ? top : top + networkLogoOffsetY + NETWORK_LOGO_SHIFT_Y
       const finalNetLeft = isFixedNetwork ? left : left + networkLogoOffsetX
       if (isFixedNetwork) {
@@ -2541,8 +2924,13 @@ export async function generatePosterBuffer(input: GenerationInput): Promise<Buff
         // qualità non sposta mai il network.
         netTopLeftBottom = finalNetTop + fittedRaw.h
       }
+      if (networkManual) {
+        // Ancora manuale: il fondo FINALE (offset inclusi) alimenta lo stacking
+        // della qualità auto a sinistra; a destra non c'è nulla da impilare.
+        netTopLeftBottom = networkLogoPosition === "tl" ? finalNetTop + fittedRaw.h : null
+      }
       netGeo = { top: finalNetTop, left: finalNetLeft, w: fittedRaw.w, h: fittedRaw.h, nominalW: netRawW, nominalH: netRawH, followTitle: !isFixedNetwork }
-      composites.push({
+      pushFam("network", {
         input: fittedRaw.png,
         // Offset applicati DOPO il posizionamento automatico (come il badge
         // qualità): la logica overlap/shrink ragiona sulla posizione ancorata.
@@ -2563,7 +2951,7 @@ export async function generatePosterBuffer(input: GenerationInput): Promise<Buff
   // altrimenti impilata sotto di esso. Top allineato al logo network.
   // Il badge centrale resta invariato: se si sovrappone alla qualità,
   // rimpicciolisce la qualità (fino a 0.55x).
-  let qualityStackAnchor: { top: number; centerX: number; leftCorner: boolean } | null = null
+  let qualityStackAnchor: { top: number; centerX: number; leftCorner: boolean; boxTop: number; bottomRow: boolean } | null = null
   if (safeQualityBadgeResult) {
     const netBaseTop = Math.round(18 * CH / 570)
     const netPadX = Math.round(18 * CW / 380)
@@ -2575,7 +2963,7 @@ export async function generatePosterBuffer(input: GenerationInput): Promise<Buff
     // Follows the effective top-badge style (same source as the separate
     // stack below): an explicit extra style never mirrors, so quality and
     // stack stay on the same corner.
-    const isNumberRight = isTopBadgeNumberRightCorner({
+    const isNumberRight = (topRightAnchored && !!finalRankBadge) || isTopBadgeNumberRightCorner({
       topBadgeType: topBadge?.type,
       rankingBadgeStyle,
       extraBadgeStyle,
@@ -2584,7 +2972,12 @@ export async function generatePosterBuffer(input: GenerationInput): Promise<Buff
     })
     // Network "in alto" finito a destra: la qualità trasloca a sinistra
     // come col nastro a destra (stesso branch, niente overlap sull'angolo).
-    const isRightRibbonCorner = (isNetflixRight && !!finalRankBadge) || isComingSoonRight || (!!networkLogoForLayout && netAnchoredRight) || isNumberRight
+    // Ancora attiva: "tl" = angolo sinistro (ramo storico "nastro a destra":
+    // sotto il network se a sinistra), "tr" = angolo destro. Auto = storico.
+    // Colonna dell'ancora: `l` = lato sinistro (ramo "nastro a destra"), `r` = destro,
+    // `c` = centrale (fisso, nessun lato). Auto = storico.
+    const qualityCol = isActiveQualityAnchor(qualityAnchorEff) ? anchorCol(qualityAnchorEff) : null
+    const isRightRibbonCorner = qualityCol === "l" ? true : qualityCol === "r" || qualityCol === "c" ? false : ((isNetflixRight && !!finalRankBadge) || isComingSoonRight || (!!networkLogoForLayout && netAnchoredRight) || isNumberRight)
 
     // Ancoraggio base portrait: top = netBaseTop - 10 + 5 (storia editoriale:
     // era -20); con i default di fabbrica (qoy +6) il box visibile cade a 39px
@@ -2613,7 +3006,9 @@ export async function generatePosterBuffer(input: GenerationInput): Promise<Buff
         : CW - netPadX - (safeQualityBadgeResult.w - qPad)
     let finalQualityBadge = safeQualityBadgeResult
 
-    if (isRightRibbonCorner) {
+    // Ancora manuale: nessuno stacking sotto il network (la qualità resta
+    // nell'angolo scelto + offset; il network può coprirla).
+    if (isRightRibbonCorner && !qualityManual) {
       // Nastro a destra (Netflix o Coming Soon): qualità a sinistra, speculare
       // all'angolo destro standard — impilata sotto il logo network se presente.
       if (netTopLeftBottom !== null) {
@@ -2621,7 +3016,47 @@ export async function generatePosterBuffer(input: GenerationInput): Promise<Buff
       }
     }
 
-    if (topCenterRect) {
+    // Logo ancorato sul bordo alto: se il box visibile della qualità (bitmap
+    // senza il padding ombra) lo copre, scende SOTTO il logo — il logo non si
+    // muove mai. Senza ancora attiva il ramo non esiste (percorso storico).
+    // Ancora manuale della qualità: nessuno scalino, sovrapposizione accettata.
+    if (logoTopAnchored && logoResult && !qualityManual) {
+      const qVisible = {
+        left: left + qualityBadgeOffsetX + qPad,
+        top: top + qualityBadgeOffsetY + qPad,
+        w: finalQualityBadge.w - 2 * qPad,
+        h: finalQualityBadge.h - 2 * qPad,
+      }
+      if (rectsOverlap(qVisible, logoResult, 6)) {
+        displaced.add("quality")
+        top = logoResult.top + logoResult.h + Math.round(6 * CH / 570) - qPad - qualityBadgeOffsetY
+      }
+    }
+    // Ancora attiva: la qualità che copre il corpo rank scende sotto di lui
+    // (stessa asse del logo ancorato; il rank non si muove mai).
+    if (topAnchorRankRect && !qualityManual) {
+      const dropBlockers = [topAnchorRankRect, ...(logoResult ? [logoResult] : [])]
+      for (let pass = 0; pass < 2; pass++) {
+        let moved = false
+        for (const b of dropBlockers) {
+          const qBox = {
+            left: left + qualityBadgeOffsetX + qPad,
+            top: top + qualityBadgeOffsetY + qPad,
+            w: finalQualityBadge.w - 2 * qPad,
+            h: finalQualityBadge.h - 2 * qPad,
+          }
+          if (rectsOverlap(qBox, b, 6)) {
+            displaced.add("quality")
+            top = b.top + b.h + Math.round(6 * CH / 570) - qPad - qualityBadgeOffsetY
+            moved = true
+          }
+        }
+        if (!moved) break
+      }
+    }
+
+    // Ancora manuale: la qualità non si rimpicciolisce per il badge centrale.
+    if (topCenterRect && !qualityManual) {
       const rankL = topCenterRect.left
       const rankR = topCenterRect.left + topCenterRect.w
       const rankB = topCenterRect.top + topCenterRect.h
@@ -2632,6 +3067,7 @@ export async function generatePosterBuffer(input: GenerationInput): Promise<Buff
       const overlapsRank = () =>
         curLeft < rankR + 6 && curLeft + curW > rankL - 6 && top < rankB + 4 && top + curH > netBaseTop - 4
       if (overlapsRank()) {
+        displaced.add("quality")
         let scale = 1
         const minScale = 0.55
         while (scale > minScale && overlapsRank()) {
@@ -2655,6 +3091,22 @@ export async function generatePosterBuffer(input: GenerationInput): Promise<Buff
       }
     }
 
+    // Ancora qualità a posizione fissa esteso (tc/ml/mc/mr/bl/bc/br): il box
+    // VISIBILE (bitmap meno pad ombra) va a `anchorRect` con margine laterale
+    // netPadX e margine alto/basso = quota storica del box qualità (top line).
+    // tl/tr restano sul percorso storico sopra (byte-identico).
+    if (isActiveQualityAnchor(qualityAnchorEff) && qualityAnchorEff !== "tl" && qualityAnchorEff !== "tr") {
+      const qTopMargin = (landscapeSharedTopLine ? netBaseTop + NETWORK_LOGO_SHIFT_Y : netBaseTop - 10 + 5) + qPad
+      const visW = finalQualityBadge.w - 2 * qPad
+      const visH = finalQualityBadge.h - 2 * qPad
+      const fixed = anchorRect(qualityAnchorEff, {
+        canvasW: CW, canvasH: CH, w: visW, h: visH,
+        marginX: netPadX, marginTop: qTopMargin, marginBottom: qTopMargin,
+      })
+      left = fixed.left - qPad
+      top = fixed.top - qPad
+    }
+
     // Offset applicato DOPO lo shrink anti-overlap (che ragiona sulla
     // posizione ancorata). Sulle linguette l'offset X è ignorato: il raccordo
     // resta agganciato al bordo, come il genere notch ignora l'offset Y.
@@ -2664,7 +3116,7 @@ export async function generatePosterBuffer(input: GenerationInput): Promise<Buff
       top: top + qualityBadgeOffsetY,
       left: qualityLeftFinal,
     }
-    composites.push(qualityLayer)
+    pushFam("quality", qualityLayer)
     // Vetro reale sotto la linguetta: il solo velo SVG non sfoca l'artwork.
     if (groupNotch === "vetro") glassLayers.add(qualityLayer)
     const qualityGroupTop = top + qualityBadgeOffsetY
@@ -2695,7 +3147,7 @@ export async function generatePosterBuffer(input: GenerationInput): Promise<Buff
           placed.w === item.w && placed.h === item.h
             ? item.png
             : await sharp(item.png).resize(placed.w, placed.h).toBuffer()
-        composites.push({ input: png, top: placed.top, left: placed.left })
+        pushFam("quality", { input: png, top: placed.top, left: placed.left })
         qualityDetachedInk.set(item.id, { png, left: placed.left, top: placed.top })
       }
       badgeGeoItems.push({
@@ -2767,6 +3219,8 @@ export async function generatePosterBuffer(input: GenerationInput): Promise<Buff
         : top + qualityBadgeOffsetY + finalQualityBadge.h - qBottomPad,
       centerX: qualityLeftFinal + finalQualityBadge.w / 2,
       leftCorner: isRightRibbonCorner,
+      boxTop: top + qualityBadgeOffsetY + qPad,
+      bottomRow: isActiveQualityAnchor(qualityAnchorEff) && anchorRow(qualityAnchorEff) === "b",
     }
   }
 
@@ -2788,6 +3242,7 @@ export async function generatePosterBuffer(input: GenerationInput): Promise<Buff
       ? qualityStackAnchor.leftCorner
       : ((isRibbonRankingStyle(rankingBadgeStyle) && ribbonSide === "right" && topBadge?.type === "rank" && !!finalRankBadge)
         || (showComingSoon && effComingSoonSide === "right" && !!ribbonLayout)
+        || (topRightAnchored && !!finalRankBadge)
         || isTopBadgeNumberRightCorner({ topBadgeType: topBadge?.type, rankingBadgeStyle, extraBadgeStyle, ribbonSide, hasTopBadge: !!finalRankBadge }))
     // `column-notch-*`: UNA linguetta agganciata allo stesso bordo del gruppo
     // qualità, sotto la sua lastra.
@@ -2803,9 +3258,11 @@ export async function generatePosterBuffer(input: GenerationInput): Promise<Buff
     // Linguetta: la LASTRA parte a un gap ottico sotto quella della qualità;
     // raccordo e pad ombra sopra la lastra salgono oltre l'ancora.
     const sideNotchGap = Math.round(8 * CW / 500)
+    const sepBodyBottom = stack?.body ? stack.body.top + stack.body.h : (stack?.h ?? 0)
     const stackTop = sideNotch
       ? (qualityStackAnchor ? qualityStackAnchor.top + sideNotchGap : netBaseTop) - (stack?.body?.top ?? 0)
-      : (qualityStackAnchor ? qualityStackAnchor.top + 6 : netBaseTop - 10)
+      : (qualityStackAnchor?.bottomRow ? qualityStackAnchor.boxTop - 6 - sepBodyBottom
+        : (qualityStackAnchor ? qualityStackAnchor.top + 6 : netBaseTop - 10))
         + (isLandscape ? 0 : PORTRAIT_SEPARATE_SHIFT_Y)
     const fitted = stack ? await fitBadgeToCanvas(stack, CW, CH) : null
     // Contenimento colonna sopra il badge genere (o dentro il canvas senza
@@ -2842,7 +3299,7 @@ export async function generatePosterBuffer(input: GenerationInput): Promise<Buff
         ? Math.min(CH - stackFitted.h, stackTop + sepOY)
         : Math.max(0, Math.min(CH - stackFitted.h, stackTop + sepOY))
       const sepLayer = { input: stackFitted.png, top: sepTop, left: sepLeft }
-      composites.push(sepLayer)
+      pushFam("separate", sepLayer)
       if (sideNotch === "vetro") glassLayers.add(sepLayer)
       separateInkSource = {
         png: stackFitted.png,
@@ -2874,7 +3331,7 @@ export async function generatePosterBuffer(input: GenerationInput): Promise<Buff
             placed.w === item.w && placed.h === item.h
               ? item.png
               : await sharp(item.png).resize(placed.w, placed.h).toBuffer()
-          composites.push({ input: png, top: placed.top, left: placed.left })
+          pushFam("separate", { input: png, top: placed.top, left: placed.left })
         }
         badgeGeoItems.push({
           id: item.id,
@@ -2974,15 +3431,18 @@ export async function generatePosterBuffer(input: GenerationInput): Promise<Buff
         const k = w / bottom.w
         return { left: inset * k, w: bodyW * k }
       }
-      const topFor = (h: number) => barFlush ? CH - h : CH - h - margin + (isLandscapePills ? LANDSCAPE_BOTTOM_PILLS_SHIFT_Y : 0) + (isPortraitPills ? PORTRAIT_SEPARATE_SHIFT_Y : 0)
+      const bottomInk = bottomAnchorEff !== "auto" && !barFlush ? await inkRatios({ png: fitted.png, w: fitted.w, h: fitted.h }) : null
+      const pillsBandPos: AnchorPosition | null = isActiveBottomAnchor(bottomAnchorEff) && anchorRow(bottomAnchorEff) !== "b" ? bottomAnchorEff : null
+      const topFor = (h: number) => barFlush ? CH - h : pillsBandPos ? bandRowTop(pillsBandPos, h) : CH - h - margin + (isLandscapePills ? LANDSCAPE_BOTTOM_PILLS_SHIFT_Y : 0) + (isPortraitPills ? PORTRAIT_SEPARATE_SHIFT_Y : 0)
       const leftFor = (w: number) => {
         if (barFlush && !isNotchStep) return 0
         if (isNotchStep) {
           const body = notchBody(w)
-          if (!body) return isLandscape ? landscapeRightAnchorLeft(w, CW, 0) : Math.round((CW - w) / 2)
-          const bodyLeft = isLandscape ? landscapeRightAnchorLeft(body.w, CW, 0) : Math.round((CW - body.w) / 2)
+          if (!body) return bottomAnchorEff !== "auto" ? bottomAnchoredLeft(bottomAnchorEff, w, CW) : isLandscape ? landscapeRightAnchorLeft(w, CW, 0) : Math.round((CW - w) / 2)
+          const bodyLeft = bottomAnchorEff !== "auto" ? bottomAnchoredLeft(bottomAnchorEff, body.w, CW) : isLandscape ? landscapeRightAnchorLeft(body.w, CW, 0) : Math.round((CW - body.w) / 2)
           return bodyLeft - body.left
         }
+        if (bottomAnchorEff !== "auto") return bottomAnchoredBodyLeft(bottomAnchorEff, w, bottomInk, CW)
         return isLandscape
           ? landscapeRightAnchorLeft(w, CW, 0, 0) + (isLandscapePills ? LANDSCAPE_BOTTOM_PILLS_SHIFT_X : 0)
           : Math.round((CW - w) / 2)
@@ -3007,7 +3467,8 @@ export async function generatePosterBuffer(input: GenerationInput): Promise<Buff
       // min 0.7 — mai il logo, scala utente esplicita). Solo non-bar in
       // landscape: portrait byte-identico al passato.
       let rowBox = fitted
-      if (logoResult && isLandscape && !isBar) {
+      // Ancora manuale in basso: la riga non si riduce per il logo (come il genere).
+      if (logoResult && isLandscape && !isBar && !bottomManual) {
         const overlapsLogo = (w: number, h: number, l: number, t: number) =>
           l < logoResult.left + logoResult.w && l + w > logoResult.left &&
           t < logoResult.top + logoResult.h && t + h > logoResult.top
@@ -3027,6 +3488,7 @@ export async function generatePosterBuffer(input: GenerationInput): Promise<Buff
             if (scale <= minScale) break
           }
           if (curW !== rowBox.w || curH !== rowBox.h) {
+            displaced.add("separate")
             const png = await sharp(rowBox.png).resize(curW, curH).toBuffer()
             rowBox = { ...rowBox, png, w: curW, h: curH }
           }
@@ -3042,7 +3504,7 @@ export async function generatePosterBuffer(input: GenerationInput): Promise<Buff
         glassLayers.add(bottomLayer)
         glassBlurOverrides.set(bottomLayer, NOTCH_STEP_GLASS_SIGMA_BOOST)
       }
-      composites.push(bottomLayer)
+      pushFam("separate", bottomLayer)
       // Per-item corrections of the single cells: the row keeps its automatic
       // anchor/offset/fit; a corrected cell is composited on its own.
       const rowItemScale = bottom && bottom.w > 0 ? rowBox.w / bottom.w : 1
@@ -3064,7 +3526,7 @@ export async function generatePosterBuffer(input: GenerationInput): Promise<Buff
             placed.w === item.w && placed.h === item.h
               ? item.png
               : await sharp(item.png).resize(placed.w, placed.h).toBuffer()
-          composites.push({ input: png, top: placed.top, left: placed.left })
+          pushFam("separate", { input: png, top: placed.top, left: placed.left })
         }
         badgeGeoItems.push({
           id: item.id,
@@ -3152,6 +3614,7 @@ export async function generatePosterBuffer(input: GenerationInput): Promise<Buff
         voteAverage,
         separateRatings: input.separateRatings,
         customRatings: input.ratings,
+        typeIcon: typeIcon ? mediaType : null,
       },
       logo: logoResult ? { png: logoResult.input, w: logoResult.w, h: logoResult.h } : null,
       provider: networkLogoForLayout ? { png: networkLogoForLayout.png, w: networkLogoForLayout.w, h: networkLogoForLayout.h } : null,
@@ -3197,6 +3660,7 @@ export async function generatePosterBuffer(input: GenerationInput): Promise<Buff
       const freshLayers = await composeFreshOverlay(freshOverlayInput)
       composites.splice(freshInsertAt ?? composites.length, 0, ...freshLayers)
     }
+    if (freshOverlayInput.meta.typeIcon && freshMetaRows(freshOverlayInput.meta).length > 0) typeIconInlineAux = true
     // Badge extra non-rank: bitmap standard riusato al top (stesso anchor).
     if (isExtraTopBadge && finalRankBadge && finalRankLeft !== null) {
       const extraCanvas = badgeCanvasForBody(finalRankLeft, finalRankTop, finalRankBadge)
@@ -3300,6 +3764,7 @@ export async function generatePosterBuffer(input: GenerationInput): Promise<Buff
         showGenre: cardRawGenre,
         showYear: cardRawYear,
         showRating: cardRawBadgeRating,
+        typeIcon: typeIcon ? mediaType : null,
         badgePw,
         CW,
         // Card: la banda non è un bordo poster, la pillola a notch resterebbe
@@ -3316,6 +3781,7 @@ export async function generatePosterBuffer(input: GenerationInput): Promise<Buff
         ? await scaleBitmapForLayout(rendered, genreBadgeScale)
         : rendered
       cardMainBadgeRendered = cardMainBadge !== null
+      if (cardMainBadge) typeIconInlineAux = true
     }
     // P15 individuals via the EXISTING renderers only (never Card text rows,
     // never silently dropped while the toggle is on):
@@ -3375,6 +3841,7 @@ export async function generatePosterBuffer(input: GenerationInput): Promise<Buff
         ? qualityStackAnchor.leftCorner
         : ((isRibbonRankingStyle(rankingBadgeStyle) && ribbonSide === "right" && topBadge?.type === "rank" && !!finalRankBadge)
           || (showComingSoon && effComingSoonSide === "right" && !!ribbonLayout)
+          || (topRightAnchored && !!finalRankBadge)
           || isTopBadgeNumberRightCorner({ topBadgeType: topBadge?.type, rankingBadgeStyle, extraBadgeStyle, ribbonSide, hasTopBadge: !!finalRankBadge }))
       const stackTop = (qualityStackAnchor ? qualityStackAnchor.top + 6 : netBaseTop - 10)
         + (isLandscape ? 0 : PORTRAIT_SEPARATE_SHIFT_Y)
@@ -3429,6 +3896,7 @@ export async function generatePosterBuffer(input: GenerationInput): Promise<Buff
             if (scale <= minScale) break
           }
           if (curW !== stackFitted.w || curH !== stackFitted.h) {
+            displaced.add("separate")
             const png = await sharp(stackFitted.png).resize(curW, curH).toBuffer()
             stackFitted = { ...stackFitted, png, w: curW, h: curH }
           }
@@ -3624,6 +4092,245 @@ export async function generatePosterBuffer(input: GenerationInput): Promise<Buff
   // quindi i box grezzi erano molto più grandi del dipinto. Calcolato solo
   // quando l'editor chiede la geometria; il render non cambia.
   let reportedItems: BadgeGeometryItem[] = badgeGeoItems
+  // ---- Blocco "sopra/sotto il logo" (prima del pass). Per lato, i family si
+  // impilano dal logo verso l'esterno nell'ordine fisso: fascia (genere, riga
+  // rating, pillole bottom), qualita (+ colonna separati), network, rank/extra.
+  // Centro orizzontale = centro del logo (clamp nei margini), gap =
+  // round(8*CH/570); poi offset X/Y del badge; clamp verticale nel canvas. Le
+  // posizioni sono manuali: il pass sotto le registra come ostacoli fissi.
+  if (logoResult && (netRel || qualityRel || bottomRel || topRel)) {
+    type RelFam = "genre" | "rating" | "separate" | "quality" | "network" | "top"
+    type RelBox = { left: number; top: number; w: number; h: number }
+    const relGap = relGapPx
+    const relMarginX = Math.round(18 * CW / 380)
+    const relMarginY = relMarginPx
+    // Margine inferiore per famiglia: la fascia genere/rating/pillole usa quello dell'Auto.
+    const relBottomMargin = (fam: RelFam): number => (fam === "genre" || fam === "rating" || fam === "separate" ? relBandBottomMargin : relMarginY)
+    const relSepLinked = !isBottomStyle && qualityStackAnchor !== null
+    // Box VISIBILE, come il report finale: qualità e colonna separati sono
+    // ristretti all'inchiostro (stessa formula del report geometria, più sotto).
+    const relInkBox = async (src: InkSource, box: RelBox): Promise<RelBox> => {
+      const comps = (await opaqueComponents(src.png)).map((c) => ({ ...c, left: c.left + src.left, top: c.top + src.top }))
+      return bodyFrame(src) ?? tightenBoxesToInk([box], comps)[0]
+    }
+    const relBoxOf = async (fam: RelFam): Promise<RelBox | null> => {
+      if (fam === "genre") return genreBadgeRect
+      if (fam === "rating") return ratingBox
+      if (fam === "separate") {
+        if (badgeGeo.separate) return separateInkSource ? relInkBox(separateInkSource, badgeGeo.separate) : badgeGeo.separate
+        const items = badgeGeoItems.filter((it) => it.family === "separate")
+        if (items.length === 0) return null
+        const l = Math.min(...items.map((it) => it.left)), t = Math.min(...items.map((it) => it.top))
+        const r = Math.max(...items.map((it) => it.left + it.w)), b = Math.max(...items.map((it) => it.top + it.h))
+        return { left: l, top: t, w: r - l, h: b - t }
+      }
+      if (fam === "quality") {
+        const q0 = badgeGeo.quality
+        if (!q0) return null
+        const q = qualityInkSource ? await relInkBox(qualityInkSource, q0) : q0
+        const sp0 = relSepLinked ? badgeGeo.separate : undefined
+        if (!sp0) return q
+        const sp = separateInkSource ? await relInkBox(separateInkSource, sp0) : sp0
+        const l = Math.min(q.left, sp.left), t = Math.min(q.top, sp.top)
+        const r = Math.max(q.left + q.w, sp.left + sp.w), b = Math.max(q.top + q.h, sp.top + sp.h)
+        return { left: l, top: t, w: r - l, h: b - t }
+      }
+      if (fam === "network") return badgeGeo.network ?? null
+      if (!finalRankBadge || finalRankLeft === null || isFresh || isCard) return null
+      const body = badgeBody(finalRankBadge)
+      return { left: finalRankLeft, top: finalRankTop, w: body.w, h: body.h }
+    }
+    const relOffsetOf = (fam: RelFam): { x: number; y: number } => {
+      if (fam === "genre") return { x: combinedGenreOX ?? 0, y: combinedGenreOY ?? 0 }
+      if (fam === "quality") return { x: qualityBadgeOffsetX ?? 0, y: qualityBadgeOffsetY ?? 0 }
+      if (fam === "network") return { x: networkLogoOffsetX ?? 0, y: networkLogoOffsetY ?? 0 }
+      if (fam === "top") return { x: combinedTopOX ?? 0, y: combinedTopOY ?? 0 }
+      return { x: 0, y: 0 }
+    }
+    // Sposta un family di (dx, dy): composite, box report, item, ink, geometria
+    // network e rank. Ogni oggetto è spostato una sola volta per chiamata.
+    const relMove = (fam: RelFam, dx: number, dy: number): void => {
+      const seen = new Set<object>()
+      const mv = (o: object | null | undefined): void => {
+        if (!o || seen.has(o)) return
+        seen.add(o)
+        const m = o as { top: number; left?: number }
+        m.top += dy
+        if (typeof m.left === "number") m.left += dx
+      }
+      const inkOf = (ink: InkSource | null): void => { if (ink) { mv(ink); mv(ink.body) } }
+      const itemsOf = (f: string): void => { for (const it of badgeGeoItems) if (it.family === f) mv(it) }
+      if (fam === "top") {
+        mv(topRankLayer)
+        if (finalRankLeft !== null) finalRankLeft += dx
+        finalRankTop += dy
+        mv(badgeGeo[isExtraTopBadge ? "extra" : "rank"])
+        return
+      }
+      for (const l of famLayers[fam]) mv(l)
+      if (fam === "genre") { mv(genreBadgeRect); mv(badgeGeo.genre); itemsOf("genre") }
+      else if (fam === "rating") { mv(ratingBox); itemsOf("rating") }
+      else if (fam === "separate") { mv(badgeGeo.separate); inkOf(separateInkSource); itemsOf("separate") }
+      else if (fam === "quality") {
+        mv(badgeGeo.quality); inkOf(qualityInkSource)
+        for (const v of qualityDetachedInk.values()) mv(v)
+        itemsOf("quality")
+        if (relSepLinked) relMove("separate", dx, dy)
+      } else {
+        mv(netGeo); mv(badgeGeo.network); itemsOf("network")
+      }
+    }
+    const relFamSide: Array<{ fam: RelFam; side: LogoRelativePosition }> = []
+    if (bottomRel) {
+      relFamSide.push({ fam: "genre", side: bottomRel }, { fam: "rating", side: bottomRel })
+      if (isBottomStyle) relFamSide.push({ fam: "separate", side: bottomRel })
+    }
+    if (qualityRel) relFamSide.push({ fam: "quality", side: qualityRel })
+    if (netRel) relFamSide.push({ fam: "network", side: netRel })
+    if (topRel) relFamSide.push({ fam: "top", side: topRel })
+    const relOrder: RelFam[] = ["genre", "rating", "separate", "quality", "network", "top"]
+    const relCx = logoResult.left + logoResult.w / 2
+    let relNetMoved = false
+    // Un cursore per lato: si impila dal logo verso l'esterno. Se il badge non
+    // sta dal lato chiesto (finirebbe sopra il logo per il clamp) passa
+    // all'altro lato; se non sta in nessuno dei due resta sul lato chiesto.
+    const relCursor = { above: relLogoTop - relGap, below: relLogoBottom + relGap }
+    const relFits = (s: LogoRelativePosition, h: number, fam: RelFam) =>
+      s === "above" ? relCursor.above - h >= relMarginY : relCursor.below + h <= CH - relBottomMargin(fam)
+    for (const entry of relOrder.flatMap((fam) => relFamSide.filter((x) => x.fam === fam))) {
+      const fam = entry.fam
+      const box = await relBoxOf(fam)
+      if (!box) continue
+      const other: LogoRelativePosition = entry.side === "above" ? "below" : "above"
+      const side = !relFits(entry.side, box.h, fam) && relFits(other, box.h, fam) ? other : entry.side
+      // Stacking con dimensioni NON offsettate; clamp verticale nel canvas.
+      let tTop = side === "above" ? relCursor.above - box.h : relCursor.below
+      if (tTop < relMarginY) tTop = relMarginY
+      if (tTop + box.h > CH - relBottomMargin(fam)) tTop = Math.max(0, CH - relBottomMargin(fam) - box.h)
+      if (side === "above") relCursor.above = tTop - relGap
+      else relCursor.below = tTop + box.h + relGap
+      const tLeft = Math.max(relMarginX, Math.min(CW - box.w - relMarginX, Math.round(relCx - box.w / 2)))
+      const off = relOffsetOf(fam)
+      const fTop = Math.max(0, Math.min(CH - box.h, tTop + off.y))
+      const fLeft = tLeft + off.x
+      const dx = fLeft - box.left
+      const dy = fTop - box.top
+      if (dx === 0 && dy === 0) continue
+      relMove(fam, dx, dy)
+      if (fam === "network") relNetMoved = true
+    }
+    if (relNetMoved && netGeo) onNetworkGeometry?.(netGeo)
+  }
+
+  // ---- Pass "auto evita manuali" (prima del report geometria: report e pixel
+  // restano allineati). Ostacoli MANUALI sono fissi (rank/extra, logo, network,
+  // qualità, genere/rating/pills in fascia manuale). Un badge AUTO che tocca un
+  // ostacolo (rectsOverlap, margine 6) scende sotto di lui se sta nella metà alta
+  // del canvas, sale sopra se nella metà bassa. Max 2 passate. La colonna
+  // rating separati sotto una qualità AUTO è un'unica entry con la qualità: si
+  // sposta con lei (stesso dy). Nessun ostacolo manuale = nessuna azione.
+  {
+    type AvoidFam = "network" | "quality" | "genre" | "separate" | "rating"
+    type Rect = { left: number; top: number; w: number; h: number }
+    const manualObs: Rect[] = []
+    if ((topFixedActive || topAnchorActive || topRel !== null) && finalRankBadge && finalRankLeft !== null) {
+      manualObs.push({ left: finalRankLeft, top: finalRankTop, w: badgeBody(finalRankBadge).w, h: badgeBody(finalRankBadge).h })
+    }
+    if (isActiveLogoAnchor(logoAnchorEff) && logoResult) {
+      manualObs.push({ left: logoResult.left, top: logoResult.top, w: logoResult.w, h: logoResult.h })
+    }
+    // Box di una famiglia: report (badgeGeo) o, per le pills bottom senza report
+    // dedicato, unione degli item della famiglia "separate".
+    const famBox = (fam: AvoidFam): Rect | null => {
+      if (fam === "rating") return ratingBox
+      if (fam === "separate" && !badgeGeo.separate) {
+        const items = badgeGeoItems.filter((it) => it.family === "separate")
+        if (items.length === 0) return null
+        const l = Math.min(...items.map((it) => it.left)), t = Math.min(...items.map((it) => it.top))
+        const r = Math.max(...items.map((it) => it.left + it.w)), b = Math.max(...items.map((it) => it.top + it.h))
+        return { left: l, top: t, w: r - l, h: b - t }
+      }
+      return badgeGeo[fam] ?? null
+    }
+    if (networkManual && badgeGeo.network) manualObs.push(badgeGeo.network)
+    if (qualityManual && badgeGeo.quality) manualObs.push(badgeGeo.quality)
+    if (bottomManual && badgeGeo.genre) manualObs.push(badgeGeo.genre)
+    if (bottomManual && ratingBox) manualObs.push(ratingBox)
+    if (bottomManual && isBottomStyle && famBox("separate")) manualObs.push(famBox("separate")!)
+    if (manualObs.length > 0) {
+      // Colonna separati collegata alla qualità AUTO (sotto di lei): una sola entry.
+      // La colonna separati è sempre agganciata alla qualità (stessa stack): mai spostata da sola.
+      const sepLinked = !isBottomStyle && qualityStackAnchor !== null
+      const autoFams: AvoidFam[] = (["network", "quality", "genre", "rating", "separate"] as AvoidFam[]).filter((fam) => {
+        if (!famBox(fam) && famLayers[fam].length === 0) return false
+        if (fam === "network") return !networkManual
+        if (fam === "quality") return !qualityManual
+        if (fam === "separate") return !sepLinked && !(isBottomStyle && bottomManual)
+        return !bottomManual
+      })
+      // Sposta una famiglia: layer composti, box report, item, ink e geometria network.
+      // La colonna separati collegata segue la qualità (stesso dy).
+      const shiftFam = (fam: AvoidFam, dy: number) => {
+        // Le strutture di geometria sono readonly per tipo: il solo spostamento verticale le muta qui.
+        displaced.add(fam)
+        const nudge = (o: { top: number }) => { (o as { top: number }).top += dy }
+        for (const l of famLayers[fam]) nudge(l)
+        const g = fam === "rating" ? ratingBox : badgeGeo[fam]
+        if (g) nudge(g)
+        if (fam === "genre" && genreBadgeRect) nudge(genreBadgeRect)
+        if (fam === "network" && netGeo) nudge(netGeo)
+        for (const it of badgeGeoItems) if (it.family === fam) nudge(it)
+        const ink = fam === "quality" ? qualityInkSource : fam === "separate" ? separateInkSource : null
+        if (ink) {
+          nudge(ink)
+          if (ink.body) nudge(ink.body)
+        }
+        if (fam === "quality") for (const v of qualityDetachedInk.values()) nudge(v)
+        if (fam === "quality" && sepLinked) shiftFam("separate", dy)
+      }
+      const avoidGap = 6
+      let networkMoved = false
+      for (let iter = 0; iter < 2; iter++) {
+        let moved = false
+        for (const fam of autoFams) {
+          const members: Array<{ box: Rect | null }> = [{ box: famBox(fam) }]
+          if (fam === "quality" && sepLinked) members.push({ box: famBox("separate") })
+          let dy = 0
+          for (const { box } of members) {
+            if (!box) continue
+            const hit = manualObs.find((o) => rectsOverlap(box, o, 6))
+            if (!hit) continue
+            dy = box.top + box.h / 2 < CH / 2
+              ? hit.top + hit.h + avoidGap - box.top
+              : hit.top - avoidGap - (box.top + box.h)
+            break
+          }
+          if (dy === 0) continue
+          shiftFam(fam, dy)
+          if (fam === "network") networkMoved = true
+          moved = true
+        }
+        if (!moved) break
+      }
+      if (networkMoved && netGeo) onNetworkGeometry?.(netGeo)
+    }
+  }
+  // Overflow "hide": le famiglie AUTO in collisione non si disegnano. Layer tolti
+  // dai composite e dal report (badge, item, network) prima del report geometria,
+  // così drag e pixel restano coerenti. Manuali, rank ed extra non entrano mai qui.
+  if (input.badgeOverflow === "hide" && displaced.size > 0) {
+    const gone = new Set<object>()
+    for (const fam of displaced) for (const l of famLayers[fam]) gone.add(l)
+    for (let i = composites.length - 1; i >= 0; i--) if (gone.has(composites[i])) composites.splice(i, 1)
+    if (displaced.has("network")) { delete badgeGeo.network; netGeo = null; onNetworkGeometry?.(null) }
+    if (displaced.has("quality")) { delete badgeGeo.quality; qualityInkSource = null; qualityDetachedInk.clear() }
+    if (displaced.has("separate")) { delete badgeGeo.separate; separateInkSource = null }
+    if (displaced.has("genre")) { delete badgeGeo.genre; genreBadgeRect = null }
+    if (displaced.has("rating")) ratingBox = null
+    for (let i = badgeGeoItems.length - 1; i >= 0; i--) {
+      if ((displaced as Set<string>).has(badgeGeoItems[i].family)) badgeGeoItems.splice(i, 1)
+    }
+  }
   if (onBadgeGeometry && qualityInkSource && badgeGeo.quality) {
     const src = qualityInkSource
     const comps = (await opaqueComponents(src.png)).map((c) => ({ ...c, left: c.left + src.left, top: c.top + src.top }))
@@ -3750,6 +4457,16 @@ export async function generatePosterBuffer(input: GenerationInput): Promise<Buff
   // -----------------------------------------------------------------------
   // 7. Final composite
   // -----------------------------------------------------------------------
+  // Icona tipo film/serie, fallback senza badge genere standard: solo glifo in
+  // basso a sinistra, sopra il resto del chrome (fail-open: poster storico).
+  if (typeIcon && !typeIconInlineAux && !(genreTypeIcon && safeGenreBadgeResult)) {
+    const icon = await renderTypeIcon(mediaType, Math.round(badgePw * 0.04))
+    if (icon) {
+      const margin = Math.round(badgePw * (isLandscape ? 0.03 : 0.015))
+      composites.push({ input: icon.png, top: CH - icon.h - margin, left: margin })
+    }
+  }
+
   const safeComposites = (await Promise.all(composites.map((layer) => fitCompositeToCanvas(layer, CW, CH))))
     .filter((layer): layer is PosterComposite => layer !== null)
 

@@ -72,7 +72,8 @@ export function PosterOptions({ posters, posterActivePath, lang, selectPoster, a
   // nel pool di rotazione opt-in. Le altre lingue non vengono MAI servite dal
   // filtro server (poster-rotation.ts), quindi non hanno controlli rotazione.
   const activeIsLanguageTab = activeGroup !== "clean" && activeGroup !== "fanart" && activeGroup !== "tvdb"
-  const langRotationEnabled = ed.rotationIncludeNonClean
+  const titleOrigLang = usePSelector((v) => v.titleOrigLang)
+  const langRotationEnabled = ed.rotationIncludeNonClean || ed.rotationIncludeOriginal
     && activeIsLanguageTab
     && primaryLangCode(activeGroup) === primaryLangCode(lang)
 
@@ -110,6 +111,7 @@ export function PosterOptions({ posters, posterActivePath, lang, selectPoster, a
     logoScale: ed.logoScale,
     logoOffsetX: ed.logoOffsetX,
     logoOffsetY: ed.logoOffsetY,
+    logoAnchor: ed.posterLayout === "standard" ? ed.logoAnchor : null,
     hasBadges: ed.globalBadges,
   })
 
@@ -407,13 +409,18 @@ export function PosterOptions({ posters, posterActivePath, lang, selectPoster, a
                     rotationIncludeNonClean state, no separate caption row). */}
                 <div className="flex items-center justify-between gap-2">
                   <span className="text-[11px] text-muted">{t("ui.rotationScope")}</span>
-                  <button type="button"
-                    aria-pressed={ed.rotationIncludeNonClean}
-                    onClick={() => ed.setRotationIncludeNonClean(!ed.rotationIncludeNonClean)}
-                    className={`px-2 py-1 text-[11px] font-semibold rounded-lg border transition ${ed.rotationIncludeNonClean ? "bg-accent-orange/20 text-accent-orange border-accent-orange/25" : "bg-white/5 text-muted border-white/10"}`}
-                  >
-                    {ed.rotationIncludeNonClean ? t("ui.rotationScopeWithLanguage") : t("ui.rotationScopeNoLanguage")}
-                  </button>
+                  <div className="flex items-center gap-3 text-[11px] text-zinc-300">
+                    <label className="flex items-center gap-1.5 cursor-pointer">
+                      <input type="checkbox" checked={ed.rotationIncludeNonClean}
+                        onChange={(e) => ed.setRotationIncludeNonClean(e.target.checked)} />
+                      {t("ui.rotationScopeMyLanguage")}
+                    </label>
+                    <label className={`flex items-center gap-1.5 ${titleOrigLang ? "cursor-pointer" : "opacity-50"}`}>
+                      <input type="checkbox" checked={ed.rotationIncludeOriginal} disabled={!titleOrigLang}
+                        onChange={(e) => ed.setRotationIncludeOriginal(e.target.checked)} />
+                      {t("ui.rotationScopeOriginalLanguage")}
+                    </label>
+                  </div>
                 </div>
                 <p className="text-[10px] text-muted italic leading-tight px-1">{t("ui.rotationScopeDefaultHint")}</p>
               </div>

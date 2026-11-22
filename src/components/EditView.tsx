@@ -40,6 +40,7 @@ import { PerTitleBadgeEditor } from "@/components/PerTitleBadgeEditor"
 import { ConfirmDialog } from "@/components/ConfirmDialog"
 import { PerTitlePresetChooser } from "@/components/PerTitlePresetChooser"
 import { PosterDepthEdge, PosterDepthSheen } from "@/components/PosterDepthGlow"
+import { PositionControls } from "@/components/PositionControls"
 import { BadgeControls } from "@/components/BadgeControls"
 import { TransformControls } from "@/components/TransformControls"
 import { EpisodeGroupControls } from "@/components/EpisodeGroupControls"
@@ -126,7 +127,7 @@ export default function EditView() {
   const saveFlashTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null)
   const [saveFlash, setSaveFlash] = useState(false)
   const [mobileSection, setMobileSection] = useState<"poster" | "preview" | "customize">("preview")
-  const [activeRightTab, setActiveRightTab] = useState<"logo" | "badge" | "transform" | "stagioni">(
+  const [activeRightTab, setActiveRightTab] = useState<"logo" | "badge" | "transform" | "position" | "stagioni">(
     sourceView === "thumbnails" ? "stagioni" : "logo",
   )
   // One-shot intent: entering from the Miniature zone must open the episode
@@ -333,6 +334,11 @@ export default function EditView() {
       networkLogo: ed.networkLogo,
       ribbonEnabled: ed.ribbonEnabled,
       networkLogoPosition: ed.networkLogoPosition,
+      logoAnchor: ed.logoAnchor,
+      qualityAnchor: ed.qualityAnchor,
+      topBadgeAnchor: ed.topBadgeAnchor,
+      extraBadgeAnchor: ed.extraBadgeAnchor,
+      bottomAnchor: ed.bottomAnchor,
       networkLogoFollowTitle: ed.networkLogoFollowTitle,
       qualityBadgeStyle: ed.qualityBadgeStyle,
       qualityGroupLayout: ed.qualityGroupLayout,
@@ -378,7 +384,7 @@ export default function EditView() {
       },
     ed.defaultPosterShape,
     mappingVisualDefaults,
-  ), [previewPosterFilePath, previewCustomPosterUrl, selectedBackdropFilePath, selectedCustomBackdropUrl, selectedLogo?.file_path, selectedMapping, isLandscapeTuning, ed.posterShape, ed.logoDisabled, ed.landscapeBlur, ed.gradientHeight, ed.blurEnabled, ed.blurIntensity, ed.blurFade, ed.blurDarkness, ed.tintStrength, ed.topShade, ed.topShadeHeight, ed.logoScale, ed.logoOffsetX, ed.logoOffsetY, ed.topBadgeScale, ed.topBadgeOffsetX, ed.topBadgeOffsetY, ed.extraBadgeScale, ed.extraBadgeOffsetX, ed.extraBadgeOffsetY, ed.genreBadgeScale, ed.genreBadgeOffsetX, ed.genreBadgeOffsetY, ed.qualityBadgeScale, ed.qualityBadgeOffsetX, ed.qualityBadgeOffsetY, ed.separateBadgeScale, ed.separateBadgeOffsetX, ed.separateBadgeOffsetY, ed.badgeItemTransforms, ed.networkLogoScale, ed.networkLogoOffsetX, ed.networkLogoOffsetY, ed.backdropScale, ed.backdropOffsetX, ed.backdropOffsetY, ed.globalBadges, ed.rankingBadges, ed.badgeGenre, ed.badgeYear, ed.badgeRating, ed.badgeQuality, ed.customRatings, ed.separateRatings, ed.separateRatingsStyle, ed.posterLayout, ed.posterFreshScope, ed.networkLogo, ed.ribbonEnabled, ed.networkLogoPosition, ed.networkLogoFollowTitle, ed.qualityBadgeStyle, ed.qualityGroupLayout, ed.badgeStyle, ed.rankingBadgeStyle, ed.extraBadgeStyle, ed.badgeFont, ed.awardBadgeStyle, ed.customBadge, ed.ageBadge, ed.ageCountry, ed.ageBadgeStyle, ed.videoFormats, ed.ratingSources, ed.seasonalTheme, accentColor, autoAccentColor, ed.logoText, ed.logoFont, portraitBaseBackdropPath, mappingVisualDefaults, ed.landscape, ed.defaultGradientHeight, ed.defaultBlurEnabled, ed.defaultBlurIntensity, ed.defaultBlurFade, ed.defaultBlurDarkness, ed.defaultTintStrength, ed.defaultTopShade, ed.defaultTopShadeHeight, ed.defaultPosterShape])
+  ), [previewPosterFilePath, previewCustomPosterUrl, selectedBackdropFilePath, selectedCustomBackdropUrl, selectedLogo?.file_path, selectedMapping, isLandscapeTuning, ed.posterShape, ed.logoDisabled, ed.landscapeBlur, ed.gradientHeight, ed.blurEnabled, ed.blurIntensity, ed.blurFade, ed.blurDarkness, ed.tintStrength, ed.topShade, ed.topShadeHeight, ed.logoScale, ed.logoOffsetX, ed.logoOffsetY, ed.topBadgeScale, ed.topBadgeOffsetX, ed.topBadgeOffsetY, ed.extraBadgeScale, ed.extraBadgeOffsetX, ed.extraBadgeOffsetY, ed.genreBadgeScale, ed.genreBadgeOffsetX, ed.genreBadgeOffsetY, ed.qualityBadgeScale, ed.qualityBadgeOffsetX, ed.qualityBadgeOffsetY, ed.separateBadgeScale, ed.separateBadgeOffsetX, ed.separateBadgeOffsetY, ed.badgeItemTransforms, ed.networkLogoScale, ed.networkLogoOffsetX, ed.networkLogoOffsetY, ed.backdropScale, ed.backdropOffsetX, ed.backdropOffsetY, ed.globalBadges, ed.rankingBadges, ed.badgeGenre, ed.badgeYear, ed.badgeRating, ed.badgeQuality, ed.customRatings, ed.separateRatings, ed.separateRatingsStyle, ed.posterLayout, ed.posterFreshScope, ed.networkLogo, ed.ribbonEnabled, ed.networkLogoPosition, ed.logoAnchor, ed.qualityAnchor, ed.topBadgeAnchor, ed.extraBadgeAnchor, ed.bottomAnchor, ed.networkLogoFollowTitle, ed.qualityBadgeStyle, ed.qualityGroupLayout, ed.badgeStyle, ed.rankingBadgeStyle, ed.extraBadgeStyle, ed.badgeFont, ed.awardBadgeStyle, ed.customBadge, ed.ageBadge, ed.ageCountry, ed.ageBadgeStyle, ed.videoFormats, ed.ratingSources, ed.seasonalTheme, accentColor, autoAccentColor, ed.logoText, ed.logoFont, portraitBaseBackdropPath, mappingVisualDefaults, ed.landscape, ed.defaultGradientHeight, ed.defaultBlurEnabled, ed.defaultBlurIntensity, ed.defaultBlurFade, ed.defaultBlurDarkness, ed.defaultTintStrength, ed.defaultTopShade, ed.defaultTopShadeHeight, ed.defaultPosterShape])
   const mappingDirty = mappingDirtyBase
 
   const [saveState, setSaveState] = useState<"idle" | "saving" | "error">("idle")
@@ -838,6 +844,11 @@ export default function EditView() {
       badgeStyle: ed.badgeStyle, rankingBadgeStyle: ed.rankingBadgeStyle, extraBadgeStyle: ed.extraBadgeStyle,
       badgeFont: ed.badgeFont, qualityBadgeStyle: ed.qualityBadgeStyle, videoFormats: ed.videoFormats,
       networkLogo: ed.networkLogo, networkLogoPosition: ed.networkLogoPosition, ribbonEnabled: ed.ribbonEnabled,
+      logoAnchor: ed.logoAnchor,
+      qualityAnchor: ed.qualityAnchor,
+      topBadgeAnchor: ed.topBadgeAnchor,
+      extraBadgeAnchor: ed.extraBadgeAnchor,
+      bottomAnchor: ed.bottomAnchor,
       // Visuali un tempo condivisi, per-formato come gli stili sopra: ogni
       // formato ricorda i propri non salvati. Accent: solo il manuale viaggia
       // (null = automatico esplicito); un auto effettivo non si congela mai
@@ -1071,6 +1082,11 @@ export default function EditView() {
         videoFormats: ed.defaultVideoFormats,
         networkLogo: ed.defaultNetworkLogo,
         networkLogoPosition: ed.defaultNetworkLogoPosition,
+        logoAnchor: ed.defaultLogoAnchor,
+        qualityAnchor: ed.defaultQualityAnchor,
+        topBadgeAnchor: ed.defaultTopBadgeAnchor,
+        extraBadgeAnchor: ed.defaultExtraBadgeAnchor,
+        bottomAnchor: ed.defaultBottomAnchor,
         ribbonEnabled: ed.defaultRibbonEnabled,
       }
       const profileDefaults = next === "landscape" ? ((ed.landscape ?? null) as unknown as Record<string, unknown> | null) : null
@@ -1104,6 +1120,11 @@ export default function EditView() {
       ed.setVideoFormats(resolveBadge("videoFormats") as typeof ed.videoFormats)
       ed.setNetworkLogo(resolveBadge("networkLogo") as boolean)
       ed.setNetworkLogoPosition(resolveBadge("networkLogoPosition") as typeof ed.networkLogoPosition)
+      ed.setLogoAnchor(resolveBadge("logoAnchor") as typeof ed.logoAnchor)
+      ed.setQualityAnchor(resolveBadge("qualityAnchor") as typeof ed.qualityAnchor)
+      ed.setTopBadgeAnchor(resolveBadge("topBadgeAnchor") as typeof ed.topBadgeAnchor)
+      ed.setExtraBadgeAnchor(resolveBadge("extraBadgeAnchor") as typeof ed.extraBadgeAnchor)
+      ed.setBottomAnchor(resolveBadge("bottomAnchor") as typeof ed.bottomAnchor)
       ed.setRibbonEnabled(resolveBadge("ribbonEnabled") as boolean)
     }
     // Visuali un tempo condivisi, per-formato come gli stili sopra (SEMPRE,
@@ -1393,6 +1414,7 @@ export default function EditView() {
     // Sempre visibile: ospita anche badge superiore e sfocatura, che valgono
     // pure senza logo film (la sezione logo resta condizionata dentro).
     { key: "transform", label: t("ui.transform") },
+    { key: "position", label: t("ui.position") },
     ...(selected?.media_type === "tv" ? [{ key: "stagioni", label: t("ui.seasons") || "Stagioni" }] : []),
   ], [t, selected?.media_type])
 
@@ -1890,6 +1912,7 @@ export default function EditView() {
                 </>}
                 {activeRightTab === "badge" && <BadgeControls />}
                 {activeRightTab === "transform" && <TransformControls />}
+                {activeRightTab === "position" && <PositionControls />}
                 {activeRightTab === "stagioni" && (
                   <EpisodeGroupControls
                     autoOpenThumbnailStudio={autoOpenThumbnailStudio}

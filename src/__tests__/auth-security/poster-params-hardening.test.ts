@@ -60,6 +60,16 @@ describe("POSTER_CACHE_ALLOWLIST", () => {
     expect(a.get("blur")).toBe("20")
   })
 
+  it("lanc (logo anchor) entra nella chiave cache e il garbage non frammenta la cache", () => {
+    expect(POSTER_CACHE_ALLOWLIST.has("lanc")).toBe(true)
+    expect(POSTER_CACHE_ALLOWLIST.has("qanc")).toBe(true)
+    expect(POSTER_CACHE_ALLOWLIST.has("tanc")).toBe(true)
+    expect(POSTER_CACHE_ALLOWLIST.has("banc")).toBe(true)
+    const a = normalizePosterCacheParams(new URLSearchParams("lanc=tl"))
+    const b = normalizePosterCacheParams(new URLSearchParams("lanc=br"))
+    expect(a.toString()).not.toBe(b.toString())
+  })
+
   it("covers every key of posterQuerySchema (drift guard: new schema keys need an explicit allowlist decision)", () => {
     for (const key of Object.keys(posterQuerySchema.shape)) {
       expect(POSTER_CACHE_ALLOWLIST.has(key)).toBe(true)

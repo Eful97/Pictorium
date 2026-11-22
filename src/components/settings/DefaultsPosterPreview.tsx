@@ -20,6 +20,8 @@ import {
   fetchFirstEpisodeStill,
 } from "@/components/settings/thumbnail-preview"
 import { useThumbnailBadgeGeometry } from "@/components/settings/useThumbnailBadgeGeometry"
+import { DragGridToggle } from "@/components/settings/DragGridControls"
+import { readDragGrid, writeDragGrid } from "@/lib/drag-grid-pref"
 
 interface DefaultsPosterPreviewProps {
   /** Compact mode for mobile above the controls. */
@@ -110,6 +112,11 @@ interface DefaultsPosterPreviewProps {
     defaultNetworkLogoOffsetY: number
     defaultNetworkLogo: boolean
     defaultNetworkLogoPosition: import("@/lib/types").NetworkLogoPosition
+    defaultLogoAnchor: import("@/lib/types").LogoAnchor
+    defaultQualityAnchor: import("@/lib/types").QualityAnchor
+    defaultTopBadgeAnchor: import("@/lib/types").TopBadgeAnchor
+    defaultExtraBadgeAnchor: import("@/lib/types").ExtraBadgeAnchor
+    defaultBottomAnchor: import("@/lib/types").BottomAnchor
     defaultNetworkLogoFollowTitle: boolean | null
     defaultPreRelease: boolean
     defaultRibbonEnabled: boolean
@@ -152,6 +159,7 @@ const PREVIEW_FAMILY_LABEL_KEY: Record<DefaultsPreviewFamily, string> = {
   quality: "ui.badgeQuality",
   logo: "ui.logoSection",
   gradient: "ui.blurSection",
+  position: "ui.position",
 }
 
 export interface DefaultsPreviewBuildOpts {
@@ -291,6 +299,11 @@ export function buildDefaultsPreviewUrlFromEditor(
       defaultNetworkLogoOffsetY: ed.defaultNetworkLogoOffsetY,
       defaultNetworkLogo: ed.defaultNetworkLogo,
       defaultNetworkLogoPosition: ed.defaultNetworkLogoPosition,
+      defaultLogoAnchor: ed.defaultLogoAnchor,
+      defaultQualityAnchor: ed.defaultQualityAnchor,
+      defaultTopBadgeAnchor: ed.defaultTopBadgeAnchor,
+      defaultExtraBadgeAnchor: ed.defaultExtraBadgeAnchor,
+      defaultBottomAnchor: ed.defaultBottomAnchor,
       defaultNetworkLogoFollowTitle: ed.defaultNetworkLogoFollowTitle,
       defaultPreRelease: ed.defaultPreRelease,
       defaultRibbonEnabled: ed.defaultRibbonEnabled,
@@ -301,6 +314,7 @@ export function buildDefaultsPreviewUrlFromEditor(
       defaultLogoAlign: ed.defaultLogoAlign,
       defaultDateFormat: ed.defaultDateFormat,
       defaultGenreTopWhenFree: ed.defaultGenreTopWhenFree,
+      defaultBadgeOverflow: ed.defaultBadgeOverflow,
       defaultRegion: ed.defaultRegion,
       // Profilo Orizzontale live (stessi slider del Verticale): chiavi definite
       // vincono sui flat SOLO con shape Orizzontale (regola `land ?? flat` nel
@@ -310,6 +324,9 @@ export function buildDefaultsPreviewUrlFromEditor(
       defaultSashOrder: ed.defaultSashOrder,
       defaultDisabledContentTags: ed.defaultDisabledContentTags ?? undefined,
       defaultDisabledNetworks: ed.defaultDisabledNetworks ?? undefined,
+      defaultWatchProviders: ed.defaultWatchProviders ?? undefined,
+      defaultWatchRegion: ed.defaultWatchRegion ?? undefined,
+      defaultTypeIcon: previewIsLandscape ? ed.defaultTypeIconLandscape : ed.defaultTypeIcon,
       previewFamily: opts.previewFamily ?? null,
       previewExtra,
     })
@@ -345,6 +362,11 @@ export function DefaultsPosterPreview({ compact, floating, suspended, previewSha
   // user turned it off (an inert first-run pointer looks like a broken
   // feature), so the initial state matches `readBadgeDragEnabled`.
   const [dragBadges, setDragBadges] = useState(true)
+  // Alignment grid (per viewer, browser-only): overlay + snapping while dragging.
+  const [dragGrid, setDragGrid] = useState(false)
+  useEffect(() => {
+    setDragGrid(readDragGrid())
+  }, [])
   // Which kind of target the editor hit-tests: whole groups (families) or
   // single badges. Only one is hittable at a time, so overlapping boxes can
   // never make a group unreachable.
@@ -532,6 +554,11 @@ export function DefaultsPosterPreview({ compact, floating, suspended, previewSha
     ed.defaultNetworkLogoOffsetY,
     ed.defaultNetworkLogo,
     ed.defaultNetworkLogoPosition,
+    ed.defaultLogoAnchor,
+    ed.defaultQualityAnchor,
+    ed.defaultTopBadgeAnchor,
+    ed.defaultExtraBadgeAnchor,
+    ed.defaultBottomAnchor,
     ed.defaultNetworkLogoFollowTitle,
     ed.defaultPreRelease,
     ed.defaultRibbonEnabled,
@@ -542,6 +569,7 @@ export function DefaultsPosterPreview({ compact, floating, suspended, previewSha
     ed.defaultLogoAlign,
     ed.defaultDateFormat,
     ed.defaultGenreTopWhenFree,
+    ed.defaultBadgeOverflow,
     ed.defaultRegion,
     ed.defaultSashOrder,
     ed.landscape,
@@ -747,7 +775,7 @@ export function DefaultsPosterPreview({ compact, floating, suspended, previewSha
     ? "without"
     : previewFamily === "rank"
       ? "with"
-      : previewFamily === "info" || previewFamily === "extra"
+      : previewFamily === "info" || previewFamily === "extra" || previewFamily === "position"
         ? "without"
         : "unset"
   const rankSwitchEnabled = editorActive && !!onPreviewFamilyChange && !isThumbnail
@@ -874,6 +902,14 @@ export function DefaultsPosterPreview({ compact, floating, suspended, previewSha
                 <Move className="w-3.5 h-3.5" />
                 <span>{t(dragBadges ? "ui.badgeDragModeOn" : "ui.badgeDragModeOff")}</span>
               </button>
+              <DragGridToggle
+                enabled={dragGrid}
+                onToggle={() => {
+                  const next = !dragGrid
+                  setDragGrid(next)
+                  writeDragGrid(next)
+                }}
+              />
               {renderRankSwitch("zoom")}
               <button
                 type="button"
@@ -904,6 +940,7 @@ export function DefaultsPosterPreview({ compact, floating, suspended, previewSha
                   shape={isLandscape ? "landscape" : "poster"}
                   enabled
                   dragMode={dragBadges}
+                  gridOn={dragGrid}
                   targetLevel={targetLevel}
                   adapter={isThumbnail ? thumbnailGeometryAdapter : undefined}
                 />

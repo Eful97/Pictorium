@@ -1,3 +1,6 @@
+import { getWatchProvidersResult, type WatchProvidersResult } from "@/lib/watch-providers"
+import { resolveBadgeOverflow } from "@/lib/badge-overflow"
+import { sanitizeWatchRegion } from "@/lib/regions"
 import { NextRequest } from "next/server"
 import { initSharp } from "@/lib/sharp-config"
 import { getImages, getDetails } from "@/lib/tmdb"
@@ -73,6 +76,9 @@ import { finalizePosterRender } from "./finalize"
 import { resolveRenderDisplay } from "./display-state"
 import type { PosterArtwork, PosterTitleMeta } from "./sources"
 import { resolveAutoSources, resolveMappingSources, resolveQuerySources, type SourceResolutionContext } from "./resolve-sources"
+
+/** Cap del fetch provider (parità col cap rating): oltre, il poster esce senza icone. */
+const WATCH_PROVIDERS_TIMEOUT_MS = 1500
 
 // Vercel: limite massimo di esecuzione della funzione. Il render poster ha un
 // deadline interno di 30s (PICTORIUM_RENDER_TIMEOUT_MS) → 40s copre il caso
@@ -179,7 +185,7 @@ export async function GET(req: NextRequest, { params }: { params: Promise<RouteP
   // Chiave di cache, ETag base, formato, policy TTL/immutable e flag di
   // debug (cache-key.ts). Idrata la entry canonica dal disco.
   const {
-    dynamicDayBucket, dynamicRotationIncludeNonClean, dynamicCutTtlMs, outputFormat, legacyAvif,
+    dynamicDayBucket, dynamicRotationIncludeNonClean, dynamicRotationIncludeOriginal, dynamicCutTtlMs, outputFormat, legacyAvif,
     canonicalFormat, imageQuality, cacheKey, needsVariant, variantKey, immutablePoster, refreshRequest,
     isLive, isDebug, wantNetGeo, wantBadgeGhosts, dynamicPoster, mappingTag, dynamicTtlSec,
     variantTtlSec, ifNoneMatch, isConditional,
@@ -429,7 +435,7 @@ export async function GET(req: NextRequest, { params }: { params: Promise<RouteP
   const sourceCtx: SourceResolutionContext = {
     req, hardenedParams, mediaType, tmdbId, mapping, earlyEffMapping, sd, configOverride,
     posterRegion, canonicalLang, isLandscape, autoWordmarkEnabled, portraitBackdropFallback,
-    dynamicDayBucket, dynamicRotationIncludeNonClean, effTmdbKey, effMdblistKey, effSimklKey,
+    dynamicDayBucket, dynamicRotationIncludeNonClean, dynamicRotationIncludeOriginal, effTmdbKey, effMdblistKey, effSimklKey,
     reqRatingSources, renderAbort, queryPoster, queryLogo, queryBackdrop,
     queryPortraitBase, queryGenre, queryVote,
   }
@@ -557,7 +563,7 @@ export async function GET(req: NextRequest, { params }: { params: Promise<RouteP
     const {
       qQualityParam, rankingEnabledEarly, preJw, preDigital, effectiveCustomUrl, wikidataRaceTimedOut,
       backdropCustomForFetch, originalBase, logoFetch, backdropFetch, rankingResult, animeRankResult,
-      rawLiveQuality, preReleaseDetected, wikidataResult, tmdbKeywords, imdbTop250, ageCert,
+      rawLiveQuality, preReleaseDetected, preInTheaters, wikidataResult, tmdbKeywords, imdbTop250, ageCert,
       ...pendingRating
     } = await fetchRenderData({
       req, hardenedParams, mediaType, tmdbId, mapping, earlyEffMapping, sd, earlyEffSd, configOverride,
@@ -697,9 +703,27 @@ export async function GET(req: NextRequest, { params }: { params: Promise<RouteP
       genreBadgeOffsetX, genreBadgeOffsetY, qualityBadgeOffsetX, qualityBadgeOffsetY,
       networkLogoOffsetX, networkLogoOffsetY,
       queryExtra, qNetLogo, networkLogo, networkLogoPosition, ribbonSide, ribbonEnabled, rankingBadgeAccent,
+      logoAnchor,
+      qualityAnchor,
+      topBadgeAnchor,
+      extraBadgeAnchor,
+      bottomAnchor,
       networkLogoFollowTitle, networkFixedX, networkFixedY,
+      watchProviders, watchRegion, typeIcon,
       preRelease, posterShape, posterLayout, posterFreshScope, logoAlign, seasonalTheme, hideLogo,
     } = renderConfig
+
+    // "Dove guardare": fetch provider flatrate solo se opt-in, paese `wpr` >
+    // defaults > paese del poster. Cap 1500 ms e renderAbort: mai oltre il
+    // caso peggiore, errore/timeout → lista vuota (poster invariato).
+    const wpRegion = sanitizeWatchRegion(watchRegion ?? posterRegion.code)
+    const watchProvidersPromise: Promise<WatchProvidersResult> = watchProviders && wpRegion
+      ? getWatchProvidersResult(mediaType as "movie" | "tv", tmdbId, wpRegion, effTmdbKey,
+          AbortSignal.any([renderAbort.signal, AbortSignal.timeout(WATCH_PROVIDERS_TIMEOUT_MS)]))
+      : Promise.resolve({ providers: [], failed: false })
+    // Atteso qui (non allo step 10): l'esito degradato serve alla policy TTL sotto.
+    const watchProvidersResolved = await watchProvidersPromise
+    const watchProviderList = watchProvidersResolved.providers
 
     // Blur non-clean + stato display dei rating separati (display-state.ts).
     const {
@@ -714,6 +738,7 @@ export async function GET(req: NextRequest, { params }: { params: Promise<RouteP
       disabledContentTags, qQualityParam, liveQualityResult, ageCert, wikidataResult, wikidataRaceTimedOut,
       effectiveCustomUrl, originalBase, preDigital, preJw, preReleaseDetected, finalRank, animeRankResult,
       tmdbKeywords, imdbTop250, aggregated, dynamicTtlSec, immutablePoster,
+      watchProvidersDegraded: watchProvidersResolved.failed,
     }, titleMeta)
     const { ageLabel, ageEphemeral, ephemeralTtl, effectiveImmutable } = ephemeral
     // Task D: riassegnato sotto dal freshness cap (solo restrizione, mai estensione).
@@ -731,8 +756,13 @@ export async function GET(req: NextRequest, { params }: { params: Promise<RouteP
     // finestra si calcola sempre su STD_W (mai LAND_W).
     const badgeCanvasWidth = STD_W
     const topBadgeType: "rank" | "extra" = rankingEnabled ? "rank" : "extra"
-    const topBadgeAnchor = topBadgeSampleAnchor({ topBadgeType, rankingBadgeStyle, extraBadgeStyle, ribbonSide })
-    const topBadgeWindow = badgeSampleWindow(topBadgeAnchor, badgeCanvasWidth)
+    // `tanc` sposta il corpo rank, `xanc` il badge extra (tipo scelto come nel
+    // render: rank → tanc, extra → xanc). Solo Standard senza Coming Soon (il
+    // nastro occupa lo slot alto): la finestra di polarità segue la stessa gate.
+    const sampleTopAnchor = (!posterLayout || posterLayout === "standard") && !preRelease
+      ? (topBadgeType === "extra" ? extraBadgeAnchor : topBadgeAnchor) : "auto"
+    const topBadgeSampleSide = topBadgeSampleAnchor({ topBadgeType, rankingBadgeStyle, extraBadgeStyle, ribbonSide, topBadgeAnchor: sampleTopAnchor })
+    const topBadgeWindow = badgeSampleWindow(topBadgeSampleSide, badgeCanvasWidth)
     const qTopLightRaw = hardenedParams.get("tl")
     const qTopLightExplicit = qTopLightRaw === "1" || qTopLightRaw === "true" ? true : qTopLightRaw === "0" || qTopLightRaw === "false" ? false : null
     let topBadgeLight: boolean
@@ -774,6 +804,8 @@ export async function GET(req: NextRequest, { params }: { params: Promise<RouteP
     // gli altri toggle booleani in chiave) > default utente > off.
     const qGtop = hardenedParams.get("gtop")
     const genreTopWhenFree = qGtop !== null ? qGtop !== "0" : sd.genreTopWhenFree === true
+    // Overflow badge Auto (`bov`): query > config token > default > move. Globale.
+    const badgeOverflow = resolveBadgeOverflow({ query: hardenedParams.get("bov"), config: configOverride?.badgeOverflow, defaults: sd.badgeOverflow })
     // Task D — freshness cap dai fatti volatili consumati (vedi freshness.ts).
     const factCap = resolveFactCap({
       mediaType, tmdbId, posterRegion, t, scopedUser, effTmdbKey, effMdblistKey, effTvdbKey,
@@ -824,7 +856,7 @@ export async function GET(req: NextRequest, { params }: { params: Promise<RouteP
         tmdbId, mediaType, mapping, posterRegion, locale, t, dateFormat, isLandscape, hardenedParams,
         artwork, titleMeta, renderConfig,
         rankingResult, animeRankResult, wikidataResult, wikidataRaceTimedOut, tmdbKeywords, imdbTop250,
-        aggregated, liveQualityResult, preJw, preDigital, preReleaseDetected,
+        aggregated, liveQualityResult, preJw, preDigital, preReleaseDetected, preInTheaters,
         finalRank, finalQuality, qLabel, ageLabel, ageEphemeral, applyPreRelease, accentOverride,
         topLight, bottomLight, bottomActive, useSeparate, effBlurHeight, effBlurFade,
         cacheHit: !!cachedPoster.payload,
@@ -905,12 +937,20 @@ export async function GET(req: NextRequest, { params }: { params: Promise<RouteP
       finalRank, animeRankResult, rankingResult,
       mapping, tmdbId, digitalReleaseDate: preDigital ?? null, tmdbNetworks: titleMeta.tmdbNetworks, productionCompanies: titleMeta.productionCompanies, tmdbStudios: titleMeta.tmdbStudios,
       tmdbNetworksDetailed: titleMeta.tmdbNetworksDetailed, productionCompaniesDetailed: titleMeta.productionCompaniesDetailed,
+      ...(watchProviderList.length > 0 ? { watchProviders: watchProviderList } : {}),
+      ...(typeIcon ? { typeIcon: true } : {}),
       tvType: titleMeta.tvType, tvStatus: titleMeta.tvStatus, releaseDate: titleMeta.releaseDate, firstAirDate: titleMeta.firstAirDate,
       lastAirDate: titleMeta.lastAirDate, seasonCount: titleMeta.seasonCount, nextEpisodeAirDate: titleMeta.nextEpisodeAirDate, numberOfEpisodes: titleMeta.numberOfEpisodes, originCountries: titleMeta.originCountries, genreIds: titleMeta.genreIds,
       wikidataResult, tmdbKeywords, locale, t,
       dateFormat,
       genreTopWhenFree,
+      badgeOverflow,
       qLabel, queryExtra, qNetLogo, networkLogo, networkLogoPosition, sd,
+      logoAnchor,
+      qualityAnchor,
+      topBadgeAnchor,
+      extraBadgeAnchor,
+      bottomAnchor,
       networkLogoFollowTitle, networkFixedX, networkFixedY,
       onNetworkGeometry: isDebug && wantNetGeo ? (geo) => { netGeo = geo } : undefined,
       onBadgeGeometry: isDebug && wantNetGeo ? (geo) => { badgeGeo = geo } : undefined,
@@ -918,6 +958,7 @@ export async function GET(req: NextRequest, { params }: { params: Promise<RouteP
       onAccentMeta: (m) => { collectedAccentMeta = m },
       demoSamples,
       accentOverride, imdbTop250, whatsonFeatures: aggregated?.whatsonFeatures ?? null, preRelease: applyPreRelease,
+      preInTheaters,
       shape: posterShape,
       posterLayout,
       posterFreshScope,

@@ -30,6 +30,24 @@ export interface ChangelogRelease {
  *  (which bumps on every commit and would leave the dot permanently on). */
 export const CHANGELOG: ChangelogRelease[] = [
   {
+    version: "1.28.1",
+    date: "2026-11-22",
+    title: "Release 1.28.1",
+    items: [
+      { type: "feature", text: "Place every badge where you want it: a new Position tab with nine spots on a 3x3 grid for logo, network, quality, ranking, extra and genre badges, or Auto" },
+      { type: "feature", text: "Put network, quality, ranking and genre badges right above or below the title logo" },
+      { type: "feature", text: "Choose what happens when a badge has no room: move it out of the way or hide it" },
+      { type: "feature", text: "Show an optional alignment grid while dragging badges in the preview, with snapping" },
+      { type: "feature", text: "Show where to watch with a row of streaming provider icons on the poster, saved in presets" },
+      { type: "feature", text: "Add an optional movie or TV icon to the genre row, saved per shape in presets" },
+      { type: "feature", text: "Let poster rotation include posters in the title's original language" },
+      { type: "fix", text: "Show the movie or TV icon in the Editorial genre badge" },
+      { type: "fix", text: "Place the network logo slightly higher when it sits above the title logo" },
+      { type: "feature", text: "Show an In theaters badge on films now in cinemas, instead of Coming soon" },
+      { type: "fix", text: "Show the Coming soon ribbon only when release availability is certain" },
+    ],
+  },
+  {
     version: "1.28.0",
     date: "2026-11-16",
     title: "Release 1.28.0",
@@ -45,6 +63,7 @@ export const CHANGELOG: ChangelogRelease[] = [
       { type: "feature", text: "Choose low, medium or high image quality for posters and thumbnails on private instances" },
       { type: "perf", text: "Deliver episode thumbnails as WebP or JPEG instead of PNG for lighter downloads" },
       { type: "feature", text: "Refresh the home page: a larger poster with a before and after slider, style chips, and the poster wall behind the hero" },
+      { type: "feature", text: "Show where to watch: an optional row of streaming provider icons for the country you choose, in place of the production network logo" },
       { type: "fix", text: "Show the Ko-fi label next to its icon in the mobile header" },
       { type: "fix", text: "Fit the editor selection frames to the visible badge instead of its shadow and padding" },
     ],

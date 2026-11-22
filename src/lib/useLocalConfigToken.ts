@@ -29,6 +29,8 @@ export interface LocalConfigTokenInput {
    */
   readonly disabledContentTags?: readonly string[]
   readonly disabledNetworks?: readonly string[]
+  readonly watchProviders?: boolean
+  readonly watchRegion?: string | null
 }
 
 /**
@@ -115,6 +117,9 @@ export function useLocalConfigToken(input: LocalConfigTokenInput): LocalConfigTo
         ...(input.disabledNetworks !== undefined
           ? { disabledNetworks: [...input.disabledNetworks] }
           : {}),
+        ...(input.watchProviders === true
+          ? { watchProviders: true, ...(input.watchRegion ? { watchRegion: input.watchRegion } : {}) }
+          : {}),
       })
       if (cancelled) return
       if (minted) {
@@ -137,7 +142,7 @@ export function useLocalConfigToken(input: LocalConfigTokenInput): LocalConfigTo
     return () => {
       cancelled = true
     }
-  }, [input.streamingSelections, input.customCatalogs, input.rankingSourceMovie, input.rankingSourceSeries, input.catalogShapes, input.catalogShowEmojis, input.seasonalHalloweenKeywords, input.seasonalChristmasKeywords, input.disabledContentTags, input.disabledNetworks])
+  }, [input.streamingSelections, input.customCatalogs, input.rankingSourceMovie, input.rankingSourceSeries, input.catalogShapes, input.catalogShowEmojis, input.seasonalHalloweenKeywords, input.seasonalChristmasKeywords, input.disabledContentTags, input.disabledNetworks, input.watchProviders, input.watchRegion])
 
   return { token, status }
 }

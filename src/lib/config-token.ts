@@ -5,13 +5,16 @@
  * Firmato con HMAC-SHA256 per prevenire manomissioni.
  */
 
+import { BADGE_OVERFLOW_MODES } from "@/lib/badge-overflow"
+import { LOGO_ANCHORS } from "@/lib/logo-layout"
+import { QUALITY_ANCHORS, BOTTOM_ANCHORS, TOP_BADGE_ANCHORS, EXTRA_BADGE_ANCHORS } from "@/lib/badge-anchor"
 import crypto from "node:crypto"
 import { z } from "zod"
 // Batch B: clamp condiviso da image-utils.ts (semantica standard, senza round)
 import { clamp } from "@/lib/image-utils"
 import { envWithFallback } from "@/lib/env-compat"
 import { BADGE_STYLES, RANKING_BADGE_STYLES, QUALITY_BADGE_STYLES, AGE_BADGE_STYLES, AWARD_BADGE_MODES, BADGE_FONTS, SEPARATE_RATINGS_STYLES, EXTRA_BADGE_STYLES, EXTRA_BADGE_FOLLOW_RANK } from "@/lib/badge-styles"
-import { POSTER_LAYOUTS, POSTER_FRESH_SCOPES } from "@/lib/types"
+import { POSTER_LAYOUTS, POSTER_FRESH_SCOPES, NETWORK_LOGO_POSITIONS } from "@/lib/types"
 import { QUALITY_GROUP_LAYOUTS } from "@/lib/badge-styles"
 import { retiredBadgeFamilyBindingsSchema } from "@/lib/validation"
 import { MAX_DISABLED_NETWORKS } from "@/lib/network-keys"
@@ -154,7 +157,13 @@ export const configTokenSchema = z.object({
   networkLogoOffsetX: z.number().finite().optional(),
   networkLogoOffsetY: z.number().finite().optional(),
   networkLogo: z.boolean(),
-  networkLogoPosition: z.enum(["auto", "top"]).optional(),
+  networkLogoPosition: z.enum(NETWORK_LOGO_POSITIONS).optional(),
+  logoAnchor: z.enum(LOGO_ANCHORS).optional(),
+  qualityAnchor: z.enum(QUALITY_ANCHORS).optional(),
+  topBadgeAnchor: z.enum(TOP_BADGE_ANCHORS).optional(),
+  extraBadgeAnchor: z.enum(EXTRA_BADGE_ANCHORS).optional(),
+  bottomAnchor: z.enum(BOTTOM_ANCHORS).optional(),
+  badgeOverflow: z.enum(BADGE_OVERFLOW_MODES).optional(),
   networkLogoFollowTitle: z.boolean().nullable().optional(),
   preRelease: z.boolean().optional(),
   posterShape: z.enum(["poster", "landscape"]).optional(),
@@ -167,6 +176,7 @@ export const configTokenSchema = z.object({
   autoRotateClean: z.boolean(),
   /** Default rotazione poster (Solo clean / Clean + lingua): opzionale per back-compat. */
   defaultRotationIncludeNonClean: z.boolean().optional(),
+  defaultRotationIncludeOriginal: z.boolean().optional(),
   // Opzionale (finding 13): i token generati prima dell'aggiunta del campo
   // (best-fit) non devono fallire il safeParse — il render usa il default del
   // server quando il campo è assente.
@@ -220,6 +230,9 @@ export const configTokenSchema = z.object({
   disabledContentTags: z.array(z.string().max(40)).max(64).optional(),
   // 74 canonical marks + the Other-group sentinel (same list, never a key).
   disabledNetworks: z.array(z.string().max(40)).max(MAX_DISABLED_NETWORKS).optional(),
+  // "Dove guardare" (space-wide): switch + country, sanitized again at read time.
+  watchProviders: z.boolean().optional(),
+  watchRegion: z.string().max(2).optional(),
   disabledCatalogIds: z.array(z.string().max(80)).optional(),
   homeDisabledCatalogIds: z.array(z.string().max(80)).optional(),
   episodeMetadataSource: z.enum(["tmdb", "tvdb"]).optional(),
@@ -290,6 +303,9 @@ export const partialCatalogTokenSchema = z.object({
   disabledContentTags: z.array(z.string().max(40)).max(64).optional(),
   // 74 canonical marks + the Other-group sentinel (same list, never a key).
   disabledNetworks: z.array(z.string().max(40)).max(MAX_DISABLED_NETWORKS).optional(),
+  // "Dove guardare" (space-wide): switch + country, sanitized again at read time.
+  watchProviders: z.boolean().optional(),
+  watchRegion: z.string().max(2).optional(),
   disabledCatalogIds: z.array(z.string().max(80)).optional(),
   homeDisabledCatalogIds: z.array(z.string().max(80)).optional(),
   catalogOrder: z.array(z.string().max(80)).optional(),

@@ -1,3 +1,4 @@
+import { isActiveTopBadgeAnchor } from "./badge-anchor"
 import { normalizeExtraBadgeStyleForRender, type BadgeStyle, type RankingBadgeStyle, type ExtraBadgeStyle, type ExtraBadgeFollowRank, isRibbonRankingStyle } from "./badge-styles"
 
 export type BadgeSampleAnchor = "center" | "left" | "right"
@@ -9,6 +10,8 @@ export function topBadgeSampleAnchor(params: {
   readonly rankingBadgeStyle: RankingBadgeStyle
   readonly extraBadgeStyle?: ExtraBadgeStyle | ExtraBadgeFollowRank | string | null
   readonly ribbonSide?: string | null
+  /** Ancora `tanc` già risolta per il render Standard (auto/assente = centro). */
+  readonly topBadgeAnchor?: string | null
 }): BadgeSampleAnchor {
   const topBadgeType = params.topBadgeType ?? "rank"
   const eff = resolveTopBadgeStyle({
@@ -18,6 +21,10 @@ export function topBadgeSampleAnchor(params: {
   })
   if (isRibbonRankingStyle(eff)) {
     return params.ribbonSide === "right" ? "right" : "left"
+  }
+  // Corpo centrato spostato in angolo (tl/tr): la polarità si misura lì.
+  if (isActiveTopBadgeAnchor(params.topBadgeAnchor) && !isCornerAnchoredStyle(eff)) {
+    return params.topBadgeAnchor === "tr" ? "right" : "left"
   }
   if (isTopBadgeNumberRightCorner({
     topBadgeType: topBadgeType === "extra" ? "extra" : "rank",
@@ -356,6 +363,9 @@ export interface BadgeGeometryItem {
  */
 export const NETWORK_LOGO_SHIFT_Y = 10
 
+/** Extra lift (px) of a network pill anchored above the title logo. */
+export const NETWORK_ABOVE_LOGO_LIFT = 6
+
 export interface CornerNetworkAboveTitleInput {
   readonly logoTop: number
   readonly logoLeft: number
@@ -384,7 +394,7 @@ export function cornerNetworkAboveTitle(
   input: CornerNetworkAboveTitleInput,
 ): { top: number; left: number } | null {
   const shift = input.visibleShiftY ?? NETWORK_LOGO_SHIFT_Y
-  const top = input.logoTop - input.netH - input.gap - shift
+  const top = input.logoTop - input.netH - input.gap - shift - NETWORK_ABOVE_LOGO_LIFT
   if (top < 0) return null
   const left = Math.round(input.logoLeft + (input.logoW - input.netW) / 2)
   return { top, left }

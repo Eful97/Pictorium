@@ -251,6 +251,11 @@ export interface FullMappingCheckState {
   networkLogo?: boolean
   ribbonEnabled?: boolean
   networkLogoPosition?: string
+  logoAnchor?: string
+  qualityAnchor?: string
+  topBadgeAnchor?: string
+  extraBadgeAnchor?: string
+  bottomAnchor?: string
   /** Il network segue il titolo (assente = legacy ON). */
   networkLogoFollowTitle?: boolean
   qualityBadgeStyle?: string
@@ -363,6 +368,11 @@ export function isMappingDirty(
   if ((current.networkLogo ?? true) !== (eff.networkLogo ?? true)) return true
   if ((current.ribbonEnabled ?? true) !== (eff.ribbonEnabled ?? true)) return true
   if ((current.networkLogoPosition ?? "auto") !== (eff.networkLogoPosition ?? "auto")) return true
+  if ((current.logoAnchor ?? "auto") !== (eff.logoAnchor ?? "auto")) return true
+  if ((current.qualityAnchor ?? "auto") !== (eff.qualityAnchor ?? "auto")) return true
+  if ((current.topBadgeAnchor ?? "auto") !== (eff.topBadgeAnchor ?? "auto")) return true
+  if ((current.extraBadgeAnchor ?? "auto") !== (eff.extraBadgeAnchor ?? "auto")) return true
+  if ((current.bottomAnchor ?? "auto") !== (eff.bottomAnchor ?? "auto")) return true
   // Follow off with no saved field: the mapping follows the defaults, so a
   // per-title change must read as unsaved (same rule as the other frozen toggles).
   if ((current.networkLogoFollowTitle ?? true) !== (eff.networkLogoFollowTitle ?? true)) return true

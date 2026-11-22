@@ -316,6 +316,7 @@ export function TagsNetworksSection({ active }: { active: boolean }) {
         </fieldset>
         <p className="text-[11px] text-zinc-400 leading-relaxed">{t("ui.tmdbFallbackHint")}</p>
       </section>
+
     </div>
   )
 }

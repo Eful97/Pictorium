@@ -1,5 +1,5 @@
 import sharp from "sharp"
-import { computeLogoLayout, PORTRAIT_LOGO_MAX_HEIGHT_PCT, PORTRAIT_LOGO_TOP_OFFSET, LANDSCAPE_LOGO_MAX_WIDTH_PCT, LANDSCAPE_LOGO_MAX_HEIGHT_PCT, LANDSCAPE_LOGO_BOTTOM_MARGIN_PCT, LANDSCAPE_LOGO_TOP_OFFSET } from "@/lib/logo-layout"
+import { computeLogoLayout, type LogoAnchor, PORTRAIT_LOGO_MAX_HEIGHT_PCT, PORTRAIT_LOGO_TOP_OFFSET, LANDSCAPE_LOGO_MAX_WIDTH_PCT, LANDSCAPE_LOGO_MAX_HEIGHT_PCT, LANDSCAPE_LOGO_BOTTOM_MARGIN_PCT, LANDSCAPE_LOGO_TOP_OFFSET } from "@/lib/logo-layout"
 import { createLogger } from "@/lib/logger"
 // Batch B: import shared utilities from image-utils.ts (single source of truth)
 import { STD_W, STD_H, LAND_W, LAND_H, clamp, luma, type RgbData, decodePosterRaw, sliceRgb } from "@/lib/image-utils"
@@ -53,6 +53,8 @@ export interface PosterFitInput {
   logoOffsetX: number
   logoOffsetY: number
   hasBadges: boolean
+  /** Ancora d'angolo del logo (Standard): la zona analizzata segue il logo reale. */
+  logoAnchor?: LogoAnchor | null
   offsetYVariants?: number[]
   /** Formato canvas: "landscape" analizza a 768×432 con layout Cinematic
    *  Left (stessi vincoli di poster-service.ts). Default "poster". */
@@ -335,6 +337,7 @@ async function buildLogoFitContext(
   logoOffsetY: number,
   hasBadges: boolean,
   shape?: PosterShape,
+  anchor?: LogoAnchor | null,
 ): Promise<LogoFitContext> {
   const logoMeta = await sharp(logoBuffer).metadata()
   const logoW = logoMeta.width ?? 100
@@ -351,6 +354,7 @@ async function buildLogoFitContext(
     logoOffsetY,
     hasBadges,
     ...logoLayoutOverrides(shape),
+    anchor,
   })
   // Mask dell'inchiostro alla stessa risoluzione/posizione della composizione
   // reale (poster-service.ts usa fit:"inside" + centratura nel box).
@@ -375,8 +379,8 @@ async function buildLogoFitContext(
 }
 
 export async function scorePosterLogoFit(input: PosterFitInput): Promise<PosterFitResult> {
-  const { posterBuffer, logoBuffer, posterPath, logoScale, logoOffsetX, logoOffsetY, hasBadges, offsetYVariants, shape, context } = input
-  const ctx = context ?? await buildLogoFitContext(logoBuffer, logoScale, logoOffsetX, logoOffsetY, hasBadges, shape)
+  const { posterBuffer, logoBuffer, posterPath, logoScale, logoOffsetX, logoOffsetY, hasBadges, offsetYVariants, shape, context, logoAnchor } = input
+  const ctx = context ?? await buildLogoFitContext(logoBuffer, logoScale, logoOffsetX, logoOffsetY, hasBadges, shape, logoAnchor)
   const { logoW, logoH, logoLuma, baseLayout, logoMask, maskLeft, maskTop } = ctx
   const canvas = fitCanvasSize(shape)
 
@@ -596,8 +600,9 @@ export async function rankPostersByFit(
   hasBadges: boolean,
   offsetYVariants?: number[],
   shape?: PosterShape,
+  anchor?: LogoAnchor | null,
 ): Promise<PosterFitResult[]> {
-  const context = await buildLogoFitContext(logoBuffer, logoScale, logoOffsetX, logoOffsetY, hasBadges, shape)
+  const context = await buildLogoFitContext(logoBuffer, logoScale, logoOffsetX, logoOffsetY, hasBadges, shape, anchor)
 
   const results = await Promise.all(
     posters.map((p) =>

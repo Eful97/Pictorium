@@ -47,6 +47,8 @@ export interface PosterDebugInput {
   readonly preJw: boolean | null
   readonly preDigital: string | null
   readonly preReleaseDetected: boolean
+  /** Fase teatrale (solo film): true = già uscito in sala ("Al cinema"). */
+  readonly preInTheaters: boolean
   // Valori derivati per il render
   readonly finalRank: number | null
   readonly finalQuality: StreamQuality | null
@@ -73,7 +75,7 @@ export function buildPosterDebugJson(input: PosterDebugInput): Record<string, un
     tmdbId, mediaType, mapping, posterRegion, locale, t, dateFormat, isLandscape,
     hardenedParams, artwork, titleMeta, rankingResult, animeRankResult, wikidataResult,
     wikidataRaceTimedOut, tmdbKeywords, imdbTop250, aggregated, liveQualityResult, preJw,
-    preDigital, preReleaseDetected, finalRank, finalQuality, qLabel, ageLabel, ageEphemeral,
+    preDigital, preReleaseDetected, preInTheaters, finalRank, finalQuality, qLabel, ageLabel, ageEphemeral,
     applyPreRelease, accentOverride, topLight, bottomLight, bottomActive, useSeparate,
     effBlurHeight, effBlurFade, cacheHit, cacheStale, startTime, tFetchMs,
   } = input
@@ -158,7 +160,7 @@ export function buildPosterDebugJson(input: PosterDebugInput): Record<string, un
       degraded: ageEphemeral,
     },
     minQuality,
-    preRelease: { enabled: preRelease, detected: preReleaseDetected, applied: applyPreRelease, jwAvailable: preJw, digitalDate: preDigital, theatricalDate: titleMeta.releaseDate ?? mapping?.releaseDate ?? null },
+    preRelease: { enabled: preRelease, detected: preReleaseDetected, applied: applyPreRelease, inTheaters: preInTheaters, jwAvailable: preJw, digitalDate: preDigital, theatricalDate: titleMeta.releaseDate ?? mapping?.releaseDate ?? null },
     rankings: {
       justwatch: rankingResult,
       anime: animeRankResult,

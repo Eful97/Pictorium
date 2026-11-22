@@ -427,6 +427,14 @@ const server = http.createServer(async (req, res) => {
                     offers: [{ presentationType: "4K" }],
                   },
                 },
+                {
+                  // Matrix: trovato ma solo biglietti cinema (nessuna offerta
+                  // digitale) → jwAvailable=false, prova positiva per il pre-release.
+                  node: {
+                    content: { title: "Matrix", externalIds: { tmdbId: 603 } },
+                    offers: [{ monetizationType: "CINEMA" }],
+                  },
+                },
               ],
             },
           },

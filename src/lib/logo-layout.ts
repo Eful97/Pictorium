@@ -1,3 +1,57 @@
+import {
+  ANCHOR_CHOICES,
+  anchorRect,
+  anchorRow,
+  isAnchorChoice,
+  isAnchorPosition,
+  type AnchorPosition,
+} from "./badge-anchor"
+
+/**
+ * Ancora del logo titolo (solo layout Standard). `auto` = posizione storica
+ * (centro-basso portrait, sinistra-basso landscape), byte-identica. Le 9
+ * posizioni fisse (`tl tc tr ml mc mr bl bc br`, vedi `ANCHOR_POSITIONS`):
+ * - riga `b`: quota verticale storica (sopra la zona genere), cambia solo X;
+ * - riga `t`/`m`: margine `logoAlignPadX` in alto / corpo centrato in verticale;
+ * - colonna `l`/`c`/`r`: margine `logoAlignPadX` / centro / margine destro.
+ * Gli offset utente si sommano alla posizione ancorata (relativi all'angolo,
+ * mai alla posizione automatica che dipende dal contenuto).
+ */
+export const LOGO_ANCHORS = ANCHOR_CHOICES
+export type LogoAnchor = (typeof ANCHOR_CHOICES)[number]
+
+export function isLogoAnchor(v: unknown): v is LogoAnchor {
+  return isAnchorChoice(v)
+}
+
+/**
+ * Catena unica di risoluzione dell'ancora (stesso ordine ovunque): query valida
+ * > mapping effettivo per formato > config token > defaults effettivi per
+ * formato > "auto". Un livello assente o con valore non valido cade al
+ * successivo (mai errore). Puro: i chiamanti passano i valori già "effettivi".
+ */
+export function resolveLogoAnchor(chain: {
+  readonly query?: string | null
+  readonly mapping?: unknown
+  readonly config?: unknown
+  readonly defaults?: unknown
+}): LogoAnchor {
+  const q = (chain.query ?? "").toLowerCase()
+  if (isLogoAnchor(q)) return q
+  for (const v of [chain.mapping, chain.config, chain.defaults]) if (isLogoAnchor(v)) return v
+  return "auto"
+}
+
+/** Ancora non-auto valida: il render la applica (altrimenti percorso storico). */
+export function isActiveLogoAnchor(v: unknown): v is AnchorPosition {
+  return isAnchorPosition(v)
+}
+
+/** Ancora sul bordo alto (riga `t`: tl/tc/tr; il logo sale nella fascia chrome superiore). */
+export function isTopLogoAnchor(v: unknown): v is AnchorPosition {
+  return isAnchorPosition(v) && anchorRow(v) === "t"
+}
+
 type LogoLayoutInput = {
   readonly posterW: number
   readonly posterH: number
@@ -19,6 +73,8 @@ type LogoLayoutInput = {
   /** Offset Y fisso di calibrazione (es. +55 nel layout landscape,
    *  +10 portrait via PORTRAIT_LOGO_TOP_OFFSET). */
   readonly topOffset?: number
+  /** Ancora d'angolo (vedi `LogoAnchor`). Assente/`auto` = percorso storico. */
+  readonly anchor?: LogoAnchor | null
 }
 
 type LogoBoxInput = Pick<LogoLayoutInput, "posterW" | "posterH" | "logoW" | "logoH" | "logoScale" | "maxWidthPct" | "maxHeightPct">
@@ -114,10 +170,37 @@ function bottomMargin(input: { readonly bottomMarginPct?: number }): number {
   return pct != null && Number.isFinite(pct) ? Math.min(Math.max(pct, 0), 50) / 100 : 0.1
 }
 
+/**
+ * Posizione base (offset utente esclusi) del logo ancorato, o null con ancora
+ * `auto`/assente. Riga `b`: quota storica del fondo (invariata). Riga `t`/`m`:
+ * `anchorRect` con margine `logoAlignPadX` (corpo centrato in verticale per `m`).
+ * Colonna: `anchorRect` (margine `logoAlignPadX` / centro / margine destro).
+ */
+function anchoredBase(input: LogoLayoutInput, box: LogoBox): { left: number; top: number } | null {
+  const anchor = input.anchor
+  if (!isActiveLogoAnchor(anchor)) return null
+  const posterW = sanePositive(input.posterW, 1000)
+  const posterH = sanePositive(input.posterH, 1500)
+  const pad = logoAlignPadX(posterW)
+  const rect = anchorRect(anchor, {
+    canvasW: posterW, canvasH: posterH, w: box.width, h: box.height,
+    marginX: pad, marginTop: pad, marginBottom: pad,
+  })
+  const badgeOffset = input.hasBadges ? 0 : Math.round(40 * posterH / 1500)
+  const top = anchorRow(anchor) === "b"
+    ? Math.round(posterH - box.height - posterH * bottomMargin(input) + badgeOffset + (input.topOffset ?? 0))
+    : rect.top
+  return { left: rect.left, top }
+}
+
 export function computeLogoLayout(input: LogoLayoutInput): LogoLayout {
   const posterW = sanePositive(input.posterW, 1000)
   const posterH = sanePositive(input.posterH, 1500)
   const box = computeLogoBox(input)
+  const anchored = anchoredBase(input, box)
+  if (anchored) {
+    return { ...box, left: Math.round(anchored.left + input.logoOffsetX), top: Math.max(0, Math.round(anchored.top + input.logoOffsetY)) }
+  }
   const margin = bottomMargin(input)
   const badgeOffset = input.hasBadges ? 0 : Math.round(40 * posterH / 1500)
   const left = input.align === "left"
@@ -131,6 +214,16 @@ export function computeLogoOffsetBounds(input: Omit<LogoLayoutInput, "logoOffset
   const posterW = sanePositive(input.posterW, 1000)
   const posterH = sanePositive(input.posterH, 1500)
   const box = computeLogoBox(input)
+  const anchored = anchoredBase({ ...input, logoOffsetX: 0, logoOffsetY: 0 }, box)
+  if (anchored) {
+    // Corsa dall'angolo ancorato: dal bordo sinistro/alto al destro/basso.
+    return {
+      minX: cleanZero(-anchored.left),
+      maxX: cleanZero(posterW - box.width - anchored.left),
+      minY: cleanZero(-anchored.top),
+      maxY: cleanZero(posterH - box.height - anchored.top),
+    }
+  }
   const margin = bottomMargin(input)
   const badgeOffset = input.hasBadges ? 0 : Math.round(40 * posterH / 1500)
   const baseTop = Math.round(posterH - box.height - posterH * margin + badgeOffset + (input.topOffset ?? 0))

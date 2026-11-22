@@ -24,7 +24,7 @@
 * **Nastro verticale Netflix Top 10**: il caratteristico nastro rosso laterale con posizione live (supporto dedicato anche per le serie anime).
 * **Premi cinematografici**: riconoscimento automatico di Oscar, Cannes, BAFTA, Emmy e badge *"Absolute Cinema"* per i titoli della IMDb Top 250.
 * **Classifiche sincronizzate**: il badge segue la classifica in tempo reale; se un titolo esce dalla chart, il badge si aggiorna da solo.
-* **✨ Effetto Pre-Digitale (Coming Soon)**: per i film usciti al cinema ma non ancora in streaming (rilevati via JustWatch/TMDB): velo scuro sul poster e nastro rosso "Coming Soon". È un flag URL per-richiesta (`pre=1`) o un default per l'intera libreria, non un campo salvato per singolo titolo.
+* **✨ Effetto Pre-Digitale (Coming Soon / Al cinema)**: per i film usciti al cinema ma non ancora in streaming (rilevati via JustWatch/TMDB): velo scuro sul poster e nastro rosso "Coming Soon", oppure — per un film già uscito in sala — solo il badge centrato "Al cinema" sull'artwork intatto (niente velo, niente sfocatura). È un flag URL per-richiesta (`pre=1`) o un default per l'intera libreria, non un campo salvato per singolo titolo.
 * **🔌 Provider voti personalizzati**: mostra voti da qualsiasi API esterna (via IMDb ID) con pill dedicate. Dettagli in [docs/custom-rating.md](custom-rating.md).
 
 </details>

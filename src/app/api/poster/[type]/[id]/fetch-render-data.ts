@@ -14,10 +14,11 @@ import { type WikidataResult, fetchAllWikidata } from "@/lib/awards"
 import { buildTextLogoBuffer } from "@/lib/svg-badge"
 import { combineAbortSignals } from "@/lib/abort-signal"
 import { cropBackdropToPortrait, landscapeBackdropUrl } from "@/lib/image-utils"
-import { extractDigitalReleaseDate, isDigitalPreRelease } from "@/lib/pre-release"
+import { extractDigitalReleaseDate, extractProviderAvailability, resolveTheatricalPhase } from "@/lib/pre-release"
 import { fetchAggregatedRating, isMdbTmdbIdentityUsable } from "@/lib/ratings"
 import { fetchImg, fetchLogoImg, imgSrc } from "@/lib/poster-render-helpers"
 import { fetchPosterBaseWithCustom, fetchValidatedCustomImage, resolveEffectiveCustomUrl, safeTmdbImgSrc } from "@/lib/custom-poster-base"
+import * as tmdbApi from "@/lib/tmdb"
 import { getContentRatings, getExternalIds, getKeywords, getReleaseDates } from "@/lib/tmdb"
 import { getTMDBSessionCache } from "@/lib/tmdb-session-cache"
 import { hasJWOffers } from "@/lib/justwatch"
@@ -113,6 +114,9 @@ export async function fetchRenderData(
   // Segnali grezzi del rilevamento pre-digitale (solo debug=1).
   let preJw: boolean | null = null
   let preDigital: string | null = null
+  // Fase teatrale: "in sala" (data teatrale passata) vs "in arrivo" (futura).
+  // Il renderer sceglie il badge: "Al cinema" vs "Prossimamente".
+  let preInTheaters = false
   // Badge età (default OFF): stessa catena per-shape con per-titolo del
   // render finale (resolveAgeBadgeRequest sul mapping effettivo — mai
   // catene duplicate). Spento = nessun fetch TMDB extra in Block B
@@ -378,13 +382,28 @@ export async function fetchRenderData(
                   hasJWOffers(tmdbId, "MOVIE", preTitle, posterRegion.code, renderAbort.signal).catch(() => null),
                 ])
                 preDigital = relDates ? extractDigitalReleaseDate(relDates, posterRegion.code) : null
-                preJw = jw
-                return isDigitalPreRelease({
+                // JW non ha risposto/trovato il titolo (ricerca per titolo, top 5):
+                // secondo parere per tmdbId dai watch providers TMDB della
+                // regione. Solo un esito positivo cambia il verdetto; ogni
+                // errore lascia `jw` com'è (mai un flip per un buco dati).
+                let jwEff = jw
+                if (jwEff !== true) {
+                  try {
+                    const wp = await tmdbApi.getWatchProviders(mediaType, tmdbId, apiKey, renderAbort.signal, POSTER_TMDB_TIMEOUT_MS)
+                    if (extractProviderAvailability(wp, posterRegion.code) === true) jwEff = true
+                  } catch { /* fail-open: verdetto invariato */ }
+                }
+                preJw = jwEff
+                const phase = resolveTheatricalPhase({
                   mediaType,
                   theatricalDate: titleMeta.releaseDate ?? mapping?.releaseDate ?? null,
                   digitalDate: preDigital,
-                  jwAvailable: jw,
+                  jwAvailable: jwEff,
                 })
+                // Solo film: la fase teatrale decide il badge ("Al cinema" vs
+                // "Prossimamente"), il boolean resta il gate del velo.
+                preInTheaters = phase === "inTheaters"
+                return phase !== null
               } catch {
                 return false
               }
@@ -519,7 +538,7 @@ export async function fetchRenderData(
   return {
     qQualityParam, rankingEnabledEarly, preJw, preDigital, effectiveCustomUrl,
     wikidataRaceTimedOut, backdropCustomForFetch, originalBase, logoFetch, backdropFetch,
-    rankingResult, animeRankResult, rawLiveQuality, preReleaseDetected, wikidataResult,
+    rankingResult, animeRankResult, rawLiveQuality, preReleaseDetected, preInTheaters, wikidataResult,
     tmdbKeywords, imdbTop250, ageCert, aggregatedRating, multiRatingOnly, ratingAbort,
   }
 }

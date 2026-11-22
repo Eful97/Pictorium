@@ -187,14 +187,16 @@ describe("five-tab homes", () => {
     expect(screen.queryByRole("switch", { name: "ui.badgeQuality" })).toBeNull()
   })
 
-  it("transform tab: geometry only with moved position controls, no style picker", () => {
+  it("transform tab: geometry only, position controls moved to Posizione", () => {
     renderSettingsWithProbe()
     openTab("ui.settingsTabTransform")
     const panel = screen.getByRole("tabpanel", { name: "ui.transform" })
-    // Position hosts the network-position override only (logo alignment is
-    // Auto-only: no selector anywhere in the panel).
-    expect(within(panel).getByText("ui.position")).toBeInTheDocument()
-    expect(within(panel).getByText("ui.networkLogoPosition")).toBeInTheDocument()
+    // The network-position override lives INSIDE the network card (no separate
+    // "Position" card); logo alignment is Auto-only: no selector anywhere.
+    expect(within(panel).queryByText("ui.position")).toBeNull()
+    expect(within(panel).queryByTestId("transform-netpos-group")).toBeNull()
+    openTab("ui.position")
+    expect(within(screen.getByRole("tabpanel", { name: "ui.position" })).getByTestId("transform-netpos-group")).toBeInTheDocument()
     expect(within(panel).queryByText("ui.logoAlign")).toBeNull()
     // Scoped to the visible transform panel: hidden Badge instances still
     // mount the separate picker, so a global query would false-positive.

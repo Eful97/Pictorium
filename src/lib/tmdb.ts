@@ -976,6 +976,17 @@ export async function getReleaseDates(mediaType: "movie" | "tv", id: number, api
   return parseTmdb<TMDBReleaseDatesResponse>("release_dates", tmdbReleaseDatesSchema, data)
 }
 
+export interface TMDBWatchProvidersResponse {
+  id: number
+  results?: Record<string, Record<string, unknown> | undefined>
+}
+
+/** Provider streaming per paese (`/{type}/{id}/watch/providers`), chiave tmdbId. */
+export async function getWatchProviders(mediaType: "movie" | "tv", id: number, apiKey?: string, signal?: AbortSignal, timeoutMs = 30000): Promise<TMDBWatchProvidersResponse> {
+  const data = await tmdbFetch(`/${mediaType}/${id}/watch/providers`, apiKey, signal, timeoutMs)
+  return data as TMDBWatchProvidersResponse
+}
+
 const tmdbContentRatingItemSchema = z.object({
   iso_3166_1: z.string(),
   rating: z.string().nullable().optional(),
@@ -1082,6 +1093,11 @@ export async function getDetails(mediaType: "movie" | "tv", id: number, language
 export async function getDetailsWithExternalIds(mediaType: "movie" | "tv", id: number, language = "it-IT", apiKey?: string, signal?: AbortSignal, timeoutMs = 30000): Promise<TMDBDetails> {
   const data = await tmdbFetch(`/${mediaType}/${id}?language=${toProviderLanguage(language)}&append_to_response=external_ids`, apiKey, signal, timeoutMs)
   return parseTmdb<TMDBDetails>("details_with_external_ids", tmdbDetailsSchema, data)
+}
+
+/** Raw `/watch/providers` payload (parsed by `watch-providers.ts`). */
+export async function getWatchProvidersRaw(mediaType: "movie" | "tv", id: number, apiKey?: string, signal?: AbortSignal, timeoutMs = 30000): Promise<unknown> {
+  return tmdbFetch(`/${mediaType}/${id}/watch/providers`, apiKey, signal, timeoutMs)
 }
 
 export async function getFullDetails(mediaType: "movie" | "tv", id: number, language = "it-IT", apiKey?: string, signal?: AbortSignal): Promise<TMDBDetails> {

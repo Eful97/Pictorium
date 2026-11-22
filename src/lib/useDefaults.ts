@@ -1,5 +1,8 @@
 "use client"
 
+import { pickBadgeOverflow, type BadgeOverflow } from "@/lib/badge-overflow"
+import { isLogoAnchor, type LogoAnchor } from "@/lib/logo-layout"
+import { isQualityAnchor, type QualityAnchor, isBottomAnchor, type BottomAnchor, isTopBadgeAnchor, type TopBadgeAnchor, isExtraBadgeAnchor, type ExtraBadgeAnchor } from "@/lib/badge-anchor"
 import { useState, useEffect, useCallback, useRef } from "react"
 import type { BadgeStyle, RankingBadgeStyle, ExtraBadgeStyle, ExtraBadgeFollowRank } from "./badge-styles"
 import type { NetworkLogoPosition, PosterLayout, PosterFreshScope, PosterShape } from "./types"
@@ -18,6 +21,7 @@ import { t } from "./i18n"
 import { normalizeSashOrder, DEFAULT_SASH_ORDER, type SashBucket } from "./badge-priority"
 import { sanitizeDisabledContentTags } from "./content-tags"
 import { sanitizeDisabledNetworks } from "./network-keys"
+import { sanitizeWatchRegion } from "./regions"
 import { DEFAULT_QUALITY_BADGE_STYLE, type QualityBadgeStyle } from "./badge-styles"
 import { DEFAULT_QUALITY_GROUP_LAYOUT, isQualityGroupLayout, type QualityGroupLayout } from "./badge-styles"
 import { DEFAULT_AGE_BADGE_STYLE, DEFAULT_AWARD_BADGE_MODE, isAgeBadgeStyle, isAwardBadgeMode, type AgeBadgeStyle, type AwardBadgeMode } from "./badge-styles"
@@ -155,6 +159,13 @@ export interface DefaultsState {
    * `network-keys.ts`). Stesso contratto dei tag sopra.
    */
   defaultDisabledNetworks: string[]
+  /** "Dove guardare" (fila provider): default OFF. */
+  defaultWatchProviders: boolean
+  /** Paese provider (codice REGIONS) o null = paese del poster. */
+  defaultWatchRegion: string | null
+  /** Icona tipo film/serie, verticale / landscape indipendenti (default OFF). */
+  defaultTypeIcon: boolean
+  defaultTypeIconLandscape: boolean
   defaultAutoRotateClean: boolean
   /**
    * Default rotazione poster: include anche i poster della lingua corrente
@@ -163,6 +174,7 @@ export interface DefaultsState {
    * dal flag per-titolo `rotationIncludeNonClean`, mai da questo globale.
    */
   defaultRotationIncludeNonClean: boolean
+  defaultRotationIncludeOriginal: boolean
   /** Rotazione 24h di default per formato (sdoppiata). */
   defaultAutoRotateBackdrop: boolean
   /** Disattiva i poster clean TMDB nella selezione automatica (default OFF = priorità ai clean). */
@@ -177,6 +189,11 @@ export interface DefaultsState {
   defaultNetworkLogo: boolean
   /** Posizione del logo network di default ("auto" = specchio dinamico, "top" = angolo alto lato nastro). */
   defaultNetworkLogoPosition: NetworkLogoPosition
+  defaultLogoAnchor: LogoAnchor
+  defaultQualityAnchor: QualityAnchor
+  defaultTopBadgeAnchor: TopBadgeAnchor
+  defaultExtraBadgeAnchor: ExtraBadgeAnchor
+  defaultBottomAnchor: BottomAnchor
   /** Il network segue il titolo di default (true = layout storico). */
   defaultNetworkLogoFollowTitle: boolean
   defaultPreRelease: boolean
@@ -219,6 +236,7 @@ export interface DefaultsState {
   defaultImageQualityThumbnail: ImageQuality
   /** Portrait: genere/voto nello slot alto libero (default false). */
   defaultGenreTopWhenFree: boolean
+  defaultBadgeOverflow: BadgeOverflow
   region: string
   globalBadges: boolean
   rankingBadges: boolean
@@ -241,6 +259,11 @@ export interface DefaultsState {
   networkLogo: boolean
   /** Posizione del logo network del poster in editing. */
   networkLogoPosition: NetworkLogoPosition
+  logoAnchor: LogoAnchor
+  qualityAnchor: QualityAnchor
+  topBadgeAnchor: TopBadgeAnchor
+  extraBadgeAnchor: ExtraBadgeAnchor
+  bottomAnchor: BottomAnchor
   /** Il network segue il titolo nel poster in editing (false = posizione assoluta). */
   networkLogoFollowTitle: boolean
   preRelease: boolean
@@ -385,8 +408,13 @@ const DEFAULT_FLAT_DEFAULTS: Omit<DefaultsState, "landscape"> = {
   defaultSashOrder: [...DEFAULT_SASH_ORDER],
   defaultDisabledContentTags: [],
   defaultDisabledNetworks: [],
+  defaultWatchProviders: false,
+  defaultWatchRegion: null,
+  defaultTypeIcon: false,
+  defaultTypeIconLandscape: false,
   defaultAutoRotateClean: false,
   defaultRotationIncludeNonClean: false,
+  defaultRotationIncludeOriginal: false,
   defaultAutoRotateBackdrop: false,
   defaultDisableCleanPosters: false,
   defaultPortraitBackdropFallback: true,
@@ -395,6 +423,11 @@ const DEFAULT_FLAT_DEFAULTS: Omit<DefaultsState, "landscape"> = {
   defaultLandscapeFitEnabled: true,
   defaultNetworkLogo: true,
   defaultNetworkLogoPosition: "auto",
+  defaultLogoAnchor: "auto",
+  defaultQualityAnchor: "auto",
+  defaultTopBadgeAnchor: "auto",
+  defaultExtraBadgeAnchor: "auto",
+  defaultBottomAnchor: "auto",
   defaultNetworkLogoFollowTitle: true,
   defaultPreRelease: false,
   defaultRibbonSide: "left",
@@ -418,6 +451,7 @@ const DEFAULT_FLAT_DEFAULTS: Omit<DefaultsState, "landscape"> = {
   defaultImageQualityLandscape: DEFAULT_IMAGE_QUALITY,
   defaultImageQualityThumbnail: DEFAULT_IMAGE_QUALITY,
   defaultGenreTopWhenFree: false,
+  defaultBadgeOverflow: "move",
   defaultRegion: "IT",
   region: "IT",
   globalBadges: true,
@@ -434,6 +468,11 @@ const DEFAULT_FLAT_DEFAULTS: Omit<DefaultsState, "landscape"> = {
   posterFreshScope: "ranked",
   networkLogo: true,
   networkLogoPosition: "auto",
+  logoAnchor: "auto",
+  qualityAnchor: "auto",
+  topBadgeAnchor: "auto",
+  extraBadgeAnchor: "auto",
+  bottomAnchor: "auto",
   networkLogoFollowTitle: true,
   preRelease: false,
   ribbonSide: "left",
@@ -625,9 +664,18 @@ interface StoredDefaults {
   defaultDisabledNetworks?: string[]
   /** Chiave server/local piatta (saveDefaults/defaultsToPayload): fallback di lettura. */
   disabledNetworks?: string[]
+  defaultWatchProviders?: boolean
+  watchProviders?: boolean
+  defaultWatchRegion?: string | null
+  watchRegion?: string | null
+  defaultTypeIcon?: boolean
+  typeIcon?: boolean
+  defaultTypeIconLandscape?: boolean
+  typeIconLandscape?: boolean
   defaultAutoRotateClean?: boolean
   /** Default rotazione poster (Solo clean / Clean + lingua). */
   defaultRotationIncludeNonClean?: boolean
+  defaultRotationIncludeOriginal?: boolean
   defaultAutoRotateBackdrop?: boolean
   defaultDisableCleanPosters?: boolean
   /** Chiave flat server (ServerDefaults.disableCleanPosters): fallback di lettura. */
@@ -646,8 +694,18 @@ interface StoredDefaults {
   defaultLogoFitEnabled?: boolean
   defaultNetworkLogo?: boolean
   defaultNetworkLogoPosition?: NetworkLogoPosition
+  defaultLogoAnchor?: LogoAnchor
+  defaultQualityAnchor?: QualityAnchor
+  defaultTopBadgeAnchor?: TopBadgeAnchor
+  defaultExtraBadgeAnchor?: ExtraBadgeAnchor
+  defaultBottomAnchor?: BottomAnchor
   defaultNetworkLogoFollowTitle?: boolean
   networkLogoPosition?: NetworkLogoPosition
+  logoAnchor?: LogoAnchor
+  qualityAnchor?: QualityAnchor
+  topBadgeAnchor?: TopBadgeAnchor
+  extraBadgeAnchor?: ExtraBadgeAnchor
+  bottomAnchor?: BottomAnchor
   networkLogoFollowTitle?: boolean
   defaultPreRelease?: boolean
   preRelease?: boolean
@@ -699,6 +757,8 @@ interface StoredDefaults {
   defaultImageQualityThumbnail?: ImageQuality
   imageQualityThumbnail?: ImageQuality
   defaultGenreTopWhenFree?: boolean
+  defaultBadgeOverflow?: string | null
+  badgeOverflow?: string | null
   genreTopWhenFree?: boolean
   defaultRegion?: string
   region?: string
@@ -1046,8 +1106,13 @@ function buildFromStored(d: StoredDefaults | null): DefaultsState {
     // landscape): allowlist canonica, assente = storico. Mai guess.
     defaultDisabledContentTags: sanitizeDisabledContentTags(d.defaultDisabledContentTags ?? d.disabledContentTags),
     defaultDisabledNetworks: sanitizeDisabledNetworks(d.defaultDisabledNetworks ?? d.disabledNetworks),
+    defaultWatchProviders: d.defaultWatchProviders ?? d.watchProviders ?? false,
+    defaultWatchRegion: sanitizeWatchRegion(d.defaultWatchRegion ?? d.watchRegion),
+    defaultTypeIcon: d.defaultTypeIcon ?? d.typeIcon ?? false,
+    defaultTypeIconLandscape: d.defaultTypeIconLandscape ?? d.typeIconLandscape ?? false,
     defaultAutoRotateClean: d.defaultAutoRotateClean ?? d.autoRotateClean ?? false,
     defaultRotationIncludeNonClean: d.defaultRotationIncludeNonClean ?? false,
+    defaultRotationIncludeOriginal: d.defaultRotationIncludeOriginal ?? false,
     defaultAutoRotateBackdrop: d.defaultAutoRotateBackdrop ?? false,
     defaultDisableCleanPosters: d.defaultDisableCleanPosters ?? d.disableCleanPosters ?? false,
     // Automazioni (default ON): chiave assente = comportamento storico.
@@ -1061,6 +1126,19 @@ function buildFromStored(d: StoredDefaults | null): DefaultsState {
     defaultNetworkLogoPosition: isNetworkLogoPosition(d.defaultNetworkLogoPosition)
       ? d.defaultNetworkLogoPosition
       : (isNetworkLogoPosition(d.networkLogoPosition) ? d.networkLogoPosition : "auto"),
+    defaultLogoAnchor: isLogoAnchor(d.defaultLogoAnchor)
+      ? d.defaultLogoAnchor
+      : (isLogoAnchor(d.logoAnchor) ? d.logoAnchor : "auto"),
+    defaultQualityAnchor: isQualityAnchor(d.defaultQualityAnchor)
+      ? d.defaultQualityAnchor
+      : (isQualityAnchor(d.qualityAnchor) ? d.qualityAnchor : "auto"),
+    defaultTopBadgeAnchor: isTopBadgeAnchor(d.defaultTopBadgeAnchor)
+      ? d.defaultTopBadgeAnchor
+      : (isTopBadgeAnchor(d.topBadgeAnchor) ? d.topBadgeAnchor : "auto"),
+    defaultExtraBadgeAnchor: isExtraBadgeAnchor(d.defaultExtraBadgeAnchor) ? d.defaultExtraBadgeAnchor : "auto",
+    defaultBottomAnchor: isBottomAnchor(d.defaultBottomAnchor)
+      ? d.defaultBottomAnchor
+      : (isBottomAnchor(d.bottomAnchor) ? d.bottomAnchor : "auto"),
     defaultPreRelease: d.defaultPreRelease ?? d.preRelease ?? false,
     defaultRibbonSide: d.defaultRibbonSide ?? d.ribbonSide ?? "left",
     defaultRibbonEnabled: d.defaultRibbonEnabled ?? d.ribbonEnabled ?? true,
@@ -1109,6 +1187,7 @@ function buildFromStored(d: StoredDefaults | null): DefaultsState {
     defaultImageQualityLandscape: pickImageQuality(d.defaultImageQualityLandscape ?? d.imageQualityLandscape),
     defaultImageQualityThumbnail: pickImageQuality(d.defaultImageQualityThumbnail ?? d.imageQualityThumbnail),
     defaultGenreTopWhenFree: (d.defaultGenreTopWhenFree ?? d.genreTopWhenFree) === true,
+    defaultBadgeOverflow: pickBadgeOverflow(d.defaultBadgeOverflow ?? d.badgeOverflow),
     defaultRegion: normalizeRegion(d.defaultRegion ?? d.region),
     region: normalizeRegion(d.region ?? d.defaultRegion),
     globalBadges: d.globalBadges ?? d.defaultGlobalBadges ?? true,
@@ -1134,6 +1213,21 @@ function buildFromStored(d: StoredDefaults | null): DefaultsState {
     networkLogoPosition: isNetworkLogoPosition(d.networkLogoPosition)
       ? d.networkLogoPosition
       : (isNetworkLogoPosition(d.defaultNetworkLogoPosition) ? d.defaultNetworkLogoPosition : "auto"),
+    logoAnchor: isLogoAnchor(d.logoAnchor)
+      ? d.logoAnchor
+      : (isLogoAnchor(d.defaultLogoAnchor) ? d.defaultLogoAnchor : "auto"),
+    qualityAnchor: isQualityAnchor(d.qualityAnchor)
+      ? d.qualityAnchor
+      : (isQualityAnchor(d.defaultQualityAnchor) ? d.defaultQualityAnchor : "auto"),
+    topBadgeAnchor: isTopBadgeAnchor(d.topBadgeAnchor)
+      ? d.topBadgeAnchor
+      : (isTopBadgeAnchor(d.defaultTopBadgeAnchor) ? d.defaultTopBadgeAnchor : "auto"),
+    extraBadgeAnchor: isExtraBadgeAnchor(d.extraBadgeAnchor)
+      ? d.extraBadgeAnchor
+      : (isExtraBadgeAnchor(d.defaultExtraBadgeAnchor) ? d.defaultExtraBadgeAnchor : "auto"),
+    bottomAnchor: isBottomAnchor(d.bottomAnchor)
+      ? d.bottomAnchor
+      : (isBottomAnchor(d.defaultBottomAnchor) ? d.defaultBottomAnchor : "auto"),
     preRelease: d.preRelease ?? d.defaultPreRelease ?? false,
     ribbonSide: d.ribbonSide ?? d.defaultRibbonSide ?? "left",
     ribbonEnabled: d.ribbonEnabled ?? d.defaultRibbonEnabled ?? true,
@@ -1291,8 +1385,14 @@ export function defaultsToPayload(d: DefaultsState): Record<string, unknown> {
     sashOrder: d.defaultSashOrder,
     disabledContentTags: d.defaultDisabledContentTags,
     disabledNetworks: d.defaultDisabledNetworks,
+    // Solo ON nel payload locale: i default salvati legacy restano identici (OFF = assente).
+    watchProviders: d.defaultWatchProviders ? true : undefined,
+    watchRegion: d.defaultWatchRegion ?? undefined,
+    typeIcon: d.defaultTypeIcon ? true : undefined,
+    typeIconLandscape: d.defaultTypeIconLandscape ? true : undefined,
     autoRotateClean: d.defaultAutoRotateClean,
     defaultRotationIncludeNonClean: d.defaultRotationIncludeNonClean,
+    defaultRotationIncludeOriginal: d.defaultRotationIncludeOriginal,
     defaultAutoRotateBackdrop: d.defaultAutoRotateBackdrop,
     disableCleanPosters: d.defaultDisableCleanPosters,
     // Sempre emessi: la PUT fa merge, omettere al toggle-back-ON lascerebbe un
@@ -1303,6 +1403,11 @@ export function defaultsToPayload(d: DefaultsState): Record<string, unknown> {
     defaultLandscapeFitEnabled: d.defaultLandscapeFitEnabled,
     networkLogo: d.defaultNetworkLogo,
     networkLogoPosition: d.defaultNetworkLogoPosition,
+    logoAnchor: d.defaultLogoAnchor,
+    qualityAnchor: d.defaultQualityAnchor,
+    topBadgeAnchor: d.defaultTopBadgeAnchor,
+    extraBadgeAnchor: d.defaultExtraBadgeAnchor,
+    bottomAnchor: d.defaultBottomAnchor,
     networkLogoFollowTitle: d.defaultNetworkLogoFollowTitle,
     preRelease: d.defaultPreRelease,
     ribbonSide: d.defaultRibbonSide,
@@ -1335,6 +1440,8 @@ export function defaultsToPayload(d: DefaultsState): Record<string, unknown> {
     imageQualityLandscape: d.defaultImageQualityLandscape,
     imageQualityThumbnail: d.defaultImageQualityThumbnail,
     genreTopWhenFree: d.defaultGenreTopWhenFree,
+    // Assente = move (default): non si persiste "move" per non cambiare i default salvati.
+    badgeOverflow: pickBadgeOverflow(d.defaultBadgeOverflow) === "hide" ? "hide" : undefined,
     videoFormats: d.defaultVideoFormats,
     logoScale: d.defaultLogoScale ?? null,
     logoOffsetX: d.defaultLogoOffsetX ?? null,
@@ -1626,6 +1733,16 @@ export function useDefaults() {
           }
           if (!currentStored?.defaultDisabledNetworks && !currentStored?.disabledNetworks && Array.isArray(serverData.disabledNetworks)) {
             merged.defaultDisabledNetworks = serverData.disabledNetworks
+          }
+          if (currentStored?.defaultWatchProviders === undefined && currentStored?.watchProviders === undefined && typeof serverData.watchProviders === "boolean") {
+            merged.defaultWatchProviders = serverData.watchProviders
+            merged.defaultWatchRegion = typeof serverData.watchRegion === "string" ? serverData.watchRegion : null
+          }
+          if (currentStored?.defaultTypeIcon === undefined && currentStored?.typeIcon === undefined && typeof serverData.typeIcon === "boolean") {
+            merged.defaultTypeIcon = serverData.typeIcon
+          }
+          if (currentStored?.defaultTypeIconLandscape === undefined && currentStored?.typeIconLandscape === undefined && typeof serverData.typeIconLandscape === "boolean") {
+            merged.defaultTypeIconLandscape = serverData.typeIconLandscape
           }
           if (!currentStored?.defaultVideoFormats && Array.isArray(serverData.videoFormats)) {
             merged.defaultVideoFormats = serverData.videoFormats

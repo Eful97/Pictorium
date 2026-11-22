@@ -66,6 +66,8 @@ export interface EphemeralPolicyContext {
   readonly aggregated: AggregatedRatings | null
   readonly dynamicTtlSec: number | undefined
   readonly immutablePoster: boolean
+  /** "Dove guardare" attivo ma fetch provider fallito (timeout/401/rete): poster senza icone, TTL breve. */
+  readonly watchProvidersDegraded?: boolean
 }
 
 export interface EphemeralPolicy {
@@ -82,7 +84,7 @@ export function resolveEphemeralPolicy(ctx: EphemeralPolicyContext, titleMeta: P
     badgesEnabled, rankingEnabled, badgeQuality, ageBadge, preRelease, queryExtra, sashOrder,
     disabledContentTags, qQualityParam, liveQualityResult, ageCert, wikidataResult, wikidataRaceTimedOut,
     effectiveCustomUrl, originalBase, preDigital, preJw, preReleaseDetected, finalRank, animeRankResult,
-    tmdbKeywords, imdbTop250, aggregated, dynamicTtlSec, immutablePoster,
+    tmdbKeywords, imdbTop250, aggregated, dynamicTtlSec, immutablePoster, watchProvidersDegraded,
   } = ctx
   // Render degradato per timeout/errore upstream sulla qualità (solo se il
   // badge FINALE è attivo e senza override esplicito): TTL effimero 120s
@@ -177,7 +179,7 @@ export function resolveEphemeralPolicy(ctx: EphemeralPolicyContext, titleMeta: P
     mediaType,
     jwAvailable: preJw,
   })
-  const ephemeralTtl = qualityEphemeral || wikidataEphemeral || customFallbackEphemeral || ageEphemeral || !!nextEpisodeEphemeral || preReleaseUndecidedEphemeral
+  const ephemeralTtl = qualityEphemeral || wikidataEphemeral || customFallbackEphemeral || ageEphemeral || !!nextEpisodeEphemeral || preReleaseUndecidedEphemeral || watchProvidersDegraded === true
   // Task D: riassegnato dal freshness cap (resolveFactCap: solo restrizione, mai estensione).
   const effectiveTtlSec: number | undefined = ephemeralTtl ? QUALITY_EPHEMERAL_TTL_SEC : dynamicTtlSec
   const effectiveImmutable = immutablePoster && !ephemeralTtl

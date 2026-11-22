@@ -4,5 +4,5 @@
 // quando non ci sono tag/git disponibili.
 // APP_COMMIT: SHA corto di HEAD (quale commit gira in produzione);
 // "unknown" senza git.
-export const APP_VERSION = "1.27.9"
-export const APP_COMMIT = "147ae6ee"
+export const APP_VERSION = "1.28.0"
+export const APP_COMMIT = "5094b15e"

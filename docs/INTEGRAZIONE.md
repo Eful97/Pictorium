@@ -117,7 +117,7 @@ path `https://image.tmdb.org/t/p/...` (o `file_path` TMDB).
 | `side` | `left`/`right` | decide il server | Lato nastro Netflix / logo network. Passalo esplicito per output deterministico. |
 | `ac` | colore hex | auto | Override colore accent (altrimenti campionato dall'artwork). |
 | `tl` | `1`/`0` | auto | Modalità testo top-light. Omettilo per farla calcolare al server dalla luminanza. |
-| `pre` | `1` | off | Effetto pre-digitale (velo scuro + nastro "Coming Soon"), solo film, default OFF. |
+| `pre` | `1` | off | Effetto pre-digitale (velo scuro + nastro "Coming Soon"), solo film, default OFF. I film già usciti in sala mostrano solo il badge centrato "Al cinema" (niente velo, niente sfocatura). |
 | `lang` | es. `it`, `en` | `it` | Lingua di artwork/metadati. |
 | `region` | es. `IT`, `US` | default server | Regione classifiche JustWatch (ranking, qualità, pre-release). |
 | `title` | testo (≤ 200) | — | **Invialo.** Titolo usato per il match JustWatch (qualità + pre-release). Senza, il match ripiega su valori generici e degrada. |

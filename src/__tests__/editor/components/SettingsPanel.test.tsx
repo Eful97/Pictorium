@@ -111,7 +111,7 @@ beforeEach(() => {
 })
 
 describe("SettingsPanel five-tab navigation", () => {
-  it("shows five primary tabs in order with Preset first and Preferenze selected on fresh open", async () => {
+  it("shows six primary tabs in order with Preset first and Preferenze selected on fresh open", async () => {
     renderPanel()
     await screen.findByTestId("presets-panel")
     const tabs = primaryTabs()
@@ -121,6 +121,7 @@ describe("SettingsPanel five-tab navigation", () => {
       "ui.settingsTabBadge",
       "Tag e Network",
       "ui.settingsTabTransform",
+      "ui.position",
     ])
     // Fresh open (no deep link) lands on the Preferenze secondary tab.
     for (const tab of tabs) expect(tab).toHaveAttribute("aria-selected", "false")
@@ -141,7 +142,7 @@ describe("SettingsPanel five-tab navigation", () => {
   it("secondary Prefs/Data links live outside the primary tablist; Space only with content", async () => {
     const { container } = renderPanel()
     await screen.findByTestId("presets-panel")
-    expect(primaryTabs()).toHaveLength(5)
+    expect(primaryTabs()).toHaveLength(6)
     // Preferenze leads the secondary row, directly after the Transform primary tab.
     const secondaryIds = Array.from(
       container.querySelectorAll('[data-testid^="settings-secondary-"]'),
@@ -182,7 +183,7 @@ describe("SettingsPanel five-tab navigation", () => {
     renderPanel()
     await screen.findByTestId("presets-panel")
     const space = await screen.findByTestId("settings-secondary-spazio")
-    expect(primaryTabs()).toHaveLength(5)
+    expect(primaryTabs()).toHaveLength(6)
     fireEvent.click(space)
     expect(await screen.findByText("ui.userSpaceOr")).toBeInTheDocument()
     resetGuestGuardForTests()
@@ -198,7 +199,7 @@ describe("SettingsPanel five-tab navigation", () => {
     expect(groups).toEqual(["ui.settingsGroupPrimary", "ui.settingsGroupSecondary"])
     // Full navigation order: Preferenze directly after Transform, before Catalogs/Data.
     const values = Array.from(select.querySelectorAll("option")).map((o) => o.getAttribute("value"))
-    expect(values).toEqual(["preset", "information", "badge", "tags", "transform", "prefs", "catalogs", "data"])
+    expect(values).toEqual(["preset", "information", "badge", "tags", "transform", "position", "prefs", "catalogs", "data"])
   })
 
   it("does not render API key inputs", async () => {
@@ -516,10 +517,11 @@ describe("SettingsPanel shape, resize and tab homes", () => {
     clickTab("ui.settingsTabTransform")
     const transformPanel = screen.getByRole("tabpanel", { name: "ui.transform" })
     expect(transformPanel).toBeInTheDocument()
-    // Position hosts the network-position override only (logo alignment is
-    // Auto-only: no selector, no subgroup, no card anywhere).
-    expect(within(transformPanel).getByText("ui.position")).toBeInTheDocument()
-    expect(within(transformPanel).getByText("ui.networkLogoPosition")).toBeInTheDocument()
+    // The network-position override lives INSIDE the network card (no separate
+    // "Position" card); logo alignment is Auto-only: no selector, no subgroup.
+    expect(within(transformPanel).queryByText("ui.position")).toBeNull()
+    clickTab("ui.position")
+    expect(within(screen.getByRole("tabpanel", { name: "ui.position" })).getByText("ui.networkLogoPosition")).toBeInTheDocument()
     expect(within(transformPanel).queryByText("ui.logoAlign")).toBeNull()
     // Scoped to the visible transform panel: hidden Badge instances still
     // mount the picker, so a global query would false-positive.

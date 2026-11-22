@@ -211,7 +211,9 @@ export function VisualPresetsSection({ shape = "portrait", enabled = true, galle
   // Landscape presets store the current effective resolution (self-contained);
   // portrait presets keep the raw capture (stored landscape ignored on apply).
   const captureForShape = () => {
-    return shape === "landscape" ? { ...clean, landscape: resolveEffectiveLandscape(clean) } : clean
+    return shape === "landscape"
+      ? { ...clean, defaultTypeIcon: ed.defaultTypeIconLandscape === true, landscape: resolveEffectiveLandscape(clean) }
+      : clean
   }
 
   const [manageOpen, setManageOpen] = useState(false)
