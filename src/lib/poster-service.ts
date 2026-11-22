@@ -55,9 +55,9 @@ import { cardLayoutGeometry, isCardRankDisplayable } from "./card-layout-geometr
 import { isEffectiveCardLayout, type CardSkin } from "./card-layout-skins"
 import { resolveProviderGlassAccent } from "./provider-brand-palette"
 import { applyBadgeItemTransform, badgeItemTransform, effectiveBadgeItemTransforms, homeIdForPainted, isNeutralBadgeItemTransform, isQualityItemId, isRatingItemId, ratingSlotItemId, serializeBadgeItemTransforms, type BadgeItemTransformMap } from "./badge-item-transforms"
-import { type CornerRankRect, isCornerAnchoredStyle, resolveTopBadgeStyle, genreBadgeConsumesAccent, topBadgeConsumesAccent, cornerRankTop, cornerAnchoredLeft, isTopBadgeNumberRightCorner, numberSharesComingSoonCorner, type NetworkGeometry, type BadgeGeometryFamily, type BadgeGeometryLayout, type BadgeGeometryBox, type BadgeGeometryReport, type BadgeGeometryItem, NETWORK_LOGO_SHIFT_Y, cornerNetworkAboveTitle, stackNetworkBelowCornerRank, landscapeRightAnchorLeft } from "./badge-layout"
+import { type CornerRankRect, isCornerAnchoredStyle, resolveTopBadgeStyle, genreBadgeConsumesAccent, topBadgeConsumesAccent, cornerRankTop, cornerAnchoredLeft, isTopBadgeNumberRightCorner, numberSharesComingSoonCorner, type NetworkGeometry, type BadgeGeometryFamily, type BadgeGeometryLayout, type BadgeGeometryBox, type BadgeGeometryReport, type BadgeGeometryItem, NETWORK_LOGO_SHIFT_Y, NETWORK_ABOVE_LOGO_LIFT, cornerNetworkAboveTitle, stackNetworkBelowCornerRank, landscapeRightAnchorLeft } from "./badge-layout"
 import { type QualityBadgeGroupResult, renderQualityBadgeGroup } from "./quality-badges"
-export { type CornerRankRect, isCornerAnchoredStyle, resolveTopBadgeStyle, genreBadgeConsumesAccent, topBadgeConsumesAccent, cornerRankTop, cornerAnchoredLeft, isNumberRightCorner, isTopBadgeNumberRightCorner, numberSharesComingSoonCorner, type NetworkGeometry, type BadgeGeometryFamily, type BadgeGeometryLayout, type BadgeGeometryBox, type BadgeGeometryReport, type BadgeGeometryItem, NETWORK_LOGO_SHIFT_Y, type CornerNetworkAboveTitleInput, cornerNetworkAboveTitle, stackNetworkBelowCornerRank } from "./badge-layout"
+export { type CornerRankRect, isCornerAnchoredStyle, resolveTopBadgeStyle, genreBadgeConsumesAccent, topBadgeConsumesAccent, cornerRankTop, cornerAnchoredLeft, isNumberRightCorner, isTopBadgeNumberRightCorner, numberSharesComingSoonCorner, type NetworkGeometry, type BadgeGeometryFamily, type BadgeGeometryLayout, type BadgeGeometryBox, type BadgeGeometryReport, type BadgeGeometryItem, NETWORK_LOGO_SHIFT_Y, NETWORK_ABOVE_LOGO_LIFT, type CornerNetworkAboveTitleInput, cornerNetworkAboveTitle, stackNetworkBelowCornerRank } from "./badge-layout"
 export { __resetQualityIconCacheForTests, renderQualityIconBadge, renderColorIconBadge, renderPremiumIconBadge, renderAvKnockoutBadge, type QualityBadgeItem, type QualityBadgeGroupResult, type QualityHomeGhost, renderQualityBadgeGroup } from "./quality-badges"
 
 // ---------------------------------------------------------------------------
@@ -2796,7 +2796,7 @@ export async function generatePosterBuffer(input: GenerationInput): Promise<Buff
         // Con logo film + badge alto (nastro Netflix, badge centrale
         // rank/extra, o Coming Soon): subito sopra il logo film
         // (in Cinematic Left allineato a sinistra come sopratitolo, non centrato).
-        top = Math.max(0, logoResult.top - fittedRaw.h - gap)
+        top = Math.max(0, logoResult.top - fittedRaw.h - gap - NETWORK_ABOVE_LOGO_LIFT)
         left = isLandscapeLeft ? logoResult.left : Math.round((CW - fittedRaw.w) / 2)
         const cornerStackedLogoTop = stackBelowCornerRank(top, left)
         top = cornerStackedLogoTop.top

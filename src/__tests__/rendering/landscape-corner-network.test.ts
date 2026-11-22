@@ -210,9 +210,9 @@ describe("landscape corner network above the title", () => {
     expect(Math.abs(boxCX(net!) - boxCX(title))).toBeLessThanOrEqual(4)
     // …and nothing stacked at the top-left, where the old layout put it.
     expect(await redCount(buf, 0, 140, 85, 175)).toBeLessThan(100)
-    // The mark bottom stays just above the title (landscape gap 5 + glyph AA).
+    // The mark bottom stays just above the title (landscape gap 5 + lift 6 + glyph AA).
     expect(title.top - net!.bottom).toBeGreaterThanOrEqual(2)
-    expect(title.top - net!.bottom).toBeLessThanOrEqual(20)
+    expect(title.top - net!.bottom).toBeLessThanOrEqual(26)
   }, 60000)
 
   it("extra corner + title: same title-box centering (not rank-only)", async () => {

@@ -363,6 +363,9 @@ export interface BadgeGeometryItem {
  */
 export const NETWORK_LOGO_SHIFT_Y = 10
 
+/** Extra lift (px) of a network pill anchored above the title logo. */
+export const NETWORK_ABOVE_LOGO_LIFT = 6
+
 export interface CornerNetworkAboveTitleInput {
   readonly logoTop: number
   readonly logoLeft: number
@@ -391,7 +394,7 @@ export function cornerNetworkAboveTitle(
   input: CornerNetworkAboveTitleInput,
 ): { top: number; left: number } | null {
   const shift = input.visibleShiftY ?? NETWORK_LOGO_SHIFT_Y
-  const top = input.logoTop - input.netH - input.gap - shift
+  const top = input.logoTop - input.netH - input.gap - shift - NETWORK_ABOVE_LOGO_LIFT
   if (top < 0) return null
   const left = Math.round(input.logoLeft + (input.logoW - input.netW) / 2)
   return { top, left }
