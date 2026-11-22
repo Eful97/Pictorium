@@ -720,6 +720,7 @@ export function useSettingsSession(): SettingsSessionResult {
       setDefaultTypeIconLandscape: makeSimpleSetter(updateSession, "defaultTypeIconLandscape"),
       setDefaultAutoRotateClean: makeSimpleSetter(updateSession, "defaultAutoRotateClean"),
       setDefaultRotationIncludeNonClean: makeSimpleSetter(updateSession, "defaultRotationIncludeNonClean"),
+      setDefaultRotationIncludeOriginal: makeSimpleSetter(updateSession, "defaultRotationIncludeOriginal"),
       setDefaultDisableCleanPosters: makeSimpleSetter(updateSession, "defaultDisableCleanPosters"),
       // Automazioni globali (flat condivisi, default ON).
       setDefaultPortraitBackdropFallback: makeSimpleSetter(updateSession, "defaultPortraitBackdropFallback"),

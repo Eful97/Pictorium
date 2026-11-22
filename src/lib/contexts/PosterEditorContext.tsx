@@ -457,6 +457,9 @@ export interface PosterEditorCtx {
   /** Default rotazione poster: include i poster della lingua corrente (false = Solo clean). */
   defaultRotationIncludeNonClean: boolean
   setDefaultRotationIncludeNonClean: (v: boolean | ((prev: boolean) => boolean)) => void
+  /** Default rotazione poster: include i poster nella lingua originale del titolo. */
+  defaultRotationIncludeOriginal: boolean
+  setDefaultRotationIncludeOriginal: (v: boolean | ((prev: boolean) => boolean)) => void
   /** Disattiva i poster clean TMDB nella selezione automatica (default OFF). */
   defaultDisableCleanPosters: boolean
   setDefaultDisableCleanPosters: (v: boolean | ((prev: boolean) => boolean)) => void
@@ -698,6 +701,9 @@ export interface PosterEditorCtx {
    */
   rotationIncludeNonClean: boolean
   setRotationIncludeNonClean: (v: boolean | ((prev: boolean) => boolean)) => void
+  /** Checkbox "lingua originale": poster nella `original_language` del titolo nel pool. */
+  rotationIncludeOriginal: boolean
+  setRotationIncludeOriginal: (v: boolean | ((prev: boolean) => boolean)) => void
   autoRotateClean: boolean
   setAutoRotateClean: (v: boolean | ((prev: boolean) => boolean)) => void
   /**
@@ -841,6 +847,7 @@ export function PosterEditorProvider({
   // per-titolo: l'apertura lo riallinea al mapping salvato, il save deriva la
   // metadata dal pool effettivo (vedi usePosterSave).
   const [rotationIncludeNonClean, setRotationIncludeNonClean] = useState(false)
+  const [rotationIncludeOriginal, setRotationIncludeOriginal] = useState(false)
   const [autoRotateClean, setAutoRotateClean] = useState(false)
   // Per-title override provenance: null/absent on the wire = inherit the
   // space default (`defaultAutoRotateClean`). Explicit ON/OFF is persisted by
@@ -943,7 +950,7 @@ export function PosterEditorProvider({
     defaultGenreBadgeOffsetX, defaultGenreBadgeOffsetY, defaultQualityBadgeOffsetX, defaultQualityBadgeOffsetY,
     defaultNetworkLogoOffsetX, defaultNetworkLogoOffsetY,
     defaultBadgeGenre, defaultBadgeYear, defaultBadgeRating, defaultBadgeQuality, defaultAgeBadge, defaultAgeCountry, defaultAgeBadgeStyle, defaultAwardBadgeStyle, defaultCustomRatings, defaultCustomRatingEndpoint, defaultCustomRatingApiKeyHeader, defaultRatingSources, defaultSeparateRatings, defaultSeparateRatingsStyle, defaultPosterLayout, defaultPosterFreshScope, defaultSashOrder, defaultDisabledContentTags, defaultDisabledNetworks, defaultWatchProviders, defaultWatchRegion, defaultTypeIcon, defaultTypeIconLandscape,
-    defaultAutoRotateClean, defaultRotationIncludeNonClean, defaultAutoRotateBackdrop, defaultPortraitFitEnabled, defaultLandscapeFitEnabled, defaultNetworkLogo, defaultNetworkLogoPosition, defaultNetworkLogoFollowTitle, defaultPreRelease, defaultRibbonSide, defaultRibbonEnabled, defaultPosterShape, defaultLogoAlign,
+    defaultAutoRotateClean, defaultRotationIncludeNonClean, defaultRotationIncludeOriginal, defaultAutoRotateBackdrop, defaultPortraitFitEnabled, defaultLandscapeFitEnabled, defaultNetworkLogo, defaultNetworkLogoPosition, defaultNetworkLogoFollowTitle, defaultPreRelease, defaultRibbonSide, defaultRibbonEnabled, defaultPosterShape, defaultLogoAlign,
     defaultLogoAnchor,
     defaultQualityAnchor,
     defaultTopBadgeAnchor,
@@ -1813,6 +1820,11 @@ export function PosterEditorProvider({
       const next = typeof v === "function" ? v(defaultRotationIncludeNonClean) : v
       update({ defaultRotationIncludeNonClean: next })
     }, [defaultRotationIncludeNonClean, update])
+  const setDefaultRotationIncludeOriginal = useCallback(
+    (v: boolean | ((prev: boolean) => boolean)) => {
+      const next = typeof v === "function" ? v(defaultRotationIncludeOriginal) : v
+      update({ defaultRotationIncludeOriginal: next })
+    }, [defaultRotationIncludeOriginal, update])
   const setDefaultAutoRotateBackdrop = useCallback(
     (v: boolean | ((prev: boolean) => boolean)) => {
       const next = typeof v === "function" ? v(defaultAutoRotateBackdrop) : v
@@ -2521,6 +2533,8 @@ export function PosterEditorProvider({
       setDefaultAutoRotateClean,
       defaultRotationIncludeNonClean,
       setDefaultRotationIncludeNonClean,
+      defaultRotationIncludeOriginal,
+      setDefaultRotationIncludeOriginal,
       defaultDisableCleanPosters,
       setDefaultDisableCleanPosters,
       defaultPortraitBackdropFallback,
@@ -2691,6 +2705,8 @@ export function PosterEditorProvider({
       setRotationPosters,
       rotationIncludeNonClean,
       setRotationIncludeNonClean,
+      rotationIncludeOriginal,
+      setRotationIncludeOriginal,
       autoRotateClean,
       setAutoRotateClean,
       autoRotateCleanExplicit,
@@ -2867,6 +2883,7 @@ export function PosterEditorProvider({
       defaultWatchProviders, setDefaultWatchProviders, defaultWatchRegion, setDefaultWatchRegion, defaultTypeIcon, setDefaultTypeIcon, defaultTypeIconLandscape, setDefaultTypeIconLandscape,
       defaultAutoRotateClean, setDefaultAutoRotateClean,
       defaultRotationIncludeNonClean, setDefaultRotationIncludeNonClean,
+      defaultRotationIncludeOriginal, setDefaultRotationIncludeOriginal,
       defaultDisableCleanPosters, setDefaultDisableCleanPosters,
       defaultPortraitBackdropFallback, setDefaultPortraitBackdropFallback,
       defaultAutoWordmark, setDefaultAutoWordmark,
@@ -2956,6 +2973,7 @@ export function PosterEditorProvider({
       // Rotation
       rotationPosters, setRotationPosters,
       rotationIncludeNonClean, setRotationIncludeNonClean,
+      rotationIncludeOriginal, setRotationIncludeOriginal,
       autoRotateClean, setAutoRotateClean,
       autoRotateCleanExplicit, setAutoRotateCleanOverride, resetAutoRotateCleanOverride, setAutoRotateCleanState,
       excludedPosters, setExcludedPosters,

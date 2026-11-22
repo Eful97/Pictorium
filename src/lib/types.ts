@@ -417,6 +417,15 @@ export interface Mapping {
    */
   rotationIncludeNonClean?: boolean | null
   /**
+   * Opt-in: allow posters in the title's ORIGINAL language in the portrait 24h
+   * rotation, independent of "my language" (`rotationIncludeNonClean`). The
+   * title's `original_language` is frozen in `rotationOriginalLanguage` so the
+   * server filters without a TMDB fetch. Absent/null/false = legacy.
+   */
+  rotationIncludeOriginal?: boolean | null
+  /** ISO 639-1 `original_language` of the title, saved with the opt-in above. */
+  rotationOriginalLanguage?: string | null
+  /**
    * Subset of `cleanPosters` that are NON-clean TMDB posters
    * (`iso_639_1 !== null`). The renderer cannot re-check TMDB language when
    * only the saved mapping is available, so this metadata drives the

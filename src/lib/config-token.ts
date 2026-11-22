@@ -176,6 +176,7 @@ export const configTokenSchema = z.object({
   autoRotateClean: z.boolean(),
   /** Default rotazione poster (Solo clean / Clean + lingua): opzionale per back-compat. */
   defaultRotationIncludeNonClean: z.boolean().optional(),
+  defaultRotationIncludeOriginal: z.boolean().optional(),
   // Opzionale (finding 13): i token generati prima dell'aggiunta del campo
   // (best-fit) non devono fallire il safeParse — il render usa il default del
   // server quando il campo è assente.

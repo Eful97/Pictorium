@@ -1,5 +1,6 @@
 import type { Mapping } from "@/lib/types"
 import { upsert } from "@/lib/store"
+import { normalizeRotationLanguage } from "@/lib/rotation-language"
 
 export interface EffectiveRotationState {
   readonly availablePosters: readonly string[]
@@ -9,18 +10,6 @@ export interface EffectiveRotationState {
 export interface EffectiveBackdropRotationState {
   readonly availableBackdrops: readonly string[]
   readonly isRotating: boolean
-}
-
-/**
- * Primary language subtag used by the rotation language match. TMDB posters
- * carry an ISO 639-1 `iso_639_1` (`it`); an explicit region tag (`it-IT`,
- * `it_IT`) compares on its primary subtag so both spellings are equal.
- * Empty/absent = no language (fail-closed, never a wildcard).
- */
-function normalizeRotationLanguage(value: string | null | undefined): string | null {
-  const trimmed = typeof value === "string" ? value.trim().toLowerCase() : ""
-  if (!trimmed) return null
-  return trimmed.split(/[-_]/)[0] || null
 }
 
 function hasRotationLanguage(languages: Record<string, string> | null | undefined, path: string): boolean {
@@ -42,18 +31,20 @@ function hasRotationLanguage(languages: Record<string, string> | null | undefine
  */
 function availablePosterRotationPaths(mapping: Mapping, selectedLang?: string | null): string[] {
   const excludedSet = new Set(mapping.excludedPosters || [])
-  const includeNonClean = mapping.rotationIncludeNonClean === true
+  const includeMy = mapping.rotationIncludeNonClean === true
+  const includeOriginal = mapping.rotationIncludeOriginal === true
   const nonCleanSet = new Set(mapping.rotationNonCleanPosters || [])
   const languages = mapping.rotationPosterLanguages
-  const wantedLang = includeNonClean ? normalizeRotationLanguage(selectedLang) : null
+  const wantedLang = includeMy ? normalizeRotationLanguage(selectedLang) : null
+  const originalLang = includeOriginal ? normalizeRotationLanguage(mapping.rotationOriginalLanguage) : null
   return (mapping.cleanPosters || []).filter((path) => {
     if (excludedSet.has(path)) return false
     const hasLang = hasRotationLanguage(languages, path)
     const knownLang = hasLang ? normalizeRotationLanguage(languages![path]) : null
     const isNonClean = nonCleanSet.has(path) || hasLang
-    if (!includeNonClean) return !isNonClean
+    if (!includeMy && !includeOriginal) return !isNonClean
     if (!isNonClean) return true
-    return wantedLang !== null && knownLang === wantedLang
+    return knownLang !== null && (knownLang === wantedLang || knownLang === originalLang)
   })
 }
 
@@ -74,7 +65,9 @@ export function isRotatedNonCleanPoster(
   path?: string | null,
   selectedLang?: string | null,
 ): boolean {
-  if (!mapping || mapping.rotationIncludeNonClean !== true) return false
+  const includeMy = mapping?.rotationIncludeNonClean === true
+  const includeOriginal = mapping?.rotationIncludeOriginal === true
+  if (!mapping || (!includeMy && !includeOriginal)) return false
   const candidate = path ?? mapping.posterPath
   if (!candidate) return false
   const nonClean = mapping.rotationNonCleanPosters
@@ -82,8 +75,10 @@ export function isRotatedNonCleanPoster(
   const listed = Array.isArray(nonClean) && nonClean.includes(candidate)
   if (!listed && !hasLang) return false
   if (selectedLang == null || !hasLang) return true
-  return normalizeRotationLanguage(mapping.rotationPosterLanguages![candidate])
-    === normalizeRotationLanguage(selectedLang)
+  const known = normalizeRotationLanguage(mapping.rotationPosterLanguages![candidate])
+  if (known === null) return false
+  return (includeMy && known === normalizeRotationLanguage(selectedLang))
+    || (includeOriginal && known === normalizeRotationLanguage(mapping.rotationOriginalLanguage))
 }
 
 /**

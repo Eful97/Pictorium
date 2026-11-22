@@ -174,6 +174,7 @@ export interface DefaultsState {
    * dal flag per-titolo `rotationIncludeNonClean`, mai da questo globale.
    */
   defaultRotationIncludeNonClean: boolean
+  defaultRotationIncludeOriginal: boolean
   /** Rotazione 24h di default per formato (sdoppiata). */
   defaultAutoRotateBackdrop: boolean
   /** Disattiva i poster clean TMDB nella selezione automatica (default OFF = priorità ai clean). */
@@ -413,6 +414,7 @@ const DEFAULT_FLAT_DEFAULTS: Omit<DefaultsState, "landscape"> = {
   defaultTypeIconLandscape: false,
   defaultAutoRotateClean: false,
   defaultRotationIncludeNonClean: false,
+  defaultRotationIncludeOriginal: false,
   defaultAutoRotateBackdrop: false,
   defaultDisableCleanPosters: false,
   defaultPortraitBackdropFallback: true,
@@ -673,6 +675,7 @@ interface StoredDefaults {
   defaultAutoRotateClean?: boolean
   /** Default rotazione poster (Solo clean / Clean + lingua). */
   defaultRotationIncludeNonClean?: boolean
+  defaultRotationIncludeOriginal?: boolean
   defaultAutoRotateBackdrop?: boolean
   defaultDisableCleanPosters?: boolean
   /** Chiave flat server (ServerDefaults.disableCleanPosters): fallback di lettura. */
@@ -1109,6 +1112,7 @@ function buildFromStored(d: StoredDefaults | null): DefaultsState {
     defaultTypeIconLandscape: d.defaultTypeIconLandscape ?? d.typeIconLandscape ?? false,
     defaultAutoRotateClean: d.defaultAutoRotateClean ?? d.autoRotateClean ?? false,
     defaultRotationIncludeNonClean: d.defaultRotationIncludeNonClean ?? false,
+    defaultRotationIncludeOriginal: d.defaultRotationIncludeOriginal ?? false,
     defaultAutoRotateBackdrop: d.defaultAutoRotateBackdrop ?? false,
     defaultDisableCleanPosters: d.defaultDisableCleanPosters ?? d.disableCleanPosters ?? false,
     // Automazioni (default ON): chiave assente = comportamento storico.
@@ -1388,6 +1392,7 @@ export function defaultsToPayload(d: DefaultsState): Record<string, unknown> {
     typeIconLandscape: d.defaultTypeIconLandscape ? true : undefined,
     autoRotateClean: d.defaultAutoRotateClean,
     defaultRotationIncludeNonClean: d.defaultRotationIncludeNonClean,
+    defaultRotationIncludeOriginal: d.defaultRotationIncludeOriginal,
     defaultAutoRotateBackdrop: d.defaultAutoRotateBackdrop,
     disableCleanPosters: d.defaultDisableCleanPosters,
     // Sempre emessi: la PUT fa merge, omettere al toggle-back-ON lascerebbe un

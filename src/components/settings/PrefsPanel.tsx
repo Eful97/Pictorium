@@ -185,20 +185,18 @@ export function PrefsPanel({ active }: { active: boolean }) {
                     <RotateCcw className="w-4 h-4 text-zinc-400 shrink-0" />
                     <span>{t("ui.rotationScope")}</span>
                   </span>
-                  <button
-                    type="button"
-                    aria-pressed={ed.defaultRotationIncludeNonClean}
-                    onClick={() => ed.setDefaultRotationIncludeNonClean(!ed.defaultRotationIncludeNonClean)}
-                    className={`px-2 py-1 text-[11px] font-semibold rounded-lg border transition ${
-                      ed.defaultRotationIncludeNonClean
-                        ? "bg-accent-orange/20 text-accent-orange border-accent-orange/25"
-                        : "bg-white/5 text-muted border-white/10"
-                    }`}
-                  >
-                    {ed.defaultRotationIncludeNonClean
-                      ? t("ui.rotationScopeWithLanguage")
-                      : t("ui.rotationScopeNoLanguage")}
-                  </button>
+                  <div className="flex items-center gap-3 text-xs text-zinc-300">
+                    <label className="flex items-center gap-1.5 cursor-pointer">
+                      <input type="checkbox" checked={ed.defaultRotationIncludeNonClean}
+                        onChange={(e) => ed.setDefaultRotationIncludeNonClean(e.target.checked)} />
+                      {t("ui.rotationScopeMyLanguage")}
+                    </label>
+                    <label className="flex items-center gap-1.5 cursor-pointer">
+                      <input type="checkbox" checked={ed.defaultRotationIncludeOriginal}
+                        onChange={(e) => ed.setDefaultRotationIncludeOriginal(e.target.checked)} />
+                      {t("ui.rotationScopeOriginalLanguage")}
+                    </label>
+                  </div>
                 </div>
                 <p className="text-xs text-zinc-400 leading-relaxed pl-6">
                   {t("ui.rotationScopeDefaultHint")}

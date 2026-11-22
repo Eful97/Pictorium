@@ -217,6 +217,8 @@ export function buildCoverOnlyPayload(input: CoverOnlySaveInput): Record<string,
     // verbatim like the pool above (the landscape save must not wipe the
     // portrait opt-in). The pool itself is still preserved untouched.
     if (prevMapping?.rotationIncludeNonClean !== undefined) body.rotationIncludeNonClean = prevMapping.rotationIncludeNonClean
+    if (prevMapping?.rotationIncludeOriginal !== undefined) body.rotationIncludeOriginal = prevMapping.rotationIncludeOriginal
+    if (prevMapping?.rotationOriginalLanguage !== undefined) body.rotationOriginalLanguage = prevMapping.rotationOriginalLanguage
     if (prevMapping?.rotationNonCleanPosters !== undefined) body.rotationNonCleanPosters = prevMapping.rotationNonCleanPosters
     if (prevMapping?.rotationPosterLanguages !== undefined) body.rotationPosterLanguages = prevMapping.rotationPosterLanguages
     if (prevMapping?.excludedPosters !== undefined) body.excludedPosters = prevMapping.excludedPosters
@@ -239,6 +241,8 @@ export function buildCoverOnlyPayload(input: CoverOnlySaveInput): Record<string,
     // but dropping it here would silently wipe the user's opt-in on every
     // portrait cover-only save. It is never rebuilt from the live preview.
     if (prevMapping?.rotationIncludeNonClean !== undefined) body.rotationIncludeNonClean = prevMapping.rotationIncludeNonClean
+    if (prevMapping?.rotationIncludeOriginal !== undefined) body.rotationIncludeOriginal = prevMapping.rotationIncludeOriginal
+    if (prevMapping?.rotationOriginalLanguage !== undefined) body.rotationOriginalLanguage = prevMapping.rotationOriginalLanguage
     if (prevMapping?.rotationNonCleanPosters !== undefined) body.rotationNonCleanPosters = prevMapping.rotationNonCleanPosters
     if (prevMapping?.rotationPosterLanguages !== undefined) body.rotationPosterLanguages = prevMapping.rotationPosterLanguages
     if (prevMapping?.excludedBackdrops !== undefined) body.excludedBackdrops = prevMapping.excludedBackdrops

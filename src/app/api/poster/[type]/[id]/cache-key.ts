@@ -48,6 +48,7 @@ export interface PosterCacheIdentityContext {
 export interface PosterCacheIdentity {
   dynamicDayBucket: number | null
   dynamicRotationIncludeNonClean: boolean
+  dynamicRotationIncludeOriginal: boolean
   dynamicCutTtlMs: number | null
   outputFormat: PosterImageFormat
   legacyAvif: boolean
@@ -99,6 +100,8 @@ export async function resolvePosterCacheIdentity(ctx: PosterCacheIdentityContext
   // per-title mapping flag is authoritative).
   const dynamicRotationIncludeNonClean =
     configOverride?.defaultRotationIncludeNonClean ?? sd.defaultRotationIncludeNonClean ?? false
+  const dynamicRotationIncludeOriginal =
+    configOverride?.defaultRotationIncludeOriginal ?? sd.defaultRotationIncludeOriginal ?? false
   const dynamicBucketKey = dynamicDayBucket !== null ? `:dd${dynamicDayBucket}` : ""
   // TTL allineato al prossimo cut (header + storage esplicito sotto): oltre
   // il cut la chiave cambia comunque, mai contenuto stantio oltre il giorno.
@@ -192,6 +195,7 @@ export async function resolvePosterCacheIdentity(ctx: PosterCacheIdentityContext
   return {
     dynamicDayBucket,
     dynamicRotationIncludeNonClean,
+    dynamicRotationIncludeOriginal,
     dynamicCutTtlMs,
     outputFormat,
     legacyAvif,

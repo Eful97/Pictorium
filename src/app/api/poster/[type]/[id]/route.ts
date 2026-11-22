@@ -185,7 +185,7 @@ export async function GET(req: NextRequest, { params }: { params: Promise<RouteP
   // Chiave di cache, ETag base, formato, policy TTL/immutable e flag di
   // debug (cache-key.ts). Idrata la entry canonica dal disco.
   const {
-    dynamicDayBucket, dynamicRotationIncludeNonClean, dynamicCutTtlMs, outputFormat, legacyAvif,
+    dynamicDayBucket, dynamicRotationIncludeNonClean, dynamicRotationIncludeOriginal, dynamicCutTtlMs, outputFormat, legacyAvif,
     canonicalFormat, imageQuality, cacheKey, needsVariant, variantKey, immutablePoster, refreshRequest,
     isLive, isDebug, wantNetGeo, wantBadgeGhosts, dynamicPoster, mappingTag, dynamicTtlSec,
     variantTtlSec, ifNoneMatch, isConditional,
@@ -435,7 +435,7 @@ export async function GET(req: NextRequest, { params }: { params: Promise<RouteP
   const sourceCtx: SourceResolutionContext = {
     req, hardenedParams, mediaType, tmdbId, mapping, earlyEffMapping, sd, configOverride,
     posterRegion, canonicalLang, isLandscape, autoWordmarkEnabled, portraitBackdropFallback,
-    dynamicDayBucket, dynamicRotationIncludeNonClean, effTmdbKey, effMdblistKey, effSimklKey,
+    dynamicDayBucket, dynamicRotationIncludeNonClean, dynamicRotationIncludeOriginal, effTmdbKey, effMdblistKey, effSimklKey,
     reqRatingSources, renderAbort, queryPoster, queryLogo, queryBackdrop,
     queryPortraitBase, queryGenre, queryVote,
   }

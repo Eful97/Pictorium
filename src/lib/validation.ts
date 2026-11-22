@@ -244,6 +244,9 @@ export const mappingSchema = z.object({
   autoRotateClean: z.boolean().nullable().optional(),
   /** Opt-in: language posters in the portrait 24h rotation (absent = legacy). */
   rotationIncludeNonClean: z.boolean().nullable().optional(),
+  /** Opt-in: original-language posters in the rotation (absent = legacy). */
+  rotationIncludeOriginal: z.boolean().nullable().optional(),
+  rotationOriginalLanguage: z.string().min(1).max(8).nullable().optional(),
   /** Subset of cleanPosters that are non-clean TMDB posters (logo suppression). */
   rotationNonCleanPosters: z.array(z.string()).nullable().optional(),
   /**

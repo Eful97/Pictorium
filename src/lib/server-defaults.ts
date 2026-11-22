@@ -258,6 +258,7 @@ export interface ServerDefaults {
    * Entra nella cache key perché cambia la base servita ai non mappati.
    */
   defaultRotationIncludeNonClean?: boolean
+  defaultRotationIncludeOriginal?: boolean
   /** Rotazione giornaliera backdrop landscape (anche titoli non salvati). Default OFF. */
   defaultAutoRotateBackdrop?: boolean
   /** Esclude i poster clean TMDB dalla selezione automatica (catena lingua -> originale -> primo). Default OFF. */
@@ -555,6 +556,7 @@ const CATALOG_ONLY_DEFAULT_KEYS: ReadonlySet<string> = new Set(CATALOG_ONLY_DEFA
  */
 const TRUE_ONLY_VISUAL_DEFAULTS: ReadonlySet<string> = new Set([
   "defaultRotationIncludeNonClean",
+  "defaultRotationIncludeOriginal",
 ])
 
 /**

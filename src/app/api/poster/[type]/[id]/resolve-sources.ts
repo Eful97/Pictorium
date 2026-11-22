@@ -11,6 +11,7 @@ import { AUTO_FIT_FETCH_TIMEOUT_MS, selectAutoFitCandidates, selectBestLogoFitPo
 import { matchTMDBStudios } from "@/lib/awards"
 import { fetchAggregatedRating, isMdbTmdbIdentityUsable } from "@/lib/ratings"
 import { rotationIndexFor } from "@/lib/poster-rotation"
+import { normalizeRotationLanguage } from "@/lib/rotation-language"
 import { getTMDBSessionCache, setTMDBSessionCache } from "@/lib/tmdb-session-cache"
 import { fetchImg, imgSrc } from "@/lib/poster-render-helpers"
 import { landscapeBackdropUrl, cropBackdropToPortrait } from "@/lib/image-utils"
@@ -51,6 +52,7 @@ export interface SourceResolutionContext {
   readonly portraitBackdropFallback: boolean
   readonly dynamicDayBucket: number | null
   readonly dynamicRotationIncludeNonClean: boolean
+  readonly dynamicRotationIncludeOriginal: boolean
   readonly effTmdbKey: string | undefined
   readonly effMdblistKey: string | undefined
   readonly effSimklKey: string | undefined
@@ -250,7 +252,7 @@ export async function resolveAutoSources(
   const {
     req, sd, mediaType, tmdbId, configOverride, posterRegion, canonicalLang, isLandscape,
     autoWordmarkEnabled, portraitBackdropFallback, dynamicDayBucket,
-    dynamicRotationIncludeNonClean, effTmdbKey, effMdblistKey, effSimklKey, reqRatingSources,
+    dynamicRotationIncludeNonClean, dynamicRotationIncludeOriginal, effTmdbKey, effMdblistKey, effSimklKey, reqRatingSources,
     renderAbort, queryBackdrop, queryLogo, queryPortraitBase,
   } = ctx
   // Ancora del logo per lo scoring best-fit: stessa catena del render
@@ -471,12 +473,17 @@ export async function resolveAutoSources(
       // accanto ai clean. I titoli mappati non passano da qui (dynamicDayBucket
       // e' null con mapping) e restano governati dal flag per-titolo.
       const preferredLangKey = preferredLanguage.trim().toLowerCase().split(/[-_]/)[0]
+      // `defaultRotationIncludeOriginal` adds the posters in the title's
+      // `original_language` (independent of "my language").
+      const originalLangKey = normalizeRotationLanguage(details.original_language)
       const dynamicPortraitPool = (dynamicDayBucket !== null && !isLandscape && hasTitleLogo)
-        ? images.posters.filter((p: TMDBImage) =>
-            p.iso_639_1 === null
-            || (dynamicRotationIncludeNonClean
-              && typeof p.iso_639_1 === "string"
-              && p.iso_639_1.trim().toLowerCase().split(/[-_]/)[0] === preferredLangKey))
+        ? images.posters.filter((p: TMDBImage) => {
+            if (p.iso_639_1 === null) return true
+            const posterLang = normalizeRotationLanguage(p.iso_639_1)
+            if (posterLang === null) return false
+            return (dynamicRotationIncludeNonClean && posterLang === preferredLangKey)
+              || (dynamicRotationIncludeOriginal && posterLang === originalLangKey)
+          })
         : []
       if (dynamicDayBucket !== null && dynamicPortraitPool.length >= 2) {
         const picked = dynamicPortraitPool[rotationIndexFor(dynamicDayBucket, dynamicPortraitPool.length)]
@@ -497,6 +504,7 @@ export async function resolveAutoSources(
           poster: picked.file_path,
           pool: dynamicPortraitPool.length,
           includeNonClean: dynamicRotationIncludeNonClean,
+          includeOriginal: dynamicRotationIncludeOriginal,
         })
       } else if (artwork.logoPath && logoFitEnabled) {
         try {

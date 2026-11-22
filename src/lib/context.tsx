@@ -57,6 +57,7 @@ import { slotsReferencingCustom, shouldApplyRankRefresh } from "./ranking-source
 import { migrateLegacyStorage } from "./storage-migration"
 import { writePersonalDeviceKey } from "./device-keys"
 import { sanitizeEpisodeThumbnailStills } from "./episode-stills"
+import { isSavedOriginalPoster } from "./rotation-language"
 
 export type ViewType = "search" | "myposters" | "thumbnails" | "edit" | "cataloghi"
 
@@ -825,6 +826,7 @@ export function usePictorium(): PictoriumCtx {
     defaultNetworkLogoOffsetX, defaultNetworkLogoOffsetY,
     defaultAutoRotateClean,
     defaultRotationIncludeNonClean,
+    defaultRotationIncludeOriginal,
     defaultAutoRotateBackdrop,
     defaultDisableCleanPosters,
     defaultPortraitBackdropFallback,
@@ -901,7 +903,8 @@ export function usePictorium(): PictoriumCtx {
     // Editing UI
     // Rotation
     rotationPosters, setRotationPosters,
-    setRotationIncludeNonClean,
+    rotationIncludeNonClean, setRotationIncludeNonClean,
+    rotationIncludeOriginal, setRotationIncludeOriginal,
     autoRotateClean, autoRotateCleanExplicit, setAutoRotateCleanState,
     excludedPosters, setExcludedPosters,
     rotationBackdrops, setRotationBackdrops,
@@ -3219,9 +3222,10 @@ export function usePictorium(): PictoriumCtx {
         setRotationPosters(
           includeNonClean
             ? (existing.cleanPosters || [])
-            : (existing.cleanPosters || []).filter((path) => !recordedNonClean.has(path)),
+            : (existing.cleanPosters || []).filter((path) => !recordedNonClean.has(path) || isSavedOriginalPoster(existing, path)),
         )
         setRotationIncludeNonClean(includeNonClean)
+        setRotationIncludeOriginal(existing.rotationIncludeOriginal === true)
       }
       setExcludedPosters(existing.excludedPosters || [])
       setRotationBackdrops(existing.cleanBackdrops || [])
@@ -3381,6 +3385,7 @@ export function usePictorium(): PictoriumCtx {
       // (OFF = "Solo clean" storico, ON = clean + lingua). Vale SOLO qui: i
       // titoli mappati restano governati dal proprio flag salvato.
       setRotationIncludeNonClean(defaultRotationIncludeNonClean)
+      setRotationIncludeOriginal(defaultRotationIncludeOriginal)
       // Titolo nuovo: eredita (nessun override esplicito finché l'utente non
       // tocca il toggle dedicato).
       setAutoRotateCleanState(defaultAutoRotateClean, false)
@@ -3560,7 +3565,7 @@ export function usePictorium(): PictoriumCtx {
     genreBadgeOffsetX, genreBadgeOffsetY, qualityBadgeOffsetX, qualityBadgeOffsetY,
     networkLogoOffsetX, networkLogoOffsetY,
     setGradientHeight, setBlurFade,
-    rotationPosters, autoRotateClean, defaultAutoRotateClean,
+    rotationPosters, rotationIncludeNonClean, rotationIncludeOriginal, titleOrigLang, autoRotateClean, defaultAutoRotateClean,
     autoRotateCleanOverride: autoRotateCleanExplicit ? autoRotateClean : null,
     excludedPosters, accentColor, autoAccentColor, logoDisabled, setLogoDisabled,
     logoText, logoFont, setLogoText, setLogoFont,
@@ -3646,9 +3651,10 @@ export function usePictorium(): PictoriumCtx {
             ...Object.keys(prev?.rotationPosterLanguages || {}),
           ])
           setRotationPosters(
-            (prev?.cleanPosters ?? []).filter((path) => prevIncludeNonClean || !prevNonClean.has(path)),
+            (prev?.cleanPosters ?? []).filter((path) => prevIncludeNonClean || !prevNonClean.has(path) || (!!prev && isSavedOriginalPoster(prev, path))),
           )
           setRotationIncludeNonClean(prevIncludeNonClean)
+          setRotationIncludeOriginal(prev?.rotationIncludeOriginal === true)
         }
         // Portrait preservato dal salvato: null = eredita (mai un false
         // congelato), un booleano salvato resta esplicito.
@@ -3683,6 +3689,7 @@ export function usePictorium(): PictoriumCtx {
       } else {
         setRotationPosters([])
         setRotationIncludeNonClean(false)
+        setRotationIncludeOriginal(false)
         // Cover-only portrait: rotazione del formato azzerata (pool omesso dal
         // payload), quindi nessun override esplicito da conservare in live.
         setAutoRotateCleanState(false, false)
@@ -3707,7 +3714,7 @@ export function usePictorium(): PictoriumCtx {
       setAccentColor(null)
     }
     return ok
-  }, [saveCoverOnlyPost, editorCtx, navigation, mappingsMap, posterShape, selectedBackdrop, setRotationPosters, setRotationIncludeNonClean, setAutoRotateCleanState, setExcludedPosters, setRotationBackdrops, setAutoRotateBackdrop, setExcludedBackdrops, setSelectedBackdrop, setAccentColor])
+  }, [saveCoverOnlyPost, editorCtx, navigation, mappingsMap, posterShape, selectedBackdrop, setRotationPosters, setRotationIncludeNonClean, setRotationIncludeOriginal, setAutoRotateCleanState, setExcludedPosters, setRotationBackdrops, setAutoRotateBackdrop, setExcludedBackdrops, setSelectedBackdrop, setAccentColor])
 
   const autoSaveExcludedPosters = useCallback(async (nextExcluded: string[], nextRotationPosters?: string[], nextPreviewPoster?: TMDBImage) => {
     await savePosterConfig(withSharedShapeStash({
