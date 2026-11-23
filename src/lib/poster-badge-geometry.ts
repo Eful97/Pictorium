@@ -1,10 +1,11 @@
+import type { FreshOverlayGeometry } from "./fresh-layout"
 import type { RelFam,RelBox,InkSource } from "./poster-layout-helpers"
 import type { BadgeGeometryReport } from "./badge-layout"
 import type { LogoRelativePosition } from "./badge-anchor"
 import type { LogoAnchor } from "./logo-layout"
 import { BadgeRender,PosterComposite,badgeBody,opaqueComponents,tightenBoxesToInk } from "./poster-render-helpers"
 import { isActiveLogoAnchor } from "./logo-layout"
-import { isFreshRank,type FreshOverlayGeometry } from "./fresh-layout"
+import { isFreshRank } from "./fresh-layout"
 import { type CardOverlayGeometry } from "./card-layout"
 import { isCardRankDisplayable } from "./card-layout-geometry"
 import { type NetworkGeometry,type BadgeGeometryFamily,type BadgeGeometryLayout,type BadgeGeometryBox,type BadgeGeometryItem } from "./badge-layout"
@@ -22,7 +23,7 @@ export interface BadgeGeometryArgs {
   readonly finalRankTop: number
   readonly isRankNetflixRibbonStyle: boolean
   readonly logoResult: { readonly input: Buffer<ArrayBufferLike>; readonly top: number; readonly left: number; readonly w: number; readonly h: number }|null
-  readonly freshOverlayGeo: null
+  readonly freshOverlayGeo: FreshOverlayGeometry | null
   readonly cardOverlayGeo: CardOverlayGeometry|null
   readonly isFixedNetwork: boolean
   readonly badgeGeoFixedX: Partial<Record<BadgeGeometryFamily,boolean>>

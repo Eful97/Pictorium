@@ -6,10 +6,9 @@ import { renderSeparateRatingStack,renderSeparateRatingsBottom,renderSeparateRat
 import { cacheGet,cacheSet } from "./cache"
 import { GENRE_FALLBACK } from "./badges"
 import { applyBlur } from "./blur"
-import { STD_W,STD_H,extractSceneTint,fitBadgeToCanvas,isValidHex,BadgeRender,PosterComposite,badgeBody,badgeCanvasForBody,scaleBadgeBleed,topBandMeanRGB,bottomBandMeanRGB,effectiveTopBackgroundLuminance,effectiveBottomBackgroundLuminance,adaptiveAccentHexForBand } from "./poster-render-helpers"
+import { STD_W,STD_H,extractSceneTint,fitBadgeToCanvas,BadgeRender,PosterComposite,badgeBody,badgeCanvasForBody,scaleBadgeBleed,topBandMeanRGB,bottomBandMeanRGB,effectiveTopBackgroundLuminance,effectiveBottomBackgroundLuminance,adaptiveAccentHexForBand } from "./poster-render-helpers"
 import { LAND_W,LAND_H } from "./image-utils"
 import { normalizeAutomaticAccentHex } from "./accent-color"
-import type { EffectiveAccentMeta } from "./effective-accent"
 import { renderAwardLogoBadge } from "./award-logos"
 import { awardShortName,type AwardBadgeKey } from "./badge-labels"
 import { renderGenreBadge,renderRankingBadge,renderExtraBadge,renderComingSoonRibbon,comingSoonRibbonLayout } from "./svg-badge"
@@ -29,7 +28,7 @@ import { isRibbonRankingStyle,notchMaterialOf,qualityGroupNotchMaterial,isBottom
 import { normalizeBadgeFont } from "./badge-svg-shared"
 import { qualityBadgeIconPath } from "./quality-badge-styles"
 import { isRankKey } from "./i18n"
-import { composeFreshOverlay,composeFreshOverlaySplit,freshMetaRows,isEffectiveFreshLayout,isFreshRank,prepareFreshReconstructedBackground,type ComposeFreshInput,type FreshOverlayGeometry } from "./fresh-layout"
+import { isEffectiveFreshLayout,isFreshRank,prepareFreshReconstructedBackground,type FreshOverlayGeometry } from "./fresh-layout"
 import { type CardOverlayGeometry } from "./card-layout"
 import { isEffectiveCardLayout } from "./card-layout-skins"
 import { applyBadgeItemTransform,badgeItemTransform,effectiveBadgeItemTransforms,homeIdForPainted,isNeutralBadgeItemTransform,isQualityItemId,isRatingItemId,ratingSlotItemId,serializeBadgeItemTransforms } from "./badge-item-transforms"
@@ -57,6 +56,8 @@ export { badgeCacheKey } from "./poster-cache-infra"
 
 // Overlay full-canvas e cache image-level estratti in moduli dedicati;
 // le API storiche restano ri-esportate da qui.
+import { reportEffectiveAccentMeta } from "./poster-accent-meta"
+import { composeFreshLayer } from "./poster-fresh-compose"
 import { reportBadgeGeometry } from "./poster-badge-geometry"
 import { composeCardLayer } from "./poster-card-compose"
 import { composeFinalPoster } from "./poster-final-composite"
@@ -2651,95 +2652,16 @@ export async function generatePosterBuffer(input: GenerationInput): Promise<Buff
   // restano sotto come nello standard (i badge fresh restano luminosi come
   // quelli standard); blur pipeline e ribbon invariati.
   // -----------------------------------------------------------------------
-  if (isFresh) {
-    // Stessa priorità dello standard: il rank arriva dal topBadge già
-    // risolto (queryExtra > computato > Coming Soon). Mai inventato: solo un
-    // rank reale disegna il numerale.
-    const freshRank = topBadge?.type === "rank" ? topBadge.rank : null
-    // La route pre-filtra già gli input rating per lo standard (flag
-    // effettivi, custom soppresso in bottom, separate definiti solo quando
-    // attivi) e passa i toggle raw equivalenti nei campi freshRaw* —
-    // così freshMetaRows applica gli stessi gate condivisi
-    // (resolveSeparateDisplayState) sui valori RAW, non su quelli effettivi
-    // (già soppressi: con la colonna attiva l'effettivo sarebbe sempre OFF
-    // e fresh non mostrerebbe mai i separati). I chiamanti diretti del
-    // service senza campi freshRaw* usano `badgeRating` così com'è (mai
-    // riacceso dall'esistenza degli array) e l'array definito come toggle
-    // separato — `badgeRating: false` + array popolati = nessuna riga
-    // separata, come nello standard.
-    const freshRawBadgeRating = input.freshRawBadgeRating ?? input.badgeRating
-    const freshRawSeparateEnabled = input.freshRawSeparateRatings ?? (input.separateRatings !== undefined)
-    const freshOverlayInput: ComposeFreshInput = {
-      posterBuf: freshBaseBuf,
-      CW,
-      CH,
-      rank: freshRank,
-      meta: {
-        badgesEnabled,
-        badgeGenre: input.freshRawBadgeGenre ?? badgeGenre,
-        badgeYear: input.freshRawBadgeYear ?? badgeYear,
-        badgeRating: freshRawBadgeRating,
-        separateRatingsEnabled: freshRawSeparateEnabled,
-        separateRatingsStyle: isBottomStyle && bottomVariant ? bottomVariant : "column",
-        customRatingsEnabled: input.ratings !== undefined,
-        genreName,
-        year,
-        voteAverage,
-        separateRatings: input.separateRatings,
-        customRatings: input.ratings,
-        typeIcon: typeIcon ? mediaType : null,
-      },
-      logo: logoResult ? { png: logoResult.input, w: logoResult.w, h: logoResult.h } : null,
-      provider: networkLogoForLayout ? { png: networkLogoForLayout.png, w: networkLogoForLayout.w, h: networkLogoForLayout.h } : null,
-      badgeFont,
-      // Existing per-shape Transform controls, no new params: the rank
-      // numeral follows the classifica tuning, the meta column the genre
-      // tuning, the provider its offsets (+ the follow/fixed contract), the
-      // title logo its offsets once. Provider/logo SCALES ride the bitmaps
-      // above (`netscale` in networkLogoForLayout, `logoScale` in
-      // logoResult) and are never re-applied as a second resize inside
-      // fresh-layout: the same % only enlarges the slot caps there, so one
-      // fit grows the mark linearly until the canvas edge (neutral 100 =
-      // historic caps, byte-identical; null logoScale counts as 100).
-      onGeometry: (geo) => { freshOverlayGeo = geo },
-      transforms: {
-        numeralScale: topBadgeScale,
-        numeralOffsetX: topBadgeOffsetX,
-        numeralOffsetY: topBadgeOffsetY,
-        metaScale: genreBadgeScale,
-        metaOffsetX: genreBadgeOffsetX,
-        metaOffsetY: genreBadgeOffsetY,
-        providerScale: networkLogoScale,
-        providerOffsetX: networkLogoOffsetX,
-        providerOffsetY: networkLogoOffsetY,
-        providerFollowTitle: networkLogoFollowTitle ?? true,
-        providerFixedX: networkFixedX ?? null,
-        providerFixedY: networkFixedY ?? null,
-        logoScale: logoScale ?? null,
-        logoOffsetX: logoOffsetX ?? null,
-        logoOffsetY: logoOffsetY ?? null,
-      },
-    }
-    // Split-shade interleaving (Fresh + active bottom blur only): the raw
-    // bottom blur/tint overlay paints ABOVE the lateral shade and BELOW the
-    // bottom legibility shade + content, so the accent tint stays visible
-    // bottom-left instead of being blacked out by the side shade. Without an
-    // active bottom blur the legacy combined-shade path runs byte-identically.
-    if (blurOverlay) {
-      const split = await composeFreshOverlaySplit(freshOverlayInput)
-      freshBottomShadeLayer = split.aboveBottom[0] ?? null
-      composites.splice(freshInsertAt ?? composites.length, 0, ...split.belowBottom, ...split.aboveBottom)
-    } else {
-      const freshLayers = await composeFreshOverlay(freshOverlayInput)
-      composites.splice(freshInsertAt ?? composites.length, 0, ...freshLayers)
-    }
-    if (freshOverlayInput.meta.typeIcon && freshMetaRows(freshOverlayInput.meta).length > 0) typeIconInlineAux = true
-    // Badge extra non-rank: bitmap standard riusato al top (stesso anchor).
-    if (isExtraTopBadge && finalRankBadge && finalRankLeft !== null) {
-      const extraCanvas = badgeCanvasForBody(finalRankLeft, finalRankTop, finalRankBadge)
-      composites.push({ input: finalRankBadge.png, top: extraCanvas.top, left: extraCanvas.left })
-    }
-  }
+  ;({ freshOverlayGeo, freshBottomShadeLayer, typeIconInlineAux } = await composeFreshLayer({
+    isFresh, topBadge, input, freshBaseBuf, CW, CH,
+    badgesEnabled, badgeGenre, badgeYear, isBottomStyle, bottomVariant, genreName,
+    year, voteAverage, typeIcon, mediaType, logoResult, networkLogoForLayout,
+    badgeFont, freshOverlayGeo, topBadgeScale, topBadgeOffsetX, topBadgeOffsetY, genreBadgeScale,
+    genreBadgeOffsetX, genreBadgeOffsetY, networkLogoScale, networkLogoOffsetX, networkLogoOffsetY, networkLogoFollowTitle,
+    networkFixedX, networkFixedY, logoScale, logoOffsetX, logoOffsetY, blurOverlay,
+    freshBottomShadeLayer, composites, freshInsertAt, typeIconInlineAux, isExtraTopBadge, finalRankBadge,
+    finalRankLeft, finalRankTop,
+  }))
 
   // -----------------------------------------------------------------------
   // 6c. Card composition (solo layout=provider-glass|nuvio|stremio): il
@@ -2802,77 +2724,12 @@ export async function generatePosterBuffer(input: GenerationInput): Promise<Buff
   // anything painting no automatic accent (non-consuming styles, suppressed
   // Fresh/Card chrome, fixed provider-glass/neutral glass, disabled or
   // zero-strength gradients).
-  if (onAccentMeta) {
-    try {
-      const topComposited =
-        !!finalRankBadge &&
-        finalRankLeft !== null &&
-        (!!topBadge && !showComingSoon && topPaintsAccent) &&
-        ((!isFresh && !isCard) || isExtraTopBadge)
-      const genreStdPaints =
-        genrePaintsAccent && !!safeGenreBadgeResult
-      const genrePaintsEff =
-        genreStdPaints || (cardGenrePaints && cardMainBadgeRendered)
-      const genreEffHex = genreStdPaints || (cardGenrePaints && cardMainBadgeRendered)
-          ? (isCard ? accentColorGenre : genreStdAccent)
-          : null
-      const topEffHex = topComposited
-        ? rankStdAccent
-        : null
-      const topPaintsEff = topComposited && topEffHex !== null
-      const manualGenre = accentOverride && isValidHex(accentOverride.genreColor)
-        ? accentOverride.genreColor
-        : null
-      const manualRank = accentOverride && isValidHex(accentOverride.rankColor)
-        ? accentOverride.rankColor
-        : null
-      const provFor = (
-        paints: boolean,
-        manual: string | null,
-        tint: string | null,
-        band: { r: number; g: number; b: number } | null,
-      ): EffectiveAccentMeta["provGenre"] => {
-        if (!paints) return "not-painted"
-        if (manual) return "manual"
-        if (!tint) return "fallback-genre"
-        if (!band) return "fallback-tint"
-        return "extracted"
-      }
-      // Gradient entry: the SAME `blurTintHex` already passed to `applyBlur`
-      // above (manual override, else the extracted scene tint, else the genre
-      // fallback) — the actual render decision, never a remembered color. It
-      // counts as painted only when the overlay really exists (blur enabled
-      // in every layout: Standard layers it, Fresh interleaves it, Card bakes
-      // it into the artwork) with a non-zero tint strength; a disabled or
-      // transparent gradient is honestly `not-painted`, never a fake hex.
-      const gradientPaintsEff =
-        !!blurOverlay && tintStrength > 0 && isValidHex(blurTintHex)
-      const manualGradient = accentOverride && isValidHex(accentOverride.genreColor)
-        ? accentOverride.genreColor
-        : null
-      const provGradient: EffectiveAccentMeta["provGradient"] = !gradientPaintsEff
-        ? "not-painted"
-        : manualGradient
-          ? "manual"
-          : sceneTintHex
-            ? "extracted"
-            : "fallback-genre"
-      onAccentMeta({
-        genreHex: genrePaintsEff ? (manualGenre ?? genreEffHex) : null,
-        rankHex: topPaintsEff ? (manualRank ?? topEffHex) : null,
-        genrePaints: genrePaintsEff,
-        topPaints: topPaintsEff,
-        topType: topBadge?.type ?? null,
-        provGenre: provFor(genrePaintsEff, manualGenre, sceneTintHex, bottomBand),
-        provRank: provFor(topPaintsEff, manualRank, sceneTintHex, topBand),
-        gradientHex: gradientPaintsEff ? blurTintHex : null,
-        gradientPaints: gradientPaintsEff,
-        provGradient,
-      })
-    } catch {
-      // The observer must never break the render.
-    }
-  }
+  reportEffectiveAccentMeta({
+    onAccentMeta, finalRankBadge, finalRankLeft, topBadge, showComingSoon, topPaintsAccent,
+    isFresh, isCard, isExtraTopBadge, genrePaintsAccent, safeGenreBadgeResult, cardGenrePaints,
+    cardMainBadgeRendered, accentColorGenre, genreStdAccent, rankStdAccent, accentOverride, blurOverlay,
+    tintStrength, blurTintHex, sceneTintHex, bottomBand, topBand,
+  })
 
   // -----------------------------------------------------------------------
   // 7. Final composite
@@ -2884,5 +2741,7 @@ export async function generatePosterBuffer(input: GenerationInput): Promise<Buff
     mediaType, badgePw, format: input.format, imageQuality: input.imageQuality,
   })
 }
+
+
 
 
