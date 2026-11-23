@@ -2458,7 +2458,7 @@ export function usePictorium(): PictoriumCtx {
     return () => {
       active = false
     }
-  }, [ratingSources]) // eslint-disable-line react-hooks/exhaustive-deps
+  }, [ratingSources]) // eslint-disable-line react-hooks/exhaustive-deps -- re-fetch details only when the rating sources change; selection/keys/lang are read from the closure
 
   // Default logo globali per formato (Impostazioni · Verticale/Orizzontale):
   // in landscape vince l'override Orizzontale, altrove il flat. Null =
