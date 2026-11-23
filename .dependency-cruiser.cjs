@@ -25,7 +25,7 @@ module.exports = {
         "Only src/lib/svg-badge.ts may load @resvg/resvg-js (single poster renderer boundary).",
       severity: "error",
       from: {
-        pathNot: "^src/lib/svg-badge\\.ts$",
+        pathNot: "^(src/lib/svg-badge\\.ts|src/__tests__/.*)$",
       },
       to: {
         path: "node_modules/@resvg/resvg-js/",

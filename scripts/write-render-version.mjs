@@ -23,6 +23,13 @@ const rootDir = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "..")
 const RENDER_FILES = [
   "src/app/api/poster/[type]/[id]/route.ts",
   "src/app/api/poster/[type]/[id]/phases.ts",
+  "src/app/api/poster/[type]/[id]/constants.ts",
+  "src/app/api/poster/[type]/[id]/display-state.ts",
+  "src/app/api/poster/[type]/[id]/fetch-render-data.ts",
+  "src/app/api/poster/[type]/[id]/quality.ts",
+  "src/app/api/poster/[type]/[id]/render-base.ts",
+  "src/app/api/poster/[type]/[id]/resolve-sources.ts",
+  "src/app/api/poster/[type]/[id]/sources.ts",
   "src/lib/accent-color.ts",
   "src/lib/award-ids.ts",
   "src/lib/award-logo-files.ts",
