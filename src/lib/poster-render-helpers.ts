@@ -18,8 +18,6 @@ const MAX_IMG_SIZE = 10 * 1024 * 1024
 // Re-export per backward compat — tutti i file che importano STD_W/STD_H
 // da poster-render-helpers continuano a funzionare.
 export { STD_W, STD_H }
-export const OUTPUT_W = 500
-export const OUTPUT_H = 750
 
 export type BadgeRender = { png: Buffer; w: number; h: number; isRank?: boolean; bleed?: BadgeBleed }
 export type PosterComposite = { input: Buffer; top: number; left: number }

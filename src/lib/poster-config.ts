@@ -20,7 +20,7 @@ import { parseMinQuality, type StreamQuality } from "./quality-tiers"
 import { parseSashOrder, normalizeSashOrder, DEFAULT_SASH_ORDER, NEXT_EPISODE_BADGE_KEY, type SashBucket } from "./badge-priority"
 import { sanitizeDisabledContentTags } from "./content-tags"
 import { sanitizeDisabledNetworks } from "./network-keys"
-import { sanitizeWatchRegion } from "./regions"
+import { DEFAULT_WATCH_MAX, sanitizeWatchMax, sanitizeWatchRegion } from "./regions"
 import { parseBadgeItemTransforms, type BadgeItemTransformMap } from "./badge-item-transforms"
 import {
   isBadgeStyle,
@@ -385,7 +385,6 @@ export function resolveSeparateDisplayState(input: {
  */
 export {
   resolveNetworkFollowTitle,
-  resolveEffectiveNetworkFollow,
   resolveNetworkFixedCoords,
   resolveLandscapeNetworkOffsets,
 } from "./network-follow"
@@ -498,6 +497,8 @@ export interface PosterRenderConfig {
   disabledNetworks: string[]
   /** "Dove guardare" (`wp`): fila provider flatrate al posto del logo network. */
   watchProviders: boolean
+  /** Max icone provider (`wpm`, 1..6, default 3). */
+  watchProvidersMax: number
   /** Paese provider (`wpr`, codice REGIONS) o null = paese del poster. */
   watchRegion: string | null
   /** Icona tipo film/serie (`ti`): default per forma (portrait/landscape indipendenti). */
@@ -1000,9 +1001,22 @@ export function resolvePosterRenderConfig(input: PosterRenderConfigInput): Poste
   // "Dove guardare" — catena: query `wp`/`wpr` > config token > server defaults > OFF / paese
   // del poster. Regione sanitizzata a ogni livello (garbage cade al successivo).
   const rawWp = q.get("wp")
-  const watchProviders: boolean = rawWp !== null ? rawWp !== "0" : (configOverride?.watchProviders ?? sd.watchProviders ?? false)
+  // Per forma: il landscape ha il proprio default (`watchProvidersLandscape`, fallback al flat
+  // storico così chi aveva "Dove guardare" ON non perde nulla); il verticale resta com'era.
+  const watchProviders: boolean = rawWp !== null
+    ? rawWp !== "0"
+    : posterShape === "landscape"
+      ? (sd.watchProvidersLandscape ?? sd.watchProviders ?? false)
+      : (configOverride?.watchProviders ?? sd.watchProviders ?? false)
+  // Numero icone — query `wpm` (1..6) > server defaults > 3.
+  // Per forma: il profilo landscape (esd) vince sul flat; il paese landscape
+  // esplicito ("" = paese del poster) batte anche il config token (flat).
+  const watchProvidersMax: number = sanitizeWatchMax(q.get("wpm")) ?? sanitizeWatchMax(esd.watchProvidersMax) ?? sanitizeWatchMax(sd.watchProvidersMax) ?? DEFAULT_WATCH_MAX
+  const landWatchRegion = posterShape === "landscape" ? sd.landscape?.watchRegion : undefined
   const watchRegion: string | null = sanitizeWatchRegion(q.get("wpr"))
-    ?? sanitizeWatchRegion(configOverride?.watchRegion) ?? sanitizeWatchRegion(sd.watchRegion)
+    ?? (typeof landWatchRegion === "string"
+      ? sanitizeWatchRegion(landWatchRegion)
+      : (sanitizeWatchRegion(configOverride?.watchRegion) ?? sanitizeWatchRegion(sd.watchRegion)))
   // Icona tipo — query `ti` > default per forma (`typeIcon` portrait / `typeIconLandscape`) > OFF.
   const rawTi = q.get("ti")
   const typeIcon: boolean = rawTi !== null
@@ -1480,6 +1494,7 @@ export function resolvePosterRenderConfig(input: PosterRenderConfigInput): Poste
     disabledContentTags,
     disabledNetworks,
     watchProviders,
+    watchProvidersMax,
     watchRegion,
     typeIcon,
     customRatings,

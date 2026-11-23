@@ -187,8 +187,9 @@ export function buildStremioPosterUrl(input: BuildStremioPosterUrlInput): URL {
     // emesse come `dct`/`dnet` solo quando non-vuote (URL legacy invariati).
     disabledContentTags: sd.disabledContentTags ?? undefined,
     disabledNetworks: sd.disabledNetworks ?? undefined,
-    watchProviders: sd.watchProviders ?? undefined,
+    watchProviders: (effShape === "landscape" ? (input.defaults.watchProvidersLandscape ?? sd.watchProviders) : sd.watchProviders) ?? undefined,
     watchRegion: sd.watchRegion ?? undefined,
+    watchProvidersMax: sd.watchProvidersMax ?? undefined,
     typeIcon: (effShape === "landscape" ? input.defaults.typeIconLandscape : input.defaults.typeIcon) ?? undefined,
     badgeStyle: eff?.badgeStyle ?? sd.badgeStyle,
     rankingBadgeStyle: eff?.rankingBadgeStyle ?? sd.rankingBadgeStyle,

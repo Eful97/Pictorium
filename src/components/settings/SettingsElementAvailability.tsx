@@ -168,9 +168,6 @@ export function isNetworkGeometryActive(flags: EffectiveBadgeFlags): boolean {
 }
 
 /** Meta (genre/rating badge) geometry: same gate as the genre style. */
-export function isMetaGeometryActive(flags: EffectiveBadgeFlags): boolean {
-  return isGenreStyleActive(flags)
-}
 
 /** Card scope: geometry locks apply ONLY with scope "all". */
 export function isCardAllDefaults(layout: unknown, scope: unknown): boolean {

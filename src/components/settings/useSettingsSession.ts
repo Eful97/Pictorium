@@ -716,6 +716,8 @@ export function useSettingsSession(): SettingsSessionResult {
       setDefaultDisabledNetworks: makeSimpleSetter(updateSession, "defaultDisabledNetworks"),
       setDefaultWatchProviders: makeSimpleSetter(updateSession, "defaultWatchProviders"),
       setDefaultWatchRegion: makeSimpleSetter(updateSession, "defaultWatchRegion"),
+      setDefaultWatchProvidersLandscape: makeSimpleSetter(updateSession, "defaultWatchProvidersLandscape"),
+      setDefaultWatchProvidersMax: makeSimpleSetter(updateSession, "defaultWatchProvidersMax"),
       setDefaultTypeIcon: makeSimpleSetter(updateSession, "defaultTypeIcon"),
       setDefaultTypeIconLandscape: makeSimpleSetter(updateSession, "defaultTypeIconLandscape"),
       setDefaultAutoRotateClean: makeSimpleSetter(updateSession, "defaultAutoRotateClean"),

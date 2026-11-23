@@ -31,7 +31,26 @@ export function parseWatchProviders(json: unknown, region: string): WatchProvide
     if (typeof name !== "string" || !name || typeof logo !== "string" || !logo.startsWith("/")) continue
     rows.push({ id, name, logoPath: logo, prio: typeof prio === "number" ? prio : Number.MAX_SAFE_INTEGER })
   }
-  return rows.sort((a, b) => a.prio - b.prio).map(({ id, name, logoPath }) => ({ id, name, logoPath }))
+  const seen = new Set<string>()
+  const out: WatchProvider[] = []
+  for (const { id, name, logoPath } of rows.sort((a, b) => a.prio - b.prio)) {
+    const family = providerFamily(name)
+    if (seen.has(`l:${logoPath}`) || seen.has(`n:${family}`)) continue
+    seen.add(`l:${logoPath}`)
+    seen.add(`n:${family}`)
+    out.push({ id, name, logoPath })
+  }
+  return out
+}
+
+/** "Apple TV Plus" / "Apple TV+" / "X Amazon Channel" → stessa famiglia del provider base (stesso logo = doppione). */
+function providerFamily(name: string): string {
+  return name
+    .toLowerCase()
+    .replace(/\s+(amazon|apple tv|roku premium) channel$/, "")
+    .replace(/\s*(plus|\+)$/, "")
+    .replace(/\s+/g, " ")
+    .trim()
 }
 
 export interface WatchProvidersResult {

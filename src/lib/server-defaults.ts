@@ -124,6 +124,12 @@ export interface LandscapeServerDefaults {
   networkLogo?: boolean
   /** Network logo placement ("auto" = dynamic mirror, "top" = ribbon-side corner). */
   networkLogoPosition?: import("@/lib/types").NetworkLogoPosition
+  /** Overflow badge Auto per forma (assente = segue il flat, che vale "move"). */
+  badgeOverflow?: "move" | "hide"
+  /** Icone "Dove guardare" per forma, 1..6 (assente = segue il flat). */
+  watchProvidersMax?: number
+  /** Paese "Dove guardare" per forma: "" = paese del poster, assente = segue il flat. */
+  watchRegion?: string
   logoAnchor?: import("@/lib/types").LogoAnchor
   qualityAnchor?: import("@/lib/types").QualityAnchor
   topBadgeAnchor?: import("@/lib/types").TopBadgeAnchor
@@ -471,6 +477,10 @@ export interface ServerDefaults {
   watchProviders?: boolean
   /** Paese dei provider (codice REGIONS); assente = paese del poster. Query `wpr`. */
   watchRegion?: string
+  /** "Dove guardare" sui landscape, indipendente dal verticale (fallback al flat `watchProviders`). Query `wp`. */
+  watchProvidersLandscape?: boolean
+  /** Max icone provider 1..6 (default 3), condiviso tra forme. Query `wpm`. */
+  watchProvidersMax?: number
   /** Icona tipo (film/serie) sui poster verticali (default OFF). Query `ti`. */
   typeIcon?: boolean
   /** Icona tipo sui landscape, indipendente dal verticale (default OFF). Query `ti`. */

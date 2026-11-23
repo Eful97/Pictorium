@@ -854,6 +854,22 @@ export function applyPersonalLandscapeIsolated(current: VisualPresetValues, pres
 }
 
 /**
+ * Ready looks own "Mostra dove guardare" OFF in the edited shape (space-wide
+ * flat outside the preset schema, so it would otherwise leak from the live
+ * state and swap the network logo for provider logos). Portrait writes
+ * `defaultWatchProviders`, landscape `defaultWatchProvidersLandscape`; the
+ * other shape stays byte-identical. Pure.
+ */
+export function withReadyPresetWatchProvidersOff(
+  isolated: Record<string, unknown>,
+  shape: "portrait" | "landscape",
+): Record<string, unknown> {
+  return shape === "landscape"
+    ? { ...isolated, defaultWatchProvidersLandscape: false }
+    : { ...isolated, defaultWatchProviders: false }
+}
+
+/**
  * Ready-preset age opt-out (the six built-in/quick looks only — Apple,
  * BetterPoster, RPDB, Essential, Ratings, Full; NEVER personal user-authored
  * presets, whose stored content applies verbatim).

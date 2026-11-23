@@ -1,6 +1,6 @@
 /**
- * Ready presets leave the age classification OFF (six built-in/quick looks:
- * Apple/BetterPoster/RPDB + Essential/Ratings/Full, both edit shapes).
+ * Ready presets leave the age classification OFF (ten built-in/quick looks:
+ * Apple/BetterPoster/Glass + Essential/Ratings/Full, both edit shapes).
  *
  * - The preset contract carries no age keys (no new preset types); the
  *   opt-out is staged at apply time via `withReadyPresetAgeOff`, so personal
@@ -21,7 +21,7 @@ import { __resetAdminTokenForTests } from "@/lib/admin-token"
 import {
   APPLE_VISUAL_DEFAULTS,
   BETTER_POSTER_VISUAL_DEFAULTS,
-  RPDB_VISUAL_DEFAULTS,
+  GLASS_VISUAL_DEFAULTS,
 } from "@/lib/default-visual-presets"
 import { quickLookDesired, type QuickLookId } from "@/lib/quick-visual-presets"
 import {
@@ -95,10 +95,12 @@ afterEach(() => {
 const BUILT_INS: ReadonlyArray<{ id: string; values: VisualPresetValues }> = [
   { id: "apple", values: APPLE_VISUAL_DEFAULTS },
   { id: "better-poster", values: BETTER_POSTER_VISUAL_DEFAULTS },
-  { id: "rpdb", values: RPDB_VISUAL_DEFAULTS },
+  { id: "glass", values: GLASS_VISUAL_DEFAULTS },
 ]
 const QUICK_IDS: QuickLookId[] = ["essential", "ratings", "full"]
-const ALL_IDS = ["apple", "better-poster", "rpdb", "essential", "ratings", "full"]
+// Badge-tab legacy cards (BadgeDefaultsSection) expose only these; the five Pictorium looks live in the Preset gallery.
+const BADGE_TAB_IDS = ["apple", "better-poster", "essential", "ratings", "full"]
+const ALL_IDS = ["apple", "better-poster", "essential", "ratings", "full", "notch", "editorial", "glass", "cinema", "mono"]
 
 function desiredFor(id: string, portrait: boolean): VisualPresetValues {
   const builtin = BUILT_INS.find((b) => b.id === id)
@@ -161,7 +163,7 @@ describe("ready snapshots carry canonical age-off (never an armed badge)", () =>
   )
 })
 
-describe("withReadyPresetAgeOff (pure, all six, both shapes)", () => {
+describe("withReadyPresetAgeOff (pure, all ten, both shapes)", () => {
   const liveOn = { defaultAgeBadge: true, landscape: {} as Record<string, unknown> }
   const liveBothOn = { defaultAgeBadge: true, landscape: { ageBadge: true } as Record<string, unknown> }
 
@@ -234,8 +236,8 @@ function seedAgeOn() {
   }))
 }
 
-describe("Badge tab UI: six ready presets disable age in the edited shape", () => {
-  it.each(ALL_IDS)("portrait %s: flat OFF, landscape effective preserved, delivery kept", async (id) => {
+describe("Badge tab UI: legacy ready presets disable age in the edited shape", () => {
+  it.each(BADGE_TAB_IDS)("portrait %s: flat OFF, landscape effective preserved, delivery kept", async (id) => {
     seedAgeOn()
     const { ctx } = renderBadge("portrait")
     await act(async () => {
@@ -248,7 +250,7 @@ describe("Badge tab UI: six ready presets disable age in the edited shape", () =
     expect(ctx().defaultPosterShape).toBe("poster")
   })
 
-  it.each(ALL_IDS)("landscape %s: profile OFF, portrait flat preserved, delivery kept", async (id) => {
+  it.each(BADGE_TAB_IDS)("landscape %s: profile OFF, portrait flat preserved, delivery kept", async (id) => {
     seedAgeOn()
     const { ctx } = renderBadge("landscape")
     await act(async () => {
@@ -346,7 +348,7 @@ function openInformationTab() {
 }
 
 describe("actual Preset gallery staging (SettingsPanel, portrait)", () => {
-  it("six ready presets stage age OFF with real age=0 thumbnails; one Save persists", async () => {
+  it("ten ready presets stage age OFF with real age=0 thumbnails; one Save persists", async () => {
     vi.useRealTimers()
     seedAgeOn()
     const { ctx } = renderPanel()
@@ -385,7 +387,7 @@ describe("actual Preset gallery staging (SettingsPanel, portrait)", () => {
 })
 
 describe("actual Preset gallery staging (SettingsPanel, landscape)", () => {
-  it("six ready presets stage profile age OFF, portrait flat preserved", async () => {
+  it("ten ready presets stage profile age OFF, portrait flat preserved", async () => {
     vi.useRealTimers()
     seedAgeOn()
     const { ctx } = renderPanel()

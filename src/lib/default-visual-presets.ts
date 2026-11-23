@@ -1,8 +1,8 @@
 import { captureVisualPreset, type VisualPresetValues } from "./visual-presets"
 
 /**
- * Built-in 1-click completi (snapshot fedeli dei backup utente BetterPoster e
- * RPDB, solo sottoinsieme visuale; Apple dal preset-export condiviso
+ * Built-in 1-click completi (snapshot fedeli dei backup utente BetterPoster,
+ * solo sottoinsieme visuale; Apple dal preset-export condiviso
  * `pictorium-visual-preset-apple.json`). Single source: BadgeDefaultsSection li
  * applica via `ed.applyVisualPreset` senza duplicare i parametri.
  *
@@ -15,7 +15,11 @@ import { captureVisualPreset, type VisualPresetValues } from "./visual-presets"
  */
 
 export const BETTER_POSTER_PRESET_LABEL = "BetterPoster"
-export const RPDB_PRESET_LABEL = "RPDB"
+export const NOTCH_PRESET_LABEL = "Notch"
+export const EDITORIAL_PRESET_LABEL = "Editorial"
+export const GLASS_PRESET_LABEL = "Glass"
+export const CINEMA_PRESET_LABEL = "Cinema"
+export const MONO_PRESET_LABEL = "Mono"
 export const APPLE_PRESET_LABEL = "Apple"
 
 const SHARED_RATING_SOURCES_16: VisualPresetValues["defaultRatingSources"] = [
@@ -122,22 +126,102 @@ export const BETTER_POSTER_VISUAL_DEFAULTS: VisualPresetValues =
     defaultPreRelease: true,
   } as VisualPresetValues)
 
-/** Snapshot RPDB: blur off, separati bottom-bar on, ranking/sash off. */
-export const RPDB_VISUAL_DEFAULTS: VisualPresetValues = captureVisualPreset({
-  ...SHARED_VISUAL_BASE,
-  defaultRankingBadges: false,
+/** Pictorium-native looks: same shared base, own style family + gradient. */
+function pictoriumLook(over: Record<string, unknown>, landscape: Record<string, unknown> = SHARED_LANDSCAPE): VisualPresetValues {
+  return captureVisualPreset({
+    ...SHARED_VISUAL_BASE,
+    defaultRankingBadges: false,
+    defaultSeparateRatings: false,
+    defaultSeparateRatingsStyle: "column",
+    defaultSashOrder: [],
+    defaultBlurEnabled: true,
+    defaultPreRelease: false,
+    ...over,
+    landscape,
+  } as unknown as VisualPresetValues)
+}
+
+/** Notch: cream notch pills on every family, separate column, ranked. */
+export const NOTCH_VISUAL_DEFAULTS: VisualPresetValues = pictoriumLook({
+  defaultBadgeStyle: "notch-crema",
+  defaultRankingBadges: true,
+  defaultRankingBadgeStyle: "notch-crema",
+  defaultQualityBadgeStyle: "notch-crema",
+  defaultBadgeQuality: true,
   defaultSeparateRatings: true,
-  defaultSeparateRatingsStyle: "bottom-bar",
-  defaultSashOrder: [],
-  defaultBlurEnabled: false,
+  defaultSeparateRatingsStyle: "column-notch-crema",
+  defaultSashOrder: ["upcoming", "rank", "new", "award", "extra"],
+  defaultBlurIntensity: 20,
   defaultBlurFade: 50,
   defaultBlurDarkness: 30,
   defaultTintStrength: 20,
+  defaultGradientHeight: 35,
+})
+
+/** Editorial: magazine style, condensed font, light gradient. */
+export const EDITORIAL_VISUAL_DEFAULTS: VisualPresetValues = pictoriumLook({
+  defaultBadgeStyle: "editoriale",
+  defaultRankingBadges: true,
+  defaultRankingBadgeStyle: "editoriale",
+  defaultQualityBadgeStyle: "editoriale",
+  defaultBadgeQuality: true,
+  defaultBadgeFont: "barlow-condensed",
+  defaultSashOrder: ["upcoming", "rank", "new", "award", "extra"],
+  defaultBlurIntensity: 10,
+  defaultBlurFade: 50,
+  defaultBlurDarkness: 20,
+  defaultTintStrength: 0,
   defaultGradientHeight: 30,
-  defaultPreRelease: false,
-  // Input intenzionalmente parziale (lo snapshot precede le chiavi
-  // owned personali): capture valida e riempie i canonici.
-} as unknown as VisualPresetValues)
+})
+
+/** Glass: translucent badges, strong blur, separate pills at the bottom. */
+export const GLASS_VISUAL_DEFAULTS: VisualPresetValues = pictoriumLook({
+  defaultBadgeStyle: "vetro",
+  defaultRankingBadges: true,
+  defaultRankingBadgeStyle: "vetro",
+  defaultQualityBadgeStyle: "outline",
+  defaultSeparateRatings: true,
+  defaultSeparateRatingsStyle: "bottom-pills",
+  defaultSashOrder: ["upcoming", "rank", "new", "award", "extra"],
+  defaultBlurIntensity: 40,
+  defaultBlurFade: 60,
+  defaultBlurDarkness: 40,
+  defaultTintStrength: 30,
+  defaultGradientHeight: 35,
+})
+
+/** Cinema: dark ink badges, oswald, premium quality, Nero gradient, ribbon. */
+export const CINEMA_VISUAL_DEFAULTS: VisualPresetValues = pictoriumLook({
+  defaultBadgeStyle: "ink",
+  defaultRankingBadges: true,
+  defaultRankingBadgeStyle: "netflix-color",
+  defaultQualityBadgeStyle: "premium",
+  defaultBadgeQuality: true,
+  defaultBadgeFont: "oswald",
+  defaultRibbonEnabled: true,
+  defaultNetworkLogo: true,
+  defaultSashOrder: ["upcoming", "rank", "new", "award", "extra"],
+  defaultBlurIntensity: 1,
+  defaultBlurFade: 100,
+  defaultBlurDarkness: 100,
+  defaultTintStrength: 0,
+  defaultGradientHeight: 50,
+})
+
+/** Mono: quiet look, monochrome quality, round mono ratings, no blur. */
+export const MONO_VISUAL_DEFAULTS: VisualPresetValues = pictoriumLook({
+  defaultBadgeStyle: "minimal",
+  defaultQualityBadgeStyle: "mono",
+  defaultBadgeQuality: true,
+  defaultSeparateRatings: true,
+  defaultSeparateRatingsStyle: "bottom-mono",
+  defaultBlurEnabled: false,
+  defaultBlurIntensity: 20,
+  defaultBlurFade: 50,
+  defaultBlurDarkness: 30,
+  defaultTintStrength: 0,
+  defaultGradientHeight: 30,
+})
 
 /**
  * Snapshot Apple (fedele a `pictorium-visual-preset-apple.json`, entry

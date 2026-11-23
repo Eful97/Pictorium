@@ -26,7 +26,7 @@ import { describe, expect, it } from "vitest"
 import {
   APPLE_VISUAL_DEFAULTS,
   BETTER_POSTER_VISUAL_DEFAULTS,
-  RPDB_VISUAL_DEFAULTS,
+  GLASS_VISUAL_DEFAULTS,
 } from "@/lib/default-visual-presets"
 import {
   projectPerTitleVisualPreset,
@@ -79,7 +79,7 @@ function bareKeys(patch: { bare: Record<string, unknown> }): string[] {
 describe("projectPerTitleVisualPreset allowlist (acceptance 1)", () => {
   it.each([
     ["BetterPoster", BETTER_POSTER_VISUAL_DEFAULTS],
-    ["RPDB", RPDB_VISUAL_DEFAULTS],
+    ["Glass", GLASS_VISUAL_DEFAULTS],
     ["Apple", APPLE_VISUAL_DEFAULTS],
   ] as const)("%s portrait emits only allowlisted bare keys", (_label, values) => {
     const { bare, landscapeBlur } = projectPerTitleVisualPreset(values, "poster")
@@ -95,7 +95,7 @@ describe("projectPerTitleVisualPreset allowlist (acceptance 1)", () => {
 
   it.each([
     ["BetterPoster", BETTER_POSTER_VISUAL_DEFAULTS],
-    ["RPDB", RPDB_VISUAL_DEFAULTS],
+    ["Glass", GLASS_VISUAL_DEFAULTS],
     ["Apple", APPLE_VISUAL_DEFAULTS],
   ] as const)("%s landscape emits only allowlisted bare keys + blur profile", (_label, values) => {
     const { bare, landscapeBlur } = projectPerTitleVisualPreset(values, "landscape")

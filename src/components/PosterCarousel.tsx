@@ -1,6 +1,6 @@
 "use client"
 
-import { useMemo } from "react"
+import { useEffect, useMemo, useRef } from "react"
 import wall from "@/data/poster-wall.json"
 
 /** Colonne della poster wall full-bleed (su schermi stretti le esterne escono
@@ -27,6 +27,33 @@ function shuffle<T>(arr: readonly T[]): T[] {
  *  (`scripts/generate-poster-wall.mjs` → public/poster-wall + manifest): zero
  *  render live, che a cache fredda rallentavano i poster Stremio. */
 export function PosterCarousel() {
+  const rootRef = useRef<HTMLDivElement>(null)
+
+  // Le 10 colonne animano ~140 immagini all'infinito: in pausa quando il
+  // fondale esce dal viewport o la tab è nascosta (nessun lavoro di compositing
+  // inutile). Il CSS legge data-paused; senza IntersectionObserver resta in moto.
+  useEffect(() => {
+    const el = rootRef.current
+    if (!el) return
+    let visible = true
+    const apply = () => {
+      el.dataset.paused = !visible || document.hidden ? "true" : "false"
+    }
+    const io =
+      typeof IntersectionObserver === "function"
+        ? new IntersectionObserver((entries) => {
+            visible = entries[entries.length - 1]?.isIntersecting ?? true
+            apply()
+          })
+        : null
+    io?.observe(el)
+    document.addEventListener("visibilitychange", apply)
+    return () => {
+      io?.disconnect()
+      document.removeEventListener("visibilitychange", apply)
+    }
+  }, [])
+
   // Mescolati a ogni mount e distribuiti sulle colonne.
   const columns = useMemo(() => {
     const pool = shuffle(wall)
@@ -36,7 +63,7 @@ export function PosterCarousel() {
   }, [])
 
   return (
-    <div className="home-stage-wall" aria-hidden="true">
+    <div ref={rootRef} className="home-stage-wall" aria-hidden="true">
       <div className="poster-wall" aria-hidden="true">
         <div className="poster-wall-tilt">
           {columns.map((tiles, c) => (

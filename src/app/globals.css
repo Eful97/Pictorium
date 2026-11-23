@@ -59,12 +59,12 @@ html.light {
   --surface2: #E8E2D9;
   --border: #DDD5C7;
   --muted: #70685F;
-  --accent-orange: #C94F24;
+  --accent-orange: #B5441D; /* AA (≥4.5:1) come testo su --bg/--surface */
   --panel: rgba(250, 247, 242, 0.88);
   --panel-strong: rgba(250, 247, 242, 0.96);
   --border-subtle: rgba(37, 35, 33, 0.08);
   --border-strong: rgba(37, 35, 33, 0.16);
-  --accent-rgb: 201 79 36;
+  --accent-rgb: 181 68 29;
 
   --glass-grad: none;
   --glass-tint: #FAF7F2;
@@ -77,7 +77,7 @@ html.light {
   --color-zinc-200: #38332e;
   --color-zinc-300: #544e47;
   --color-zinc-400: #70685F;
-  --color-zinc-500: #776D62;
+  --color-zinc-500: #716759; /* AA su --bg/--surface (#776D62 dava 4.38:1) */
   --color-zinc-600: #aba194;
   --color-zinc-700: #DDD5C7;
   --color-zinc-800: #E8E2D9;
@@ -675,24 +675,6 @@ input[type="range"]::-moz-range-thumb:active {
   }
 }
 
-@keyframes toggle-on {
-  0% { transform: scale(0.95); }
-  40% { transform: scale(1.08); }
-  100% { transform: scale(1); }
-}
-
-@keyframes toggle-off {
-  0% { transform: scale(1.05); }
-  40% { transform: scale(0.92); }
-  100% { transform: scale(0.95); }
-}
-
-@keyframes knob-slide {
-  0% { transform: translateX(0) scale(0.95); }
-  40% { transform: translateX(calc(100% + 4px)) scale(1.15); }
-  100% { transform: translateX(100%) scale(1.05); }
-}
-
 @keyframes fade-scale-out {
   from { opacity: 1; transform: scale(1); }
   to { opacity: 0; transform: scale(0.95) translateY(-4px); }
@@ -788,15 +770,6 @@ input[type="range"]::-moz-range-thumb:active {
   to { opacity: 1; transform: translateY(0) scale(1); }
 }
 .animate-modal-panel-in { animation: modal-panel-in var(--dur-base) var(--ease-out-expo) both; }
-
-/* Respirazione del glow del podio: scala appena percettibile (nessuna
-   variazione di opacity → nessun flicker, e lo stato 0% coincide col
-   valore statico, quindi anche gli screenshot con animazioni disabilitate
-   restano identici). */
-@keyframes breath {
-  0%, 100% { transform: translateX(-50%) scale(1); }
-  50% { transform: translateX(-50%) scale(1.045); }
-}
 
 .toggle-thumb {
   position: absolute;
@@ -960,8 +933,12 @@ input[type="range"]::-moz-range-thumb:active {
 
 [data-theme="light"] .app-shell-bg,
 html.light .app-shell-bg {
+  /* Velo più denso: la foto ha un vetro scanalato con fessure scure che sul
+     chiaro risultano a strisce nette; il velo le attenua e il fade verso il
+     basso evita il blocco arancione pieno dietro la copia. */
   background:
-    linear-gradient(rgb(250 248 245 / 0.4), rgb(250 248 245 / 0.4)),
+    linear-gradient(to top, rgb(250 248 245 / 0.18), rgb(250 248 245 / 0.62) 55%),
+    linear-gradient(rgb(250 248 245 / 0.5), rgb(250 248 245 / 0.5)),
     url("/bg/pictorium-bg-light.webp") center / cover no-repeat;
 }
 
@@ -1954,6 +1931,7 @@ select:focus-visible {
   animation: poster-wall-up 70s linear infinite;
 }
 .poster-wall-col:nth-child(even) { animation-name: poster-wall-down; }
+.home-stage-wall[data-paused="true"] .poster-wall-col { animation-play-state: paused; }
 .poster-wall-col:nth-child(3n) { animation-duration: 85s; }
 @keyframes poster-wall-up { to { transform: translateY(-50%); } }
 @keyframes poster-wall-down { from { transform: translateY(-50%); } to { transform: translateY(0); } }
@@ -2476,8 +2454,11 @@ button.status-version:hover {
     text-align: center;
   }
 
-  /* Wall più discreta: copy e poster occupano tutta la larghezza. */
+  /* Wall più discreta: copy e poster occupano tutta la larghezza. A questa
+     opacità il moto non si legge ma costa compositing continuo su 10 colonne:
+     fermo su colonna singola (telefoni e tablet in verticale). */
   .home-stage-wall { opacity: 0.2; }
+  .home-stage-wall .poster-wall-col { animation: none; }
   .home-stage-wall::after {
     background: radial-gradient(ellipse 90% 60% at 50% 40%, rgb(9 8 12 / 0.9), transparent 85%);
   }
@@ -3002,11 +2983,22 @@ html.light button:has(> .badge-style-preview):not([class*="bg-accent-orange"]):h
   }
 }
 
-
 /* Tema chiaro: confronto prima/dopo, chip di stile e fondale wall. */
 [data-theme="light"] .home-stage-wall { opacity: 0.3; }
 [data-theme="light"] .home-stage-wall::after {
   background: radial-gradient(ellipse 55% 65% at 28% 50%, rgb(250 248 245 / 0.7), transparent 70%);
+}
+/* Colonna singola: il velo sta dietro titolo + sottotitolo (centrati), non a
+   sinistra come nel layout a due colonne. Più denso, così i poster in
+   movimento non attraversano il testo piccolo. */
+@media (max-width: 920px) {
+  [data-theme="light"] .home-stage-wall { opacity: 0.22; }
+  [data-theme="light"] .home-stage-wall::after {
+    background: radial-gradient(ellipse 100% 55% at 50% 22%, rgb(250 248 245 / 0.92), rgb(250 248 245 / 0.6) 55%, transparent 90%);
+  }
+  .home-stage-wall::after {
+    background: radial-gradient(ellipse 100% 55% at 50% 22%, rgb(9 8 12 / 0.92), rgb(9 8 12 / 0.55) 55%, transparent 90%);
+  }
 }
 [data-theme="light"] .hero-legend span {
   color: #252321;
@@ -3025,3 +3017,26 @@ html.light button:has(> .badge-style-preview):not([class*="bg-accent-orange"]):h
 }
 
 [data-theme="light"] .home-hero-sub { color: #544e47; }
+
+/* Bersagli di tocco ≥44px su mobile senza cambiare l'aspetto: l'area
+   cliccabile si estende con un pseudo-elemento invisibile. */
+@media (max-width: 767px) {
+  .hero-style-chip,
+  .status-live-badge,
+  .status-version {
+    position: relative;
+  }
+  .hero-style-chip::after,
+  .status-live-badge::after,
+  .status-version::after {
+    content: "";
+    position: absolute;
+    inset: -11px -2px;
+  }
+}
+
+/* Lista scorrevole del wizard: sfumatura in basso finché c'è altro da vedere. */
+.scroll-fade-bottom[data-more="true"] {
+  -webkit-mask-image: linear-gradient(to bottom, #000 calc(100% - 36px), transparent);
+  mask-image: linear-gradient(to bottom, #000 calc(100% - 36px), transparent);
+}

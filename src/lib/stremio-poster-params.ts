@@ -4,7 +4,7 @@ import { getSeparateBadgeDefaultScale, getSeparateRatingsStyleForShape, isAgeBad
 import { canonicalizeBadgeItemTransforms } from "@/lib/badge-item-transforms"
 import { sanitizeDisabledContentTags } from "@/lib/content-tags"
 import { sanitizeDisabledNetworks } from "@/lib/network-keys"
-import { sanitizeWatchRegion } from "@/lib/regions"
+import { DEFAULT_WATCH_MAX, sanitizeWatchMax, sanitizeWatchRegion } from "@/lib/regions"
 import type { AgeBadgeStyle } from "@/lib/badge-styles"
 import type { QualityMarkId } from "@/lib/quality-badge-pack"
 import { parseMinQuality, type StreamQuality } from "@/lib/quality-tiers"
@@ -82,6 +82,7 @@ export interface StremioPosterParamsInput {
   /** "Dove guardare": emesso come `wp=1` (+ `wpr`) solo quando ON. */
   readonly watchProviders?: boolean | null
   readonly watchRegion?: string | null
+  readonly watchProvidersMax?: number | null
   /** Icona tipo film/serie: emesso come `ti=1` solo quando ON. */
   readonly typeIcon?: boolean | null
   readonly badgeStyle?: BadgeStyle
@@ -495,6 +496,8 @@ export function buildStremioPosterSearchParams(input: StremioPosterParamsInput):
     params.set("wp", "1")
     const wpr = sanitizeWatchRegion(input.watchRegion)
     if (wpr) params.set("wpr", wpr)
+    const wpm = sanitizeWatchMax(input.watchProvidersMax)
+    if (wpm !== null && wpm !== DEFAULT_WATCH_MAX) params.set("wpm", String(wpm))
   }
   if (input.typeIcon === true) params.set("ti", "1")
   if (input.customBadge) params.set("extra", input.customBadge)

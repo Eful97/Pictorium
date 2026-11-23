@@ -5,17 +5,25 @@ import {
   BETTER_POSTER_VISUAL_DEFAULTS,
   FRESH_PRESET_LABEL,
   FRESH_VISUAL_DEFAULTS,
-  RPDB_PRESET_LABEL,
-  RPDB_VISUAL_DEFAULTS,
+  CINEMA_PRESET_LABEL,
+  CINEMA_VISUAL_DEFAULTS,
+  EDITORIAL_PRESET_LABEL,
+  EDITORIAL_VISUAL_DEFAULTS,
+  GLASS_PRESET_LABEL,
+  GLASS_VISUAL_DEFAULTS,
+  MONO_PRESET_LABEL,
+  MONO_VISUAL_DEFAULTS,
+  NOTCH_PRESET_LABEL,
+  NOTCH_VISUAL_DEFAULTS,
 } from "./default-visual-presets"
 import { quickLookDesired, type QuickLookId } from "./quick-visual-presets"
 import type { VisualPresetValues } from "./visual-presets"
 
 /**
- * The seven canonical ready looks (single source for the global Preset-tab
+ * The eleven canonical ready looks (single source for the global Preset-tab
  * gallery AND the per-title quick chooser — never duplicated JSON).
  *
- * - Apple / BetterPoster / RPDB / Fresh: the shared snapshot constants (same
+ * - Apple / BetterPoster / Fresh: the shared snapshot constants (same
  *   source the global gallery thumbnails/apply/highlight resolve).
  * - Essential / Ratings / Full: `quickLookDesired` (badge patch + canonical
  *   transform reset — the same resolved source logic as the global gallery,
@@ -24,7 +32,7 @@ import type { VisualPresetValues } from "./visual-presets"
  * `desired(portrait)` returns the snapshot to project for the edited shape;
  * callers apply it through their existing isolated path (global staged
  * session vs per-title staged draft). `fresh` is true only for the Fresh
- * look (owns `fresh` + `ranked`); the other six own Standard.
+ * look (owns `fresh` + `ranked`); the others own Standard.
  */
 export interface ReadyPresetEntry {
   id: string
@@ -70,17 +78,49 @@ export const READY_PRESET_ENTRIES: ReadonlyArray<ReadyPresetEntry> = [
     fresh: false,
     desired: () => BETTER_POSTER_VISUAL_DEFAULTS,
   },
-  {
-    id: "rpdb",
-    label: RPDB_PRESET_LABEL,
-    labelKey: "ui.configPresetRpdb",
-    descKey: "ui.configPresetRpdbDesc",
-    fresh: false,
-    desired: () => RPDB_VISUAL_DEFAULTS,
-  },
   quickEntry("essential"),
   quickEntry("ratings"),
   quickEntry("full"),
+  {
+    id: "notch",
+    label: NOTCH_PRESET_LABEL,
+    labelKey: "ui.configPresetNotch",
+    descKey: "ui.configPresetNotchDesc",
+    fresh: false,
+    desired: () => NOTCH_VISUAL_DEFAULTS,
+  },
+  {
+    id: "editorial",
+    label: EDITORIAL_PRESET_LABEL,
+    labelKey: "ui.configPresetEditorial",
+    descKey: "ui.configPresetEditorialDesc",
+    fresh: false,
+    desired: () => EDITORIAL_VISUAL_DEFAULTS,
+  },
+  {
+    id: "glass",
+    label: GLASS_PRESET_LABEL,
+    labelKey: "ui.configPresetGlass",
+    descKey: "ui.configPresetGlassDesc",
+    fresh: false,
+    desired: () => GLASS_VISUAL_DEFAULTS,
+  },
+  {
+    id: "cinema",
+    label: CINEMA_PRESET_LABEL,
+    labelKey: "ui.configPresetCinema",
+    descKey: "ui.configPresetCinemaDesc",
+    fresh: false,
+    desired: () => CINEMA_VISUAL_DEFAULTS,
+  },
+  {
+    id: "mono",
+    label: MONO_PRESET_LABEL,
+    labelKey: "ui.configPresetMono",
+    descKey: "ui.configPresetMonoDesc",
+    fresh: false,
+    desired: () => MONO_VISUAL_DEFAULTS,
+  },
   {
     id: "fresh",
     label: FRESH_PRESET_LABEL,

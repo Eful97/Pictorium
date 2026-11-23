@@ -810,56 +810,6 @@ export function mergeRetiredBadgePresetsField(
   return { ...(flat ?? {}), ...land }
 }
 
-/**
- * Effective per-shape follow flags (G2 correction c1, pure, never throws).
- *
- * Portrait: the flat flag set. Landscape: profile `true` wins; a profile
- * own map entry (binding or explicit null clear) pins the shape and shadows
- * an inherited flat follow; otherwise the flat flag is inherited. Unknown
- * shapes fail closed to no follows.
- */
-export function effectiveFamilyFollows(
-  mapping: Mapping | null | undefined,
-  shape: PosterShape,
-): RetiredBadgeFamilyFollows {
-  const out: RetiredBadgeFamilyFollows = {}
-  if (!mapping || typeof mapping !== "object") return out
-  const flat = mapping.badgePresetFollows
-  const flatSet = new Set<string>()
-  if (flat && typeof flat === "object" && !Array.isArray(flat)) {
-    for (const k of Object.keys(flat)) {
-      if ((flat as Record<string, unknown>)[k] === true) flatSet.add(k)
-    }
-  }
-  if (shape !== "landscape") {
-    for (const f of flatSet) (out as Record<string, true>)[f] = true
-    return out
-  }
-  const land = mapping.landscape
-  const landFollows: Record<string, unknown> =
-    land && typeof land === "object" && !Array.isArray(land) &&
-    (land as Record<string, unknown>).badgePresetFollows &&
-    typeof (land as Record<string, unknown>).badgePresetFollows === "object"
-      ? ((land as Record<string, unknown>).badgePresetFollows as Record<string, unknown>)
-      : {}
-  const landMap: Record<string, unknown> =
-    land && typeof land === "object" && !Array.isArray(land) &&
-    (land as Record<string, unknown>).badgePresets &&
-    typeof (land as Record<string, unknown>).badgePresets === "object"
-      ? ((land as Record<string, unknown>).badgePresets as Record<string, unknown>)
-      : {}
-  const seen = new Set<string>([...flatSet, ...Object.keys(landFollows)])
-  for (const f of seen) {
-    if (landFollows[f] === true) {
-      (out as Record<string, true>)[f] = true
-      continue
-    }
-    if (Object.prototype.hasOwnProperty.call(landMap, f)) continue
-    if (flatSet.has(f)) (out as Record<string, true>)[f] = true
-  }
-  return out
-}
-
 export type CustomCatalogType = "movie" | "series" | "mixed"
 
 /** Sort direction shared by every provider-supported custom list. */
@@ -911,9 +861,6 @@ export const TRAKT_CATALOG_SORT_KEYS = [
   "my_rating",
   "random",
 ] as const
-
-export type MdbListCatalogSortKey = (typeof MDBLIST_CATALOG_SORT_KEYS)[number]
-export type TraktCatalogSortKey = (typeof TRAKT_CATALOG_SORT_KEYS)[number]
 
 /**
  * Provider allowlist for an explicit per-list sort. `null` means the provider

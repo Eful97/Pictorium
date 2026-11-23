@@ -2,7 +2,7 @@ import { fetchImg, hashKey, imgSrc } from "@/lib/poster-render-helpers"
 import { ImageValidationError, validateImageBytes } from "@/lib/custom-image-validate"
 import { peekImageBytes, storeImageBytes } from "@/lib/image-bytes-cache"
 import { combineAbortSignals, raceWithAbort } from "@/lib/abort-signal"
-export { splitCustomPosterSave, splitCustomBackdropSave, type PosterSaveSplit } from "@/lib/utils"
+export { splitCustomPosterSave, splitCustomBackdropSave } from "@/lib/utils"
 import { isAllowedCustomImageUrl } from "@/lib/resolve-image"
 import {
   BodyTooLargeError,

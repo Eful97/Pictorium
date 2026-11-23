@@ -56,6 +56,7 @@ export const REGIONS: readonly RegionDef[] = [
   { code: "TR", flixSlug: "turkey", lang: "tr-TR", lang2: "tr", languageName: "Türkçe", label: "Turchia", flag: "🇹🇷" },
   { code: "NL", flixSlug: "netherlands", lang: "nl-NL", lang2: "nl", languageName: "Nederlands", label: "Paesi Bassi", flag: "🇳🇱" },
   { code: "SE", flixSlug: "sweden", lang: "sv-SE", lang2: "sv", languageName: "Svenska", label: "Svezia", flag: "🇸🇪" },
+  { code: "MY", flixSlug: "malaysia", lang: "en-MY", lang2: "en", languageName: "English", label: "Malesia", flag: "🇲🇾" },
 ] as const
 
 /** Global chart scope. The locale only localizes metadata; it does not select US ranks. */
@@ -93,6 +94,17 @@ export function sanitizeWatchRegion(input: string | null | undefined): string | 
   if (typeof input !== "string") return null
   const upper = input.trim().toUpperCase()
   return REGIONS.some((r) => r.code === upper) ? upper : null
+}
+
+/** "Dove guardare": numero massimo di icone provider (default storico 3). */
+export const DEFAULT_WATCH_MAX = 3
+export const MAX_WATCH_MAX = 6
+
+/** Intero 1..MAX_WATCH_MAX da stringa/numero, altrimenti null (cade al livello successivo). */
+export function sanitizeWatchMax(input: string | number | null | undefined): number | null {
+  if (input === null || input === undefined || input === "") return null
+  const n = typeof input === "number" ? input : Number(input)
+  return Number.isInteger(n) && n >= 1 && n <= MAX_WATCH_MAX ? n : null
 }
 
 /** Come parseRegion ma non ritorna mai null (fallback DEFAULT_REGION). */

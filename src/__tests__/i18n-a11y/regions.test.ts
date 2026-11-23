@@ -39,10 +39,10 @@ describe("regions", () => {
     expect(contentLanguageForUiLang("en", "GB")).toBe("en-GB")
     expect(contentLanguageForUiLang("invalid", "IT")).toBe("it-IT")
   })
-  it("exposes 22 regions with unique codes and slugs", () => {
-    expect(REGIONS).toHaveLength(22)
-    expect(new Set(REGIONS.map((r) => r.code)).size).toBe(22)
-    expect(new Set(REGIONS.map((r) => r.flixSlug)).size).toBe(22)
+  it("exposes 23 regions with unique codes and slugs", () => {
+    expect(REGIONS).toHaveLength(23)
+    expect(new Set(REGIONS.map((r) => r.code)).size).toBe(23)
+    expect(new Set(REGIONS.map((r) => r.flixSlug)).size).toBe(23)
     for (const r of REGIONS) {
       expect(r.code).toMatch(/^[A-Z]{2}$/)
       expect(r.lang).toMatch(/^[a-z]{2}-[A-Z]{2}$/)
@@ -175,9 +175,9 @@ describe("regions", () => {
     }
   })
 
-  it("PICKER_LANGS lists exactly the 22 nationalities", () => {
-    expect(PICKER_LANGS).toHaveLength(22)
-    expect(new Set(PICKER_LANGS.map((l) => l.key)).size).toBe(22)
+  it("PICKER_LANGS lists exactly the 23 nationalities", () => {
+    expect(PICKER_LANGS).toHaveLength(23)
+    expect(new Set(PICKER_LANGS.map((l) => l.key)).size).toBe(23)
     expect(PICKER_LANGS.map((l) => l.key)).toEqual(REGIONS.map((r) => r.code))
     for (const l of PICKER_LANGS) {
       expect(l.flag).toBeTruthy()

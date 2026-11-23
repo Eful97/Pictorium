@@ -105,7 +105,10 @@ export async function resolvePosterCacheIdentity(ctx: PosterCacheIdentityContext
   const dynamicBucketKey = dynamicDayBucket !== null ? `:dd${dynamicDayBucket}` : ""
   // TTL allineato al prossimo cut (header + storage esplicito sotto): oltre
   // il cut la chiave cambia comunque, mai contenuto stantio oltre il giorno.
-  const dynamicCutTtlSec = dynamicDayBucket !== null
+  // Titoli salvati con rotazione attiva: stesso cut 02:00 UTC come TTL, così
+  // client/CDN/storage non servono la copia di ieri oltre il cambio giorno
+  // (la rotazione scatta solo se la richiesta raggiunge la route).
+  const dynamicCutTtlSec = dynamicDayBucket !== null || (!!mapping && isRotating)
     ? secondsUntilDynamicRotationCut(startTime)
     : null
   const dynamicCutTtlMs = dynamicCutTtlSec !== null ? dynamicCutTtlSec * 1000 : null
@@ -182,9 +185,11 @@ export async function resolvePosterCacheIdentity(ctx: PosterCacheIdentityContext
   // TTL reale della entry canonica (jitter deterministico ±10%): threadato
   // negli header così restano sincronizzati con lo storage (M3). La variante
   // ha storage key propria → TTL proprio (vedi serveResponseVariant).
-  const dynamicTtlSec = dynamicPoster ? (dynamicCutTtlSec ?? dynamicPosterTtlSec(cacheKey)) : undefined
+  const dynamicTtlSec = dynamicPoster ? (dynamicCutTtlSec ?? dynamicPosterTtlSec(cacheKey)) : (dynamicCutTtlSec ?? undefined)
   // La variante è un'entry separata (storage key propria) con TTL proprio.
-  const variantTtlSec = dynamicPoster && needsVariant ? (dynamicCutTtlSec ?? dynamicPosterTtlSec(variantKey)) : undefined
+  const variantTtlSec = needsVariant
+    ? (dynamicPoster ? (dynamicCutTtlSec ?? dynamicPosterTtlSec(variantKey)) : (dynamicCutTtlSec ?? undefined))
+    : undefined
 
   // Validatore della richiesta condizionale: null in preview (sempre 200) e
   // quando assente. I confronti usano SEMPRE l'ETag della rappresentazione

@@ -11,7 +11,7 @@
  *   stages only (no PUT/storage before the single global Save); one Save
  *   persists a coherent body (edited shape fresh/ranked, other shape
  *   effective frozen, sources/fit/delivery preserved); repeats idempotent.
- * - The six existing looks keep owning Standard (Full stays Nastro+minimal);
+ * - The ten existing looks keep owning Standard (Full stays Nastro+minimal);
  *   a stored personal Fresh snapshot round-trips and converges with the
  *   ready tile. Fresh stays ranked-only (no unranked semantic change).
  */
@@ -211,8 +211,8 @@ describe("Fresh gallery tile (actual SettingsPanel)", () => {
     )
     const { ctx } = renderPanel()
     await screen.findByTestId("poster-style-fresh")
-    // Seventh tile exists alongside the six Standard looks.
-    for (const id of ["apple", "better-poster", "rpdb", "essential", "ratings", "full"]) {
+    // Tile exists alongside the ten Standard looks.
+    for (const id of ["apple", "better-poster", "essential", "ratings", "full", "notch", "editorial", "glass", "cinema", "mono"]) {
       await screen.findByTestId(`poster-style-${id}`)
       expect(thumbParams(id).get("layout")).toBe("standard")
     }

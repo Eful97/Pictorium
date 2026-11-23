@@ -319,6 +319,9 @@ const defaultsSchema = z.object({
     separateRatings: z.boolean().optional(),
     networkLogo: z.boolean().optional(),
     networkLogoPosition: z.enum(NETWORK_LOGO_POSITIONS).optional(),
+    badgeOverflow: z.enum(BADGE_OVERFLOW_MODES).optional(),
+    watchProvidersMax: z.number().int().min(1).max(6).optional(),
+    watchRegion: z.string().max(2).optional(),
     logoAnchor: z.enum(LOGO_ANCHORS).optional(),
     qualityAnchor: z.enum(QUALITY_ANCHORS).optional(),
     topBadgeAnchor: z.enum(TOP_BADGE_ANCHORS).optional(),
@@ -369,6 +372,8 @@ const defaultsSchema = z.object({
   disabledNetworks: z.array(z.string().max(40)).max(MAX_DISABLED_NETWORKS).optional(),
   watchProviders: z.boolean().optional(),
   watchRegion: z.string().max(2).optional(),
+  watchProvidersLandscape: z.boolean().optional(),
+  watchProvidersMax: z.number().int().min(1).max(6).optional(),
   typeIcon: z.boolean().optional(),
   typeIconLandscape: z.boolean().optional(),
 })

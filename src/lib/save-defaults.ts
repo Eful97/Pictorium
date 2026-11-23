@@ -47,6 +47,8 @@ export async function saveDefaults(ed: PosterEditorCtx): Promise<boolean> {
     disabledNetworks: ed.defaultDisabledNetworks,
     watchProviders: ed.defaultWatchProviders,
     watchRegion: ed.defaultWatchRegion ?? undefined,
+    watchProvidersLandscape: ed.defaultWatchProvidersLandscape,
+    watchProvidersMax: ed.defaultWatchProvidersMax,
     typeIcon: ed.defaultTypeIcon ? true : undefined,
     typeIconLandscape: ed.defaultTypeIconLandscape ? true : undefined,
     badgeStyle: ed.defaultBadgeStyle,

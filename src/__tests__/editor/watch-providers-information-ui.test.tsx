@@ -20,13 +20,13 @@ beforeEach(() => {
   vi.stubGlobal("fetch", vi.fn(async () => ({ ok: true, json: async () => ({}) })))
 })
 
-function renderInfo() {
+function renderInfo(shape: "portrait" | "landscape" = "portrait") {
   let ctx: PosterEditorCtx | null = null
   function Probe() {
     ctx = usePosterEditor()
     return null
   }
-  renderWithCtx(createElement("div", null, createElement(BadgeDefaultsSection, { active: true, shape: "portrait" }), createElement(Probe)))
+  renderWithCtx(createElement("div", null, createElement(BadgeDefaultsSection, { active: true, shape }), createElement(Probe)))
   const adv = screen.getByTestId("badge-advanced-toggle")
   if (adv.getAttribute("aria-expanded") !== "true") fireEvent.click(adv)
   const grp = screen.getByTestId("badge-group-overlay-toggle")
@@ -54,6 +54,21 @@ describe("watch providers in Informazioni", () => {
     expect(ctx().defaultWatchRegion).toBe("US")
     fireEvent.change(select, { target: { value: "" } })
     expect(ctx().defaultWatchRegion).toBeNull()
+  })
+
+  it("landscape max + country write the landscape profile, flats untouched", () => {
+    const ctx = renderInfo("landscape")
+    fireEvent.click(screen.getByRole("switch", { name: "Mostra dove guardare" }))
+    const max = screen.getByLabelText(/Piattaforme max/) as HTMLSelectElement
+    fireEvent.change(max, { target: { value: "5" } })
+    const select = screen.getByLabelText("Paese streaming") as HTMLSelectElement
+    fireEvent.change(select, { target: { value: "FR" } })
+    expect(ctx().landscape.watchProvidersMax).toBe(5)
+    expect(ctx().landscape.watchRegion).toBe("FR")
+    expect(ctx().defaultWatchProvidersMax).toBe(3)
+    expect(ctx().defaultWatchRegion).toBeNull()
+    fireEvent.change(select, { target: { value: "" } })
+    expect(ctx().landscape.watchRegion).toBe("")
   })
 
   it("is no longer in the Tag e Network tab", () => {

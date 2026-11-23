@@ -54,12 +54,12 @@ import {
   portraitPresetPatch,
   resolveEffectiveLandscape,
   withReadyPresetAgeOff,
+  withReadyPresetWatchProvidersOff,
   withReadyPresetLayoutStandard,
 } from "@/lib/visual-presets"
 import {
   APPLE_VISUAL_DEFAULTS,
   BETTER_POSTER_VISUAL_DEFAULTS,
-  RPDB_VISUAL_DEFAULTS,
 } from "@/lib/default-visual-presets"
 
 // Rank-only stash: rank OFF remembers the exact order (rank position
@@ -872,6 +872,13 @@ export function BadgeDefaultsSection({ active, shape, onPreviewFamilyChange, pre
   // shape returns to follow-own-rank instead of inheriting a tuned extra
   // style. Essential/Ratings share the same readyPin with their own canonical
   // recipes below; personal presets never pass it.
+  // Ready looks: age classification AND "Mostra dove guardare" OFF in the edited shape.
+  const readyAgeAndWatchOff = (
+    live: Parameters<typeof withReadyPresetAgeOff>[0],
+    isolated: Record<string, unknown>,
+    shape: "portrait" | "landscape",
+  ) => withReadyPresetWatchProvidersOff(withReadyPresetAgeOff(live, isolated, shape), shape)
+
   const applyQuickForTarget = (badgePatch: Partial<VisualPresetValues>, readyPin = false, meta?: { id: string; name: string }) => {
     const live = { ...captureVisualPreset(ed), landscape: ed.landscape }
     const desired = {
@@ -883,7 +890,7 @@ export function BadgeDefaultsSection({ active, shape, onPreviewFamilyChange, pre
     // (other shape effective preserved); Information re-enables it manually.
     // Ready canonical layout: the edited shape owns Standard (own ranking
     // mode, never inherits Fresh/Card); the other shape is frozen.
-    const aged = withReadyPresetAgeOff(
+    const aged = readyAgeAndWatchOff(
       { defaultAgeBadge: ed.defaultAgeBadge, landscape: ed.landscape },
       isolated as unknown as Record<string, unknown>,
       isLandscape ? "landscape" : "portrait",
@@ -1021,10 +1028,9 @@ export function BadgeDefaultsSection({ active, shape, onPreviewFamilyChange, pre
     )
   }
   const isBetterPoster = matchesSnapshotPreset(BETTER_POSTER_VISUAL_DEFAULTS) && readyLayoutStandard
-  const isRpdb = matchesSnapshotPreset(RPDB_VISUAL_DEFAULTS) && readyLayoutStandard
 
   // Apple builtin, stesso path isolato dei preset personali (mai lo snapshot
-  // con globali condivisi di BetterPoster/RPDB): portrait scrive solo i flat
+  // con globali condivisi di BetterPoster): portrait scrive solo i flat
   // mappati congelando l'effettivo dell'altro formato, landscape solo il
   // profilo. Fonti voti, logo align, fit flag e delivery restano intatti in
   // entrambi i target. `live` fonde il profilo RAW (extra fuori contratto,
@@ -1048,7 +1054,7 @@ export function BadgeDefaultsSection({ active, shape, onPreviewFamilyChange, pre
     // effective preserved); Information re-enables it manually. Ready
     // canonical layout: the edited shape owns Standard (never inherits
     // Fresh/Card); the other shape is frozen.
-    const aged = withReadyPresetAgeOff(
+    const aged = readyAgeAndWatchOff(
       { defaultAgeBadge: ed.defaultAgeBadge, landscape: ed.landscape },
       isolated as unknown as Record<string, unknown>,
       isLandscape ? "landscape" : "portrait",
@@ -1087,7 +1093,7 @@ export function BadgeDefaultsSection({ active, shape, onPreviewFamilyChange, pre
       // (follow the preset's own rank) instead of inheriting a tuned style;
       // an inheriting landscape profile freezes the pre-edit effective flat
       // first (same shared overlay), so the other format cannot move.
-      const aged = withReadyPresetAgeOff(
+      const aged = readyAgeAndWatchOff(
         { defaultAgeBadge: ed.defaultAgeBadge, landscape: ed.landscape },
         { ...values, defaultLogoAlign: null, defaultExtraBadgeStyle: null, landscape: ed.landscape, defaultPosterShape: ed.defaultPosterShape } as unknown as Record<string, unknown>,
         "portrait",
@@ -1135,6 +1141,7 @@ export function BadgeDefaultsSection({ active, shape, onPreviewFamilyChange, pre
     }
     ed.applyVisualPreset({
       landscape: landPatch,
+      defaultWatchProvidersLandscape: false,
       defaultRatingSources: values.defaultRatingSources,
       // Logo alignment stays Auto (never staged from a preset, even a legacy
       // one carrying an explicit value); the staged session normalizes anyway.
@@ -1146,10 +1153,6 @@ export function BadgeDefaultsSection({ active, shape, onPreviewFamilyChange, pre
 
   const applyBetterPoster = () => {
     applySnapshotForTarget(BETTER_POSTER_VISUAL_DEFAULTS, { id: "better-poster", name: t("ui.configPresetBetterPoster") })
-  }
-
-  const applyRpdb = () => {
-    applySnapshotForTarget(RPDB_VISUAL_DEFAULTS, { id: "rpdb", name: t("ui.configPresetRpdb") })
   }
 
   return (
@@ -1194,7 +1197,6 @@ export function BadgeDefaultsSection({ active, shape, onPreviewFamilyChange, pre
             { id: "ratings", title: t("ui.configPresetRatings"), desc: t("ui.configPresetRatingsDesc"), active: isRatings, onApply: applyRatings },
             { id: "full", title: t("ui.configPresetFull"), desc: t("ui.configPresetFullDesc"), active: isFull, onApply: applyFull },
             { id: "better-poster", title: t("ui.configPresetBetterPoster"), desc: t("ui.configPresetBetterPosterDesc"), active: isBetterPoster, onApply: applyBetterPoster },
-            { id: "rpdb", title: t("ui.configPresetRpdb"), desc: t("ui.configPresetRpdbDesc"), active: isRpdb, onApply: applyRpdb },
             { id: "apple", title: t("ui.configPresetApple"), desc: t("ui.configPresetAppleDesc"), active: isApple, onApply: applyApple },
           ]}
         />
@@ -1950,17 +1952,33 @@ export function BadgeDefaultsSection({ active, shape, onPreviewFamilyChange, pre
           <div className="flex items-center justify-between border-t border-white/10 pt-2">
             <span className="text-zinc-300 font-medium">{t("ui.watchProvidersLabel")}</span>
             <Toggle
-              value={ed.defaultWatchProviders === true}
-              onChange={ed.setDefaultWatchProviders}
+              value={isLandscape ? ed.defaultWatchProvidersLandscape === true : ed.defaultWatchProviders === true}
+              onChange={isLandscape ? ed.setDefaultWatchProvidersLandscape : ed.setDefaultWatchProviders}
               label={t("ui.watchProvidersLabel")}
             />
           </div>
           <p className="text-[11px] text-zinc-400 leading-relaxed">{t("ui.watchProvidersHint")}</p>
-          {ed.defaultWatchProviders === true && (
+          {(isLandscape ? ed.defaultWatchProvidersLandscape === true : ed.defaultWatchProviders === true) && (
+            <select
+              aria-label={t("ui.watchMaxLabel")}
+              value={(isLandscape ? ed.landscape.watchProvidersMax : undefined) ?? ed.defaultWatchProvidersMax}
+              onChange={(e) => (isLandscape
+                ? ed.setLandscape({ watchProvidersMax: Number(e.target.value) })
+                : ed.setDefaultWatchProvidersMax(Number(e.target.value)))}
+              className="w-full rounded-lg border border-white/10 bg-white/[0.04] px-2 py-1.5 text-xs text-zinc-200"
+            >
+              {[1, 2, 3, 4, 5, 6].map((n) => (
+                <option key={n} value={n}>{`${t("ui.watchMaxLabel")}: ${n}`}</option>
+              ))}
+            </select>
+          )}
+          {(isLandscape ? ed.defaultWatchProvidersLandscape === true : ed.defaultWatchProviders === true) && (
             <select
               aria-label={t("ui.watchRegionLabel")}
-              value={ed.defaultWatchRegion ?? ""}
-              onChange={(e) => ed.setDefaultWatchRegion(e.target.value || null)}
+              value={(isLandscape && typeof ed.landscape.watchRegion === "string" ? ed.landscape.watchRegion : ed.defaultWatchRegion) ?? ""}
+              onChange={(e) => (isLandscape
+                ? ed.setLandscape({ watchRegion: e.target.value })
+                : ed.setDefaultWatchRegion(e.target.value || null))}
               className="w-full rounded-lg border border-white/10 bg-white/[0.04] px-2 py-1.5 text-xs text-zinc-200"
             >
               <option value="">{t("ui.watchRegionSame")}</option>

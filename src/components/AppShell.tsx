@@ -9,7 +9,7 @@ import { LangPicker } from "@/components/LangPicker"
 import { HomeStatusStrip } from "@/components/HomeStatusStrip"
 import { currentPathUuid, isUserUnlocked, requestUserUnlock, USER_UNLOCK_EVENT } from "@/lib/user-token"
 import { requestSettingsTab } from "@/lib/settings-tab"
-import { ONBOARDING_INSTALL_OPENED_EVENT } from "@/lib/onboarding-progress"
+import { ONBOARDING_INSTALL_OPENED_EVENT, dismissOnboarding, readOnboardingProgress } from "@/lib/onboarding-progress"
 import { useOnboardingReplayIntent } from "@/lib/use-onboarding-replay"
 import { isMultiUserServer } from "@/lib/guest-guard"
 import { Settings, Plug, QrCode, Images, Library, KeyRound, Clapperboard } from "lucide-react"
@@ -56,6 +56,8 @@ export function AppShell() {
   const view = usePSelector((v) => v.view)
   const router = usePSelector((v) => v.router)
   const mappings = usePSelector((v) => v.mappings)
+  const tmdbKey = usePSelector((v) => v.tmdbKey)
+  const serverHasTmdbKey = usePSelector((v) => v.serverHasTmdbKey)
   const thumbnailCount = mappings.filter((m) => m.mediaType === "tv" && hasThumbnailCustomization(m)).length
   const selected = usePSelector((v) => v.selected)
   const exportData = usePSelector((v) => v.exportData)
@@ -138,12 +140,46 @@ export function AppShell() {
   // The wizard owns the focus while open (the tour stays parked via the
   // !showLangPicker gate below). Only a replay requested from the current
   // namespace activates; anything else is dropped, never replayed later.
-  const handleWizardDone = useCallback(() => {
-    setShowLangPicker(false)
-    promotePendingReplay()
-  }, [promotePendingReplay, setShowLangPicker])
+  // The wizard's last step is the same checklist the tour shows. When it was
+// reached (`shownChecklist`), the tour for this namespace opens stepped aside
+// (reopen pill) instead of stacking a second modal right after the wizard.
+const [wizardChecklistFor, setWizardChecklistFor] = useState<{ userId: string | null } | null>(null)
+const handleWizardDone = useCallback((shownChecklist = false) => {
+setShowLangPicker(false)
+promotePendingReplay()
+if (shownChecklist) setWizardChecklistFor({ userId: currentUserId })
+}, [promotePendingReplay, setShowLangPicker, currentUserId])
+const tourStartStepped = wizardChecklistFor !== null && wizardChecklistFor.userId === currentUserId
 
-  // First-use onboarding: the tour checklist advances when the install modal
+// Installation already opened in a previous session (persisted, booleans only):
+// read when the wizard opens, never during render (no hydration mismatch).
+const [wizardInstallOpened, setWizardInstallOpened] = useState(false)
+useEffect(() => {
+if (showLangPicker) setWizardInstallOpened(readOnboardingProgress(currentUserId)?.installOpened === true)
+}, [showLangPicker, currentUserId])
+
+// Wizard checklist step: same destinations as the tour. Every action closes
+// the wizard first; skip persists the namespaced dismissal and retires any
+// replay so the tour never comes back for a space that just said "skip".
+const wizardChecklist = {
+hasKey: !!tmdbKey || serverHasTmdbKey,
+hasSavedPoster: (mappings ?? []).length > 0,
+installOpened: wizardInstallOpened,
+onInstall: () => { handleWizardDone(true); setInstallOpen(true) },
+onCustomize: () => { handleWizardDone(true); router.push("search") },
+onOpenKeySettings: () => {
+handleWizardDone(true)
+requestSettingsTab("spazio")
+setSettingsOpen(true)
+},
+onSkip: () => {
+dismissOnboarding(currentUserId)
+handleWizardDone(true)
+clearActiveReplay()
+},
+}
+
+// First-use onboarding: the tour checklist advances when the install modal
   // actually opens (real action, not the click) — including toolbar opens.
   useEffect(() => {
     if (installOpen) window.dispatchEvent(new CustomEvent(ONBOARDING_INSTALL_OPENED_EVENT))
@@ -246,7 +282,8 @@ export function AppShell() {
         <LangPicker
           onPickLang={pickLang}
           onPickRegion={(regionCode) => { regionActions.applyRegion(regionCode) }}
-          onDone={handleWizardDone}
+          onDone={() => handleWizardDone()}
+checklist={wizardChecklist}
           skipPin={isUserPath || uuidShortcutVisible}
         />
       )}
@@ -576,7 +613,7 @@ export function AppShell() {
         />
       )}
     </div>
-    {!showLangPicker && !pinLocked && <OnboardingTour onOpenInstall={() => setInstallOpen(true)} replayRequest={activeReplay} onReplayClosed={clearActiveReplay} />}
+    {!showLangPicker && !pinLocked && <OnboardingTour onOpenInstall={() => setInstallOpen(true)} replayRequest={activeReplay} onReplayClosed={clearActiveReplay} startStepped={tourStartStepped} />}
     {hasPinConfigured && !isUnlocked && !showLangPicker && !isUserPath && (
       <PinLockModal onSuccess={handlePinUnlock} />
     )}

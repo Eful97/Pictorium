@@ -26,12 +26,9 @@ describe("renderWatchProviderRow", () => {
     expect(row!.h).toBe(ICON)
   })
 
-  it("4 providers: adds a '+1' counter slot; 7 providers keep the same width", async () => {
+  it("renders exactly the icons it is given (caller truncates to wpm): no '+N' chip", async () => {
     const four = await renderWatchProviderRow(mk(4), ICON, load)
-    const seven = await renderWatchProviderRow(mk(7), ICON, load)
     expect(four!.w).toBe(4 * ICON + 3 * GAP)
-    expect(seven!.w).toBe(four!.w)
-    expect(four!.png.equals(seven!.png)).toBe(false)
   })
 
   it("skips a provider whose logo fails to load (no empty box)", async () => {

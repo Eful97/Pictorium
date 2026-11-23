@@ -12,7 +12,7 @@
  *   along untouched.
  * - Every edit stages into the shared draft session only (no PUT, no
  *   localStorage, no live outer mutation) until the single global Save.
- * - A ready look owns its canonical layout: the six Standard looks keep
+ * - A ready look owns its canonical layout: the ten Standard looks keep
  *   Standard, Fresh owns Fresh + the ranked-only scope.
  */
 import { beforeEach, describe, expect, it, vi } from "vitest"
@@ -152,8 +152,8 @@ describe("rankings owns the single exclusive layout presentation", () => {
   it("rankings owns the single exclusive 5-mode layout presentation; the gallery never duplicates it", async () => {
     renderPanel()
     await screen.findByTestId("poster-style-apple")
-    // The ready gallery is the only look entry (seven tiles incl. Fresh).
-    for (const id of ["apple", "better-poster", "rpdb", "essential", "ratings", "full", "fresh"]) {
+    // The ready gallery is the only look entry (eleven tiles incl. Fresh).
+    for (const id of ["apple", "better-poster", "essential", "ratings", "full", "notch", "editorial", "glass", "cinema", "mono", "fresh"]) {
       expect(screen.getByTestId(`poster-style-${id}`)).toBeInTheDocument()
     }
     // Exactly one layout presentation control in the whole panel...

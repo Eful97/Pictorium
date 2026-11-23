@@ -4,6 +4,10 @@
   "entry": [
     "scripts/**/*.mjs"
   ],
+  "ignore": [
+    "design-systems/pictorium/tokens.css",
+    "svgo.config.mjs"
+  ],
   "next": {},
   "vitest": {},
   "playwright": {}

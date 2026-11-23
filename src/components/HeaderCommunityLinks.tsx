@@ -95,7 +95,7 @@ export function MobileCommunityLinks() {
         target="_blank"
         rel="noopener noreferrer"
         aria-label="GitHub Repository"
-        className="flex items-center gap-1.5 px-2.5 py-1 rounded-xl bg-white/[0.05] border border-white/10 text-xs text-zinc-300 active:scale-95 transition duration-150"
+        className="relative flex items-center gap-1.5 px-2.5 py-1 rounded-xl bg-white/[0.05] border border-white/10 text-xs text-zinc-300 active:scale-95 transition duration-150 after:absolute after:-inset-x-1 after:-inset-y-3 after:content-['']"
       >
         <GithubIcon className="w-3.5 h-3.5" />
         <span className="text-[11px] font-medium">GitHub</span>
@@ -107,7 +107,7 @@ export function MobileCommunityLinks() {
         target="_blank"
         rel="noopener noreferrer"
         aria-label="Discord Community"
-        className="flex items-center gap-1.5 px-2.5 py-1 rounded-xl bg-white/[0.05] border border-white/10 text-xs text-zinc-300 active:scale-95 transition duration-150"
+        className="relative flex items-center gap-1.5 px-2.5 py-1 rounded-xl bg-white/[0.05] border border-white/10 text-xs text-zinc-300 active:scale-95 transition duration-150 after:absolute after:-inset-x-1 after:-inset-y-3 after:content-['']"
       >
         <DiscordIcon className="w-3.5 h-3.5" />
         <span className="text-[11px] font-medium">Discord</span>
@@ -120,7 +120,7 @@ export function MobileCommunityLinks() {
           onClick={menu.toggle}
           aria-expanded={menu.open}
           aria-label={t("ui.hostedByToggle")}
-          className={`flex items-center px-2 py-1 rounded-xl border active:scale-95 transition duration-150 cursor-pointer ${
+          className={`relative flex items-center px-2 py-1 rounded-xl border after:absolute after:-inset-x-1 after:-inset-y-3 after:content-[''] active:scale-95 transition duration-150 cursor-pointer ${
             menu.open
               ? "bg-white/10 border-white/20"
               : "bg-white/[0.05] border-white/10"
@@ -138,7 +138,7 @@ export function MobileCommunityLinks() {
         rel="noopener noreferrer"
         aria-label="Support on Ko-fi"
         title="Support on Ko-fi"
-        className="flex items-center gap-1.5 px-2.5 py-1 rounded-xl bg-white/[0.05] border border-white/10 text-xs text-zinc-300 active:scale-95 transition duration-150"
+        className="relative flex items-center gap-1.5 px-2.5 py-1 rounded-xl bg-white/[0.05] border border-white/10 text-xs text-zinc-300 active:scale-95 transition duration-150 after:absolute after:-inset-x-1 after:-inset-y-3 after:content-['']"
       >
         <KofiIcon className="w-3.5 h-3.5" />
         <span className="text-[11px] font-medium">Ko-fi</span>

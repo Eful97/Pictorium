@@ -179,7 +179,7 @@ export const POSTER_CACHE_ALLOWLIST: ReadonlySet<string> = new Set([
   // seasonal-theme.ts).
   "theme",
   // Funzionali (letti dalla route / poster-config, mai stile libero).
-  "badges", "ranking", "bg", "by", "br", "bq", "qbs", "awardstyle", "ribbon", "cr", "sep", "netLogo", "netPos", "lanc", "qanc", "tanc", "xanc", "banc", "netFollow", "wp", "wpr", "ti",
+  "badges", "ranking", "bg", "by", "br", "bq", "qbs", "awardstyle", "ribbon", "cr", "sep", "netLogo", "netPos", "lanc", "qanc", "tanc", "xanc", "banc", "netFollow", "wp", "wpr", "wpm", "ti",
   "age", "agecountry", "agebs",
   "pre", "side", "hideLogo", "tint", "be", "preview", "u", "user",
   "config", "c", "api_key", "mdblist_key", "simkl_key", "tvdb_key",

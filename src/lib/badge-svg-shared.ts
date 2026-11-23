@@ -5,7 +5,6 @@ import { TYPE_ICON_PATHS, TYPE_ICON_INK_W, type TypeIconKind } from "./type-icon
 import { AV_PLATE_RADIUS_FACTOR, AV_PLATE_STROKE_WIDTH, COLOR_MARK_GLYPH, COLOR_MARK_PLATE_BG, COLOR_MARK_PLATE_STROKE, GRADIENT_PLATE_BG, GRADIENT_PLATE_STROKE, PREMIUM_PLATE_BG, PREMIUM_PLATE_STROKE, premiumAccentHex } from "./quality-badge-styles"
 
 const TEXT_SAFE_PAD = 1.15
-const GENRE_TEXT_MAX_RATIO = 0.84
 const GENRE_PILL_MAX_RATIO = 0.78
 const GENRE_FONT_WEIGHT = 600
 const RANKING_FONT_WEIGHT = 700
@@ -25,13 +24,6 @@ export function genrePillHeight(fs: number): number {
 
 export function badgeBoxHeight(fs: number): number {
   return fs + Math.round(fs * BADGE_BOX_PAD_Y_FACTOR) * 2
-}
-
-export function badgeShadowBox(h: number): { blur: number; off: number } {
-  return {
-    blur: Math.max(Math.round(h * 0.20), 4),
-    off: Math.max(Math.round(h * 0.10), 2),
-  }
 }
 
 export const STAR_GRADIENT_DEF = `<linearGradient id="starg" x1="0" y1="0" x2="0" y2="1"><stop offset="0%" stop-color="#FCD34D"/><stop offset="100%" stop-color="#F59E0B"/></linearGradient>`
@@ -89,10 +81,6 @@ export function genrePillMaxW(containerW: number): number {
   return Math.min(containerW - 20, Math.round(containerW * GENRE_PILL_MAX_RATIO))
 }
 
-export function genreTextMaxW(containerW: number): number {
-  return Math.min(containerW - 20, Math.round(containerW * GENRE_TEXT_MAX_RATIO))
-}
-
 export function escSvg(s: string): string {
   return s.replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;").replace(/"/g, "&quot;")
 }
@@ -113,31 +101,6 @@ export function applyFillOpacity(color: string, opacityPct: number): string {
     return `rgba(${rgba[1]},${rgba[2]},${rgba[3]},${out})`
   }
   return color
-}
-
-/**
- * Recolors BODY <text> fills (technical-family typography overrides): splits
- * off <defs> blocks first so masks/paint servers (knockout cut-outs, star
- * gradients) stay byte-identical, then sets fill on body text tags only.
- * Null color keeps the recipe fill (opacity-only still applies via
- * applyFillOpacity on the existing fill); both null = no-op. Pure string op.
- */
-export function recolorBadgeBodyText(svg: string, color: string | null | undefined, opacityPct?: number | null): string {
-  if (!color && (opacityPct === undefined || opacityPct === null)) return svg
-  const parts = svg.split(/(<defs>[\s\S]*?<\/defs>)/g)
-  for (let i = 0; i < parts.length; i++) {
-    if (parts[i].startsWith("<defs>")) continue
-    parts[i] = parts[i].replace(/<text\b[^>]*>/g, (tag) => {
-      const m = tag.match(/ fill="([^"]*)"/)
-      const base = color ?? m?.[1] ?? null
-      if (!base) return tag
-      const ink = opacityPct === undefined || opacityPct === null ? base : applyFillOpacity(base, opacityPct)
-      const safe = ink.replace(/&/g, "&amp;").replace(/"/g, "&quot;").replace(/</g, "&lt;")
-      if (m) return tag.replace(/ fill="[^"]*"/, ` fill="${safe}"`)
-      return tag.replace(/\s*\/?>(?=$)/, (end) => ` fill="${safe}"${end}`)
-    })
-  }
-  return parts.join("")
 }
 
 /** Ebraico (blocco base + presentation forms). */
@@ -1537,7 +1500,6 @@ export const SPLIT_DOUBLE_CELL_PAD_FACTOR = 1.1
  */
 export const SPLIT_NUMERAL_INK_SHIFT_FACTOR = 0.018
 /** Legacy neutral accent (kept for compatibility; the split chip is fixed yellow). */
-export const SPLIT_NEUTRAL_ACCENT = "#555555"
 
 export interface SplitChipInput {
   /** Rank numeral (left accent cell). */
@@ -1861,19 +1823,6 @@ export function buildExtraBorderedSvg(label: string, fs: number, textColor: stri
   const textEl = `<text x="${totalW / 2}" y="${boxH / 2}" text-anchor="middle" dominant-baseline="central" font-family="${fontFamilyFor(label, font)}" font-weight="700" font-size="${fs}" fill="${textColor}"${textFitAttrs(textW)}>${escSvg(label)}</text>`
   const bgEl = `<rect x="${borderW / 2}" y="${borderW / 2}" width="${totalW - borderW}" height="${boxH - borderW}" rx="${r}" fill="${bgFill}" stroke="${borderColor}" stroke-width="${borderW}"/>`
   return { svg: `<svg xmlns="http://www.w3.org/2000/svg" width="${totalW}" height="${boxH}" viewBox="0 0 ${totalW} ${boxH}">${bgEl}${textEl}</svg>`, w: totalW, h: boxH }
-}
-
-export function buildNetflixRankSvg(rank: number, pw: number, font: BadgeFont = "inter") {
-  const fs = Math.round(Math.max(23 * pw / 380, 14))
-  const w = Math.round(fs * 2.4)
-  const h = Math.round(fs * 2.0)
-  const cut = Math.round(fs * 0.35)
-  const topFs = Math.round(fs * 0.5)
-  const rankFs = Math.round(fs * 1.0)
-  const pathD = `M ${cut},0 L ${w},0 L ${w},${h} L 0,${h} L 0,${cut} Z`
-  const textEl = `<text x="${w / 2}" y="${Math.round(h * 0.38)}" text-anchor="middle" dominant-baseline="central" font-family="${fontFamilyFor("TOP", font)}" font-weight="700" font-size="${topFs}" fill="#ffffff">TOP</text><text x="${w / 2}" y="${Math.round(h * 0.72)}" text-anchor="middle" dominant-baseline="central" font-family="${fontFamilyFor(String(rank), font)}" font-weight="900" font-size="${rankFs}" fill="#ffffff">${rank}</text>`
-  const svg = `<svg xmlns="http://www.w3.org/2000/svg" width="${w}" height="${h}"><defs><clipPath id="nf"><path d="${pathD}"/></clipPath></defs><g clip-path="url(#nf)"><rect width="${w}" height="${h}" rx="2" fill="#E50914"/></g>${textEl}</svg>`
-  return { svg, w, h }
 }
 
 // ---------------------------------------------------------------------------

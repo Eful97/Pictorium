@@ -3,7 +3,7 @@
  * Used by both the server route and client hooks, ensuring the same badge
  * logic applies in preview (WYSIWYG) and final poster.
  */
-import { computeBadge, computeAbsoluteCinema, isMiniseriesType, isReturningStatus, stripArabicDiacritics, NEXT_EPISODE_BADGE_KEY, isNextEpisodeBadgeKey, type BadgeResult, type SashBucket } from "./badge-priority"
+import { computeBadge, computeAbsoluteCinema, isMiniseriesType, isReturningStatus, stripArabicDiacritics, isNextEpisodeBadgeKey, type BadgeResult, type SashBucket } from "./badge-priority"
 import { getAwardBadgeKey, getAwardBadgeLabel, getNominationBadgeLabel, type AwardBadgeKey } from "./badge-labels"
 import { withIdAwards, withIdNoms } from "./award-ids"
 import { formatReleaseDate, getUpcomingReleaseLabel, type DateFormat } from "./release-badge"
@@ -11,7 +11,7 @@ import { getSubGenreMatch, getAllSubGenreMatches } from "./subgenres"
 import { isContentTagDisabled } from "./content-tags"
 import type { MdbListWhatsonFeatures } from "./content-tags"
 
-export { NEXT_EPISODE_BADGE_KEY, isNextEpisodeBadgeKey }
+export { isNextEpisodeBadgeKey }
 
 export type BadgeT = (key: string, params?: Record<string, string | number>) => string
 

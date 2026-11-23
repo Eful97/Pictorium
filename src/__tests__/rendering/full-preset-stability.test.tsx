@@ -15,7 +15,7 @@
  *   matching toggles but a non-canonical ribbon/font never claims Full.
  * - Both Full entry points (Preset-tab gallery and the legacy standalone
  *   BadgeDefaultsSection path) stage the same canonical recipe; personal
- *   presets, Essential/Ratings and Apple/BetterPoster/RPDB are unaffected.
+ *   presets, Essential/Ratings and Apple/BetterPoster/Glass are unaffected.
  */
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest"
 import { cleanup, fireEvent, screen, waitFor, within } from "@testing-library/react"

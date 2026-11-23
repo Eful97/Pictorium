@@ -67,6 +67,16 @@ describe("Posizione tab (PositionPanel)", () => {
     fireEvent.click(screen.getByTestId("badge-overflow-hide"))
     expect(ctx().defaultBadgeOverflow).toBe("hide")
   })
+
+  it("landscape overflow toggle writes the landscape profile and leaves the portrait flat", () => {
+    localStorage.setItem("badgeDefaults", JSON.stringify({ defaultGlobalBadges: true }))
+    const { ctx } = renderPosition({ previewShape: "landscape" })
+    expect(screen.getByTestId("badge-overflow-move")).toHaveAttribute("aria-checked", "true")
+    fireEvent.click(screen.getByTestId("badge-overflow-hide"))
+    expect(ctx().landscape.badgeOverflow).toBe("hide")
+    expect(ctx().defaultBadgeOverflow).toBe("move")
+    expect(screen.getByTestId("badge-overflow-hide")).toHaveAttribute("aria-checked", "true")
+  })
 })
 
 describe("anchor selectors moved out of Trasforma and Badge", () => {

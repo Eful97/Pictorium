@@ -29,14 +29,16 @@ import type { LandscapeServerDefaults } from "./server-defaults"
 import { DEFAULT_SASH_ORDER, NEXT_EPISODE_BADGE_KEY, type SashBucket } from "./badge-priority"
 import { sanitizeDisabledContentTags } from "./content-tags"
 import { sanitizeDisabledNetworks } from "./network-keys"
-import { sanitizeWatchRegion } from "./regions"
+import { DEFAULT_WATCH_MAX, sanitizeWatchMax, sanitizeWatchRegion } from "./regions"
 
 /** `wp=0|1` esplicito (lo staged OFF deve vincere sul default salvato), `wpr` solo se valido e ON. */
-function pushWatchProviderParams(params: string[], on: boolean | null | undefined, region: string | null | undefined): void {
+function pushWatchProviderParams(params: string[], on: boolean | null | undefined, region: string | null | undefined, max?: number | null): void {
   if (on == null) return
   params.push(`wp=${on ? "1" : "0"}`)
   const wpr = on ? sanitizeWatchRegion(region) : null
   if (wpr) params.push(`wpr=${wpr}`)
+  const wpm = on ? sanitizeWatchMax(max) : null
+  if (wpm !== null && wpm !== DEFAULT_WATCH_MAX) params.push(`wpm=${wpm}`)
 }
 import { normalizeLogoFont, sanitizeLogoText } from "./text-logo"
 import type { QualityMarkId } from "./quality-badge-pack"
@@ -194,6 +196,7 @@ interface BadgeParams {
   /** "Dove guardare": `wp=0|1` esplicito quando definito, `wpr` solo se valido. */
   watchProviders?: boolean | null
   watchRegion?: string | null
+  watchProvidersMax?: number | null
   /** Icona tipo film/serie già risolta per la forma: `ti=0|1` esplicito quando definito. */
   typeIcon?: boolean | null
 }
@@ -683,7 +686,7 @@ export function buildPreviewUrl(ps: PosterState, bp: BadgeParams, configToken?: 
     const ids = [...new Set(sanitizeDisabledNetworks(bp.disabledNetworks))].sort()
     params.push(`dnet=${encodeURIComponent(ids.join(","))}`)
   }
-  pushWatchProviderParams(params, bp.watchProviders, bp.watchRegion)
+  pushWatchProviderParams(params, bp.watchProviders, bp.watchRegion, bp.watchProvidersMax)
   if (bp.typeIcon != null) params.push(`ti=${bp.typeIcon ? "1" : "0"}`)
   // Cornice stagionale (scelta per-titolo sopra il contesto lista di
   // origine, su entrambi i canvas col proprio asset — portrait 500×750,
@@ -928,6 +931,7 @@ export interface DefaultsPreviewParams {
   /** "Dove guardare" di default (stesso contratto di `watchProviders`). */
   defaultWatchProviders?: boolean | null
   defaultWatchRegion?: string | null
+  defaultWatchProvidersMax?: number | null
   /** Icona tipo già risolta per la forma in anteprima (`ti=0|1` esplicito). */
   defaultTypeIcon?: boolean | null
   /** Preview-only editing family: `rank` targets the rank bucket (`sash=rank`
@@ -1074,7 +1078,7 @@ export function buildDefaultsPreviewUrl(bp: DefaultsPreviewParams): string {
     const ids = [...new Set(sanitizeDisabledNetworks(bp.defaultDisabledNetworks))].sort()
     params.push(`dnet=${encodeURIComponent(ids.join(","))}`)
   }
-  pushWatchProviderParams(params, bp.defaultWatchProviders, bp.defaultWatchRegion)
+  pushWatchProviderParams(params, bp.defaultWatchProviders, bp.defaultWatchRegion, bp.defaultWatchProvidersMax)
   if (bp.defaultTypeIcon != null) params.push(`ti=${bp.defaultTypeIcon ? "1" : "0"}`)
   // Preview-only info sample (Informazioni family): explicit `extra=` wins
   // over the computed badge exactly like an editor custom badge; ignored when

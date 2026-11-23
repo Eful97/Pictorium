@@ -30,6 +30,15 @@ export interface ChangelogRelease {
  *  (which bumps on every commit and would leave the dot permanently on). */
 export const CHANGELOG: ChangelogRelease[] = [
   {
+    version: "1.28.2",
+    date: "2026-11-23",
+    title: "Release 1.28.2",
+    items: [
+      { type: "fix", text: "Rotate saved posters at a fixed daily cut, with the poster cache aligned to it" },
+      { type: "fix", text: "Refresh cached posters whenever poster route logic changes, so stale posters no longer linger after an update" },
+    ],
+  },
+  {
     version: "1.28.1",
     date: "2026-11-22",
     title: "Release 1.28.1",

@@ -72,7 +72,7 @@ function openAdvanced() {
 }
 
 describe("preset tab (five-tab staged session)", () => {
-  it("shows the six gallery looks on the default Preset tab with one preview and stages without writes", async () => {
+  it("shows the ten gallery looks on the default Preset tab with one preview and stages without writes", async () => {
     renderSettings()
     await act(async () => {
       await vi.advanceTimersByTimeAsync(100)
@@ -83,7 +83,7 @@ describe("preset tab (five-tab staged session)", () => {
     )
     expect(screen.getAllByRole("tab")).toHaveLength(6)
     // Gallery looks visible without opening anything.
-    for (const id of ["poster-style-apple", "poster-style-better-poster", "poster-style-rpdb"]) {
+    for (const id of ["poster-style-apple", "poster-style-better-poster", "poster-style-glass"]) {
       expect(screen.getByTestId(id)).toBeInTheDocument()
     }
     // Quick looks live in the same gallery card.

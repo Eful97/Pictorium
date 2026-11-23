@@ -23,7 +23,7 @@
 </p>
 
 > [!TIP]
-> 🚀 **Istanze pubbliche gratuite**: crea il tuo spazio personale con la tua chiave TMDB su **[pictorium.duckdns.org](https://pictorium.duckdns.org)** (VPS comunitaria) oppure su **[pictorium.elfhosted.com](https://pictorium.elfhosted.com/)** (istanza pubblica ElfHosted).
+> 🚀 **Istanza pubblica gratuita**: crea il tuo spazio personale con la tua chiave TMDB su **[pictorium.elfhosted.com](https://pictorium.elfhosted.com/)** (istanza pubblica ElfHosted).
 >
 > 💬 Entra nella [community Discord](https://discord.gg/sYfWyXYVUp) per supporto e novità · ☕ Supporta il progetto su [Ko-fi](https://ko-fi.com/eful97) per mantenere attiva la VPS comunitaria.
 
@@ -40,7 +40,7 @@
 
 ## ✨ Pronto in 3 passi
 
-1. **Apri un'istanza pubblica** ([ElfHosted](https://pictorium.elfhosted.com/) o la [VPS comunitaria](https://pictorium.duckdns.org)) e crea il tuo spazio personale.
+1. **Apri l'istanza pubblica** ([ElfHosted](https://pictorium.elfhosted.com/)) e crea il tuo spazio personale.
 2. **Incolla una chiave TMDB gratuita**: la ottieni in un minuto da **Impostazioni → API** su [themoviedb.org](https://www.themoviedb.org/signup).
 3. **Scegli un titolo, gioca con lo stile, clicca _Installa su Stremio_.** Quello che vedi nell'editor è esattamente quello che arriva su Stremio, Nuvio o AIOMetadata.
 

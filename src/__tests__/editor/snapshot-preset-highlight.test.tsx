@@ -1,5 +1,5 @@
 /**
- * Snapshot preset highlight (BetterPoster/RPDB) per edit target:
+ * Snapshot preset highlight (BetterPoster/Glass) per edit target:
  * - portrait: mapped flats + applied globals, ignores the other-format profile and delivery;
  * - landscape: preset-covered effective + applied globals, ignores delivery;
  *   the standalone extra style is owned by every ready look (reset to
@@ -13,7 +13,6 @@ import { BadgeDefaultsSection } from "@/components/settings/BadgeDefaultsSection
 import { usePosterEditor, type PosterEditorCtx } from "@/lib/contexts/PosterEditorContext"
 import {
   BETTER_POSTER_VISUAL_DEFAULTS,
-  RPDB_VISUAL_DEFAULTS,
 } from "@/lib/default-visual-presets"
 import type { VisualPresetValues } from "@/lib/visual-presets"
 import { renderWithCtx } from "@/__tests__/test-utils"
@@ -58,7 +57,6 @@ function hasCheck(btn: HTMLElement): boolean {
 
 const CASES: Array<{ label: string; values: VisualPresetValues }> = [
   { label: "Stile BetterPoster", values: BETTER_POSTER_VISUAL_DEFAULTS },
-  { label: "Stile RPDB", values: RPDB_VISUAL_DEFAULTS },
 ]
 
 describe.each(CASES)("snapshot highlight $label", ({ label }) => {

@@ -5,7 +5,7 @@ import { matchStudios, isValidWikidataQid } from "./badge-labels"
 // Re-export per compatibilità: le label pure vivono in badge-labels.ts
 // (foglia client-safe); poster route, poster-badge e test continuano a
 // importarle da qui senza modifiche.
-export { matchTMDBStudios, getAwardBadgeLabel, getNominationBadgeLabel, isValidWikidataQid } from "./badge-labels"
+export { matchTMDBStudios, isValidWikidataQid } from "./badge-labels"
 import { combineAbortSignals } from "./abort-signal"
 import { timedFetch } from "./outbound-stats"
 import { createCircuitBreaker } from "@/lib/circuit-breaker"
@@ -757,9 +757,4 @@ export async function fetchAllWikidata(
   } finally {
     if (staleTimer !== undefined) clearTimeout(staleTimer)
   }
-}
-
-export async function fetchAwards(tmdbId: number, mediaType: "movie" | "tv"): Promise<string[]> {
-  const data = await fetchAllWikidata(tmdbId, mediaType)
-  return data.awards
 }

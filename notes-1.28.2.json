@@ -1,0 +1,6 @@
+{
+  "items": [
+    { "type": "fix", "text": "Rotate saved posters at a fixed daily cut, with the poster cache aligned to it" },
+    { "type": "fix", "text": "Refresh cached posters whenever poster route logic changes, so stale posters no longer linger after an update" }
+  ]
+}

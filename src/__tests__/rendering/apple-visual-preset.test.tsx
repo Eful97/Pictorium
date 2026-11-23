@@ -1,5 +1,5 @@
 /**
- * Builtin Apple 1-click (accanto a BetterPoster/RPDB):
+ * Builtin Apple 1-click (accanto a BetterPoster/Glass):
  * - costante fedele al preset-export (valori inline, mai il file Desktop):
  *   flat = portrait, nested `landscape` = orizzontale;
  * - apply SOLO proiezione formato via helper esistenti

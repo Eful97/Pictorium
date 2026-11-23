@@ -216,10 +216,6 @@ export function packMarkHome(id: string | null | undefined): PackMarkHome | null
   return packMark(id)?.home ?? null
 }
 
-export function packMarkMode(id: string | null | undefined): PackMarkMode | null {
-  return packMark(id)?.mode ?? null
-}
-
 export function packMarkAspect(id: string | null | undefined): number | null {
   return packMark(id)?.aspect ?? null
 }

@@ -1,7 +1,7 @@
 import { describe, expect, it } from "vitest";
 import {
   BETTER_POSTER_VISUAL_DEFAULTS,
-  RPDB_VISUAL_DEFAULTS,
+  MONO_VISUAL_DEFAULTS,
 } from "@/lib/default-visual-presets";
 import {
   MAX_CUSTOM_GRADIENT_PRESETS,
@@ -40,7 +40,7 @@ describe("preset-file codec (visual + gradient, kind pictorium-presets v1)", () 
     const file = buildPresetFile({
       visual: [
         { name: "Look A", values: VISUAL },
-        { name: "Look B", values: RPDB_VISUAL_DEFAULTS },
+        { name: "Look B", values: MONO_VISUAL_DEFAULTS },
       ],
       gradient: [{ name: "Mine", values: GRADIENT }],
     });
@@ -215,7 +215,7 @@ describe("preset-file codec (visual + gradient, kind pictorium-presets v1)", () 
   it("visual planner skips case-insensitive collisions and quota overflow (no silent overwrite)", () => {
     const incoming = [
       { name: "Look", values: VISUAL },
-      { name: "  LOOK  ", values: RPDB_VISUAL_DEFAULTS },
+      { name: "  LOOK  ", values: MONO_VISUAL_DEFAULTS },
       { name: "Fresh", values: VISUAL },
     ];
     const plan = planVisualImport({ portrait: [{ name: "look" }], landscape: [] }, incoming);
@@ -267,7 +267,7 @@ describe("preset-file codec (visual + gradient, kind pictorium-presets v1)", () 
       formatVersion: 1,
       visualPresets: [
         { name: "Same", values: VISUAL },
-        { name: "Same", values: RPDB_VISUAL_DEFAULTS },
+        { name: "Same", values: MONO_VISUAL_DEFAULTS },
       ],
     });
     expect(parsed.ok).toBe(true);

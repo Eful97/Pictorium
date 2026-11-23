@@ -17,7 +17,7 @@ import {
   APPLE_VISUAL_DEFAULTS,
   BETTER_POSTER_VISUAL_DEFAULTS,
   FRESH_VISUAL_DEFAULTS,
-  RPDB_VISUAL_DEFAULTS,
+  MONO_VISUAL_DEFAULTS,
 } from "@/lib/default-visual-presets"
 import { quickLookDesired, type QuickLookId } from "@/lib/quick-visual-presets"
 import { READY_PRESET_ENTRIES } from "@/lib/ready-visual-presets"
@@ -36,7 +36,7 @@ import { useDefaults } from "@/lib/useDefaults"
 import { resetGuestGuardForTests } from "@/lib/guest-guard"
 import type { Mapping } from "@/lib/types"
 
-const READY_IDS = ["apple", "better-poster", "rpdb", "essential", "ratings", "full", "fresh"] as const
+const READY_IDS = ["apple", "better-poster", "essential", "ratings", "full", "notch", "editorial", "glass", "cinema", "mono", "fresh"] as const
 
 function baseInput(overrides: Partial<PosterRenderConfigInput> = {}): PosterRenderConfigInput {
   return {
@@ -61,7 +61,7 @@ const mapping = (partial: Partial<Mapping> = {}): Mapping => ({
 })
 
 describe("ready-seven own top 50 in both shapes (shared canonical source)", () => {
-  it("exposes the seven canonical looks in gallery order", () => {
+  it("exposes the eleven canonical looks in gallery order", () => {
     expect(READY_PRESET_ENTRIES.map((e) => e.id)).toEqual([...READY_IDS])
   })
 
@@ -73,7 +73,7 @@ describe("ready-seven own top 50 in both shapes (shared canonical source)", () =
 
   it("snapshot constants carry the canonical 50 (flat, nested where present)", () => {
     expect(BETTER_POSTER_VISUAL_DEFAULTS.defaultTopShade).toBe(50)
-    expect(RPDB_VISUAL_DEFAULTS.defaultTopShade).toBe(50)
+    expect(MONO_VISUAL_DEFAULTS.defaultTopShade).toBe(50)
     expect(APPLE_VISUAL_DEFAULTS.defaultTopShade).toBe(50)
     expect(APPLE_VISUAL_DEFAULTS.landscape?.topShade).toBe(50)
     expect(FRESH_VISUAL_DEFAULTS.defaultTopShade).toBe(50)

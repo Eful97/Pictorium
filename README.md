@@ -23,7 +23,7 @@
 </p>
 
 > [!TIP]
-> 🚀 **Free public instances**: create your personal space with your TMDB key on **[pictorium.duckdns.org](https://pictorium.duckdns.org)** (community VPS) or **[pictorium.elfhosted.com](https://pictorium.elfhosted.com/)** (ElfHosted public instance).
+> 🚀 **Free public instance**: create your personal space with your TMDB key on **[pictorium.elfhosted.com](https://pictorium.elfhosted.com/)** (ElfHosted public instance).
 >
 > 💬 Join the [Discord community](https://discord.gg/sYfWyXYVUp) for support and updates · ☕ Support the project on [Ko-fi](https://ko-fi.com/eful97) to keep the public VPS running.
 
@@ -40,7 +40,7 @@
 
 ## ✨ Ready in 3 steps
 
-1. **Open a public instance** ([ElfHosted](https://pictorium.elfhosted.com/) or the [community VPS](https://pictorium.duckdns.org)) and create your personal space.
+1. **Open the public instance** ([ElfHosted](https://pictorium.elfhosted.com/)) and create your personal space.
 2. **Paste a free TMDB key**: get it in a minute from **Settings → API** on [themoviedb.org](https://www.themoviedb.org/signup).
 3. **Pick a title, play with the style, click _Install to Stremio_.** What you see in the editor is exactly what lands on Stremio, Nuvio or AIOMetadata.
 

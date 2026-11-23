@@ -106,7 +106,7 @@ export function ThemeToggle({ className = "", showLabels = false, bottomBar = fa
       <button ref={trigger} type="button" aria-label={t("ui.theme")} title={selected.label}
         aria-expanded={open} aria-controls={open ? id : undefined}
         onClick={() => setOpen((value) => !value)}
-        className={`flex items-center justify-center text-muted hover:text-foreground rounded-xl cursor-pointer focus-visible:outline-2 focus-visible:outline-accent-orange ${bottomBar ? "flex-col gap-1 py-1 px-1 w-full" : "p-2 min-h-9 min-w-9"}`}>
+        className={`flex items-center justify-center text-muted hover:text-foreground rounded-xl cursor-pointer focus-visible:outline-2 focus-visible:outline-accent-orange ${bottomBar ? "flex-col gap-1 py-1 px-1 w-full" : "p-2 min-h-11 min-w-11 md:min-h-9 md:min-w-9"}`}>
         <span className={bottomBar ? "h-8 flex items-center justify-center [&>svg]:size-5" : ""}>{selected.icon}</span>
         {bottomBar && <span className="text-[10px] tracking-tight">{t("ui.theme")}</span>}
       </button>

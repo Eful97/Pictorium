@@ -167,14 +167,14 @@ describe("PosterStyleCard compact ready thumbnails", () => {
         showBadge: false,
         compact: true,
         options: [
-          { id: "rpdb", title: "RPDB", desc: "RPDB look", active: false, onApply: () => {}, thumbnailUrl: null },
+          { id: "glass", title: "Glass", desc: "Glass look", active: false, onApply: () => {}, thumbnailUrl: null },
         ],
       }),
     )
-    const frame = frameOf("poster-style-rpdb")
+    const frame = frameOf("poster-style-glass")
     expect(frame).not.toBeNull()
     expect(frame?.getAttribute("class") ?? "").toContain("aspect-[2/3]")
-    expect(screen.getByTestId("poster-style-rpdb").querySelector("img")).toBeNull()
+    expect(screen.getByTestId("poster-style-glass").querySelector("img")).toBeNull()
   })
 
   it("legacy text-only callers render no frame with unchanged classes", () => {
@@ -258,7 +258,7 @@ describe("actual PresetsPanel compact grids", () => {
       const { unmount } = renderWithCtx(
         createElement(PresetsPanel, { shape, demoMedia: null, active: true }),
       )
-      for (const id of ["apple", "better-poster", "rpdb", "essential", "ratings", "full", "fresh"]) {
+      for (const id of ["apple", "better-poster", "essential", "ratings", "full", "notch", "editorial", "glass", "cinema", "mono", "fresh"]) {
         const btn = screen.getByTestId(`poster-style-${id}`)
         const frame = btn.querySelector("span[aria-hidden='true']")
         expect(frame).not.toBeNull()

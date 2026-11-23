@@ -301,7 +301,7 @@ const itDict: Record<string, string> = {
   "ui.hostedByGuideLine": "Nuovo di Stremio? Dai un'occhiata alla {guide}.",
   "ui.hostedByMinimize": "Riduci a icona",
   "ui.configPresetBetterPoster": "Stile BetterPoster",
-  "ui.configPresetRpdb": "Stile RPDB",
+  "ui.configPresetGlass": "Glass",
   "ui.configPresetApple": "Stile Apple",
   "ui.configPresetUnofficialNote": "Preset non ufficiali, senza affiliazione ai marchi citati.",
   "ui.settingsSaveAndClose": "Salva e chiudi",
@@ -328,6 +328,7 @@ const itDict: Record<string, string> = {
   "ui.watchProvidersLabel": "Mostra dove guardare",
   "ui.watchProvidersHint": "Sostituisce il logo del network di produzione con i servizi di streaming (in abbonamento) che hanno il titolo nel paese scelto. Usa la tua chiave TMDB.",
   "ui.watchRegionLabel": "Paese streaming",
+  "ui.watchMaxLabel": "Piattaforme max",
   "ui.watchRegionSame": "Come il paese del poster",
 }
 
