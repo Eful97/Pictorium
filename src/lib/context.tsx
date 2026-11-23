@@ -24,8 +24,7 @@ import type { EnrichedAnimeItem } from "./validation"
 import { http, userFetch } from "./http"
 import { currentPathUuid, fetchWithUserAuthRetry, userAuthHeaders, USER_UNLOCK_EVENT } from "./user-token"
 import { copyText } from "./clipboard"
-import { useRootColors } from "./useRootColors"
-import { normalizeGenreName } from "./genre-normalize"
+import { useAutoRootColors } from "./useAutoRootColors"
 import { buildUrlPattern, buildPreviewUrl } from "./poster-url"
 import { selectBestLogo, autoLogoSelection, logoEffectiveAutoScale, resolveLogoDisplayedRank } from "./logo-selection"
 import { useTrending } from "./useTrending"
@@ -49,7 +48,6 @@ import { MetaInfoProvider } from "./contexts/MetaInfoContext"
 import { MappingsProvider } from "./contexts/MappingsContext"
 import { useCustomCatalogs } from "./useCustomCatalogs"
 import { useRankingSources } from "./useRankingSources"
-import { isManualAccent } from "./accent-color"
 import { TEXT_LOGO_DEFAULT_FONT, resolveAutoWordmark, sanitizeLogoText } from "./text-logo"
 import { useLocalConfigToken } from "./useLocalConfigToken"
 import { slotsReferencingCustom, shouldApplyRankRefresh } from "./ranking-source"
@@ -1861,34 +1859,20 @@ export function usePictorium(): PictoriumCtx {
     globalBadges, rankingBadges, separateRatings, customRatings, preRelease])
 
   // --- Color detection ---
-  // In landscape la base è il backdrop: accent/topLight auto si campionano
-  // da lì (w780, tier backdrop), come fa il server sulla stessa immagine —
-  // altrimenti `ac=`/`tl=` in preview contraddicono il render.
-  const landscapePreview = posterShape === "landscape"
-  // Ricalcolo auto mai distruttivo (correction 1/3): l'effetto async di
-  // useRootColors ricampiona l'auto a ogni cambio poster, ma un manuale
-  // esplicito (salvato ripristinato all'apertura, o ripristinato dallo stash
-  // al cambio formato) non deve esserne clobberato — altrimenti aprire un
-  // manuale mostrerebbe auto e il save dropperebbe il manuale. Solo il canale
-  // auto segue il ricalcolo; il manuale resta finché l'utente non lo azzera
-  // (Reset) o ne sceglie un altro. I ref specchiano lo stato così la guardia
-  // vede i valori live senza riavviare l'effetto (mai loop su deps).
-  const accentColorRef = useRef<string | null>(null)
-  const autoAccentColorRef = useRef<string | null>(null)
-  accentColorRef.current = accentColor
-  autoAccentColorRef.current = autoAccentColor
-  const setAccentColorFromAuto = useCallback((v: string | null) => {
-    if (isManualAccent(accentColorRef.current, autoAccentColorRef.current)) return
-    setAccentColor(v)
-  }, [])
-  useRootColors(
-    landscapePreview ? (selectedBackdrop ?? navigation.previewPoster) : navigation.previewPoster,
-    normalizeGenreName(metaInfo.genres[0]?.name, lang) || undefined,
-    posterUrl,
-    { setAccentColor: setAccentColorFromAuto, setAutoAccentColor, setTopEdgeColor, setBottomEdgeColor },
-    landscapePreview ? "w780" : "w342",
-    handleColorsResolved,
-  )
+  useAutoRootColors({
+    posterShape,
+    selectedBackdrop,
+    previewPoster: navigation.previewPoster,
+    firstGenreName: metaInfo.genres[0]?.name,
+    lang,
+    accentColor,
+    autoAccentColor,
+    setAccentColor,
+    setAutoAccentColor,
+    setTopEdgeColor,
+    setBottomEdgeColor,
+    onResolved: handleColorsResolved,
+  })
 
   // --- Caricamento dati item corrente (M16) ---
   // Condiviso tra openPosterBrowser e l'effetto cambio lingua: ricarica
