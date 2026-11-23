@@ -1,3 +1,4 @@
+import type { LogoRelativePosition } from "./badge-anchor"
 import sharp from "sharp"
 import { BadgeRender,badgeBody,badgeCanvasForBody,type BadgeBleed,scaleBadgeBleed } from "./poster-render-helpers"
 import { type BodyInkRatios } from "./badge-anchor"
@@ -129,3 +130,9 @@ export const PORTRAIT_SEPARATE_SHIFT_Y = 5
 // (`notch-vetro`): il gradino copre due livelli, quindi la sfocatura reale è
 // più forte del vetro standard (σ base = max(4, CW/40)) per restare leggibile.
 export const NOTCH_STEP_GLASS_SIGMA_BOOST = 1.6
+
+// Tipi condivisi dei blocchi di layout badge (anche per la geometria).
+export type RelEntry = { key: "band" | "quality" | "network" | "top"; side: LogoRelativePosition; h: number; bm: number }
+export type InkSource = { png: Buffer; left: number; top: number; body?: { left: number; top: number; w: number; h: number } }
+export type RelFam = "genre" | "rating" | "separate" | "quality" | "network" | "top"
+export type RelBox = { left: number; top: number; w: number; h: number }

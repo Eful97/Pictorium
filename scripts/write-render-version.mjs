@@ -75,6 +75,7 @@ const RENDER_FILES = [
   "src/lib/poster-generation-input.ts",
   "src/lib/poster-card-helpers.ts",
   "src/lib/poster-card-compose.ts",
+  "src/lib/poster-badge-geometry.ts",
   "src/lib/badge-layout.ts",
   "src/lib/quality-badges.ts",
   "src/lib/poster-config.ts",
