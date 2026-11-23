@@ -19,7 +19,6 @@ All variables use the `PICTORIUM_*` prefix. The legacy `POSTERIUM_*` names are s
 | `PICTORIUM_KV_CACHE` | *(on with KV)* | With Redis/KV, set `0` to keep the response cache in memory only (state stays in KV). Useful on public instances; not recommended on serverless. |
 | `PICTORIUM_IMAGE_FORMAT` | `webp` | Poster format for clients that declare no preference: `webp` (~25–30% lighter at equal quality) or `jpeg` (universal, for dated clients). `?fmt=` overrides per request both ways. Requires restart; switching invalidates the cache once. |
 | `PICTORIUM_HOSTED_BY` | *(empty)* | Public hosting sponsor: `elfhosted` shows the ElfHosted banner (auto-detected from an `elfhosted.com` host). Empty = no banner. |
-| `PICTORIUM_DUCKDNS_NOTICE` | *(empty)* | `1` shows the dismissible "this instance is closing" notice (the one-off sunset banner for the DuckDNS deployment). Env-only, no hostname sniffing. `NEXT_PUBLIC_DUCKDNS_NOTICE` is accepted as an alias. |
 | ~~`PICTORIUM_PUBLIC_INSTANCE`~~ | *(removed)* | Legacy switch, no longer read: if still set it is ignored and opens nothing. Admin routes are always fail-closed without a token or PIN session. |
 
 ### API keys & metadata providers
