@@ -1958,6 +1958,7 @@ select:focus-visible {
   animation: poster-wall-up 70s linear infinite;
 }
 .poster-wall-col:nth-child(even) { animation-name: poster-wall-down; }
+.home-stage-wall[data-paused="true"] .poster-wall-col { animation-play-state: paused; }
 .poster-wall-col:nth-child(3n) { animation-duration: 85s; }
 @keyframes poster-wall-up { to { transform: translateY(-50%); } }
 @keyframes poster-wall-down { from { transform: translateY(-50%); } to { transform: translateY(0); } }
