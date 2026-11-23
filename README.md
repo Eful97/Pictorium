@@ -23,7 +23,7 @@
 </p>
 
 > [!TIP]
-> 🚀 **Free public instances**: create your personal space with your TMDB key on **[pictorium.duckdns.org](https://pictorium.duckdns.org)** (community VPS) or **[pictorium.elfhosted.com](https://pictorium.elfhosted.com/)** (ElfHosted public instance).
+> 🚀 **Free public instances**: create your personal space with your TMDB key on **[pictorium.elfhosted.com](https://pictorium.elfhosted.com/)** (ElfHosted public instance).
 >
 > 💬 Join the [Discord community](https://discord.gg/sYfWyXYVUp) for support and updates · ☕ Support the project on [Ko-fi](https://ko-fi.com/eful97) to keep the public VPS running.
 
