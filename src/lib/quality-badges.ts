@@ -530,30 +530,6 @@ export async function renderPremiumIconBadge(
   }
 }
 
-/**
- * Marchio A/V `knockout`: tag BIANCO opaco con il glifo ritagliato via mask
- * e riempito dall'inchiostro nero al `KNOCKOUT_INK_OPACITY` (70%) disegnato
- * SOPRA l'artwork visibile nel ritaglio, come il tag knockout del tier 4K:
- * il glifo resta scuro stabile conservando il 30% di artwork. Il tag è largo
- * quanto il tag knockout 4K (`tagWidth`), il glifo interno conserva
- * l'inchiostro del badge 4K (`inkWidth`) e l'aspect naturale. Nessuno stroke.
- */
-export async function renderAvKnockoutBadge(
-  iconPath: string,
-  pw: number,
-  tagWidth: number,
-  inkWidth: number,
-): Promise<{ png: Buffer; w: number; h: number } | null> {
-  const built = await buildAvKnockoutBadgeSvg(iconPath, pw, tagWidth, inkWidth)
-  if (!built) return null
-  try {
-    const png = await renderSVG(built.svg, built.w)
-    return { png, w: built.w, h: built.h }
-  } catch {
-    return null
-  }
-}
-
 async function buildAvKnockoutBadgeSvg(
   iconPath: string,
   pw: number,
