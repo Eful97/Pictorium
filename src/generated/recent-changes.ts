@@ -11,5 +11,6 @@ export interface RecentChange {
 }
 
 export const RECENT_CHANGES: RecentChange[] = [
+  { type: "fix", text: "include poster route siblings in RENDER_VERSION inputs", sha: "9392938", date: "2026-11-23" },
   { type: "fix", text: "rotate saved posters at a fixed daily cut and align cache TTL", sha: "9a56e72", date: "2026-11-23" },
 ]

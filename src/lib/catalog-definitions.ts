@@ -130,11 +130,8 @@ export function normalizeCatalogIdKeys(record: Record<string, string> | undefine
 }
 
 /** @deprecated Alias legacy — usare PICTORIUM_CATALOGS. */
-export const POSTERIUM_CATALOGS = PICTORIUM_CATALOGS
 /** @deprecated Alias legacy — usare PICTORIUM_SEARCH_CATALOGS. */
-export const POSTERIUM_SEARCH_CATALOGS = PICTORIUM_SEARCH_CATALOGS
 /** @deprecated Alias legacy — usare PICTORIUM_PEOPLE_SEARCH_CATALOGS. */
-export const POSTERIUM_PEOPLE_SEARCH_CATALOGS = PICTORIUM_PEOPLE_SEARCH_CATALOGS
 
 /**
  * Nome dei cataloghi Top 20 / Ultime Uscite JustWatch nella lingua/regione

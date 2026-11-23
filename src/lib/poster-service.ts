@@ -33,8 +33,8 @@ import { isEffectiveCardLayout } from "./card-layout-skins"
 import { applyBadgeItemTransform,badgeItemTransform,homeIdForPainted,isNeutralBadgeItemTransform,ratingSlotItemId } from "./badge-item-transforms"
 import { type CornerRankRect,isCornerAnchoredStyle,genreBadgeConsumesAccent,topBadgeConsumesAccent,cornerRankTop,cornerAnchoredLeft,isTopBadgeNumberRightCorner,numberSharesComingSoonCorner,type NetworkGeometry,type BadgeGeometryFamily,type BadgeGeometryBox,type BadgeGeometryItem,NETWORK_LOGO_SHIFT_Y,NETWORK_ABOVE_LOGO_LIFT,cornerNetworkAboveTitle,stackNetworkBelowCornerRank,landscapeRightAnchorLeft } from "./badge-layout"
 import { type QualityBadgeGroupResult,renderQualityBadgeGroup } from "./quality-badges"
-export { type CornerRankRect, isCornerAnchoredStyle, resolveTopBadgeStyle, genreBadgeConsumesAccent, topBadgeConsumesAccent, cornerRankTop, cornerAnchoredLeft, isNumberRightCorner, isTopBadgeNumberRightCorner, numberSharesComingSoonCorner, type NetworkGeometry, type BadgeGeometryFamily, type BadgeGeometryLayout, type BadgeGeometryBox, type BadgeGeometryReport, type BadgeGeometryItem, NETWORK_LOGO_SHIFT_Y, NETWORK_ABOVE_LOGO_LIFT, type CornerNetworkAboveTitleInput, cornerNetworkAboveTitle, stackNetworkBelowCornerRank } from "./badge-layout"
-export { __resetQualityIconCacheForTests, renderQualityIconBadge, renderColorIconBadge, renderPremiumIconBadge, renderAvKnockoutBadge, type QualityBadgeItem, type QualityBadgeGroupResult, type QualityHomeGhost, renderQualityBadgeGroup } from "./quality-badges"
+export { isCornerAnchoredStyle, resolveTopBadgeStyle, genreBadgeConsumesAccent, topBadgeConsumesAccent, cornerRankTop, cornerAnchoredLeft, isNumberRightCorner, isTopBadgeNumberRightCorner, numberSharesComingSoonCorner, type NetworkGeometry, type BadgeGeometryReport, NETWORK_LOGO_SHIFT_Y, NETWORK_ABOVE_LOGO_LIFT, cornerNetworkAboveTitle, stackNetworkBelowCornerRank } from "./badge-layout"
+export { __resetQualityIconCacheForTests, renderQualityIconBadge, renderColorIconBadge, renderPremiumIconBadge, type QualityBadgeGroupResult, renderQualityBadgeGroup } from "./quality-badges"
 
 // Helper di layout, tipi di input e helper Card estratti in moduli dedicati;
 // le API storiche restano ri-esportate da qui.
@@ -42,7 +42,7 @@ import { BADGE_CACHE_TTL,scaleBitmapForLayout,inkBounds,inkRatios,BELOW_LOGO_MIN
 import { PORTRAIT_SEPARATE_SHIFT_Y,LANDSCAPE_BOTTOM_PILLS_SHIFT_X,LANDSCAPE_BOTTOM_PILLS_SHIFT_Y,NOTCH_STEP_GLASS_SIGMA_BOOST } from "./poster-layout-helpers"
 import type { GenerationInput } from "./poster-generation-input"
 import type { RelEntry,InkSource } from "./poster-layout-helpers"
-export { LANDSCAPE_BOTTOM_PILLS_SHIFT_X, LANDSCAPE_BOTTOM_PILLS_SHIFT_Y, PORTRAIT_SEPARATE_SHIFT_Y, NOTCH_STEP_GLASS_SIGMA_BOOST } from "./poster-layout-helpers"
+export { LANDSCAPE_BOTTOM_PILLS_SHIFT_X, LANDSCAPE_BOTTOM_PILLS_SHIFT_Y, PORTRAIT_SEPARATE_SHIFT_Y } from "./poster-layout-helpers"
 export type { GenerationInput } from "./poster-generation-input"
 export { resolveCardBrandAccent, renderCardMainBadge } from "./poster-card-helpers"
 

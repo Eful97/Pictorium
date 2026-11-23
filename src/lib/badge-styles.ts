@@ -31,7 +31,6 @@ export type BadgeStyle = (typeof BADGE_STYLES)[number]
  */
 export const NOTCH_MATERIALS = ["crema", "vetro", "inchiostro", "sfumato"] as const
 export type NotchMaterial = (typeof NOTCH_MATERIALS)[number]
-export const DEFAULT_NOTCH_MATERIAL: NotchMaterial = "vetro"
 /** Materiale di uno stile notch, `null` per ogni altro stile. */
 export function notchMaterialOf(style: string | null | undefined): NotchMaterial | null {
   if (typeof style !== "string" || !style.startsWith("notch-")) return null
@@ -364,7 +363,6 @@ export function isNotchSeparateRatingsStyle(v: string | null | undefined): boole
  * dei consumer (helper single source).
  */
 export const DEFAULT_SEPARATE_BADGE_SCALE = 130
-export const BOTTOM_BAR_SEPARATE_BADGE_SCALE = 130
 
 /**
  * Scala UI relativa dei rating separati (SOLO presentazione, mai storage):

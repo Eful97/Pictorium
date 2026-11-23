@@ -117,9 +117,6 @@ export async function loadSeasonalFrame(
 }
 
 /** Solo test: svuota la memo dei frame stagionali. */
-export function __resetSeasonalFrameCacheForTests(): void {
-  _seasonalFrameCache.clear()
-}
 
 // ---- Top shade overlay (una entry per dimensioni canvas + intensità + altezza) ----
 const _topShadeCache = new Map<string, Promise<Buffer>>()

@@ -385,7 +385,6 @@ export function resolveSeparateDisplayState(input: {
  */
 export {
   resolveNetworkFollowTitle,
-  resolveEffectiveNetworkFollow,
   resolveNetworkFixedCoords,
   resolveLandscapeNetworkOffsets,
 } from "./network-follow"
