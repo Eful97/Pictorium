@@ -1,15 +1,15 @@
 /**
  * Per-title ready-seven + personal independence (T2):
- * the gallery's seven canonical ready looks (same shared source as the
+ * the gallery's eleven canonical ready looks (same shared source as the
  * global Preset-tab gallery) plus saved personal presets apply as the
  * title's OWN independent visual recipe in Personalizza — staged only,
  * edited shape only.
  *
- * - Shared leaf: seven entries in gallery order, snapshot consts by
+ * - Shared leaf: eleven entries in gallery order, snapshot consts by
  *   reference, quick looks via the canonical `quickLookDesired` (badge patch
  *   + transform reset — never live previous values), both shapes.
  * - Projection matrix (actual `projectPerTitleVisualPreset`, both shapes):
- *   ready six own Standard (+ Full Nastro/minimal/ribbon), Fresh owns
+ *   ready ten own Standard (+ Full Nastro/minimal/ribbon), Fresh owns
  *   fresh+ranked on both profiles, personal owns its stored layout/scope/
  *   extra verbatim; legacy snapshots without the keys resolve the canonical
  *   factory values (standard/ranked/legacy-null/follow-rank) — never live;
@@ -31,7 +31,7 @@ import {
   APPLE_VISUAL_DEFAULTS,
   BETTER_POSTER_VISUAL_DEFAULTS,
   FRESH_VISUAL_DEFAULTS,
-  RPDB_VISUAL_DEFAULTS,
+  GLASS_VISUAL_DEFAULTS,
 } from "@/lib/default-visual-presets"
 import { quickLookDesired } from "@/lib/quick-visual-presets"
 import { READY_PRESET_ENTRIES } from "@/lib/ready-visual-presets"
@@ -126,9 +126,9 @@ function assertCleanPatch(
 }
 
 describe("shared ready-seven leaf (single truth)", () => {
-  it("exposes the seven canonical looks in gallery order", () => {
+  it("exposes the eleven canonical looks in gallery order", () => {
     expect(READY_PRESET_ENTRIES.map((e) => e.id)).toEqual([
-      "apple", "better-poster", "rpdb", "essential", "ratings", "full", "fresh",
+      "apple", "better-poster", "essential", "ratings", "full", "notch", "editorial", "glass", "cinema", "mono", "fresh",
     ])
   })
 
@@ -136,7 +136,7 @@ describe("shared ready-seven leaf (single truth)", () => {
     const byId = Object.fromEntries(READY_PRESET_ENTRIES.map((e) => [e.id, e]))
     expect(byId.apple.desired(true)).toBe(APPLE_VISUAL_DEFAULTS)
     expect(byId["better-poster"].desired(false)).toBe(BETTER_POSTER_VISUAL_DEFAULTS)
-    expect(byId.rpdb.desired(true)).toBe(RPDB_VISUAL_DEFAULTS)
+    expect(byId.glass.desired(true)).toBe(GLASS_VISUAL_DEFAULTS)
     expect(byId.fresh.desired(true)).toBe(FRESH_VISUAL_DEFAULTS)
     expect(byId.fresh.desired(false)).toBe(FRESH_VISUAL_DEFAULTS)
     expect(byId.fresh.fresh).toBe(true)
@@ -158,7 +158,7 @@ describe("per-title ready-seven projection matrix", () => {
   const cases = [
     { id: "apple", layout: "standard" as const },
     { id: "better-poster", layout: "standard" as const },
-    { id: "rpdb", layout: "standard" as const },
+    { id: "glass", layout: "standard" as const },
     { id: "essential", layout: "standard" as const },
     { id: "ratings", layout: "standard" as const },
     { id: "full", layout: "standard" as const },

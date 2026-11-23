@@ -1,10 +1,10 @@
 /**
- * Ready-preset independence: every ready look (Apple/BetterPoster/RPDB +
+ * Ready-preset independence: every ready look (Apple/BetterPoster/Glass +
  * Essential/Ratings/Full) produces its own deterministic visual result
  * regardless of the previous preset — same own recipe, same real thumbnail,
  * same staged PUT — in both edited shapes.
  *
- * - Pairwise matrix: each of the six looks is applied from a rotated ready
+ * - Pairwise matrix: each of the ten looks is applied from a rotated ready
  *   seed, a tuned mixed seed, a Fresh seed and a Card seed. All four stage
  *   the identical TARGET effective config/URL (other shape, rv ordering, API
  *   keys/user id excluded) with zero PUT/storage writes before the single
@@ -25,7 +25,7 @@ import { usePosterEditor, type PosterEditorCtx } from "@/lib/contexts/PosterEdit
 import {
   APPLE_VISUAL_DEFAULTS,
   BETTER_POSTER_VISUAL_DEFAULTS,
-  RPDB_VISUAL_DEFAULTS,
+  MONO_VISUAL_DEFAULTS,
 } from "@/lib/default-visual-presets"
 import {
   PRESET_FLAT_TO_LANDSCAPE,
@@ -102,7 +102,7 @@ afterEach(() => {
   vi.useRealTimers()
 })
 
-const READY_IDS = ["apple", "better-poster", "rpdb", "essential", "ratings", "full"] as const
+const READY_IDS = ["apple", "better-poster", "essential", "ratings", "full", "notch", "editorial", "glass", "cinema", "mono"] as const
 type ReadyId = (typeof READY_IDS)[number]
 
 const SHARED_PREFS = {
@@ -227,8 +227,8 @@ function seedCard() {
 /** Rotated ready seed per target (pairwise: no look is ever seeded by itself). */
 function seedRotatedReady(target: ReadyId) {
   if (target === "apple") return seedReadySnapshot(BETTER_POSTER_VISUAL_DEFAULTS)
-  if (target === "better-poster") return seedReadySnapshot(RPDB_VISUAL_DEFAULTS)
-  if (target === "rpdb") return seedQuickLook("full")
+  if (target === "better-poster") return seedReadySnapshot(MONO_VISUAL_DEFAULTS)
+  if (target === "glass") return seedQuickLook("full")
   if (target === "essential") return seedQuickLook("ratings")
   if (target === "ratings") return seedReadySnapshot(APPLE_VISUAL_DEFAULTS)
   return seedReadySnapshot(APPLE_VISUAL_DEFAULTS)
@@ -326,15 +326,19 @@ function switchEditTargetToLandscape() {
 const SIGNATURE_PINS: Record<ReadyId, Record<string, unknown>> = {
   apple: { rankingBadgeStyle: "number", ribbonEnabled: true, badgeStyle: "minimal" },
   "better-poster": { rankingBadgeStyle: "default", ribbonEnabled: false, badgeStyle: "minimal" },
-  rpdb: { separateRatings: true, separateRatingsStyle: "bottom-bar", rankingBadges: false },
+  glass: { separateRatings: true, separateRatingsStyle: "bottom-pills", rankingBadges: true },
+  notch: { separateRatings: true, separateRatingsStyle: "column-notch-crema", rankingBadges: true },
+  editorial: { rankingBadgeStyle: "editoriale", badgeQuality: true },
+  cinema: { rankingBadgeStyle: "netflix-color", ribbonEnabled: true, badgeStyle: "ink" },
+  mono: { separateRatings: true, separateRatingsStyle: "bottom-mono", badgeStyle: "minimal" },
   essential: { badgeStyle: "minimal", badgeRating: false, badgeQuality: false, customRatings: false },
   ratings: { badgeStyle: "pill", badgeGenre: false, badgeRating: true, customRatings: true },
   full: { rankingBadgeStyle: "netflix", ribbonEnabled: true, badgeStyle: "minimal" },
 }
 
 describe("ready snapshots are complete (unit)", () => {
-  it("Apple/BetterPoster/RPDB carry every preset-contract key", () => {
-    for (const values of [APPLE_VISUAL_DEFAULTS, BETTER_POSTER_VISUAL_DEFAULTS, RPDB_VISUAL_DEFAULTS]) {
+  it("Apple/BetterPoster/Glass carry every preset-contract key", () => {
+    for (const values of [APPLE_VISUAL_DEFAULTS, BETTER_POSTER_VISUAL_DEFAULTS, MONO_VISUAL_DEFAULTS]) {
       for (const key of Object.keys(visualPresetValuesSchema.shape)) {
         expect(values as unknown as Record<string, unknown>, key).toHaveProperty(key)
       }

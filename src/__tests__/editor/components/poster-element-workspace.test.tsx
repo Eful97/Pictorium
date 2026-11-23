@@ -82,7 +82,7 @@ describe("five-tab homes", () => {
   it("preset tab: gallery only, no detailed switches, no element navigation", () => {
     renderSettingsWithProbe()
     expect(screen.getByTestId("presets-panel")).toBeInTheDocument()
-    for (const id of ["apple", "better-poster", "rpdb", "essential", "ratings", "full"]) {
+    for (const id of ["apple", "better-poster", "essential", "ratings", "full", "notch", "editorial", "glass", "cinema", "mono"]) {
       expect(screen.getByTestId(`poster-style-${id}`)).toBeInTheDocument()
     }
     expect(screen.queryByRole("switch", { name: "ui.rankingsToggle" })).toBeNull()

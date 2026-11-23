@@ -1,7 +1,7 @@
 /**
  * PerTitlePresetChooser (task 2, UI):
  * collapsed quick-preset disclosure in single-poster customization. Closed by
- * default and keyboard operable; expanding shows the seven canonical ready
+ * default and keyboard operable; expanding shows the eleven canonical ready
  * looks (same source as the global Preset-tab gallery) plus the saved
  * GET /api/defaults/presets?shape=). Every apply goes through the per-title
  * action only — never the global-defaults applier, never autosave. Stale
@@ -38,17 +38,21 @@ vi.mock("@/lib/http", async (importOriginal) => {
 const httpMock = vi.mocked(http)
 
 /**
- * Ready-label localization (same seven global keys as the Preset-tab
+ * Ready-label localization (same eleven global keys as the Preset-tab
  * gallery, `t(labelKey)`): the suite-wide i18n mock only carries three of
  * them, so this suite scopes the REAL Italian dictionary to exactly those
- * seven label keys. Every other key keeps the suite key-echo behavior
+ * eleven label keys. Every other key keeps the suite key-echo behavior
  * (notably `ui.perTitleAgeGlobalNote`), and the global mock is untouched —
  * the Badge-tab quick-look suite still relies on those key echoes.
  */
 const READY_LABEL_KEYS = [
   "ui.configPresetApple",
   "ui.configPresetBetterPoster",
-  "ui.configPresetRpdb",
+  "ui.configPresetNotch",
+  "ui.configPresetEditorial",
+  "ui.configPresetGlass",
+  "ui.configPresetCinema",
+  "ui.configPresetMono",
   "ui.configPresetEssential",
   "ui.configPresetRatings",
   "ui.configPresetFull",
@@ -208,7 +212,7 @@ const LOGO: TMDBImage = {
 }
 
 describe("PerTitlePresetChooser disclosure", () => {
-  it("starts closed with no fetch, and opens via click/Enter/Space with all seven looks", async () => {
+  it("starts closed with no fetch, and opens via click/Enter/Space with all eleven looks", async () => {
     const u = userEvent.setup()
     render(<Harness />)
     // Closed by default: the heading stays visible and operable, the body is
@@ -219,14 +223,14 @@ describe("PerTitlePresetChooser disclosure", () => {
     expect(screen.queryByText("Essenziale")).not.toBeInTheDocument()
     expect(calls.filter((c) => c.includes("/api/defaults/presets"))).toHaveLength(0)
 
-    // Click open: all seven canonical ready looks (same source as the global
+    // Click open: all eleven canonical ready looks (same source as the global
     // gallery, same Italian dictionary names via t(labelKey)).
     await u.click(toggle())
     expect(toggle()).toHaveAttribute("aria-expanded", "true")
     const controls = toggle().getAttribute("aria-controls")
     expect(controls).toBeTruthy()
     expect(document.getElementById(controls!)).not.toBeNull()
-    for (const name of ["Stile Apple", "Stile BetterPoster", "Stile RPDB", "Essenziale", "Voti", "Completo", "Fresh"]) {
+    for (const name of ["Stile Apple", "Stile BetterPoster", "Essenziale", "Voti", "Completo", "Notch", "Editorial", "Glass", "Cinema", "Mono", "Fresh"]) {
       expect(screen.getByText(name)).toBeInTheDocument()
     }
     // Honest scope: title-only plus the global-owned age note.
@@ -365,7 +369,7 @@ describe("PerTitlePresetChooser apply", () => {
     await openChooser(u)
     await resolvePending(0, [entry("Mine", "33333333-3333-4333-8333-333333333333")])
     await u.click(screen.getByRole("button", { name: "Stile BetterPoster" }))
-    for (const name of ["Stile BetterPoster", "Stile RPDB", "Stile Apple", "Essenziale", "Voti", "Completo", "Fresh", "Mine"]) {
+    for (const name of ["Stile BetterPoster", "Stile Apple", "Essenziale", "Voti", "Completo", "Notch", "Editorial", "Glass", "Cinema", "Mono", "Fresh", "Mine"]) {
       const btn = screen.getByRole("button", { name })
       expect(btn).not.toHaveAttribute("aria-pressed")
       expect(btn.getAttribute("class") ?? "").not.toMatch(/active|selected/)
@@ -439,7 +443,7 @@ describe("PerTitlePresetChooser saved-list states", () => {
     expect(await screen.findByRole("alert")).toBeInTheDocument()
     // Built-ins stay usable while the saved list failed.
     const applySpy = vi.spyOn(hub.ed!, "applyPerTitleVisualPreset")
-    await u.click(screen.getByRole("button", { name: "Stile RPDB" }))
+    await u.click(screen.getByRole("button", { name: "Glass" }))
     expect(applySpy).toHaveBeenCalledTimes(1)
 
     await u.click(screen.getByRole("button", { name: /Riprova/ }))
@@ -692,14 +696,14 @@ describe("PerTitlePresetChooser scope honesty", () => {
 })
 
 describe("PerTitlePresetChooser ready localization", () => {
-  it("renders the seven ready looks with the Italian dictionary names (same keys as the global gallery)", async () => {
+  it("renders the eleven ready looks with the Italian dictionary names (same keys as the global gallery)", async () => {
     const u = userEvent.setup()
     render(<Harness />)
     await openChooser(u)
     await resolvePending(0, [])
-    // Same seven global label keys as the Preset-tab gallery (t(labelKey)),
+    // Same eleven global label keys as the Preset-tab gallery (t(labelKey)),
     // resolved through the real Italian dictionary (read, not assumed).
-    for (const name of ["Stile Apple", "Stile BetterPoster", "Stile RPDB", "Essenziale", "Voti", "Completo", "Fresh"]) {
+    for (const name of ["Stile Apple", "Stile BetterPoster", "Essenziale", "Voti", "Completo", "Notch", "Editorial", "Glass", "Cinema", "Mono", "Fresh"]) {
       expect(screen.getByText(name)).toBeInTheDocument()
     }
     // No raw English fallback for the three localized quick looks; the

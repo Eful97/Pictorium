@@ -4,7 +4,7 @@
  * selecting a ready canonical preset restores ITS OWN Standard mode instead
  * of inheriting the current Fresh/Card.
  *
- * - Fresh AND Card seeds, both edit shapes: all six READY thumbs render the
+ * - Fresh AND Card seeds, both edit shapes: all ten READY thumbs render the
  *   canonical Standard look through the real DefaultsPosterPreview URL
  *   builder (real rank style, layout=standard) — never the current Fresh.
  *   Thumbnail generation is read-only (no draft mutation, no PUT, no storage
@@ -86,7 +86,7 @@ afterEach(() => {
   vi.useRealTimers()
 })
 
-const ALL_IDS = ["apple", "better-poster", "rpdb", "essential", "ratings", "full"]
+const ALL_IDS = ["apple", "better-poster", "essential", "ratings", "full", "notch", "editorial", "glass", "cinema", "mono"]
 
 function seedFreshPortrait() {
   localStorage.setItem(
@@ -210,7 +210,7 @@ function checkedPresentation(): string[] {
 }
 
 describe("ready thumbs stay canonical Standard under Fresh/Card (read-only)", () => {
-  it("portrait Fresh seed: six thumbs layout=standard, no highlight, no writes", async () => {
+  it("portrait Fresh seed: ten thumbs layout=standard, no highlight, no writes", async () => {
     vi.useRealTimers()
     seedFreshPortrait()
     const { ctx } = renderPanel()
@@ -231,7 +231,7 @@ describe("ready thumbs stay canonical Standard under Fresh/Card (read-only)", ()
     expect(ctx().defaultPosterLayout).toBe("fresh")
   })
 
-  it("portrait Card seed: six thumbs layout=standard, no highlight, no writes", async () => {
+  it("portrait Card seed: ten thumbs layout=standard, no highlight, no writes", async () => {
     vi.useRealTimers()
     seedCardPortrait()
     const { ctx } = renderPanel()
@@ -247,7 +247,7 @@ describe("ready thumbs stay canonical Standard under Fresh/Card (read-only)", ()
     expect(ctx().defaultPosterLayout).toBe("nuvio")
   })
 
-  it("landscape Fresh profile seed: six thumbs layout=standard, no writes", async () => {
+  it("landscape Fresh profile seed: ten thumbs layout=standard, no writes", async () => {
     vi.useRealTimers()
     seedFreshLandscape()
     const { ctx } = renderPanel()

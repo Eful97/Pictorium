@@ -1,7 +1,7 @@
 /**
  * Layout UX hierarchy + thumbnail quick configs (five-tab settings).
  *
- * - The ready gallery (six Standard looks + the canonical Fresh tile) precedes
+ * - The ready gallery (ten Standard looks + the canonical Fresh tile) precedes
  *   the single exclusive 5-mode ranking presentation (Nastro/Numero/Badge +
  *   Fresh/Card with the three Card skins) in the real DOM.
  * - Saved layout values hydrate into that real control with zero writes; each
@@ -161,7 +161,7 @@ describe("settings layout hierarchy", () => {
     const layout = screen.getByTestId("ranking-presentation")
     // The gallery (looks) comes first, the layout presentation second.
     expect((gallery.compareDocumentPosition(layout) & Node.DOCUMENT_POSITION_FOLLOWING) !== 0).toBe(true)
-    for (const id of ["apple", "better-poster", "rpdb", "essential", "ratings", "full", "fresh"]) {
+    for (const id of ["apple", "better-poster", "essential", "ratings", "full", "notch", "editorial", "glass", "cinema", "mono", "fresh"]) {
       expect(screen.getByTestId(`poster-style-${id}`)).toBeInTheDocument()
     }
     // The single layout control lives in the rankings tab and is 5-way exclusive.
@@ -245,7 +245,7 @@ describe("settings layout hierarchy", () => {
 })
 
 describe("ready gallery thumbnails are real projected posters", () => {
-  it("all seven ready thumbs are real /api/poster URLs carrying layout + live projection", async () => {
+  it("all eleven ready thumbs are real /api/poster URLs carrying layout + live projection", async () => {
     localStorage.setItem(
       "badgeDefaults",
       JSON.stringify({ defaultRatingSources: ["imdb", "tmdb"], defaultRegion: "US" }),
@@ -254,7 +254,7 @@ describe("ready gallery thumbnails are real projected posters", () => {
     await screen.findByTestId("poster-style-apple")
     openPresetTab()
     const params = (id: string) => new URL(thumbSrc(id), "http://localhost").searchParams
-    for (const id of ["apple", "better-poster", "rpdb", "essential", "ratings", "full"]) {
+    for (const id of ["apple", "better-poster", "essential", "ratings", "full", "notch", "editorial", "glass", "cinema", "mono"]) {
       const p = params(id)
       expect(p.get("layout")).toBe("standard")
       expect(p.get("rsrc")).toBe("imdb,tmdb")

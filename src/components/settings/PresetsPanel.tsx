@@ -23,6 +23,7 @@ import {
   portraitPresetPatch,
   resolveEffectiveLandscape,
   withReadyPresetAgeOff,
+  withReadyPresetWatchProvidersOff,
   withReadyPresetLayoutFresh,
   withReadyPresetLayoutStandard,
   type VisualPreset,
@@ -165,7 +166,10 @@ export function PresetsPanel({
       ? withReadyPresetExtraStyleReset(withLayout, shape, ed as unknown as { defaultExtraBadgeStyle?: unknown; landscape?: unknown })
       : withLayout
     if (!ageOff) return withExtra as unknown as VisualPresetValues
-    return withReadyPresetAgeOff(liveAge, withExtra, shape) as unknown as VisualPresetValues
+    return withReadyPresetWatchProvidersOff(
+      withReadyPresetAgeOff(liveAge, withExtra, shape),
+      shape,
+    ) as unknown as VisualPresetValues
   }, [live, liveAge, ed, shape])
 
   // COMPLETE expected post-apply snapshot: the same isolated projection
@@ -210,7 +214,11 @@ export function PresetsPanel({
     if (shape === "landscape") {
       // Profile-only commit: flats stay byte-identical (portrait untouched).
       const profile = (isolated.landscape ?? (!ageOff && !readyPin ? personalLandscapeProfilePatch(desired) : landscapeProfilePatch(desired))) as VisualPresetValues["landscape"]
-      ed.applyVisualPreset({ landscape: profile } as unknown as VisualPresetValues, "landscape", meta)
+      ed.applyVisualPreset(
+        { landscape: profile, ...(ageOff || readyPin ? { defaultWatchProvidersLandscape: false } : null) } as unknown as VisualPresetValues,
+        "landscape",
+        meta,
+      )
     } else {
       ed.applyVisualPreset(isolated, "portrait", meta)
     }

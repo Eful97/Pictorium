@@ -1408,7 +1408,7 @@ propria (scala + X + Y), persistita per **identità stabile** e mai per indice.
   entry point) include `defaultBadgeItemTransforms: null`, quindi applicare un
   ready look riporta ANCHE le correzioni per-item al layout automatico del
   preset (portrait flat + profilo landscape derivato via
-  `PRESET_FLAT_TO_LANDSCAPE`). I ready Apple/BetterPoster/RPDB/Fresh lo portano
+  `PRESET_FLAT_TO_LANDSCAPE`). I ready Apple/BetterPoster/Notch/Editorial/Glass/Cinema/Mono/Fresh lo portano
   già dallo schema (`default(null)`); la mappa legacy flat→profilo del tab Badge
   (`PRESET_TO_LAND`) proietta la stessa chiave. Senza questo il campo —
   aggiunto dopo le ricette — era semplicemente assente dai quick look, e i

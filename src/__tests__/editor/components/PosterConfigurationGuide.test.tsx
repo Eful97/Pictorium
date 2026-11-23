@@ -2,7 +2,7 @@
  * Preset gallery (five-tab settings): the obsolete guided stepper
  * (style/layout/info steps, draft/apply/apply-and-advanced/completed
  * vocabulary) was refocused into a pure Preset gallery.
- * - six existing full looks (Apple/BetterPoster/RPDB + Essential/Ratings/Full)
+ * - ten existing full looks (Apple/BetterPoster/Glass + Essential/Ratings/Full)
  *   with real thumbnails (same demo title, actual DefaultsPosterPreview URL
  *   builder, stable loading/error canvas) and selection border/check;
  * - target-specific apply into the staging session preserving the other
@@ -98,9 +98,9 @@ beforeEach(() => {
 })
 
 describe("PresetsPanel gallery", () => {
-  it("shows the six existing looks with real poster thumbnails and no guide vocabulary", async () => {
+  it("shows the ten existing looks with real poster thumbnails and no guide vocabulary", async () => {
     renderGallery()
-    for (const id of ["apple", "better-poster", "rpdb", "essential", "ratings", "full"]) {
+    for (const id of ["apple", "better-poster", "essential", "ratings", "full", "notch", "editorial", "glass", "cinema", "mono"]) {
       expect(screen.getByTestId(`poster-style-${id}`)).toBeInTheDocument()
     }
     // Real thumbnails: actual poster URLs, never a fake render.
@@ -141,17 +141,17 @@ describe("PresetsPanel gallery", () => {
     expect(ctx().defaultPosterShape).toBe(ctx().defaultPosterShape)
   })
 
-  it("all six looks press after click in both formats with real thumbnails", async () => {
+  it("all ten looks press after click in both formats with real thumbnails", async () => {
     for (const shape of ["portrait", "landscape"] as const) {
       localStorage.clear()
       const { unmount } = renderGallery(shape)
-      for (const id of ["apple", "better-poster", "rpdb", "essential", "ratings", "full"]) {
+      for (const id of ["apple", "better-poster", "essential", "ratings", "full", "notch", "editorial", "glass", "cinema", "mono"]) {
         const btn = screen.getByTestId(`poster-style-${id}`)
         fireEvent.click(btn)
         expect(screen.getByTestId(`poster-style-${id}`)).toHaveAttribute("aria-pressed", "true")
       }
       // Exactly one selected at a time: the last click wins.
-      expect(screen.getByTestId("poster-style-full")).toHaveAttribute("aria-pressed", "true")
+      expect(screen.getByTestId("poster-style-mono")).toHaveAttribute("aria-pressed", "true")
       // Thumbnails are real poster URLs for every look.
       const imgs = screen.getByTestId("presets-panel").querySelectorAll("img")
       expect(imgs.length).toBeGreaterThanOrEqual(6)
@@ -221,7 +221,7 @@ describe("Preset tab staging (no PUT before Save)", () => {
       createElement(PosterConfigurationGuide, { shape: "portrait", demoMedia: null }),
     )
     expect(await screen.findByTestId("presets-panel")).toBeInTheDocument()
-    for (const id of ["apple", "better-poster", "rpdb", "essential", "ratings", "full"]) {
+    for (const id of ["apple", "better-poster", "essential", "ratings", "full", "notch", "editorial", "glass", "cinema", "mono"]) {
       expect(screen.getByTestId(`poster-style-${id}`)).toBeInTheDocument()
     }
     expect(screen.queryByTestId("poster-config-guide")).toBeNull()

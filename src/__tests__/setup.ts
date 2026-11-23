@@ -301,7 +301,7 @@ const itDict: Record<string, string> = {
   "ui.hostedByGuideLine": "Nuovo di Stremio? Dai un'occhiata alla {guide}.",
   "ui.hostedByMinimize": "Riduci a icona",
   "ui.configPresetBetterPoster": "Stile BetterPoster",
-  "ui.configPresetRpdb": "Stile RPDB",
+  "ui.configPresetGlass": "Glass",
   "ui.configPresetApple": "Stile Apple",
   "ui.configPresetUnofficialNote": "Preset non ufficiali, senza affiliazione ai marchi citati.",
   "ui.settingsSaveAndClose": "Salva e chiudi",

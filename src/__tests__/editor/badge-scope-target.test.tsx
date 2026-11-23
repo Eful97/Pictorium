@@ -466,7 +466,7 @@ describe("snapshot presets respect the edit target", () => {
     expect(ctx().defaultLandscapeFitEnabled).toBe(BETTER_POSTER_VISUAL_DEFAULTS.defaultLandscapeFitEnabled)
   })
 
-  it("portrait RPDB snapshots the pre-edit landscape (no leak, no reseed)", async () => {
+  it("portrait Mono snapshots the pre-edit landscape (no leak, no reseed)", async () => {
     localStorage.setItem("badgeDefaults", JSON.stringify({
       defaultPosterShape: "landscape",
       defaultBadgeStyle: "shadow",
@@ -482,7 +482,7 @@ describe("snapshot presets respect the edit target", () => {
     })
     const landBefore = JSON.stringify(ctx().landscape)
     // Staged-first: zero durable writes until the explicit Save below.
-    fireEvent.click(screen.getByTestId("poster-style-rpdb"))
+    fireEvent.click(screen.getByTestId("poster-style-mono"))
     expect(ctx().defaultBadgeStyle).toBe("shadow")
     expect(JSON.stringify(ctx().landscape)).toBe(landBefore)
     await saveStaged()
@@ -496,7 +496,7 @@ describe("snapshot presets respect the edit target", () => {
     expect(ctx().landscape.badgeStyle).toBe("pill")
     expect(ctx().landscape.gradientHeight).toBe(45)
     expect(ctx().landscape.rankingBadges).toBe(true)
-    // Pre-edit factory order frozen (the RPDB preset itself empties the flat).
+    // Pre-edit factory order frozen (the Mono preset itself empties the flat).
     expect(JSON.stringify(ctx().landscape.sashOrder)).toBe(
       '["upcoming","rank","new","award","extra"]',
     )
