@@ -24,7 +24,7 @@ describe("poster render concurrency limiter", () => {
 
   it("acquires up to the max concurrent slots immediately", async () => {
     const releases: Array<() => void> = []
-    // Il default è 4 (POSTERIUM_MAX_CONCURRENT_RENDERS); il test non lo cambia.
+    // Il beforeEach fissa PICTORIUM_MAX_CONCURRENT_RENDERS=4; senza env il default è CPU-scalato 2–8.
     for (let i = 0; i < 4; i++) {
       const release = await acquirePosterRenderSlot()
       expect(release).toBeTruthy()
