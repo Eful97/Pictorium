@@ -77,7 +77,7 @@ html.light {
   --color-zinc-200: #38332e;
   --color-zinc-300: #544e47;
   --color-zinc-400: #70685F;
-  --color-zinc-500: #776D62;
+  --color-zinc-500: #716759; /* AA su --bg/--surface (#776D62 dava 4.38:1) */
   --color-zinc-600: #aba194;
   --color-zinc-700: #DDD5C7;
   --color-zinc-800: #E8E2D9;
