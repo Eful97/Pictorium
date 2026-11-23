@@ -175,6 +175,7 @@
   "ui.typeIconLabel": "Type icon",
   "ui.typeIconHint": "Small movie/TV icon before the genre · rating · year line, to tell films and series apart in mixed catalogs.",
   "ui.watchRegionLabel": "Streaming country",
+  "ui.watchMaxLabel": "Max platforms",
   "ui.watchRegionSame": "Same as poster country",
   "ui.otherNetworksMixedHint": "일부 보조 마크는 개별적으로 꺼진 상태입니다. 모두 다시 켜려면 그룹을 껐다가 켜세요.",
   "ui.exclusionsSharedNote": "세로와 가로에서 공유되는 스페이스 전체 설정. 랭킹 스위치는 전용 탭에 유지됩니다.",

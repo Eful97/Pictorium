@@ -1950,13 +1950,25 @@ export function BadgeDefaultsSection({ active, shape, onPreviewFamilyChange, pre
           <div className="flex items-center justify-between border-t border-white/10 pt-2">
             <span className="text-zinc-300 font-medium">{t("ui.watchProvidersLabel")}</span>
             <Toggle
-              value={ed.defaultWatchProviders === true}
-              onChange={ed.setDefaultWatchProviders}
+              value={isLandscape ? ed.defaultWatchProvidersLandscape === true : ed.defaultWatchProviders === true}
+              onChange={isLandscape ? ed.setDefaultWatchProvidersLandscape : ed.setDefaultWatchProviders}
               label={t("ui.watchProvidersLabel")}
             />
           </div>
           <p className="text-[11px] text-zinc-400 leading-relaxed">{t("ui.watchProvidersHint")}</p>
-          {ed.defaultWatchProviders === true && (
+          {(isLandscape ? ed.defaultWatchProvidersLandscape === true : ed.defaultWatchProviders === true) && (
+            <select
+              aria-label={t("ui.watchMaxLabel")}
+              value={ed.defaultWatchProvidersMax}
+              onChange={(e) => ed.setDefaultWatchProvidersMax(Number(e.target.value))}
+              className="w-full rounded-lg border border-white/10 bg-white/[0.04] px-2 py-1.5 text-xs text-zinc-200"
+            >
+              {[1, 2, 3, 4, 5, 6].map((n) => (
+                <option key={n} value={n}>{`${t("ui.watchMaxLabel")}: ${n}`}</option>
+              ))}
+            </select>
+          )}
+          {(isLandscape ? ed.defaultWatchProvidersLandscape === true : ed.defaultWatchProviders === true) && (
             <select
               aria-label={t("ui.watchRegionLabel")}
               value={ed.defaultWatchRegion ?? ""}

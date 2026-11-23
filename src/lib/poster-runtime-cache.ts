@@ -18,7 +18,7 @@ import { isPosterLayout, isPosterFreshScope, DEFAULT_POSTER_FRESH_SCOPE } from "
 import { POSTER_CACHE_ALLOWLIST, parseListRankParam, sanitizePortraitBaseBackdropPath } from "./poster-params-hardening"
 import { sanitizeDisabledContentTags } from "./content-tags"
 import { sanitizeDisabledNetworks } from "./network-keys"
-import { sanitizeWatchRegion } from "./regions"
+import { DEFAULT_WATCH_MAX, sanitizeWatchMax, sanitizeWatchRegion } from "./regions"
 import { canonicalizeBadgeItemTransforms } from "./badge-item-transforms"
 import { normalizeLogoFont, sanitizeLogoText } from "./text-logo"
 import { DEFAULT_IMAGE_QUALITY, POSTER_ENCODE_QUALITY, type ImageQuality } from "./image-quality"
@@ -171,6 +171,13 @@ export function normalizePosterCacheParams(searchParams: URLSearchParams): URLSe
     const region = sanitizeWatchRegion(wpr)
     if (region) params.set("wpr", region)
     else params.delete("wpr")
+  }
+  // wpm: valido 1..6 resta esplicito (3 = default → collassa su assente); invalido → assente.
+  const wpm = params.get("wpm")
+  if (wpm !== null) {
+    const n = sanitizeWatchMax(wpm)
+    if (n !== null && n !== DEFAULT_WATCH_MAX) params.set("wpm", String(n))
+    else params.delete("wpm")
   }
   params.delete(POSTER_REFRESH_PARAM)
 

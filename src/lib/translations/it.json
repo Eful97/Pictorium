@@ -176,6 +176,7 @@
   "ui.typeIconLabel": "Icona tipo",
   "ui.typeIconHint": "Piccola icona film/serie davanti alla riga genere · rating · anno, per distinguere film e serie nei cataloghi misti.",
   "ui.watchRegionLabel": "Paese streaming",
+  "ui.watchMaxLabel": "Piattaforme max",
   "ui.watchRegionSame": "Come il paese del poster",
   "ui.otherNetworksMixedHint": "Alcuni marchi secondari restano disattivati singolarmente. Spegni e riaccendi il gruppo per riabilitarli tutti.",
   "ui.exclusionsSharedNote": "Preferenze dello spazio, condivise tra verticale e orizzontale. Gli interruttori classifica restano nella loro scheda.",

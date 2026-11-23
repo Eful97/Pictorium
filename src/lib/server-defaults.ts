@@ -471,6 +471,10 @@ export interface ServerDefaults {
   watchProviders?: boolean
   /** Paese dei provider (codice REGIONS); assente = paese del poster. Query `wpr`. */
   watchRegion?: string
+  /** "Dove guardare" sui landscape, indipendente dal verticale (fallback al flat `watchProviders`). Query `wp`. */
+  watchProvidersLandscape?: boolean
+  /** Max icone provider 1..6 (default 3), condiviso tra forme. Query `wpm`. */
+  watchProvidersMax?: number
   /** Icona tipo (film/serie) sui poster verticali (default OFF). Query `ti`. */
   typeIcon?: boolean
   /** Icona tipo sui landscape, indipendente dal verticale (default OFF). Query `ti`. */

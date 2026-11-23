@@ -723,7 +723,7 @@ export async function GET(req: NextRequest, { params }: { params: Promise<RouteP
       : Promise.resolve({ providers: [], failed: false })
     // Atteso qui (non allo step 10): l'esito degradato serve alla policy TTL sotto.
     const watchProvidersResolved = await watchProvidersPromise
-    const watchProviderList = watchProvidersResolved.providers
+    const watchProviderList = watchProvidersResolved.providers.slice(0, renderConfig.watchProvidersMax)
 
     // Blur non-clean + stato display dei rating separati (display-state.ts).
     const {

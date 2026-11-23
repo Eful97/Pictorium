@@ -24,6 +24,23 @@ describe("parseWatchProviders", () => {
     ])
   })
 
+  it("drops duplicates: same logo or same provider family (Apple TV / Apple TV Plus / Amazon Channel)", () => {
+    const dup = {
+      results: {
+        IT: {
+          flatrate: [
+            { provider_id: 2, provider_name: "Apple TV", logo_path: "/a.jpg", display_priority: 0 },
+            { provider_id: 350, provider_name: "Apple TV Plus", logo_path: "/a2.jpg", display_priority: 1 },
+            { provider_id: 8, provider_name: "Netflix", logo_path: "/n.jpg", display_priority: 2 },
+            { provider_id: 9, provider_name: "Netflix Standard", logo_path: "/n.jpg", display_priority: 3 },
+            { provider_id: 119, provider_name: "Netflix Amazon Channel", logo_path: "/n3.jpg", display_priority: 4 },
+          ],
+        },
+      },
+    }
+    expect(parseWatchProviders(dup, "IT").map((p) => p.id)).toEqual([2, 8])
+  })
+
   it("returns [] for a missing region", () => {
     expect(parseWatchProviders(doc, "US")).toEqual([])
   })

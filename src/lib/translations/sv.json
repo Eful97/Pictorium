@@ -175,6 +175,7 @@
   "ui.typeIconLabel": "Type icon",
   "ui.typeIconHint": "Small movie/TV icon before the genre · rating · year line, to tell films and series apart in mixed catalogs.",
   "ui.watchRegionLabel": "Streaming country",
+  "ui.watchMaxLabel": "Max platforms",
   "ui.watchRegionSame": "Same as poster country",
   "ui.otherNetworksMixedHint": "Vissa sekundära märken förblir individuellt avstängda. Stäng av gruppen och slå på den igen för att återaktivera alla.",
   "ui.exclusionsSharedNote": "Rymdövergripande inställningar, delade mellan stående och liggande. Rankingsväxlarna stannar i sin egen flik.",

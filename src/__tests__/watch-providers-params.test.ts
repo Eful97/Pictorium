@@ -65,6 +65,45 @@ describe("poster-config chain", () => {
   })
 })
 
+describe("per-shape toggle + max", () => {
+  const land = (sd: Record<string, unknown>, extra = "") =>
+    resolvePosterRenderConfig(baseInput({ sd, searchParams: new URLSearchParams(`shape=landscape${extra}`) }))
+
+  it("landscape has its own default; portrait unaffected", () => {
+    const sd = { watchProviders: false, watchProvidersLandscape: true }
+    expect(land(sd).watchProviders).toBe(true)
+    expect(resolvePosterRenderConfig(baseInput({ sd })).watchProviders).toBe(false)
+    const sd2 = { watchProviders: true, watchProvidersLandscape: false }
+    expect(land(sd2).watchProviders).toBe(false)
+    expect(resolvePosterRenderConfig(baseInput({ sd: sd2 })).watchProviders).toBe(true)
+  })
+
+  it("landscape falls back to the flat default when unset; query wins", () => {
+    expect(land({ watchProviders: true }).watchProviders).toBe(true)
+    expect(land({ watchProvidersLandscape: true }, "&wp=0").watchProviders).toBe(false)
+  })
+
+  it("wpm: query > defaults > 3, invalid ignored", () => {
+    expect(resolvePosterRenderConfig(baseInput()).watchProvidersMax).toBe(3)
+    expect(resolvePosterRenderConfig(baseInput({ sd: { watchProvidersMax: 5 } })).watchProvidersMax).toBe(5)
+    const q = (v: string) => resolvePosterRenderConfig(baseInput({ sd: { watchProvidersMax: 2 }, searchParams: new URLSearchParams(`wpm=${v}`) })).watchProvidersMax
+    expect(q("1")).toBe(1)
+    expect(q("9")).toBe(2)
+    expect(q("x")).toBe(2)
+  })
+
+  it("wpm emitted only when ON and non-default; cache key collapses 3/invalid", () => {
+    expect(buildStremioPosterSearchParams({ lang: "it", watchProviders: true, watchProvidersMax: 2 }).get("wpm")).toBe("2")
+    expect(buildStremioPosterSearchParams({ lang: "it", watchProviders: true, watchProvidersMax: 3 }).has("wpm")).toBe(false)
+    expect(buildStremioPosterSearchParams({ lang: "it", watchProvidersMax: 2 }).has("wpm")).toBe(false)
+    expect(new URL(buildDefaultsPreviewUrl({ defaultWatchProviders: true, defaultWatchProvidersMax: 1 }), "http://x").searchParams.get("wpm")).toBe("1")
+    expect(POSTER_CACHE_ALLOWLIST.has("wpm")).toBe(true)
+    expect(normalizePosterCacheParams(new URLSearchParams("wp=1&wpm=2")).get("wpm")).toBe("2")
+    expect(normalizePosterCacheParams(new URLSearchParams("wp=1&wpm=3")).has("wpm")).toBe(false)
+    expect(normalizePosterCacheParams(new URLSearchParams("wp=1&wpm=99")).has("wpm")).toBe(false)
+  })
+})
+
 describe("URL emission", () => {
   it("stremio: absent when OFF, wp=1 + wpr only when ON", () => {
     const off = buildStremioPosterSearchParams({ lang: "it" })

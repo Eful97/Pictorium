@@ -21,7 +21,7 @@ import { t } from "./i18n"
 import { normalizeSashOrder, DEFAULT_SASH_ORDER, type SashBucket } from "./badge-priority"
 import { sanitizeDisabledContentTags } from "./content-tags"
 import { sanitizeDisabledNetworks } from "./network-keys"
-import { sanitizeWatchRegion } from "./regions"
+import { DEFAULT_WATCH_MAX, sanitizeWatchMax, sanitizeWatchRegion } from "./regions"
 import { DEFAULT_QUALITY_BADGE_STYLE, type QualityBadgeStyle } from "./badge-styles"
 import { DEFAULT_QUALITY_GROUP_LAYOUT, isQualityGroupLayout, type QualityGroupLayout } from "./badge-styles"
 import { DEFAULT_AGE_BADGE_STYLE, DEFAULT_AWARD_BADGE_MODE, isAgeBadgeStyle, isAwardBadgeMode, type AgeBadgeStyle, type AwardBadgeMode } from "./badge-styles"
@@ -163,6 +163,10 @@ export interface DefaultsState {
   defaultWatchProviders: boolean
   /** Paese provider (codice REGIONS) o null = paese del poster. */
   defaultWatchRegion: string | null
+  /** "Dove guardare" sui landscape, indipendente dal verticale. */
+  defaultWatchProvidersLandscape: boolean
+  /** Max icone provider (1..6, default 3). */
+  defaultWatchProvidersMax: number
   /** Icona tipo film/serie, verticale / landscape indipendenti (default OFF). */
   defaultTypeIcon: boolean
   defaultTypeIconLandscape: boolean
@@ -410,6 +414,8 @@ const DEFAULT_FLAT_DEFAULTS: Omit<DefaultsState, "landscape"> = {
   defaultDisabledNetworks: [],
   defaultWatchProviders: false,
   defaultWatchRegion: null,
+  defaultWatchProvidersLandscape: false,
+  defaultWatchProvidersMax: 3,
   defaultTypeIcon: false,
   defaultTypeIconLandscape: false,
   defaultAutoRotateClean: false,
@@ -668,6 +674,10 @@ interface StoredDefaults {
   watchProviders?: boolean
   defaultWatchRegion?: string | null
   watchRegion?: string | null
+  defaultWatchProvidersLandscape?: boolean
+  watchProvidersLandscape?: boolean
+  defaultWatchProvidersMax?: number
+  watchProvidersMax?: number
   defaultTypeIcon?: boolean
   typeIcon?: boolean
   defaultTypeIconLandscape?: boolean
@@ -1108,6 +1118,9 @@ function buildFromStored(d: StoredDefaults | null): DefaultsState {
     defaultDisabledNetworks: sanitizeDisabledNetworks(d.defaultDisabledNetworks ?? d.disabledNetworks),
     defaultWatchProviders: d.defaultWatchProviders ?? d.watchProviders ?? false,
     defaultWatchRegion: sanitizeWatchRegion(d.defaultWatchRegion ?? d.watchRegion),
+    // Migrazione: chi aveva "Dove guardare" ON lo ritrova ON anche sul landscape.
+    defaultWatchProvidersLandscape: d.defaultWatchProvidersLandscape ?? d.watchProvidersLandscape ?? d.defaultWatchProviders ?? d.watchProviders ?? false,
+    defaultWatchProvidersMax: sanitizeWatchMax(d.defaultWatchProvidersMax ?? d.watchProvidersMax) ?? DEFAULT_WATCH_MAX,
     defaultTypeIcon: d.defaultTypeIcon ?? d.typeIcon ?? false,
     defaultTypeIconLandscape: d.defaultTypeIconLandscape ?? d.typeIconLandscape ?? false,
     defaultAutoRotateClean: d.defaultAutoRotateClean ?? d.autoRotateClean ?? false,
@@ -1388,6 +1401,9 @@ export function defaultsToPayload(d: DefaultsState): Record<string, unknown> {
     // Solo ON nel payload locale: i default salvati legacy restano identici (OFF = assente).
     watchProviders: d.defaultWatchProviders ? true : undefined,
     watchRegion: d.defaultWatchRegion ?? undefined,
+    // Solo se divergono dal fallback (portrait / 3): le chiavi assenti restano assenti.
+    watchProvidersLandscape: d.defaultWatchProvidersLandscape !== d.defaultWatchProviders ? d.defaultWatchProvidersLandscape : undefined,
+    watchProvidersMax: d.defaultWatchProvidersMax !== DEFAULT_WATCH_MAX ? d.defaultWatchProvidersMax : undefined,
     typeIcon: d.defaultTypeIcon ? true : undefined,
     typeIconLandscape: d.defaultTypeIconLandscape ? true : undefined,
     autoRotateClean: d.defaultAutoRotateClean,
@@ -1737,6 +1753,12 @@ export function useDefaults() {
           if (currentStored?.defaultWatchProviders === undefined && currentStored?.watchProviders === undefined && typeof serverData.watchProviders === "boolean") {
             merged.defaultWatchProviders = serverData.watchProviders
             merged.defaultWatchRegion = typeof serverData.watchRegion === "string" ? serverData.watchRegion : null
+          }
+          if (currentStored?.defaultWatchProvidersLandscape === undefined && currentStored?.watchProvidersLandscape === undefined && typeof serverData.watchProvidersLandscape === "boolean") {
+            merged.defaultWatchProvidersLandscape = serverData.watchProvidersLandscape
+          }
+          if (currentStored?.defaultWatchProvidersMax === undefined && currentStored?.watchProvidersMax === undefined && typeof serverData.watchProvidersMax === "number") {
+            merged.defaultWatchProvidersMax = serverData.watchProvidersMax
           }
           if (currentStored?.defaultTypeIcon === undefined && currentStored?.typeIcon === undefined && typeof serverData.typeIcon === "boolean") {
             merged.defaultTypeIcon = serverData.typeIcon

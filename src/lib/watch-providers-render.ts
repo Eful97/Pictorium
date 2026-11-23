@@ -1,13 +1,13 @@
 /**
- * Fila "Dove guardare": fino a MAX_ICONS icone provider quadrate arrotondate
- * (+ slot contatore "+N" quando i provider sono di più). Bitmap `{png,w,h}`
+ * Fila "Dove guardare": icone provider quadrate arrotondate (il chiamante
+ * ha già troncato a `wpm`; nessun chip "+N"). Bitmap `{png,w,h}`
  * come gli altri badge network, così il layout esistente la tratta da logo.
  * Mai throw: nessun logo caricabile → null (il poster resta invariato).
  */
 
+import { MAX_WATCH_MAX } from "@/lib/regions"
 import type { WatchProvider } from "@/lib/watch-providers"
 
-export const MAX_WATCH_ICONS = 3
 
 const TMDB_IMG_BASE = process.env.TMDB_IMG_URL || "https://image.tmdb.org/t/p"
 const LOGO_SIZE = "w92"
@@ -47,7 +47,7 @@ export async function renderWatchProviderRow(
     const mask = Buffer.from(
       `<svg xmlns="http://www.w3.org/2000/svg" width="${iconPx}" height="${iconPx}"><rect width="${iconPx}" height="${iconPx}" rx="${radius}" fill="#fff"/></svg>`,
     )
-    const shown = providers.slice(0, MAX_WATCH_ICONS)
+    const shown = providers.slice(0, MAX_WATCH_MAX)
     const loaded: Array<Buffer | null> = await Promise.all(
       shown.map(async (p) => {
         const buf = await loadLogo(p.logoPath, signal)
@@ -63,18 +63,7 @@ export async function renderWatchProviderRow(
     const icons: Buffer[] = loaded.filter((b) => b !== null)
     if (icons.length === 0) return null
 
-    const extra = providers.length - MAX_WATCH_ICONS
-    const slots: Buffer[] = [...icons]
-    if (extra > 0) {
-      const fs = Math.round(iconPx * 0.42)
-      const chip = Buffer.from(
-        `<svg xmlns="http://www.w3.org/2000/svg" width="${iconPx}" height="${iconPx}">` +
-          `<rect width="${iconPx}" height="${iconPx}" rx="${radius}" fill="#1c1f2b" fill-opacity="0.85"/>` +
-          `<text x="50%" y="50%" dy="0.35em" text-anchor="middle" font-family="Inter, Arial, sans-serif" font-weight="700" font-size="${fs}" fill="#fff">+${extra}</text></svg>`,
-      )
-      slots.push(await sharp(chip).png().toBuffer())
-    }
-
+    const slots = icons
     const gap = Math.round(iconPx * 0.18)
     const w = slots.length * iconPx + (slots.length - 1) * gap
     const png = await sharp({ create: { width: w, height: iconPx, channels: 4, background: { r: 0, g: 0, b: 0, alpha: 0 } } })

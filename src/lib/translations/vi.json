@@ -176,6 +176,7 @@
   "ui.typeIconLabel": "Type icon",
   "ui.typeIconHint": "Small movie/TV icon before the genre · rating · year line, to tell films and series apart in mixed catalogs.",
   "ui.watchRegionLabel": "Streaming country",
+  "ui.watchMaxLabel": "Max platforms",
   "ui.watchRegionSame": "Same as poster country",
   "ui.otherNetworksMixedHint": "Một số logo phụ vẫn tắt riêng lẻ. Tắt nhóm rồi bật lại để bật tất cả.",
   "ui.exclusionsSharedNote": "Tùy chọn toàn không gian, dùng chung cho dọc và ngang. Công tắc xếp hạng nằm ở tab riêng.",

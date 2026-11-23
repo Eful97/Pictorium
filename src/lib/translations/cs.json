@@ -175,6 +175,7 @@
   "ui.typeIconLabel": "Type icon",
   "ui.typeIconHint": "Small movie/TV icon before the genre · rating · year line, to tell films and series apart in mixed catalogs.",
   "ui.watchRegionLabel": "Streaming country",
+  "ui.watchMaxLabel": "Max platforms",
   "ui.watchRegionSame": "Same as poster country",
   "ui.otherNetworksMixedHint": "Některé vedlejší značky zůstávají jednotlivě vypnuté. Vypněte skupinu a znovu ji zapněte, abyste je všechny znovu aktivovali.",
   "ui.exclusionsSharedNote": "Předvolby prostoru, sdílené mezi na výšku a na šířku. Přepínače žebříčku zůstávají na vlastní kartě.",
