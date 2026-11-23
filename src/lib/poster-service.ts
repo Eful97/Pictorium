@@ -63,8 +63,7 @@ import { composeCardLayer } from "./poster-card-compose"
 import { composeFinalPoster } from "./poster-final-composite"
 import { getVignette,getLandscapeScrim,getPreReleaseDim,getTopShade } from "./poster-overlay-cache"
 import { resizeLogoCached,backdropMetaCached,resizeBackdropCached } from "./poster-image-cache"
-export { __resetSeasonalFrameCacheForTests } from "./poster-overlay-cache"
-export { resolveBadgeColors, resizeLogoCached, backdropMetaCached, resizeBackdropCached, type BadgeColorsResult, type ResizedImage } from "./poster-image-cache"
+export { resolveBadgeColors, resizeLogoCached, backdropMetaCached, resizeBackdropCached } from "./poster-image-cache"
 
 
 
