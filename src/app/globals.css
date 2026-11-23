@@ -675,24 +675,6 @@ input[type="range"]::-moz-range-thumb:active {
   }
 }
 
-@keyframes toggle-on {
-  0% { transform: scale(0.95); }
-  40% { transform: scale(1.08); }
-  100% { transform: scale(1); }
-}
-
-@keyframes toggle-off {
-  0% { transform: scale(1.05); }
-  40% { transform: scale(0.92); }
-  100% { transform: scale(0.95); }
-}
-
-@keyframes knob-slide {
-  0% { transform: translateX(0) scale(0.95); }
-  40% { transform: translateX(calc(100% + 4px)) scale(1.15); }
-  100% { transform: translateX(100%) scale(1.05); }
-}
-
 @keyframes fade-scale-out {
   from { opacity: 1; transform: scale(1); }
   to { opacity: 0; transform: scale(0.95) translateY(-4px); }
@@ -788,15 +770,6 @@ input[type="range"]::-moz-range-thumb:active {
   to { opacity: 1; transform: translateY(0) scale(1); }
 }
 .animate-modal-panel-in { animation: modal-panel-in var(--dur-base) var(--ease-out-expo) both; }
-
-/* Respirazione del glow del podio: scala appena percettibile (nessuna
-   variazione di opacity → nessun flicker, e lo stato 0% coincide col
-   valore statico, quindi anche gli screenshot con animazioni disabilitate
-   restano identici). */
-@keyframes breath {
-  0%, 100% { transform: translateX(-50%) scale(1); }
-  50% { transform: translateX(-50%) scale(1.045); }
-}
 
 .toggle-thumb {
   position: absolute;
@@ -3006,7 +2979,6 @@ html.light button:has(> .badge-style-preview):not([class*="bg-accent-orange"]):h
     .reveal-slide-in-left-subtle { animation-name: slide-in-left-subtle; }
   }
 }
-
 
 /* Tema chiaro: confronto prima/dopo, chip di stile e fondale wall. */
 [data-theme="light"] .home-stage-wall { opacity: 0.3; }
