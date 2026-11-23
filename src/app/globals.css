@@ -3031,3 +3031,9 @@ html.light button:has(> .badge-style-preview):not([class*="bg-accent-orange"]):h
     inset: -11px -2px;
   }
 }
+
+/* Lista scorrevole del wizard: sfumatura in basso finché c'è altro da vedere. */
+.scroll-fade-bottom[data-more="true"] {
+  -webkit-mask-image: linear-gradient(to bottom, #000 calc(100% - 36px), transparent);
+  mask-image: linear-gradient(to bottom, #000 calc(100% - 36px), transparent);
+}

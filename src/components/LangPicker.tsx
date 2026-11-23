@@ -1,6 +1,6 @@
 "use client"
 
-import { useState, useRef, useEffect } from "react"
+import { useState, useRef, useEffect, type ReactNode } from "react"
 import { UI_LANGUAGES } from "@/lib/utils"
 import { CHART_REGIONS, GLOBAL_REGION_CODE } from "@/lib/regions"
 import { useT } from "@/lib/contexts/TranslationContext"
@@ -8,6 +8,32 @@ import { ChevronLeft, Lock, ArrowRight, ShieldCheck } from "lucide-react"
 import { isMultiUserServer } from "@/lib/guest-guard"
 import { currentPathUuid } from "@/lib/user-token"
 import { OnboardingChecklistBody, type OnboardingChecklistBodyProps } from "@/components/OnboardingChecklistBody"
+
+/** Griglia scorrevole con sfumatura in basso finché c'è altro da scorrere:
+ *  senza, l'ultima riga tagliata non dice che la lista continua. */
+function ScrollFadeGrid({ children }: { children: ReactNode }) {
+  const ref = useRef<HTMLDivElement>(null)
+  useEffect(() => {
+    const el = ref.current
+    if (!el) return
+    const update = () => {
+      el.dataset.more = el.scrollHeight - el.scrollTop - el.clientHeight > 4 ? "true" : "false"
+    }
+    update()
+    el.addEventListener("scroll", update, { passive: true })
+    const ro = typeof ResizeObserver === "function" ? new ResizeObserver(update) : null
+    ro?.observe(el)
+    return () => {
+      el.removeEventListener("scroll", update)
+      ro?.disconnect()
+    }
+  }, [])
+  return (
+    <div ref={ref} className="scroll-fade-bottom grid grid-cols-2 gap-2 max-h-[52vh] overflow-y-auto pr-0.5 animate-step-enter">
+      {children}
+    </div>
+  )
+}
 
 interface SetupWizardProps {
   /** Applica la lingua (codice 2 lettere) senza chiudere il wizard. */
@@ -165,7 +191,7 @@ export function LangPicker({ onPickLang, onPickRegion, onDone, skipPin, checklis
         </div>
 
         {step === "lang" && (
-          <div key="lang" className="grid grid-cols-2 gap-2 max-h-[52vh] overflow-y-auto pr-0.5 animate-step-enter">
+          <ScrollFadeGrid key="lang">
             {UI_LANGUAGES.map((l) => (
               <button type="button" key={l.code} onClick={() => pickLang(l.code)} className="surface-card flex items-center gap-2 px-4 py-3.5 rounded-2xl hover:-translate-y-0.5 active:scale-[0.97] transition duration-200 text-left group cursor-pointer">
                 <span className="text-2xl shrink-0">{l.flag}</span>
@@ -175,11 +201,11 @@ export function LangPicker({ onPickLang, onPickRegion, onDone, skipPin, checklis
                 </div>
               </button>
             ))}
-          </div>
+          </ScrollFadeGrid>
         )}
 
         {step === "region" && (
-          <div key="region" className="grid grid-cols-2 gap-2 max-h-[52vh] overflow-y-auto pr-0.5 animate-step-enter">
+          <ScrollFadeGrid key="region">
             {CHART_REGIONS.map((r) => (
               <button type="button" key={r.code} onClick={() => pickRegion(r.code)} className="surface-card flex items-center gap-2 px-4 py-3.5 rounded-2xl hover:-translate-y-0.5 active:scale-[0.97] transition duration-200 text-left group cursor-pointer">
                 <span className="text-2xl shrink-0">{r.flag}</span>
@@ -189,7 +215,7 @@ export function LangPicker({ onPickLang, onPickRegion, onDone, skipPin, checklis
                 </div>
               </button>
             ))}
-          </div>
+          </ScrollFadeGrid>
         )}
 
         {step === "pin" && (
