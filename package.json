@@ -57,7 +57,7 @@
     "babel-plugin-react-compiler": "^1.0.0",
     "dependency-cruiser": "18.7.2",
     "eslint": "^9",
-    "eslint-config-next": "16.3.8",
+    "eslint-config-next": "16.4.6",
     "fast-check": "^4.10.2",
     "jsdom": "^30.0.1",
     "knip": "6.44.1",
