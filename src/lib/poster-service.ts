@@ -9,9 +9,9 @@ import type { SeparateRating } from "./ratings"
 import { MAX_SEPARATE_RATINGS } from "./ratings"
 import { renderSeparateRatingStack, renderSeparateRatingsBottom, renderSeparateRatingsNotch, renderSeparateRatingsSideNotch, notchSeparateStepBodyHeight, notchSeparateStepText, type SeparateRatingStack } from "./separate-rating-renderer"
 import { cacheGet, cacheSet } from "./cache"
-import { GENRE_FALLBACK, cinematicVignetteSVG, cinematicCornerGradientSVG, topShadeSVG } from "./badges"
+import { GENRE_FALLBACK } from "./badges"
 import { applyBlur } from "./blur"
-import { STD_W, STD_H, extractBadgeColor, extractSceneTint, fitBadgeToCanvas, fitCompositeToCanvas, isValidHex, BadgeRender, PosterComposite, badgeBody, badgeCanvasForBody, type BadgeBleed, scaleBadgeBleed, topBandMeanRGB, bottomBandMeanRGB, effectiveTopBackgroundLuminance, effectiveBottomBackgroundLuminance, adaptiveAccentHexForBand, insertFrostedGlassUnderlays, opaqueComponents, tightenBoxesToInk } from "./poster-render-helpers"
+import { STD_W, STD_H, extractSceneTint, fitBadgeToCanvas, fitCompositeToCanvas, isValidHex, BadgeRender, PosterComposite, badgeBody, badgeCanvasForBody, type BadgeBleed, scaleBadgeBleed, topBandMeanRGB, bottomBandMeanRGB, effectiveTopBackgroundLuminance, effectiveBottomBackgroundLuminance, adaptiveAccentHexForBand, insertFrostedGlassUnderlays, opaqueComponents, tightenBoxesToInk } from "./poster-render-helpers"
 import { LAND_W, LAND_H } from "./image-utils"
 import { normalizeAutomaticAccentHex } from "./accent-color"
 import type { EffectiveAccentMeta } from "./effective-accent"
@@ -24,8 +24,6 @@ import { isNetworkFixedPosition } from "./network-follow"
 import { isActiveQualityAnchor, isLogoRelativePosition, type LogoRelativePosition, type QualityAnchor, isActiveTopBadgeAnchor, type TopBadgeAnchor, type ExtraBadgeAnchor, isActiveBottomAnchor, bottomAnchoredLeft, bottomAnchoredBodyLeft, type BodyInkRatios, type BottomAnchor, anchorRect, anchorCol, anchorRow, isAnchorPosition, type AnchorChoice, type AnchorPosition } from "./badge-anchor"
 import { computeLogoLayout, logoAlignPadX, isActiveLogoAnchor, isTopLogoAnchor, type LogoAnchor,PORTRAIT_LOGO_MAX_HEIGHT_PCT, PORTRAIT_LOGO_TOP_OFFSET, LANDSCAPE_LOGO_MAX_WIDTH_PCT, LANDSCAPE_LOGO_MAX_HEIGHT_PCT, LANDSCAPE_LOGO_BOTTOM_MARGIN_PCT, LANDSCAPE_LOGO_TOP_OFFSET, LANDSCAPE_LOGO_SHIFT_X, LANDSCAPE_LOGO_SHIFT_Y } from "./logo-layout"
 import { logoDefaultScaleFromAspect, FRESH_TITLE_LOGO_DEFAULT_SCALE } from "./logo-selection"
-import fs from "fs"
-import path from "path"
 import { TOP_SHADOW_PAD } from "./badge-svg-shared"
 import { computeTopBadge, getNextEpisodeLabel, isNetworkStudio, shouldSuppressExtraTopBadgeForNetwork, type BadgeInput } from "./poster-badge"
 import type { MdbListWhatsonFeatures } from "./content-tags"
@@ -33,9 +31,9 @@ import { isNextEpisodeBadgeKey, DEFAULT_SASH_ORDER } from "./badge-priority"
 import { DEMO_SAMPLE_NETWORK } from "./demo-samples"
 import type { DateFormat } from "./release-badge"
 import type { SashBucket } from "./badge-priority"
-import { PRE_RELEASE_DIM_ALPHA, PRE_RELEASE_BLUR_SIGMA } from "./pre-release"
+import { PRE_RELEASE_BLUR_SIGMA } from "./pre-release"
 import type { Mapping, NetworkLogoPosition, PosterLayout, PosterFreshScope } from "./types"
-import { seasonalFrameAssetPath, type SeasonalTheme } from "./seasonal-theme"
+import { type SeasonalTheme } from "./seasonal-theme"
 import { isPosterFreshScope, DEFAULT_POSTER_FRESH_SCOPE } from "./types"
 import type { ServerDefaults } from "./server-defaults"
 import type { WikidataResult } from "./awards"
@@ -188,12 +186,6 @@ export const PORTRAIT_SEPARATE_SHIFT_Y = 5
 // più forte del vetro standard (σ base = max(4, CW/40)) per restare leggibile.
 export const NOTCH_STEP_GLASS_SIGMA_BOOST = 1.6
 
-
-// TTL cache image-level (colori badge, resize logo/backdrop): le immagini TMDB
-// sono immutabili per path → 24h come la badge cache. Le entry si auto-espellono
-// col byte/entry limit della cache globale (tag "poster-extract").
-const IMAGE_CACHE_TTL = 24 * 60 * 60 * 1000
-const IMAGE_CACHE_TAG = "poster-extract"
 
 export interface GenerationInput {
   ratings?: RatingItem[]
@@ -634,137 +626,6 @@ export interface GenerationInput {
   seasonalTheme?: SeasonalTheme | null
 }
 
-/**
- * Memo boundato FIFO per overlay full-canvas rasterizzati: eviction
- * dell'entry più vecchia in ordine di inserimento (stesso pattern di
- * QUALITY_ICON_MEMO_MAX / PILL_LOGO_MEMO_MAX). Solo memoria: i byte per una
- * chiave già cachata restano identici, e dopo un'eviction la chiave viene
- * semplicemente rasterizzata di nuovo al render successivo.
- */
-function setBoundedOverlay<K, V>(map: Map<K, V>, key: K, value: V, max: number): void {
-  if (map.size >= max && !map.has(key)) map.delete(map.keys().next().value!)
-  map.set(key, value)
-}
-
-// Budget di memoria: ogni entry è un PNG full-canvas (500×750 o 768×432).
-// Vignette/dim dipendono solo dalle dimensioni del canvas (2 forme ⇒ 2 chiavi
-// reali); il top shade aggiunge intensità e altezza (100×101 combinazioni) e
-// i profili reali ne toccano ~441, quindi il vecchio cap 64 ricalcolava di
-// continuo gli stessi overlay (PNG piccoli, pochi KB l'uno): 256 tiene in
-// memoria il working set osservato con un tetto comunque bounded.
-const VIGNETTE_CACHE_MAX = 8
-const PRE_RELEASE_DIM_CACHE_MAX = 8
-const TOP_SHADE_CACHE_MAX = 256
-
-// ---- Vignette SVG cache (una entry per dimensioni canvas) ----
-const _vignetteCache = new Map<string, Promise<Buffer>>()
-async function getVignette(canvasW: number = STD_W, canvasH: number = STD_H): Promise<Buffer> {
-  const key = `${canvasW}x${canvasH}`
-  let p = _vignetteCache.get(key)
-  if (!p) {
-    const fresh = sharp(Buffer.from(cinematicVignetteSVG(canvasW, canvasH))).png().toBuffer()
-    // Reset su reject: una Promise respinta resterebbe cachata e avvelenerebbe
-    // tutti i render futuri (stesso pattern di loadResvg in svg-badge.ts).
-    fresh.catch(() => { if (_vignetteCache.get(key) === fresh) _vignetteCache.delete(key) })
-    setBoundedOverlay(_vignetteCache, key, fresh, VIGNETTE_CACHE_MAX)
-    p = fresh
-  }
-  return p
-}
-
-// ---- Landscape corner scrim (una entry: 768×432 costanti) ----
-let _landscapeScrimPromise: Promise<Buffer> | null = null
-async function getLandscapeScrim(): Promise<Buffer> {
-  if (!_landscapeScrimPromise) {
-    const fresh = sharp(Buffer.from(cinematicCornerGradientSVG(LAND_W, LAND_H))).png().toBuffer()
-    // Reset su reject: vedi getVignette sopra.
-    fresh.catch(() => { if (_landscapeScrimPromise === fresh) _landscapeScrimPromise = null })
-    _landscapeScrimPromise = fresh
-  }
-  return _landscapeScrimPromise
-}
-// ---- Pre-release dim overlay (uno per dimensioni canvas) ----
-const _preReleaseDimCache = new Map<string, Promise<Buffer>>()
-async function getPreReleaseDim(canvasW: number = STD_W, canvasH: number = STD_H): Promise<Buffer> {
-  const key = `${canvasW}x${canvasH}`
-  let p = _preReleaseDimCache.get(key)
-  if (!p) {
-    const fresh = sharp({
-      create: {
-        width: canvasW,
-        height: canvasH,
-        channels: 4,
-        background: { r: 0, g: 0, b: 0, alpha: PRE_RELEASE_DIM_ALPHA },
-      },
-    }).png().toBuffer()
-    // Reset su reject: vedi getVignette sopra.
-    fresh.catch(() => { if (_preReleaseDimCache.get(key) === fresh) _preReleaseDimCache.delete(key) })
-    setBoundedOverlay(_preReleaseDimCache, key, fresh, PRE_RELEASE_DIM_CACHE_MAX)
-    p = fresh
-  }
-  return p
-}
-
-// ---- Seasonal frame overlay (one entry per theme + shape + canvas size) ----
-// Loads the CANONICAL asset from `public/seasonal-frames/` via the explicit
-// `seasonalFrameAssetPath(theme, shape)` mapping (portrait `halloween.svg` /
-// `christmas.svg`, landscape `halloween landscape.svg` /
-// `christmas landscape.svg` — each canvas its OWN user-supplied art, never a
-// stretch): the renderer embeds no vector code, it reads this single file.
-// `public/` ships inside the container image (Dockerfile copies it) and
-// Vercel serves it, so the path resolves in every runtime. The offline
-// `design/seasonal-frames/` prototype board is not shipped — this folder is
-// the only runtime source (no synchronized copy to keep aligned).
-// Reset su reject: vedi getVignette sopra.
-const _seasonalFrameCache = new Map<string, Promise<Buffer>>()
-async function loadSeasonalFrame(
-  canvasW: number,
-  canvasH: number,
-  theme: SeasonalTheme,
-  shape: "poster" | "landscape",
-): Promise<Buffer> {
-  const key = `${theme}:${shape}:${canvasW}x${canvasH}`
-  let p = _seasonalFrameCache.get(key)
-  if (!p) {
-    const fresh = (async (): Promise<Buffer> => {
-      // Il tema è già normalizzato a monte (`normalizeSeasonalTheme`) e la
-      // mappa esplicita accetta solo i temi canonici: nessun path traversal
-      // è costruibile (nessun segmento di path arriva mai dal raw input).
-      const rel = seasonalFrameAssetPath(theme, shape)
-      if (!rel) throw new Error("Unsupported seasonal theme/shape")
-      const full = path.join(process.cwd(), ...rel.split("/"))
-      const svg = await fs.promises.readFile(full, "utf8")
-      return sharp(Buffer.from(svg)).resize(canvasW, canvasH, { fit: "fill" }).png().toBuffer()
-    })()
-    fresh.catch(() => { if (_seasonalFrameCache.get(key) === fresh) _seasonalFrameCache.delete(key) })
-    _seasonalFrameCache.set(key, fresh)
-    p = fresh
-  }
-  return p
-}
-
-/** Solo test: svuota la memo dei frame stagionali. */
-export function __resetSeasonalFrameCacheForTests(): void {
-  _seasonalFrameCache.clear()
-}
-
-// ---- Top shade overlay (una entry per dimensioni canvas + intensità + altezza) ----
-const _topShadeCache = new Map<string, Promise<Buffer>>()
-async function getTopShade(canvasW: number, canvasH: number, strength: number, heightPct = 25): Promise<Buffer> {
-  const s = Math.min(Math.max(Math.round(strength), 0), 100)
-  const h = Number.isFinite(heightPct) ? Math.min(Math.max(Math.round(heightPct), 0), 100) : 25
-  const key = `${canvasW}x${canvasH}:${s}:${h}`
-  let p = _topShadeCache.get(key)
-  if (!p) {
-    const fresh = sharp(Buffer.from(topShadeSVG(canvasW, canvasH, s, h))).png().toBuffer()
-    // Reset su reject: vedi getVignette sopra.
-    fresh.catch(() => { if (_topShadeCache.get(key) === fresh) _topShadeCache.delete(key) })
-    setBoundedOverlay(_topShadeCache, key, fresh, TOP_SHADE_CACHE_MAX)
-    p = fresh
-  }
-  return p
-}
-
 // ---------------------------------------------------------------------------
 // Badge cache helpers (coalescing) — implementazione in poster-cache-infra.ts.
 // `badgeCacheKey` è ri-esportata per compatibilità (test + consumer storici).
@@ -772,45 +633,14 @@ async function getTopShade(canvasW: number, canvasH: number, strength: number, h
 import { badgeCacheKey, coalesceBadgeRender } from "./poster-cache-infra"
 export { badgeCacheKey } from "./poster-cache-infra"
 
+// Overlay full-canvas e cache image-level estratti in moduli dedicati;
+// le API storiche restano ri-esportate da qui.
+import { getVignette, getLandscapeScrim, getPreReleaseDim, loadSeasonalFrame, getTopShade } from "./poster-overlay-cache"
+export { __resetSeasonalFrameCacheForTests } from "./poster-overlay-cache"
+import { resizeLogoCached, backdropMetaCached, resizeBackdropCached } from "./poster-image-cache"
+export { resolveBadgeColors, resizeLogoCached, backdropMetaCached, resizeBackdropCached, type BadgeColorsResult, type ResizedImage } from "./poster-image-cache"
 
 
-// ---------------------------------------------------------------------------
-// Image-level caches (colori badge, resize logo/backdrop)
-// ---------------------------------------------------------------------------
-// Questi passaggi sharp si ripetono a OGNI render freddo, anche per lo stesso
-// titolo: cache key poster diverse (config token, rank che cambia, preview
-// WYSIWYG, versioni mapping) condividono lo stesso poster/logo/backdrop. Il
-// risultato dipende solo dall'immagine sorgente (URL TMDB immutabili per path)
-// → si può cachare per path. Nessun cambio dell'output visivo: stesse operazioni
-// sharp, stesso ordine, stessi parametri — solo eseguite una volta.
-
-export interface BadgeColorsResult {
-  readonly genreColor: string
-  readonly rankColor: string
-}
-
-/** Colori accent (genere + rank) con cache per (posterSrc, logoSrc, genreName, hueMode, bottomFraction). */
-export async function resolveBadgeColors(
-  posterBuf: Buffer,
-  logoFetch: Buffer | null,
-  genreName: string | null,
-  posterSrc?: string | null,
-  logoSrc?: string | null,
-): Promise<BadgeColorsResult> {
-  const key = posterSrc ? `extract:${posterSrc}:${logoSrc ?? "x"}:${genreName ?? "x"}` : null
-  const cached = key ? cacheGet<BadgeColorsResult>(key) : null
-  if (cached) return cached
-  const [gColor, rColor] = await Promise.all([
-    extractBadgeColor(posterBuf, logoFetch, genreName, 'bottom'),
-    extractBadgeColor(posterBuf, logoFetch, null, 'top'),
-  ])
-  const colors: BadgeColorsResult = {
-    genreColor: isValidHex(gColor) ? gColor : (genreName ? GENRE_FALLBACK[genreName] : undefined) || "#555555",
-    rankColor: isValidHex(rColor) ? rColor : "#555555",
-  }
-  if (key) cacheSet(key, colors, [IMAGE_CACHE_TAG], IMAGE_CACHE_TTL)
-  return colors
-}
 
 /**
  * Card NON-provider-glass brand accent (P5 correction): an explicit manual
@@ -938,58 +768,6 @@ async function stackCardOverlayParts(
     .png()
     .toBuffer()
   return { png, w, h }
-}
-
-export interface ResizedImage {
-  readonly input: Buffer
-  readonly w: number
-  readonly h: number
-}
-
-/** Resize logo (con re-encode PNG) cachato per (logoSrc, dimensioni target). */
-export async function resizeLogoCached(
-  logoFetch: Buffer,
-  width: number,
-  height: number,
-  logoSrc?: string | null,
-): Promise<ResizedImage> {
-  const key = logoSrc ? `logo-resize:${logoSrc}:${width}:${height}` : null
-  const cached = key ? cacheGet<ResizedImage>(key) : null
-  if (cached) return cached
-  const { data: input, info } = await sharp(logoFetch).resize(width, height, { fit: "inside" }).png({ compressionLevel: 1 }).toBuffer({ resolveWithObject: true })
-  const result: ResizedImage = { input, w: info.width || width, h: info.height || height }
-  if (key) cacheSet(key, result, [IMAGE_CACHE_TAG], IMAGE_CACHE_TTL)
-  return result
-}
-
-/** Dimensioni originali del backdrop, cachate per src (salta il metadata() ripetuto). */
-export async function backdropMetaCached(
-  backdropFetch: Buffer,
-  backdropSrc?: string | null,
-): Promise<{ readonly width: number; readonly height: number }> {
-  const key = backdropSrc ? `backdrop-meta:${backdropSrc}` : null
-  const cached = key ? cacheGet<{ width: number; height: number }>(key) : null
-  if (cached) return cached
-  const meta = await sharp(backdropFetch).metadata()
-  const result = { width: meta.width || 1920, height: meta.height || 1080 }
-  if (key) cacheSet(key, result, [IMAGE_CACHE_TAG], IMAGE_CACHE_TTL)
-  return result
-}
-
-/** Resize backdrop cachato per (backdropSrc, dimensioni target). */
-export async function resizeBackdropCached(
-  backdropFetch: Buffer,
-  width: number,
-  height: number,
-  backdropSrc?: string | null,
-): Promise<ResizedImage> {
-  const key = backdropSrc ? `backdrop-resize:${backdropSrc}:${width}:${height}` : null
-  const cached = key ? cacheGet<ResizedImage>(key) : null
-  if (cached) return cached
-  const resized = await sharp(backdropFetch).resize(width, height, { fit: 'fill' }).toBuffer()
-  const result: ResizedImage = { input: resized, w: width, h: height }
-  if (key) cacheSet(key, result, [IMAGE_CACHE_TAG], IMAGE_CACHE_TTL)
-  return result
 }
 
 

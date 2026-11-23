@@ -68,6 +68,8 @@ const RENDER_FILES = [
   "src/lib/poster-auto-fit.ts",
   "src/lib/poster-badge.ts",
   "src/lib/poster-cache-infra.ts",
+  "src/lib/poster-overlay-cache.ts",
+  "src/lib/poster-image-cache.ts",
   "src/lib/badge-layout.ts",
   "src/lib/quality-badges.ts",
   "src/lib/poster-config.ts",
