@@ -2454,8 +2454,11 @@ button.status-version:hover {
     text-align: center;
   }
 
-  /* Wall più discreta: copy e poster occupano tutta la larghezza. */
+  /* Wall più discreta: copy e poster occupano tutta la larghezza. A questa
+     opacità il moto non si legge ma costa compositing continuo su 10 colonne:
+     fermo su colonna singola (telefoni e tablet in verticale). */
   .home-stage-wall { opacity: 0.2; }
+  .home-stage-wall .poster-wall-col { animation: none; }
   .home-stage-wall::after {
     background: radial-gradient(ellipse 90% 60% at 50% 40%, rgb(9 8 12 / 0.9), transparent 85%);
   }
