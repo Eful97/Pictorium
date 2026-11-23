@@ -59,12 +59,12 @@ html.light {
   --surface2: #E8E2D9;
   --border: #DDD5C7;
   --muted: #70685F;
-  --accent-orange: #C94F24;
+  --accent-orange: #B5441D; /* AA (≥4.5:1) come testo su --bg/--surface */
   --panel: rgba(250, 247, 242, 0.88);
   --panel-strong: rgba(250, 247, 242, 0.96);
   --border-subtle: rgba(37, 35, 33, 0.08);
   --border-strong: rgba(37, 35, 33, 0.16);
-  --accent-rgb: 201 79 36;
+  --accent-rgb: 181 68 29;
 
   --glass-grad: none;
   --glass-tint: #FAF7F2;
@@ -960,8 +960,12 @@ input[type="range"]::-moz-range-thumb:active {
 
 [data-theme="light"] .app-shell-bg,
 html.light .app-shell-bg {
+  /* Velo più denso: la foto ha un vetro scanalato con fessure scure che sul
+     chiaro risultano a strisce nette; il velo le attenua e il fade verso il
+     basso evita il blocco arancione pieno dietro la copia. */
   background:
-    linear-gradient(rgb(250 248 245 / 0.4), rgb(250 248 245 / 0.4)),
+    linear-gradient(to top, rgb(250 248 245 / 0.18), rgb(250 248 245 / 0.62) 55%),
+    linear-gradient(rgb(250 248 245 / 0.5), rgb(250 248 245 / 0.5)),
     url("/bg/pictorium-bg-light.webp") center / cover no-repeat;
 }
 
@@ -3008,6 +3012,18 @@ html.light button:has(> .badge-style-preview):not([class*="bg-accent-orange"]):h
 [data-theme="light"] .home-stage-wall::after {
   background: radial-gradient(ellipse 55% 65% at 28% 50%, rgb(250 248 245 / 0.7), transparent 70%);
 }
+/* Colonna singola: il velo sta dietro titolo + sottotitolo (centrati), non a
+   sinistra come nel layout a due colonne. Più denso, così i poster in
+   movimento non attraversano il testo piccolo. */
+@media (max-width: 920px) {
+  [data-theme="light"] .home-stage-wall { opacity: 0.22; }
+  [data-theme="light"] .home-stage-wall::after {
+    background: radial-gradient(ellipse 100% 55% at 50% 22%, rgb(250 248 245 / 0.92), rgb(250 248 245 / 0.6) 55%, transparent 90%);
+  }
+  .home-stage-wall::after {
+    background: radial-gradient(ellipse 100% 55% at 50% 22%, rgb(9 8 12 / 0.92), rgb(9 8 12 / 0.55) 55%, transparent 90%);
+  }
+}
 [data-theme="light"] .hero-legend span {
   color: #252321;
   background: rgba(255, 255, 255, 0.92);
@@ -3025,3 +3041,20 @@ html.light button:has(> .badge-style-preview):not([class*="bg-accent-orange"]):h
 }
 
 [data-theme="light"] .home-hero-sub { color: #544e47; }
+
+/* Bersagli di tocco ≥44px su mobile senza cambiare l'aspetto: l'area
+   cliccabile si estende con un pseudo-elemento invisibile. */
+@media (max-width: 767px) {
+  .hero-style-chip,
+  .status-live-badge,
+  .status-version {
+    position: relative;
+  }
+  .hero-style-chip::after,
+  .status-live-badge::after,
+  .status-version::after {
+    content: "";
+    position: absolute;
+    inset: -11px -2px;
+  }
+}
