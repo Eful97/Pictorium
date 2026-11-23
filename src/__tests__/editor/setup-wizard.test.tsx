@@ -125,4 +125,54 @@ describe("SetupWizard", () => {
     expect(screen.queryByText("Proteggi il tuo pannello")).not.toBeInTheDocument()
     expect(onDone).toHaveBeenCalledTimes(1)
   })
+  describe("passo guida finale (checklist)", () => {
+    function renderWithChecklist(skipPin = true) {
+      const onDone = vi.fn()
+      const checklist = {
+        hasKey: false,
+        hasSavedPoster: false,
+        installOpened: false,
+        onInstall: vi.fn(),
+        onCustomize: vi.fn(),
+        onOpenKeySettings: vi.fn(),
+        onSkip: vi.fn(),
+      }
+      renderWithCtx(
+        <LangPicker onPickLang={vi.fn()} onPickRegion={vi.fn()} onDone={onDone} skipPin={skipPin} checklist={checklist} />
+      )
+      return { onDone, checklist }
+    }
+
+    it("dopo la regione mostra la guida invece di chiudere il wizard", async () => {
+      const user = userEvent.setup()
+      const { onDone } = renderWithChecklist()
+      await user.click(screen.getByText("English"))
+      await user.click(screen.getByText("Giappone"))
+      expect(onDone).not.toHaveBeenCalled()
+      expect(screen.getByTestId("onboarding-checklist")).toBeInTheDocument()
+      expect(screen.getByTestId("onboarding-path-install")).toBeInTheDocument()
+      // Nessun "indietro" su questo passo: il PIN è già stato gestito.
+      expect(screen.queryByText("Indietro")).not.toBeInTheDocument()
+    })
+
+    it("dopo il PIN saltato mostra la guida e i pulsanti delegano al chiamante", async () => {
+      const user = userEvent.setup()
+      const { onDone, checklist } = renderWithChecklist(false)
+      await user.click(screen.getByText("English"))
+      await user.click(screen.getByText("Italia"))
+      await user.click(screen.getByText("Salta questo passaggio"))
+      expect(onDone).not.toHaveBeenCalled()
+
+      await user.click(screen.getByTestId("onboarding-path-install"))
+      expect(checklist.onInstall).toHaveBeenCalledTimes(1)
+      await user.click(screen.getByTestId("onboarding-path-customize"))
+      expect(checklist.onCustomize).toHaveBeenCalledTimes(1)
+      await user.click(screen.getByTestId("onboarding-open-key-settings"))
+      expect(checklist.onOpenKeySettings).toHaveBeenCalledTimes(1)
+      await user.click(screen.getByTestId("onboarding-skip"))
+      expect(checklist.onSkip).toHaveBeenCalledTimes(1)
+      // Il wizard non chiama mai onDone da solo su questo passo.
+      expect(onDone).not.toHaveBeenCalled()
+    })
+  })
 })

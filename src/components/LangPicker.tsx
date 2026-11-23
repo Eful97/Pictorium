@@ -7,6 +7,7 @@ import { useT } from "@/lib/contexts/TranslationContext"
 import { ChevronLeft, Lock, ArrowRight, ShieldCheck } from "lucide-react"
 import { isMultiUserServer } from "@/lib/guest-guard"
 import { currentPathUuid } from "@/lib/user-token"
+import { OnboardingChecklistBody, type OnboardingChecklistBodyProps } from "@/components/OnboardingChecklistBody"
 
 interface SetupWizardProps {
   /** Applica la lingua (codice 2 lettere) senza chiudere il wizard. */
@@ -17,17 +18,26 @@ interface SetupWizardProps {
   onDone: () => void
   /** Opzionale: salta il passaggio del PIN (es. in modalità multi-user). */
   skipPin?: boolean
+  /**
+   * Opzionale: ultimo passo con la guida "Inizia con Pictorium" (percorsi +
+   * checklist). Se presente il wizard NON chiama `onDone` al termine di
+   * regione/PIN ma mostra questo passo, e ogni suo pulsante chiude il wizard
+   * per conto proprio (il chiamante invoca la chiusura + l'azione). Senza,
+   * il wizard finisce come prima e la guida si apre a parte.
+   */
+  checklist?: OnboardingChecklistBodyProps
 }
 
 /**
  * Configurazione guidata iniziale:
  * 1. lingua dell'interfaccia (UI_LANGUAGES, include lingue senza regione chart come `vi`),
  * 2. ambito delle liste/classifiche (globale o paese supportato),
- * 3. protezione con PIN (solo in single-user: in multi-user ogni utente ha la sua password).
+ * 3. protezione con PIN (solo in single-user: in multi-user ogni utente ha la sua password),
+ * 4. (opzionale) guida di primo avvio con percorsi e checklist.
  */
-export function LangPicker({ onPickLang, onPickRegion, onDone, skipPin }: SetupWizardProps) {
+export function LangPicker({ onPickLang, onPickRegion, onDone, skipPin, checklist }: SetupWizardProps) {
   const { t } = useT()
-  const [step, setStep] = useState<"lang" | "region" | "pin">("lang")
+  const [step, setStep] = useState<"lang" | "region" | "pin" | "start">("lang")
   const [pin, setPin] = useState("")
   const [pinError, setPinError] = useState<string | null>(null)
   const [pinLoading, setPinLoading] = useState(false)
@@ -55,6 +65,12 @@ export function LangPicker({ onPickLang, onPickRegion, onDone, skipPin }: SetupW
     }
   }, [step])
 
+  // Fine di regione/PIN: il passo guida se previsto, altrimenti chiude.
+  const finishSetup = () => {
+    if (checklist) setStep("start")
+    else onDone()
+  }
+
   const pickLang = (code: string) => {
     onPickLang(code)
     setStep("region")
@@ -63,7 +79,7 @@ export function LangPicker({ onPickLang, onPickRegion, onDone, skipPin }: SetupW
   const pickRegion = (regionCode: string) => {
     onPickRegion(regionCode)
     if (shouldSkipPin) {
-      onDone()
+      finishSetup()
     } else {
       setStep("pin")
     }
@@ -93,7 +109,7 @@ export function LangPicker({ onPickLang, onPickRegion, onDone, skipPin }: SetupW
         if (typeof window !== "undefined") {
           window.dispatchEvent(new CustomEvent("pictorium:pin-change", { detail: { unlocked: true } }))
         }
-        onDone()
+        finishSetup()
       } else {
         const err = await res.json().catch(() => ({}))
         const localized = err.code === "pin_too_short" ? t("ui.setupPinMinDigits") : null
@@ -107,16 +123,18 @@ export function LangPicker({ onPickLang, onPickRegion, onDone, skipPin }: SetupW
   }
 
   const handleSkipPin = () => {
-    onDone()
+    finishSetup()
   }
 
   const getTitle = () => {
+    if (step === "start") return t("ui.onboardingActionTitle")
     if (step === "pin") return t("ui.setupPinTitle")
     if (step === "region") return t("ui.setupRegionTitle")
     return t("ui.welcome")
   }
 
   const getSubtitle = () => {
+    if (step === "start") return t("ui.onboardingActionDesc")
     if (step === "pin") return t("ui.setupPinSubtitle")
     if (step === "region") return t("ui.setupRegionSubtitle")
     return t("ui.welcomeSubtitle")
@@ -139,6 +157,9 @@ export function LangPicker({ onPickLang, onPickRegion, onDone, skipPin }: SetupW
             <span className={`h-1.5 rounded-full transition-[width,background-color] duration-300 ${step === "region" ? "w-6 bg-accent-orange" : "w-1.5 bg-zinc-600"}`} />
             {!shouldSkipPin && (
               <span className={`h-1.5 rounded-full transition-[width,background-color] duration-300 ${step === "pin" ? "w-6 bg-accent-orange" : "w-1.5 bg-zinc-600"}`} />
+            )}
+            {checklist && (
+              <span className={`h-1.5 rounded-full transition-[width,background-color] duration-300 ${step === "start" ? "w-6 bg-accent-orange" : "w-1.5 bg-zinc-600"}`} />
             )}
           </div>
         </div>
@@ -229,7 +250,13 @@ export function LangPicker({ onPickLang, onPickRegion, onDone, skipPin }: SetupW
           </div>
         )}
 
-        {step !== "lang" && (
+        {step === "start" && checklist && (
+          <div key="start" className="surface-card grid gap-3 p-5 sm:p-6 rounded-3xl animate-step-enter max-w-md mx-auto">
+            <OnboardingChecklistBody {...checklist} hideDescription />
+          </div>
+        )}
+
+        {step !== "lang" && step !== "start" && (
           <button
             type="button"
             onClick={() => setStep(step === "pin" ? "region" : "lang")}

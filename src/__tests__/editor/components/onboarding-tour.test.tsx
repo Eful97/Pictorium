@@ -65,6 +65,33 @@ describe("OnboardingTour (action-based first use)", () => {
     expect(screen.getByTestId("onboarding-open-key-settings")).toBeInTheDocument()
   })
 
+  it("opens stepped aside (reopen pill, no modal) when the wizard already showed the checklist", () => {
+    renderWithCtx(<OnboardingTour startStepped />, {
+      t: t as never,
+      tmdbKey: "",
+      serverHasTmdbKey: false,
+      mappings: [],
+      currentUserId: null,
+    } as never)
+    expect(screen.queryByTestId("onboarding-tour")).not.toBeInTheDocument()
+    expect(screen.getByTestId("onboarding-reopen")).toBeInTheDocument()
+    // The pill brings the same checklist back on demand.
+    fireEvent.click(screen.getByTestId("onboarding-reopen"))
+    expect(screen.getByTestId("onboarding-tour")).toBeInTheDocument()
+  })
+
+  it("startStepped never overrides a stored dismissal", () => {
+    window.localStorage.setItem(onboardingProgressKey(null), JSON.stringify({ v: 1, dismissed: true }))
+    renderWithCtx(<OnboardingTour startStepped />, {
+      t: t as never,
+      tmdbKey: "",
+      serverHasTmdbKey: false,
+      mappings: [],
+      currentUserId: null,
+    } as never)
+    expect(screen.queryByTestId("onboarding-reopen")).not.toBeInTheDocument()
+  })
+
   it("stays hidden for already-dismissed users (legacy key preserved, every space)", () => {
     window.localStorage.setItem(ONBOARDING_DONE_KEY, "true")
     const a = renderTour({ currentUserId: UUID_A })
