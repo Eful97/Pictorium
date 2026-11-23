@@ -154,6 +154,18 @@ export async function withRotationLock<T>(key: string, fn: () => Promise<T>): Pr
 }
 
 /**
+ * Rotazione dovuta quando l'ultimo avanzamento cade in un bucket giorno
+ * precedente (cut fisso 02:00 UTC, stesso dei poster dinamici): l'orario non
+ * deriva più con l'ora della richiesta e una richiesta ripetuta/concorrente
+ * nello stesso bucket è un no-op idempotente.
+ */
+function isRotationDue(lastUpdateIso: string | null | undefined, nowMs: number): boolean {
+  const last = lastUpdateIso ? new Date(lastUpdateIso).getTime() : NaN
+  if (!Number.isFinite(last)) return true
+  return dynamicRotationBucket(last) < dynamicRotationBucket(nowMs)
+}
+
+/**
  * Check if a poster needs rotation, and atomically advance it.
  * Returns the updated mapping if rotation occurred, or null if no change needed.
  * The caller should replace their local mapping reference with the returned one.
@@ -181,23 +193,22 @@ export async function tryRotatePoster(
     const currentMapping = await getById(mapping.mediaType, mapping.tmdbId, userId ?? null)
     if (!currentMapping) return null
 
-    const lastUpdate = currentMapping.cleanPosterUpdatedAt
-      ? new Date(currentMapping.cleanPosterUpdatedAt).getTime() : 0
     const now = Date.now()
-    if (now - lastUpdate <= 24 * 60 * 60 * 1000) {
-      return null
-    }
+    if (!isRotationDue(currentMapping.cleanPosterUpdatedAt, now)) return null
 
     // Recompute rotation state with current data
     const currentAvailable = availablePosterRotationPaths(currentMapping, selectedLang)
     if (currentAvailable.length < 2) return null
 
-    const currentIdx = currentMapping.cleanPosterIndex ?? -1
+    // Ancora = posizione REALE del poster corrente (l'indice salvato può essere
+    // sfasato da esclusioni/lingua/scelta manuale); fallback all'indice salvato.
+    const posterIdx = currentMapping.posterPath ? currentAvailable.indexOf(currentMapping.posterPath) : -1
+    const currentIdx = posterIdx >= 0 ? posterIdx : (currentMapping.cleanPosterIndex ?? -1)
     const newIndex = currentIdx < 0 ? 0 : (currentIdx + 1) % currentAvailable.length
     const newPosterPath = currentAvailable[newIndex]
 
     if (newPosterPath === currentMapping.posterPath) {
-      // Same path — just update the timestamp
+      // Pool degenerato (path duplicati): niente da ruotare, segna il giorno.
       currentMapping.cleanPosterUpdatedAt = new Date(now).toISOString()
       currentMapping.updatedAt = new Date(now).toISOString()
       await upsert(currentMapping, userId ?? null)
@@ -235,19 +246,16 @@ export async function tryRotateBackdrop(
     const currentMapping = await getById(mapping.mediaType, mapping.tmdbId, userId ?? null)
     if (!currentMapping) return null
 
-    const lastUpdate = currentMapping.cleanBackdropUpdatedAt
-      ? new Date(currentMapping.cleanBackdropUpdatedAt).getTime() : 0
     const now = Date.now()
-    if (now - lastUpdate <= 24 * 60 * 60 * 1000) {
-      return null
-    }
+    if (!isRotationDue(currentMapping.cleanBackdropUpdatedAt, now)) return null
 
     const excludedSet = new Set(currentMapping.excludedBackdrops || [])
     const currentAvailable = (currentMapping.cleanBackdrops || [])
       .filter((path) => !excludedSet.has(path))
     if (currentAvailable.length < 2) return null
 
-    const currentIdx = currentMapping.cleanBackdropIndex ?? -1
+    const backdropIdx = currentMapping.backdropPath ? currentAvailable.indexOf(currentMapping.backdropPath) : -1
+    const currentIdx = backdropIdx >= 0 ? backdropIdx : (currentMapping.cleanBackdropIndex ?? -1)
     const newIndex = currentIdx < 0 ? 0 : (currentIdx + 1) % currentAvailable.length
     const newBackdropPath = currentAvailable[newIndex]
 

@@ -258,10 +258,12 @@ describe("tryRotatePoster against the store (sliding 24h, not a UTC day)", () =>
     }))
   }
 
-  it("returns null before 24h with no write and an untouched store", async () => {
+  it("returns null within the same day bucket with no write and an untouched store", async () => {
+    const T = Date.UTC(2026, 9, 6, 12, 0, 0)
+    vi.spyOn(Date, "now").mockReturnValue(T)
     const m = rotatingPoster({
       tmdbId: 611001,
-      cleanPosterUpdatedAt: new Date(Date.now() - DAY + 60_000).toISOString(),
+      cleanPosterUpdatedAt: new Date(T - 60_000).toISOString(),
     })
     const res = await tryRotatePoster(m, getEffectiveRotationState(m))
     expect(res).toBeNull()
@@ -269,16 +271,45 @@ describe("tryRotatePoster against the store (sliding 24h, not a UTC day)", () =>
     expect(storedGlobal("movie", 611001)?.posterPath).toBe("/a.jpg")
   })
 
-  it("does not rotate at exactly 24h (the <= bound is deliberate: sliding window, not a day cut)", async () => {
-    const T = Date.UTC(2026, 9, 6, 12, 0, 0)
-    vi.spyOn(Date, "now").mockReturnValue(T)
+  it("does not rotate at the very start of the bucket when already rotated in it", async () => {
+    // 02:00:00 UTC is the first instant of the new bucket; last update is
+    // 1ms later-than-cut of the SAME bucket → not due.
+    const cut = Date.UTC(2026, 9, 6, 2, 0, 0)
+    vi.spyOn(Date, "now").mockReturnValue(cut + 6 * HOUR)
     const m = rotatingPoster({
       tmdbId: 611002,
-      cleanPosterUpdatedAt: new Date(T - DAY).toISOString(),
+      cleanPosterUpdatedAt: new Date(cut).toISOString(),
+    })
+    expect(await tryRotatePoster(m, getEffectiveRotationState(m))).toBeNull()
+    expect(vi.mocked(upsert)).not.toHaveBeenCalled()
+  })
+
+  it("rotates right after the 02:00 UTC cut even if < 24h elapsed (fixed time, no drift)", async () => {
+    const cut = Date.UTC(2026, 9, 6, 2, 0, 0)
+    vi.spyOn(Date, "now").mockReturnValue(cut + 30 * 60_000)
+    // Rotated yesterday at 23:00 UTC → only 3.5h ago, but a previous bucket.
+    const m = rotatingPoster({
+      tmdbId: 611010,
+      cleanPosterUpdatedAt: new Date(cut - 3 * HOUR).toISOString(),
     })
     const res = await tryRotatePoster(m, getEffectiveRotationState(m))
-    expect(res).toBeNull()
-    expect(vi.mocked(upsert)).not.toHaveBeenCalled()
+    expect(res?.posterPath).toBe("/b.jpg")
+  })
+
+  it("late-day request does not push the next rotation a day later (no drift)", async () => {
+    const cut = Date.UTC(2026, 9, 6, 2, 0, 0)
+    // Day 1: first request at 22:00 UTC rotates.
+    vi.spyOn(Date, "now").mockReturnValue(cut + 20 * HOUR)
+    const m = rotatingPoster({
+      tmdbId: 611011,
+      cleanPosterUpdatedAt: new Date(cut - 2 * HOUR).toISOString(),
+    })
+    const first = await tryRotatePoster(m, getEffectiveRotationState(m))
+    expect(first?.posterPath).toBe("/b.jpg")
+    // Day 2: first request at 08:00 UTC (< 24h after 22:00) still rotates.
+    vi.spyOn(Date, "now").mockReturnValue(cut + DAY + 6 * HOUR)
+    const second = await tryRotatePoster(first!, getEffectiveRotationState(first!))
+    expect(second?.posterPath).toBe("/a.jpg")
   })
 
   it("rotates just after 24h: returns the updated mapping AND persists the store", async () => {
@@ -325,16 +356,14 @@ describe("tryRotatePoster against the store (sliding 24h, not a UTC day)", () =>
     expect(res?.cleanPosterIndex).toBe(0)
   })
 
-  it("same path refreshes only the timestamps and returns null", async () => {
-    // Index 0 over [/a, /b] with posterPath already /b.jpg: next index is 1,
-    // which points at the current path.
+  it("stale index never wastes a day: anchors on the real current poster", async () => {
+    // Stored index 0 but posterPath is already /b.jpg: the old logic picked
+    // index 1 (= /b.jpg, no visible change). Now the next poster after /b is /a.
     const m = rotatingPoster({ tmdbId: 611006, posterPath: "/b.jpg" })
-    const before = storedGlobal("movie", 611006)?.cleanPosterUpdatedAt
     const res = await tryRotatePoster(m, getEffectiveRotationState(m))
-    expect(res).toBeNull()
-    expect(vi.mocked(upsert)).toHaveBeenCalledTimes(1)
-    expect(storedGlobal("movie", 611006)?.posterPath).toBe("/b.jpg")
-    expect(storedGlobal("movie", 611006)?.cleanPosterUpdatedAt).not.toBe(before)
+    expect(res?.posterPath).toBe("/a.jpg")
+    expect(res?.cleanPosterIndex).toBe(0)
+    expect(storedGlobal("movie", 611006)?.posterPath).toBe("/a.jpg")
   })
 
   it("is idempotent: a second immediate call returns null with a single total write", async () => {
@@ -588,20 +617,21 @@ describe("tryRotateBackdrop against the store (landscape mirror)", () => {
     expect(storedGlobal("movie", 612001)?.backdropPath).toBe("/bd2.jpg")
   })
 
-  it("returns null before 24h and at exactly 24h", async () => {
-    const m1 = rotatingBackdrop({
-      tmdbId: 612002,
-      cleanBackdropUpdatedAt: new Date(Date.now() - DAY + 60_000).toISOString(),
-    })
-    expect(await tryRotateBackdrop(m1, getEffectiveBackdropRotationState(m1))).toBeNull()
+  it("returns null within the same day bucket, rotates after the 02:00 UTC cut", async () => {
     const T = Date.UTC(2026, 9, 6, 12, 0, 0)
     vi.spyOn(Date, "now").mockReturnValue(T)
+    const m1 = rotatingBackdrop({
+      tmdbId: 612002,
+      cleanBackdropUpdatedAt: new Date(T - 60_000).toISOString(),
+    })
+    expect(await tryRotateBackdrop(m1, getEffectiveBackdropRotationState(m1))).toBeNull()
+    expect(vi.mocked(upsert)).not.toHaveBeenCalled()
+    const cut = Date.UTC(2026, 9, 6, 2, 0, 0)
     const m2 = rotatingBackdrop({
       tmdbId: 612003,
-      cleanBackdropUpdatedAt: new Date(T - DAY).toISOString(),
+      cleanBackdropUpdatedAt: new Date(cut - HOUR).toISOString(),
     })
-    expect(await tryRotateBackdrop(m2, getEffectiveBackdropRotationState(m2))).toBeNull()
-    expect(vi.mocked(upsert)).not.toHaveBeenCalled()
+    expect((await tryRotateBackdrop(m2, getEffectiveBackdropRotationState(m2)))?.backdropPath).toBe("/bd2.jpg")
   })
 
   it("pool < 2 and flag off return null without reading the store", async () => {
@@ -865,6 +895,39 @@ describe("dynamic GET across the day cut (unmapped, logo + 2 clean posters)", ()
     const cc2 = res2.headers.get("cache-control") ?? ""
     expect(cc1).toContain(`max-age=${secondsUntilDynamicRotationCut(T1)}`)
     expect(cc2).toContain(`max-age=${secondsUntilDynamicRotationCut(T2)}`)
+  })
+
+  it("saved rotating title: max-age is capped at the next cut, no 24h/7d client cache past it", async () => {
+    const T = Date.UTC(2026, 9, 6, 12, 0, 0)
+    vi.spyOn(Date, "now").mockReturnValue(T)
+    seedGlobal(baseMapping({
+      tmdbId: 616010,
+      posterPath: "/a.jpg",
+      cleanPosters: ["/a.jpg", "/b.jpg"],
+      cleanPosterIndex: 0,
+      cleanPosterUpdatedAt: new Date(T - 60_000).toISOString(),
+      autoRotateClean: true,
+    }))
+    const res = await getPoster(616010)
+    expect(res.status).toBe(200)
+    const cc = res.headers.get("cache-control") ?? ""
+    expect(cc).toContain(`max-age=${secondsUntilDynamicRotationCut(T)}`)
+    expect(cc).not.toContain("max-age=86400")
+  })
+
+  it("saved title WITHOUT rotation keeps the historical 24h cache policy", async () => {
+    const T = Date.UTC(2026, 9, 6, 12, 0, 0)
+    vi.spyOn(Date, "now").mockReturnValue(T)
+    seedGlobal(baseMapping({
+      tmdbId: 616011,
+      posterPath: "/a.jpg",
+      cleanPosters: ["/a.jpg", "/b.jpg"],
+      cleanPosterIndex: 0,
+      autoRotateClean: false,
+    }))
+    const res = await getPoster(616011)
+    expect(res.status).toBe(200)
+    expect(res.headers.get("cache-control") ?? "").toContain("max-age=86400")
   })
 
   it("adds the requested-language posters only when the global scope default is ON (unmapped)", async () => {
