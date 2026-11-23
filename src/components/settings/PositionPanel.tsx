@@ -80,6 +80,7 @@ export function PositionPanel({ active, previewShape, onPreviewShapeChange, onPr
     preRelease: pick(land.preRelease, ed.defaultPreRelease),
   }
   const badgesOn = flags.globalBadges !== false
+  const overflowNow = (isLand ? land.badgeOverflow : undefined) ?? ed.defaultBadgeOverflow
   const layout = pick(land.posterLayout, ed.defaultPosterLayout)
   const reach = standardAnchorsReachable(layout, pick(land.posterFreshScope, ed.defaultPosterFreshScope))
   const gate = {
@@ -219,10 +220,10 @@ export function PositionPanel({ active, previewShape, onPreviewShapeChange, onPr
                   key={v}
                   type="button"
                   role="radio"
-                  aria-checked={ed.defaultBadgeOverflow === v}
+                  aria-checked={overflowNow === v}
                   data-testid={`badge-overflow-${v}`}
-                  onClick={() => ed.setDefaultBadgeOverflow(v)}
-                  className={`px-2 py-0.5 text-[11px] rounded ${ed.defaultBadgeOverflow === v ? "bg-white/20 text-foreground" : "text-muted"}`}
+                  onClick={() => (isLand ? set({ badgeOverflow: v }) : ed.setDefaultBadgeOverflow(v))}
+                  className={`px-2 py-0.5 text-[11px] rounded ${overflowNow === v ? "bg-white/20 text-foreground" : "text-muted"}`}
                 >
                   {t(v === "move" ? "ui.badgeOverflowMove" : "ui.badgeOverflowHide")}
                 </button>

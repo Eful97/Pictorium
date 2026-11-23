@@ -1961,8 +1961,10 @@ export function BadgeDefaultsSection({ active, shape, onPreviewFamilyChange, pre
           {(isLandscape ? ed.defaultWatchProvidersLandscape === true : ed.defaultWatchProviders === true) && (
             <select
               aria-label={t("ui.watchMaxLabel")}
-              value={ed.defaultWatchProvidersMax}
-              onChange={(e) => ed.setDefaultWatchProvidersMax(Number(e.target.value))}
+              value={(isLandscape ? ed.landscape.watchProvidersMax : undefined) ?? ed.defaultWatchProvidersMax}
+              onChange={(e) => (isLandscape
+                ? ed.setLandscape({ watchProvidersMax: Number(e.target.value) })
+                : ed.setDefaultWatchProvidersMax(Number(e.target.value)))}
               className="w-full rounded-lg border border-white/10 bg-white/[0.04] px-2 py-1.5 text-xs text-zinc-200"
             >
               {[1, 2, 3, 4, 5, 6].map((n) => (
@@ -1973,8 +1975,10 @@ export function BadgeDefaultsSection({ active, shape, onPreviewFamilyChange, pre
           {(isLandscape ? ed.defaultWatchProvidersLandscape === true : ed.defaultWatchProviders === true) && (
             <select
               aria-label={t("ui.watchRegionLabel")}
-              value={ed.defaultWatchRegion ?? ""}
-              onChange={(e) => ed.setDefaultWatchRegion(e.target.value || null)}
+              value={(isLandscape && typeof ed.landscape.watchRegion === "string" ? ed.landscape.watchRegion : ed.defaultWatchRegion) ?? ""}
+              onChange={(e) => (isLandscape
+                ? ed.setLandscape({ watchRegion: e.target.value })
+                : ed.setDefaultWatchRegion(e.target.value || null))}
               className="w-full rounded-lg border border-white/10 bg-white/[0.04] px-2 py-1.5 text-xs text-zinc-200"
             >
               <option value="">{t("ui.watchRegionSame")}</option>

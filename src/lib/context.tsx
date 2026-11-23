@@ -1120,7 +1120,7 @@ export function usePictorium(): PictoriumCtx {
       tmdbKey, lang, mdblistApiKey,
       dateFormat: defaultDateFormat,
       genreTopWhenFree: defaultGenreTopWhenFree,
-      badgeOverflow: defaultBadgeOverflow,
+      badgeOverflow: (defaultPosterShape === "landscape" ? landscapeDefaults?.badgeOverflow : undefined) ?? defaultBadgeOverflow,
       // AIO multi-user: `u=` nel template + niente chiavi in chiaro quando il
       // namespace le ha server-side (il server risolve da namespace).
       userId: currentUserId,

@@ -1009,9 +1009,14 @@ export function resolvePosterRenderConfig(input: PosterRenderConfigInput): Poste
       ? (sd.watchProvidersLandscape ?? sd.watchProviders ?? false)
       : (configOverride?.watchProviders ?? sd.watchProviders ?? false)
   // Numero icone — query `wpm` (1..6) > server defaults > 3.
-  const watchProvidersMax: number = sanitizeWatchMax(q.get("wpm")) ?? sanitizeWatchMax(sd.watchProvidersMax) ?? DEFAULT_WATCH_MAX
+  // Per forma: il profilo landscape (esd) vince sul flat; il paese landscape
+  // esplicito ("" = paese del poster) batte anche il config token (flat).
+  const watchProvidersMax: number = sanitizeWatchMax(q.get("wpm")) ?? sanitizeWatchMax(esd.watchProvidersMax) ?? sanitizeWatchMax(sd.watchProvidersMax) ?? DEFAULT_WATCH_MAX
+  const landWatchRegion = posterShape === "landscape" ? sd.landscape?.watchRegion : undefined
   const watchRegion: string | null = sanitizeWatchRegion(q.get("wpr"))
-    ?? sanitizeWatchRegion(configOverride?.watchRegion) ?? sanitizeWatchRegion(sd.watchRegion)
+    ?? (typeof landWatchRegion === "string"
+      ? sanitizeWatchRegion(landWatchRegion)
+      : (sanitizeWatchRegion(configOverride?.watchRegion) ?? sanitizeWatchRegion(sd.watchRegion)))
   // Icona tipo — query `ti` > default per forma (`typeIcon` portrait / `typeIconLandscape`) > OFF.
   const rawTi = q.get("ti")
   const typeIcon: boolean = rawTi !== null

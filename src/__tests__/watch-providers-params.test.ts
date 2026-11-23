@@ -92,6 +92,23 @@ describe("per-shape toggle + max", () => {
     expect(q("x")).toBe(2)
   })
 
+  it("landscape profile owns max + region; portrait keeps the flats", () => {
+    const sd = { watchProvidersMax: 5, watchRegion: "DE", landscape: { watchProvidersMax: 2, watchRegion: "FR" } }
+    const l = land(sd)
+    expect(l.watchProvidersMax).toBe(2)
+    expect(l.watchRegion).toBe("FR")
+    const p = resolvePosterRenderConfig(baseInput({ sd }))
+    expect(p.watchProvidersMax).toBe(5)
+    expect(p.watchRegion).toBe("DE")
+  })
+
+  it("landscape region \"\" = poster region, beats config token and flat; absent follows them", () => {
+    const sd = { watchRegion: "DE", landscape: { watchRegion: "" } }
+    expect(land(sd).watchRegion).toBeNull()
+    expect(land({ watchRegion: "DE", landscape: {} }).watchRegion).toBe("DE")
+    expect(land(sd, "&wpr=IT").watchRegion).toBe("IT")
+  })
+
   it("wpm emitted only when ON and non-default; cache key collapses 3/invalid", () => {
     expect(buildStremioPosterSearchParams({ lang: "it", watchProviders: true, watchProvidersMax: 2 }).get("wpm")).toBe("2")
     expect(buildStremioPosterSearchParams({ lang: "it", watchProviders: true, watchProvidersMax: 3 }).has("wpm")).toBe(false)

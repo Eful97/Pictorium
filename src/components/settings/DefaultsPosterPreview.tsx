@@ -314,7 +314,7 @@ export function buildDefaultsPreviewUrlFromEditor(
       defaultLogoAlign: ed.defaultLogoAlign,
       defaultDateFormat: ed.defaultDateFormat,
       defaultGenreTopWhenFree: ed.defaultGenreTopWhenFree,
-      defaultBadgeOverflow: ed.defaultBadgeOverflow,
+      defaultBadgeOverflow: (previewIsLandscape ? ed.landscape.badgeOverflow : undefined) ?? ed.defaultBadgeOverflow,
       defaultRegion: ed.defaultRegion,
       // Profilo Orizzontale live (stessi slider del Verticale): chiavi definite
       // vincono sui flat SOLO con shape Orizzontale (regola `land ?? flat` nel
@@ -325,8 +325,10 @@ export function buildDefaultsPreviewUrlFromEditor(
       defaultDisabledContentTags: ed.defaultDisabledContentTags ?? undefined,
       defaultDisabledNetworks: ed.defaultDisabledNetworks ?? undefined,
       defaultWatchProviders: (previewIsLandscape ? ed.defaultWatchProvidersLandscape : ed.defaultWatchProviders) ?? undefined,
-      defaultWatchRegion: ed.defaultWatchRegion ?? undefined,
-      defaultWatchProvidersMax: ed.defaultWatchProvidersMax,
+      defaultWatchRegion: (previewIsLandscape && typeof ed.landscape.watchRegion === "string"
+        ? (ed.landscape.watchRegion || null)
+        : ed.defaultWatchRegion) ?? undefined,
+      defaultWatchProvidersMax: (previewIsLandscape ? ed.landscape.watchProvidersMax : undefined) ?? ed.defaultWatchProvidersMax,
       defaultTypeIcon: previewIsLandscape ? ed.defaultTypeIconLandscape : ed.defaultTypeIcon,
       previewFamily: opts.previewFamily ?? null,
       previewExtra,

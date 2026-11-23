@@ -805,7 +805,9 @@ export async function GET(req: NextRequest, { params }: { params: Promise<RouteP
     const qGtop = hardenedParams.get("gtop")
     const genreTopWhenFree = qGtop !== null ? qGtop !== "0" : sd.genreTopWhenFree === true
     // Overflow badge Auto (`bov`): query > config token > default > move. Globale.
-    const badgeOverflow = resolveBadgeOverflow({ query: hardenedParams.get("bov"), config: configOverride?.badgeOverflow, defaults: sd.badgeOverflow })
+    // Per forma: l'override del profilo landscape batte anche il config token (flat).
+    const landOverflow = posterShape === "landscape" ? sd.landscape?.badgeOverflow : undefined
+    const badgeOverflow = resolveBadgeOverflow({ query: hardenedParams.get("bov"), config: landOverflow ?? configOverride?.badgeOverflow, defaults: sd.badgeOverflow })
     // Task D — freshness cap dai fatti volatili consumati (vedi freshness.ts).
     const factCap = resolveFactCap({
       mediaType, tmdbId, posterRegion, t, scopedUser, effTmdbKey, effMdblistKey, effTvdbKey,
