@@ -1,5 +1,4 @@
 import { renderWatchProviderRow } from "@/lib/watch-providers-render"
-import { renderTypeIcon } from "@/lib/type-icon-render"
 import type { WatchProvider } from "@/lib/watch-providers"
 import sharp from "sharp"
 import type { RatingItem } from "./custom-rating/types"
@@ -11,7 +10,7 @@ import { renderSeparateRatingStack, renderSeparateRatingsBottom, renderSeparateR
 import { cacheGet, cacheSet } from "./cache"
 import { GENRE_FALLBACK } from "./badges"
 import { applyBlur } from "./blur"
-import { STD_W, STD_H, extractSceneTint, fitBadgeToCanvas, fitCompositeToCanvas, isValidHex, BadgeRender, PosterComposite, badgeBody, badgeCanvasForBody, type BadgeBleed, scaleBadgeBleed, topBandMeanRGB, bottomBandMeanRGB, effectiveTopBackgroundLuminance, effectiveBottomBackgroundLuminance, adaptiveAccentHexForBand, insertFrostedGlassUnderlays, opaqueComponents, tightenBoxesToInk } from "./poster-render-helpers"
+import { STD_W, STD_H, extractSceneTint, fitBadgeToCanvas, isValidHex, BadgeRender, PosterComposite, badgeBody, badgeCanvasForBody, type BadgeBleed, scaleBadgeBleed, topBandMeanRGB, bottomBandMeanRGB, effectiveTopBackgroundLuminance, effectiveBottomBackgroundLuminance, adaptiveAccentHexForBand, opaqueComponents, tightenBoxesToInk } from "./poster-render-helpers"
 import { LAND_W, LAND_H } from "./image-utils"
 import { normalizeAutomaticAccentHex } from "./accent-color"
 import type { EffectiveAccentMeta } from "./effective-accent"
@@ -31,7 +30,6 @@ import { isNextEpisodeBadgeKey, DEFAULT_SASH_ORDER } from "./badge-priority"
 import { DEMO_SAMPLE_NETWORK } from "./demo-samples"
 import type { DateFormat } from "./release-badge"
 import type { SashBucket } from "./badge-priority"
-import { PRE_RELEASE_BLUR_SIGMA } from "./pre-release"
 import type { Mapping, NetworkLogoPosition, PosterLayout, PosterFreshScope } from "./types"
 import { type SeasonalTheme } from "./seasonal-theme"
 import { isPosterFreshScope, DEFAULT_POSTER_FRESH_SCOPE } from "./types"
@@ -43,7 +41,7 @@ import type { BadgeFont } from "./badge-styles"
 import { isRibbonRankingStyle, notchMaterialOf, qualityGroupNotchMaterial, isBottomSeparateRatingsStyle, columnNotchMaterialOf, isNotchSeparateRatingsStyle, isAgeBadgeStyle, isAwardBadgeMode, getSeparateRatingsStyleForShape, resolveNumberBadgeBaseOffsetX, normalizeExtraBadgeStyleForRender, resolveQualityGroupLayout, isMergedQualityStrip, DEFAULT_AGE_BADGE_STYLE, DEFAULT_AWARD_BADGE_MODE, type BadgeStyle, type RankingBadgeStyle, type ExtraBadgeStyle, type ExtraBadgeFollowRank, type SeparateRatingsStyle, type SeparateBottomVariant, type AgeBadgeStyle, type AwardBadgeMode, type QualityGroupLayout } from "./badge-styles"
 import { normalizeBadgeFont } from "./badge-svg-shared"
 import type { PosterImageFormat } from "@/lib/poster-runtime-cache"
-import { DEFAULT_IMAGE_QUALITY, POSTER_ENCODE_QUALITY, type ImageQuality } from "@/lib/image-quality"
+import { type ImageQuality } from "@/lib/image-quality"
 import { qualityBadgeIconPath } from "./quality-badge-styles"
 import type { QualityBadgeStyle } from "./badge-styles"
 import { isRankKey } from "./i18n"
@@ -635,7 +633,8 @@ export { badgeCacheKey } from "./poster-cache-infra"
 
 // Overlay full-canvas e cache image-level estratti in moduli dedicati;
 // le API storiche restano ri-esportate da qui.
-import { getVignette, getLandscapeScrim, getPreReleaseDim, loadSeasonalFrame, getTopShade } from "./poster-overlay-cache"
+import { composeFinalPoster } from "./poster-final-composite"
+import { getVignette, getLandscapeScrim, getPreReleaseDim, getTopShade } from "./poster-overlay-cache"
 export { __resetSeasonalFrameCacheForTests } from "./poster-overlay-cache"
 import { resizeLogoCached, backdropMetaCached, resizeBackdropCached } from "./poster-image-cache"
 export { resolveBadgeColors, resizeLogoCached, backdropMetaCached, resizeBackdropCached, type BadgeColorsResult, type ResizedImage } from "./poster-image-cache"
@@ -4235,111 +4234,10 @@ export async function generatePosterBuffer(input: GenerationInput): Promise<Buff
   // -----------------------------------------------------------------------
   // 7. Final composite
   // -----------------------------------------------------------------------
-  // Icona tipo film/serie, fallback senza badge genere standard: solo glifo in
-  // basso a sinistra, sopra il resto del chrome (fail-open: poster storico).
-  if (typeIcon && !typeIconInlineAux && !(genreTypeIcon && safeGenreBadgeResult)) {
-    const icon = await renderTypeIcon(mediaType, Math.round(badgePw * 0.04))
-    if (icon) {
-      const margin = Math.round(badgePw * (isLandscape ? 0.03 : 0.015))
-      composites.push({ input: icon.png, top: CH - icon.h - margin, left: margin })
-    }
-  }
-
-  const safeComposites = (await Promise.all(composites.map((layer) => fitCompositeToCanvas(layer, CW, CH))))
-    .filter((layer): layer is PosterComposite => layer !== null)
-
-  // Cornice stagionale (qualunque tema canonico valido, su ENTRAMBI i canvas
-  // col proprio asset 500×750 / 768×432 — mai stirata — in TUTTI i layout:
-  // standard, Fresh e Card, senza esclusioni): la cornice sta SOPRA lo
-  // sfondo/il trattamento immagine (backdrop, vignetta, velo
-  // pre-release, ombra superiore, blur) ma SOTTO TUTTO il chrome — logo,
-  // rank/extra, Coming Soon, network, qualità, genere, separati, età e gli
-  // overlay composti Fresh/Card (richiesta utente esplicita aggiornata: la
-  // cornice va al di sotto di tutti i badge e loghi). L'ancora
-  // `seasonalFrameAfter` (ultimo trattamento pre-chrome) fissa la posizione:
-  // gli splice Fresh e il chrome conservato Card atterrano dopo di essa,
-  // quindi la cornice resta sotto di loro in ogni layout. Fail-open: asset
-  // illeggibile = poster storico, mai 500.
-  let seasonalFrameLayer: PosterComposite | null = null
-  if (seasonalTheme !== null) {
-    try {
-      const frame = await loadSeasonalFrame(CW, CH, seasonalTheme, isLandscape ? "landscape" : "poster")
-      const fitted = await fitCompositeToCanvas({ input: frame, top: 0, left: 0 }, CW, CH)
-      if (fitted) {
-        const anchorIdx = seasonalFrameAfter ? safeComposites.indexOf(seasonalFrameAfter) : -1
-        // Ancora trovata: subito dopo il trattamento. Ancora assente o
-        // scartata (mai attesa: i trattamenti sono full-canvas validi): in
-        // testa, comunque sotto tutto il chrome.
-        if (anchorIdx >= 0) safeComposites.splice(anchorIdx + 1, 0, fitted)
-        else safeComposites.splice(0, 0, fitted)
-        seasonalFrameLayer = fitted
-      }
-    } catch {
-      // asset mancante/illeggibile — il poster resta quello storico
-    }
-  }
-
-  // Il blur è un overlay RGBA grezzo (nessun PNG intermedio): entra come primo
-  // layer, sotto backdrop/vignetta/badge — stesso ordine del vecchio blur "cotto"
-  // nella base. La base non subisce ritocchi colore: niente modulate,
-  // l'artwork TMDB passa invariato nel composite finale (task16: la base è il
-  // background ricostruito solo in Fresh-ranked, originale altrove; P5: con
-  // Card effettiva la base è il poster completo della card e il chrome
-  // conservato vi si compone sopra come per Fresh). ECCEZIONE Card: la fascia
-  // blur è già cotta nell'artwork a monte (blocco 6c) e qui resta FUORI dai
-  // layer — coprirebbe la card finita (metadata, titolo, provider, bordi).
-  // Il blur esplicito pre-release sotto resta invece full-canvas per contratto.
-  const cardBlurBaked = isCard && cardPng !== null && blurOverlay !== null
-  // Root cause of the Fresh bottom-left blackout: the raw bottom blur/tint
-  // overlay used to composite FIRST (below everything), so the Fresh lateral
-  // black shade painted OVER the accent tint wherever they overlap
-  // (bottom-left), hiding it. The tinted bottom band now interleaves between
-  // the lateral shade (below) and the bottom legibility shade + content
-  // (above): accent visible bottom-left AND bottom-right, upper-left lateral
-  // shade untouched (the bottom overlay has no coverage there), and no color
-  // intensities changed anywhere. Standard/Card never take this branch
-  // (freshBottomShadeLayer stays null there).
-  const blurRawLayer = blurOverlay && !cardBlurBaked
-    ? { input: blurOverlay.overlay, raw: { width: CW, height: blurOverlay.height, channels: 4 }, top: blurOverlay.top, left: 0 }
-    : null
-  const freshBlurAt = blurRawLayer && freshBottomShadeLayer ? safeComposites.indexOf(freshBottomShadeLayer) : -1
-  const layers: Array<PosterComposite | { input: Buffer; raw: { width: number; height: number; channels: 4 }; top: number; left: number }> = !blurRawLayer
-    ? safeComposites
-    : freshBlurAt >= 0
-      ? [...safeComposites.slice(0, freshBlurAt), blurRawLayer, ...safeComposites.slice(freshBlurAt)]
-      : [blurRawLayer, ...safeComposites]
-
-  // La cornice resta sopra il trattamento immagine ritardato: con Fresh +
-  // blur attivo il blur grezzo si intercala prima della shade di leggibilità
-  // (dopo l'ancora), quindi finirebbe sopra la cornice — la si risolleva
-  // subito sopra il blur, restando sotto shade/contenuti Fresh e sotto tutto
-  // il chrome. Con blur in testa (standard) o senza blur è già sopra: nessun
-  // movimento, zero pixel cambiati.
-  if (seasonalFrameLayer && blurRawLayer) {
-    const frameIdx = layers.indexOf(seasonalFrameLayer)
-    const blurIdx = layers.indexOf(blurRawLayer)
-    if (frameIdx >= 0 && blurIdx >= 0 && frameIdx < blurIdx) {
-      layers.splice(frameIdx, 1)
-      layers.splice(layers.indexOf(blurRawLayer) + 1, 0, seasonalFrameLayer)
-    }
-  }
-
-  let pipeline = sharp(isCard && cardPng ? cardPng : freshBaseBuf)
-
-  if (showComingSoon) {
-    pipeline = pipeline.blur(PRE_RELEASE_BLUR_SIGMA)
-  }
-
-  if (glassLayers.size > 0) await insertFrostedGlassUnderlays(pipeline, layers, glassLayers, CW, CH, glassBlurOverrides)
-
-  pipeline = pipeline.composite(layers)
-
-  const q = POSTER_ENCODE_QUALITY[input.imageQuality ?? DEFAULT_IMAGE_QUALITY]
-  if (input.format === "avif") {
-    return await pipeline.avif({ quality: q.avif, effort: 2 }).toBuffer()
-  }
-  if (input.format === "webp") {
-    return await pipeline.webp({ quality: q.webp, effort: 2 }).toBuffer()
-  }
-  return await pipeline.jpeg({ quality: q.jpeg, mozjpeg: true }).toBuffer()
+  return composeFinalPoster({
+    composites, CW, CH, isLandscape, isCard, cardPng, freshBaseBuf, freshBottomShadeLayer,
+    seasonalTheme, seasonalFrameAfter, blurOverlay, showComingSoon, glassLayers, glassBlurOverrides,
+    typeIcon, typeIconInlineAux, genreTypeIconInline: !!(genreTypeIcon && safeGenreBadgeResult),
+    mediaType, badgePw, format: input.format, imageQuality: input.imageQuality,
+  })
 }
