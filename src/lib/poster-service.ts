@@ -15,7 +15,7 @@ import { renderGenreBadge,renderRankingBadge,renderExtraBadge,renderComingSoonRi
 import { buildLogoScrim,logoContrast,logoInkLuminance,logoScrimStrength,posterLogoZoneLuminance } from "./logo-contrast"
 import { renderFirstMatchingNetworkLogoBadge,renderFirstMatchingNetworkRawBadge,renderFirstMatchingNetworkLogoBadgeHybrid,renderFirstMatchingNetworkRawBadgeHybrid,type NetworkCandidate } from "./network-svgs"
 import { isNetworkFixedPosition } from "./network-follow"
-import { isActiveQualityAnchor,isLogoRelativePosition,type LogoRelativePosition,isActiveTopBadgeAnchor,isActiveBottomAnchor,bottomAnchoredLeft,bottomAnchoredBodyLeft,anchorRect,anchorCol,anchorRow,isAnchorPosition,type AnchorChoice,type AnchorPosition } from "./badge-anchor"
+import { isActiveQualityAnchor,isLogoRelativePosition,type LogoRelativePosition,isActiveTopBadgeAnchor,isActiveBottomAnchor,bottomAnchoredLeft,bottomAnchoredBodyLeft,anchorRect,anchorCol,anchorRow,isAnchorPosition,type AnchorPosition } from "./badge-anchor"
 import { computeLogoLayout,logoAlignPadX,isActiveLogoAnchor,isTopLogoAnchor,type LogoAnchor,PORTRAIT_LOGO_MAX_HEIGHT_PCT,PORTRAIT_LOGO_TOP_OFFSET,LANDSCAPE_LOGO_MAX_WIDTH_PCT,LANDSCAPE_LOGO_MAX_HEIGHT_PCT,LANDSCAPE_LOGO_BOTTOM_MARGIN_PCT,LANDSCAPE_LOGO_TOP_OFFSET,LANDSCAPE_LOGO_SHIFT_X,LANDSCAPE_LOGO_SHIFT_Y } from "./logo-layout"
 import { logoDefaultScaleFromAspect,FRESH_TITLE_LOGO_DEFAULT_SCALE } from "./logo-selection"
 import { TOP_SHADOW_PAD } from "./badge-svg-shared"
@@ -24,15 +24,14 @@ import { isNextEpisodeBadgeKey,DEFAULT_SASH_ORDER } from "./badge-priority"
 import { DEMO_SAMPLE_NETWORK } from "./demo-samples"
 import { isPosterFreshScope,DEFAULT_POSTER_FRESH_SCOPE } from "./types"
 import { directorBadgeLabel } from "./awards"
-import { isRibbonRankingStyle,notchMaterialOf,qualityGroupNotchMaterial,isBottomSeparateRatingsStyle,columnNotchMaterialOf,isNotchSeparateRatingsStyle,isAgeBadgeStyle,isAwardBadgeMode,getSeparateRatingsStyleForShape,resolveNumberBadgeBaseOffsetX,normalizeExtraBadgeStyleForRender,resolveQualityGroupLayout,isMergedQualityStrip,DEFAULT_AGE_BADGE_STYLE,DEFAULT_AWARD_BADGE_MODE,type SeparateBottomVariant,type AgeBadgeStyle,type AwardBadgeMode } from "./badge-styles"
+import { isRibbonRankingStyle,notchMaterialOf,isBottomSeparateRatingsStyle,columnNotchMaterialOf,isNotchSeparateRatingsStyle,isAgeBadgeStyle,isAwardBadgeMode,getSeparateRatingsStyleForShape,resolveNumberBadgeBaseOffsetX,normalizeExtraBadgeStyleForRender,isMergedQualityStrip,DEFAULT_AGE_BADGE_STYLE,DEFAULT_AWARD_BADGE_MODE,type SeparateBottomVariant,type AgeBadgeStyle,type AwardBadgeMode } from "./badge-styles"
 import { normalizeBadgeFont } from "./badge-svg-shared"
-import { qualityBadgeIconPath } from "./quality-badge-styles"
 import { isRankKey } from "./i18n"
 import { isEffectiveFreshLayout,isFreshRank,prepareFreshReconstructedBackground,type FreshOverlayGeometry } from "./fresh-layout"
 import { type CardOverlayGeometry } from "./card-layout"
 import { isEffectiveCardLayout } from "./card-layout-skins"
-import { applyBadgeItemTransform,badgeItemTransform,effectiveBadgeItemTransforms,homeIdForPainted,isNeutralBadgeItemTransform,isQualityItemId,isRatingItemId,ratingSlotItemId,serializeBadgeItemTransforms } from "./badge-item-transforms"
-import { type CornerRankRect,isCornerAnchoredStyle,resolveTopBadgeStyle,genreBadgeConsumesAccent,topBadgeConsumesAccent,cornerRankTop,cornerAnchoredLeft,isTopBadgeNumberRightCorner,numberSharesComingSoonCorner,type NetworkGeometry,type BadgeGeometryFamily,type BadgeGeometryBox,type BadgeGeometryItem,NETWORK_LOGO_SHIFT_Y,NETWORK_ABOVE_LOGO_LIFT,cornerNetworkAboveTitle,stackNetworkBelowCornerRank,landscapeRightAnchorLeft } from "./badge-layout"
+import { applyBadgeItemTransform,badgeItemTransform,homeIdForPainted,isNeutralBadgeItemTransform,ratingSlotItemId } from "./badge-item-transforms"
+import { type CornerRankRect,isCornerAnchoredStyle,genreBadgeConsumesAccent,topBadgeConsumesAccent,cornerRankTop,cornerAnchoredLeft,isTopBadgeNumberRightCorner,numberSharesComingSoonCorner,type NetworkGeometry,type BadgeGeometryFamily,type BadgeGeometryBox,type BadgeGeometryItem,NETWORK_LOGO_SHIFT_Y,NETWORK_ABOVE_LOGO_LIFT,cornerNetworkAboveTitle,stackNetworkBelowCornerRank,landscapeRightAnchorLeft } from "./badge-layout"
 import { type QualityBadgeGroupResult,renderQualityBadgeGroup } from "./quality-badges"
 export { type CornerRankRect, isCornerAnchoredStyle, resolveTopBadgeStyle, genreBadgeConsumesAccent, topBadgeConsumesAccent, cornerRankTop, cornerAnchoredLeft, isNumberRightCorner, isTopBadgeNumberRightCorner, numberSharesComingSoonCorner, type NetworkGeometry, type BadgeGeometryFamily, type BadgeGeometryLayout, type BadgeGeometryBox, type BadgeGeometryReport, type BadgeGeometryItem, NETWORK_LOGO_SHIFT_Y, NETWORK_ABOVE_LOGO_LIFT, type CornerNetworkAboveTitleInput, cornerNetworkAboveTitle, stackNetworkBelowCornerRank } from "./badge-layout"
 export { __resetQualityIconCacheForTests, renderQualityIconBadge, renderColorIconBadge, renderPremiumIconBadge, renderAvKnockoutBadge, type QualityBadgeItem, type QualityBadgeGroupResult, type QualityHomeGhost, renderQualityBadgeGroup } from "./quality-badges"
@@ -58,6 +57,7 @@ export { badgeCacheKey } from "./poster-cache-infra"
 // le API storiche restano ri-esportate da qui.
 import { reportEffectiveAccentMeta } from "./poster-accent-meta"
 import { composeFreshLayer } from "./poster-fresh-compose"
+import { resolveBadgePlacement } from "./poster-badge-placement"
 import { reportBadgeGeometry } from "./poster-badge-geometry"
 import { composeCardLayer } from "./poster-card-compose"
 import { composeFinalPoster } from "./poster-final-composite"
@@ -821,183 +821,21 @@ export async function generatePosterBuffer(input: GenerationInput): Promise<Buff
   // -----------------------------------------------------------------------
   // Anime ranking: il badge anime mostra il numero grande con "anime" sotto.
   // Rilevato quando il topBadge è un rank derivato da animeRankResult.
-  const isAnimeRank = topBadge?.type === "rank" && animeRankResult !== null && topBadge.rank === animeRankResult
-  // Effective top-badge style (rank = `rs`, extra = `xbs ?? rs` legacy).
-  // Number mirroring and corner anchoring follow this, never `rs` alone: an
-  // explicit extra style detaches the extra badge from the ranking style.
-  const topBadgeStyle = resolveTopBadgeStyle({ topBadgeType: topBadge?.type, rankingBadgeStyle, extraBadgeStyle })
-
-  // Independent CLASSIFICA vs EXTRA tuning: the effective top-badge tuning
-  // follows the KIND of the final topBadge (selected above, after network
-  // suppression), never the other group's values. Rank (ribbon included)
-  // always uses the legacy classifica tuning; extra uses its own once
-  // migrated, else the legacy fallback — editing one never moves or resizes
-  // the other.
-  const isExtraTopBadge = topBadge?.type === "extra"
-  const effTopBadgeScale = isExtraTopBadge ? (extraBadgeScale ?? topBadgeScale) : topBadgeScale
-  const effTopBadgeOffsetX = isExtraTopBadge ? (extraBadgeOffsetX ?? topBadgeOffsetX) : topBadgeOffsetX
-  const effTopBadgeOffsetY = isExtraTopBadge ? (extraBadgeOffsetY ?? topBadgeOffsetY) : topBadgeOffsetY
-
-  const hasQualityBadge = badgeQuality !== false && !!quality
-  // Badge età: master badge globale ON + etichetta risolta presente. NON
-  // richiede il badge qualità né il tier 4K (contratto esplicito: l'età
-  // rende anche senza qualità; solo il master globale spegne tutto).
-  // Il legacy toggle `bq` (badgeQuality=false) spegne TUTTO il tech stack:
-  // qualità E formati A/V. Senza gating, il gruppo sotto riaccenderebbe la
-  // qualità nascosta (quality ?? null passato raw) solo perché l'età apre il
-  // gruppo — l'age-only non deve mai resuscitare 4K/DV/Atmos disabilitati.
-  const effectiveQuality = badgeQuality === false ? null : quality
-  const effectiveFormats = badgeQuality === false ? null : videoFormats
-  const ageText = typeof ageLabel === "string" ? ageLabel.trim() : ""
-  const hasAgeBadge = badgesEnabled !== false && ageText !== ""
-  const hasQualityGroup = hasQualityBadge || hasAgeBadge
-  // Built-in icon per style+tier (null = standard pill / mono frame / knockout
-  // tag). The style enters the cache key in any case: style change = new
-  // bitmaps, never a collision (knockout, standard and mono share "std").
-  // `quality` può essere null quando il gruppo rende la sola età: l'icona
-  // resta null e la pill standard età compone il gruppo da sola. Quando il
-  // legacy toggle è OFF (badgeQuality=false) l'effettiva è null: niente
-  // icona, niente chiave che includa il tier nascosto.
-  const effQualityBadgeStyle = qualityBadgeStyle
-  const effAgeBadgeStyle: AgeBadgeStyle = ageBadgeStyle
-  // Gruppo notch: UNA linguetta; `qgl` ne sceglie la composizione
-  // (`stacked` = due piani, `row` = cella tier).
-  const groupNotch = qualityGroupNotchMaterial(effQualityBadgeStyle, effAgeBadgeStyle)
-  // Layout del gruppo qualità, risolto dalla route (query `qgl` > mapping >
-  // config token > defaults > `stacked`). Fail-closed: assente/invalido =
-  // colonna storica. Entra nella chiave solo quando è `row`, così le chiavi
-  // storiche (stacked) restano byte-identiche.
-  const effQualityGroupLayout = resolveQualityGroupLayout(rawQualityGroupLayout)
-  const effQualityTopLight = topLight
-  const effQualityGroupScale = qualityBadgeScale
-  // `mono` renders the shared dynamic frame (same as the age mono): no asset
-  // path, so the cache key must not claim one.
-  const qualityIconPath = effQualityBadgeStyle === "knockout" || effQualityBadgeStyle === "mono" || !effectiveQuality ? null : qualityBadgeIconPath(effQualityBadgeStyle, effectiveQuality)
-  const effComingSoonSide = ribbonSide === "right" ? "right" : "left"
-  const effComingSoonLabel = comingSoonLabel
-  // Il notch laterale segue il lato del nastro/angolo occupato: quando il
-  // gruppo qualità si specchia a sinistra, la linguetta aggancia il bordo
-  // sinistro. Regola pura (tutte le dipendenze sono risolte prima della cache
-  // key), così il bitmap e la sua chiave restano coerenti.
-  // Ancora qualità: SOLO Standard (Fresh/Card ignorano il parametro, byte-identici).
-  // Con ancora attiva il lato è quello scelto e non dipende più dagli occupanti
-  // dell'angolo destro; il bordo della linguetta lo segue (stessa chiave cache).
-  // Ancora fascia inferiore: stessa regola (solo Standard).
-  const bottomAnchorEff: AnchorChoice = !isFresh && !isCard && isActiveBottomAnchor(bottomAnchor) ? bottomAnchor : "auto"
-  const qualityAnchorEff: AnchorChoice = !isFresh && !isCard && isActiveQualityAnchor(qualityAnchor) ? qualityAnchor : "auto"
-  // Ancora MANUALE = posizione fissa (angolo + offset X/Y): nessuno scalino,
-  // shrink o cambio lato per evitare altri elementi. I badge in auto continuano
-  // a evitarla; le sovrapposizioni tra manuali sono accettate. netPos "top" è
-  // legacy e NON manuale (vedi networkManual, nel blocco network).
-  // Posizioni relative al logo (above/below; netPos/qanc/banc/tanc/xanc): sono
-  // MANUALI (fisse, mai spostate per collisioni) ma senza anchorRect. La base e
-  // il percorso auto del family; il blocco "sopra/sotto il logo" (prima del
-  // pass) le porta rispetto al logo finale. Senza logo reso, o in Fresh/Card,
-  // valgono come auto (nessun effetto, byte-identico).
-  const logoRelOk = !isFresh && !isCard && !!logoResult
-  const netRel: LogoRelativePosition | null = logoRelOk && isLogoRelativePosition(networkLogoPosition) ? networkLogoPosition : null
-  const qualityRel: LogoRelativePosition | null = logoRelOk && isLogoRelativePosition(qualityAnchor) ? qualityAnchor : null
-  const bottomRel: LogoRelativePosition | null = logoRelOk && isLogoRelativePosition(bottomAnchor) ? bottomAnchor : null
-  const bottomManual = bottomAnchorEff !== "auto" || bottomRel !== null
-  const qualityManual = qualityAnchorEff !== "auto" || qualityRel !== null
-  // Ancora del badge superiore centrato (rank/extra). Attiva solo se il corpo
-  // è davvero centrato: niente nastro Netflix (rank), niente corner/numerale
-  // (già nell'angolo). Fresh/Card: mai attiva. Auto = nessun effetto.
-  // Lo slot dipende dal tipo del badge superiore: extra → xanc, rank → tanc.
-  const slotAnchor = topBadge?.type === "extra" ? extraBadgeAnchor : topBadgeAnchor
-  const topBadgeAnchorEff: AnchorChoice = !isFresh && !isCard && isActiveTopBadgeAnchor(slotAnchor) ? slotAnchor : "auto"
-  // Coming Soon occupa lo slot alto e il corpo rank non viene disegnato
-  // (`rankBadgeKey` nullo): con il nastro attivo l'ancora non ha nulla da
-  // spostare e non deve trasferire quality/network sull'angolo destro.
-  // `topAnchorActive` = percorso storico tl/tr (corpo centrato spostato
-  // all'angolo, niente corner). `topFixedActive` = posizione fissa estesa
-  // (7 nuove + tl/tr su stili corner): corpo via `anchorRect` nel blocco rank.
-  const topAnchorActive = (topBadgeAnchorEff === "tl" || topBadgeAnchorEff === "tr") && !!topBadge && !showComingSoon
-    && !(isRibbonRankingStyle(rankingBadgeStyle) && topBadge?.type === "rank")
-    && !isCornerAnchoredStyle(topBadgeStyle)
-  const topFixedActive = isActiveTopBadgeAnchor(topBadgeAnchorEff) && !!topBadge && !showComingSoon
-    && !(isRibbonRankingStyle(rankingBadgeStyle) && topBadge?.type === "rank")
-    && !topAnchorActive
-  const topRel: LogoRelativePosition | null = logoRelOk && !!topBadge && !showComingSoon
-    && !(isRibbonRankingStyle(rankingBadgeStyle) && topBadge?.type === "rank")
-    && isLogoRelativePosition(slotAnchor) ? slotAnchor : null
-  const topRightAnchored = topAnchorActive && topBadgeAnchorEff === "tr"
-  const notchEdge: "right" | "left" = isActiveQualityAnchor(qualityAnchorEff) ? (anchorCol(qualityAnchorEff) === "l" ? "left" : "right") : (
-    (isRibbonRankingStyle(rankingBadgeStyle) && ribbonSide === "right" && topBadge?.type === "rank")
-    || (showComingSoon && effComingSoonSide === "right")
-    || isTopBadgeNumberRightCorner({ topBadgeType: topBadge?.type, rankingBadgeStyle, extraBadgeStyle, ribbonSide, hasTopBadge: !!topBadge })
-    || topRightAnchored
-    || (!!networkLogo && networkLogoPosition === "top")
-  ) ? "left" : "right"
-
-  // Placca staccata: solo gli stili centrati (il nastro resta ancorato)
-  // con offset Y esplicito arrotondano tutti e 4 gli angoli. Calcolato qui
-  // (non nel layout sotto) perché entra nella chiave cache: il bitmap cambia.
-  // Task P: la Y combinata (tuning + preset position) decide il detached del
-  // preset; il nativo resta sulla sola tuning (preset assente = 0, identico).
-  const isRankNetflixRibbonStyle = isRibbonRankingStyle(rankingBadgeStyle) && topBadge?.type === "rank"
-  const isRankDetached = !!topBadge && !isRankNetflixRibbonStyle && topBadgeStyle !== "number" && effTopBadgeOffsetY !== 0
-
-  // Genere in alto quando lo slot superiore è libero (opt-in, solo portrait
-  // Standard, mai la barra full-width): stessa decisione del ramo rank
-  // (`rankBadgeKey` nullo) + nessun nastro Coming Soon. Sopra il badge legge
-  // la polarità della banda alta (`topLight`), come i badge superiori.
-  // Ancora manuale in fascia bassa: il genere resta nella fascia nell'angolo
-  // scelto, mai spostato in alto (genreTopWhenFree ignorato).
-  const genreAtTop = input.genreTopWhenFree === true && shape !== "landscape" && !isFresh && !isCard
-    && badgeStyle !== "bar" && !notchMaterialOf(badgeStyle) && !topBadge && !showComingSoon && !bottomManual
-  const genreLight = genreAtTop ? topBadgeLight : genreBadgeLight
-  // Icona tipo: glifo inline nella riga del badge genere standard (Fresh/Card
-  // non usano questo percorso: lì resta il fallback standalone).
-  const genreTypeIcon: "movie" | "tv" | null = typeIcon && !isFresh && !isCard ? mediaType : null
+  const { genreBadgeKey, genreLight, genreTypeIcon, rankBadgeKey, isRankDetached, isAnimeRank, qualityBadgeKey, effectiveQuality, effQualityBadgeStyle, effectiveFormats, effQualityTopLight, hasAgeBadge, ageText, effAgeBadgeStyle, itemTransformsForQuality, effQualityGroupLayout, notchEdge, comingSoonKey, effComingSoonLabel, effComingSoonSide, effTopBadgeScale, effQualityGroupScale, netRel, qualityRel, bottomRel, topRel, bottomAnchorEff, combinedGenreOX, genreAtTop, combinedGenreOY, bottomManual, topBadgeStyle, combinedTopOX, topAnchorActive, topBadgeAnchorEff, combinedTopOY, topFixedActive, topRightAnchored, qualityAnchorEff, groupNotch, qualityManual, effectiveItemTransforms, separateItemKey, itemTransformsForSeparate, isExtraTopBadge, isRankNetflixRibbonStyle } = resolveBadgePlacement({
+    topBadge, animeRankResult, rankingBadgeStyle, extraBadgeStyle, extraBadgeScale, topBadgeScale,
+    extraBadgeOffsetX, topBadgeOffsetX, extraBadgeOffsetY, topBadgeOffsetY, badgeQuality, quality,
+    videoFormats, ageLabel, badgesEnabled, qualityBadgeStyle, ageBadgeStyle, rawQualityGroupLayout,
+    topLight, qualityBadgeScale, ribbonSide, comingSoonLabel, isFresh, isCard,
+    bottomAnchor, qualityAnchor, logoResult, networkLogoPosition, extraBadgeAnchor, topBadgeAnchor,
+    showComingSoon, networkLogo, input, shape, badgeStyle, topBadgeLight,
+    genreBadgeLight, typeIcon, mediaType, hasGenreBadge, genreName, voteAverage,
+    CW, year, badgeFont, genreStdAccent, badgeGenre, badgeYear,
+    badgeRating, genreBadgeScale, rankStdAccent, rankingBadgeAccent, awardLogoTopKey, awardLogoTopCaption,
+    badgeItemTransforms, genreBadgeOffsetX, genreBadgeOffsetY,
+  })
   // Fresh/Card disegnano il glifo nella propria riga genere: se l'overlay lo
   // ha posato il fallback standalone non serve.
   let typeIconInlineAux = false
-  const genreBadgeKey = hasGenreBadge
-    ? badgeCacheKey("genre", genreName, voteAverage, CW, year, badgeStyle, badgeFont, genreStdAccent, genreLight, badgeGenre, badgeYear, badgeRating, genreBadgeScale, genreTypeIcon)
-    : null
-  // The award logo mode is part of the cache identity: the logo bitmap can
-  // never be served for a textual request (or vice versa). Non-award extras
-  // keep the historic key (identical text render in both modes).
-  const rankBadgeKey = !showComingSoon && topBadge
-    ? badgeCacheKey("rank", topBadge.type === "extra" ? topBadge.label : `${(topBadge as { rank: number }).rank}:${topBadge!.label}:${(topBadge as { ribbonLabel?: string }).ribbonLabel ?? ""}`, CW, topBadgeLight, topBadgeStyle, badgeFont, rankStdAccent, ribbonSide, isAnimeRank, effTopBadgeScale, isRankDetached ? "detached" : undefined, rankingBadgeAccent ? "accent" : undefined, awardLogoTopKey ? `awardlogo:${awardLogoTopKey}:${awardLogoTopCaption ?? ""}` : undefined)
-    : null
-  const formatsKey = (effectiveFormats && effectiveFormats.length > 0) ? effectiveFormats.join(",") : "none"
-  // Per-item corrections, split by family so each group's cache key carries
-  // only the corrections that can change its own bitmap. Empty = automatic
-  // layout (the key segment stays the historic sentinel).
-  const effectiveItemTransforms = effectiveBadgeItemTransforms(badgeItemTransforms)
-  const qualityItemKey = serializeBadgeItemTransforms(
-    Object.fromEntries(Object.entries(effectiveItemTransforms).filter(([id]) => isQualityItemId(id))),
-  ) ?? "items0"
-  const separateItemKey = serializeBadgeItemTransforms(
-    Object.fromEntries(Object.entries(effectiveItemTransforms).filter(([id]) => isRatingItemId(id))),
-  ) ?? "items0"
-  // Only the corrections of a family are handed to its renderer: an A/V mark
-  // correction can never detach a rating pill and vice versa.
-  const itemTransformsForQuality = Object.freeze(
-    Object.fromEntries(Object.entries(effectiveItemTransforms).filter(([id]) => isQualityItemId(id))),
-  )
-  const itemTransformsForSeparate = Object.freeze(
-    Object.fromEntries(Object.entries(effectiveItemTransforms).filter(([id]) => isRatingItemId(id))),
-  )
-  // L'età entra nella chiave (etichetta distinta = bitmap distinto) insieme
-  // allo stile (stessa etichetta in standard/knockout = bitmap diversi);
-  // assente = sentinel stabile così le chiavi senza età restano byte-identiche
-  // allo storico (lo stile da solo non invalida la cache: senza età non rende
-  // niente). La chiave usa l'EFFETTIVA (gated dal legacy toggle): con bq=0 il
-  // tier nascosto non entra nella chiave (stesso bitmap dell'age-only senza tier).
-  const qualityBadgeKey = hasQualityGroup
-    ? badgeCacheKey("quality", effectiveQuality ?? "noquality", CW, effQualityTopLight, badgeFont, qualityBadgeScale, effQualityBadgeStyle ?? "standard", qualityIconPath ?? "std", formatsKey, ageText !== "" ? `${ageText}:${effAgeBadgeStyle}` : "noage", qualityItemKey, effQualityGroupLayout === "row" ? "row" : undefined, groupNotch ? notchEdge : undefined)
-    : null
-  const comingSoonKey = showComingSoon
-    ? badgeCacheKey("comingsoon", effComingSoonLabel, CW, badgeFont, topLight, effComingSoonSide)
-    : null
-
-  const combinedTopOX = effTopBadgeOffsetX
-  const combinedTopOY = effTopBadgeOffsetY
-  const combinedGenreOX = genreBadgeOffsetX
-  const combinedGenreOY = genreBadgeOffsetY
 
   // Render standard dei due slot superiori (genere + classifica).
   const renderStandardGenre = async (): Promise<BadgeRender | null> =>
@@ -2740,6 +2578,7 @@ export async function generatePosterBuffer(input: GenerationInput): Promise<Buff
     mediaType, badgePw, format: input.format, imageQuality: input.imageQuality,
   })
 }
+
 
 
 
