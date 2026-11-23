@@ -25,6 +25,7 @@ import { http, userFetch } from "./http"
 import { currentPathUuid, fetchWithUserAuthRetry, userAuthHeaders, USER_UNLOCK_EVENT } from "./user-token"
 import { copyText } from "./clipboard"
 import { useAutoRootColors } from "./useAutoRootColors"
+import { useRatingSourcesRefresh } from "./useRatingSourcesRefresh"
 import { buildUrlPattern, buildPreviewUrl } from "./poster-url"
 import { selectBestLogo, autoLogoSelection, logoEffectiveAutoScale, resolveLogoDisplayedRank } from "./logo-selection"
 import { useTrending } from "./useTrending"
@@ -2052,37 +2053,18 @@ export function usePictorium(): PictoriumCtx {
   }
 
   // --- Aggiornamento reattivo voto medio quando cambia ratingSources ---
-  useEffect(() => {
-    if (metaInfo.aggregatedRatings) {
-      const calculated = computeVote(metaInfo.aggregatedRatings, ratingSources)
-      if (typeof calculated === "number" && calculated > 0) {
-        setMetaInfo((prev) => ({ ...prev, voteAverage: calculated }))
-        return
-      }
-    }
-    if (!navigation.selected || (!tmdbKey && !serverHasTmdbKey)) return
-    const itemId = navigation.selected.id
-    const itemType = navigation.selected.media_type
-    const mdblistParam = mdblistApiKey ? "&mdblist_key=" + encodeURIComponent(mdblistApiKey) : ""
-    const rsrcParam = ratingSources && ratingSources.length > 0 ? "&rsrc=" + encodeURIComponent(ratingSources.join(",")) : ""
-    const regionLang = contentLanguageForUiLang(lang, editorCtx.defaultRegion)
-    const detailsUrl = `/api/tmdb/${itemId}/details?type=${itemType}&language=${regionLang}&api_key=${tmdbKey}${mdblistParam}${rsrcParam}`
-    let active = true
-    const signal = loadAbortRef.current?.signal
-    http<{ voteAverage: number; aggregatedRatings?: AggregatedRatings | null }>(detailsUrl, { timeout: 15000, signal }).then((d) => {
-      if (!active || signal?.aborted) return
-      if (typeof d?.voteAverage === "number" && d.voteAverage > 0) {
-        setMetaInfo((prev) => ({
-          ...prev,
-          voteAverage: d.voteAverage,
-          aggregatedRatings: d.aggregatedRatings ?? prev.aggregatedRatings,
-        }))
-      }
-    }).catch(() => {})
-    return () => {
-      active = false
-    }
-  }, [ratingSources]) // eslint-disable-line react-hooks/exhaustive-deps -- re-fetch details only when the rating sources change; selection/keys/lang are read from the closure
+  useRatingSourcesRefresh({
+    ratingSources,
+    metaInfo,
+    setMetaInfo,
+    selected: navigation.selected,
+    tmdbKey,
+    serverHasTmdbKey,
+    mdblistApiKey,
+    lang,
+    defaultRegion: editorCtx.defaultRegion,
+    loadAbortRef,
+  })
 
   // Default logo globali per formato (Impostazioni · Verticale/Orizzontale):
   // in landscape vince l'override Orizzontale, altrove il flat. Null =
