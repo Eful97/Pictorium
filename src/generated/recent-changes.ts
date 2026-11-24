@@ -11,4 +11,5 @@ export interface RecentChange {
 }
 
 export const RECENT_CHANGES: RecentChange[] = [
+  { type: "fix", text: "dedupe plan/tier variants (Paramount+, Peacock, Netflix Kids, Now TV, Sling)", sha: "2b512a9", date: "2026-11-24" },
 ]
