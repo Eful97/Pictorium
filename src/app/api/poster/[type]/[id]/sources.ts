@@ -48,6 +48,11 @@ export interface PosterArtwork {
   logoFallbackReason: string | null
   backdropPath: string | null
   /**
+   * Sfondo landscape già risolto (campione neutro `sample=neutral`): come
+   * `posterPathBuffer`, salta ogni download dello slot backdrop.
+   */
+  backdropPathBuffer?: Buffer | null
+  /**
    * Sfondi TMDB del ramo automatico (details.backdrop_path o primo backdrops
    * di getImages): fallback per la base landscape quando query/mapping non
    * ne forniscono uno.

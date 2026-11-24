@@ -237,6 +237,12 @@ export function normalizePosterCacheParams(searchParams: URLSearchParams): URLSe
   if (demosamples !== null && demosamples !== "1") {
     params.delete("demosamples")
   }
+  // sample: solo "neutral" (campione neutro delle miniature preset); garbage
+  // collassa sull'assenza, che rende identico (niente avvelenamento chiave).
+  const sample = params.get("sample")
+  if (sample !== null && sample !== "neutral") {
+    params.delete("sample")
+  }
   const bs = params.get("bs")
   if (bs !== null && !isBadgeStyle(bs)) {
     params.delete("bs")

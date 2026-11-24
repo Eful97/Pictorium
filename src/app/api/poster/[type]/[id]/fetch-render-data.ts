@@ -306,7 +306,9 @@ export async function fetchRenderData(
       // historic throw on non-TMDB paths: never changed here). A custom URL
       // in backdropPath never goes through landscapeBackdropUrl/imgSrc
       // (they would throw on non-TMDB hosts).
-      backdropCustomForFetch
+      artwork.backdropPathBuffer
+        ? Promise.resolve(artwork.backdropPathBuffer)
+        : backdropCustomForFetch
         ? fetchPosterBaseWithCustom(backdropCustomForFetch, tmdbBackdropSrc, renderAbort.signal).then((r) => (r ? r.buf : null))
         // SOLO landscape: il portrait non ha alcun layer backdrop (la base è
         // `posterPath`/crop) — un buffer qui finiva composto come banda 16:9

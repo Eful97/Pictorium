@@ -12,7 +12,7 @@ import { requestSettingsTab } from "@/lib/settings-tab"
 import { ONBOARDING_INSTALL_OPENED_EVENT, dismissOnboarding, readOnboardingProgress } from "@/lib/onboarding-progress"
 import { useOnboardingReplayIntent } from "@/lib/use-onboarding-replay"
 import { isMultiUserServer } from "@/lib/guest-guard"
-import { Settings, Plug, QrCode, Images, Library, KeyRound, Clapperboard } from "lucide-react"
+import { Settings, Plug, QrCode, Images, Library, KeyRound, Clapperboard, Users } from "lucide-react"
 import { DesktopCommunityLinks, MobileCommunityLinks } from "@/components/HeaderCommunityLinks"
 import { ThemeToggle } from "@/components/ThemeToggle"
 import type { Mapping } from "@/lib/types"
@@ -29,6 +29,7 @@ const SearchView = dynamic(() => import("@/components/SearchView").then((m) => m
 const MyPostersView = dynamic(() => import("@/components/MyPostersView").then((m) => m.MyPostersView), { ssr: false })
 const ThumbnailsView = dynamic(() => import("@/components/ThumbnailsView").then((m) => m.ThumbnailsView), { ssr: false })
 const CataloghiView = dynamic(() => import("@/components/CataloghiView").then((m) => m.CataloghiView), { ssr: false })
+const CommunityView = dynamic(() => import("@/components/CommunityView").then((m) => m.CommunityView), { ssr: false })
 const EditView = dynamic(() => import("@/components/EditView"), { ssr: false, loading: () => <div className="h-64 flex items-center justify-center text-xs text-zinc-500 animate-pulse">…</div> })
 const ProxyModal = dynamic(() => import("@/components/ProxyModal").then((m) => m.ProxyModal), { ssr: false })
 const InstallModal = dynamic(() => import("@/components/InstallModal").then((m) => m.InstallModal), { ssr: false })
@@ -291,6 +292,93 @@ checklist={wizardChecklist}
       {/* Desktop Top-Left Community Island (GitHub & Ko-fi Goal) */}
       {!(view === "edit" && selected) && <DesktopCommunityLinks />}
 
+      {/* Desktop page navigation — centered island (labels from lg) */}
+      <nav aria-label={t("ui.mainNav")} className="hidden md:flex absolute top-4 left-1/2 -translate-x-1/2 z-20" data-testid="desktop-page-nav">
+        <div className="flex items-center gap-0.5 p-0.5 rounded-2xl bg-black/60 backdrop-blur-xl border border-white/10 shadow-2xl shadow-black/50">
+              {/* Cataloghi Button */}
+              <button
+                type="button"
+                onClick={() => { if (toolbarLocked) return; if (view === "cataloghi") { router.push("edit") } else { router.push("cataloghi") } }}
+                disabled={toolbarLocked}
+                aria-disabled={toolbarLocked || undefined}
+                aria-label={t("ui.catalogs")}
+                title={t("ui.catalogs")}
+                className={`flex items-center gap-1.5 px-2 py-1.5 rounded-xl text-xs font-medium transition duration-150 active:scale-[0.95] cursor-pointer disabled:opacity-40 disabled:cursor-not-allowed ${
+                  view === "cataloghi"
+                    ? "bg-white/15 text-foreground font-semibold border border-white/20"
+                    : "text-zinc-300 hover:text-white hover:bg-white/[0.08]"
+                }`}
+              >
+                <Library className="w-3.5 h-3.5 text-accent-orange" />
+                <span className="hidden xl:inline">{t("ui.catalogs") || "Cataloghi"}</span>
+              </button>
+
+              {/* I Miei Poster Badge */}
+              <button
+                type="button"
+                aria-label={`${t("ui.myPostersBtn") || "I Miei Poster"} ${mappings.length}`}
+                title={t("ui.myPostersBtn")}
+                onClick={() => { if (toolbarLocked) return; if (view === "myposters") { router.push("edit") } else { router.push("myposters") } }}
+                disabled={toolbarLocked}
+                aria-disabled={toolbarLocked || undefined}
+                className={`flex items-center gap-1.5 px-2 py-1.5 rounded-xl text-xs font-medium transition duration-150 active:scale-[0.95] cursor-pointer disabled:opacity-40 disabled:cursor-not-allowed ${
+                  view === "myposters"
+                    ? "bg-white/15 text-foreground font-semibold border border-white/20"
+                    : "text-zinc-300 hover:text-white hover:bg-white/[0.08]"
+                }`}
+              >
+                <Images className="w-3.5 h-3.5 text-accent-orange" />
+                <span className="hidden xl:inline">{t("ui.myPostersBtn") || "I Miei Poster"}</span>
+                {" "}
+                <span className="text-[9px] font-mono px-1 py-0.5 rounded-md bg-white/[0.08] text-zinc-300 border border-white/10">{mappings.length}</span>
+              </button>
+
+              {/* Miniature episodi (top-level zone) */}
+              <button
+                type="button"
+                aria-label={`${t("ui.thumbnailsNav")} ${thumbnailCount}`}
+                title={t("ui.thumbnailsNav")}
+                onClick={() => { if (toolbarLocked) return; if (view === "thumbnails") { router.push("edit") } else { router.push("thumbnails") } }}
+                disabled={toolbarLocked}
+                aria-disabled={toolbarLocked || undefined}
+                className={`flex items-center gap-1.5 px-2 py-1.5 rounded-xl text-xs font-medium transition duration-150 active:scale-[0.95] cursor-pointer disabled:opacity-40 disabled:cursor-not-allowed ${
+                  view === "thumbnails"
+                    ? "bg-white/15 text-foreground font-semibold border border-white/20"
+                    : "text-zinc-300 hover:text-white hover:bg-white/[0.08]"
+                }`}
+                data-testid="thumbnails-nav-desktop"
+              >
+                <Clapperboard className="w-3.5 h-3.5 text-accent-orange" />
+                <span className="hidden xl:inline">{t("ui.thumbnailsNav")}</span>
+                {" "}
+                <span className="text-[9px] font-mono px-1 py-0.5 rounded-md bg-white/[0.08] text-zinc-300 border border-white/10">
+                  {thumbnailCount}
+                </span>
+              </button>
+
+              {/* Community presets (multi-user instances only) */}
+              {multiUserOn && (
+                <button
+                  type="button"
+                  aria-label={t("ui.communityNav")}
+                  title={t("ui.communityNav")}
+                  onClick={() => { if (toolbarLocked) return; if (view === "community") { router.push("edit") } else { router.push("community") } }}
+                  disabled={toolbarLocked}
+                  aria-disabled={toolbarLocked || undefined}
+                  className={`flex items-center gap-1.5 px-2 py-1.5 rounded-xl text-xs font-medium transition duration-150 active:scale-[0.95] cursor-pointer disabled:opacity-40 disabled:cursor-not-allowed ${
+                    view === "community"
+                      ? "bg-white/15 text-foreground font-semibold border border-white/20"
+                      : "text-zinc-300 hover:text-white hover:bg-white/[0.08]"
+                  }`}
+                  data-testid="community-nav-desktop"
+                >
+                  <Users className="w-3.5 h-3.5 text-accent-orange" />
+                  <span className="hidden xl:inline">{t("ui.communityNav")}</span>
+                </button>
+              )}
+        </div>
+      </nav>
+
       {/* Desktop Toolbar — Floating Island */}
       <div className="hidden md:flex absolute top-4 right-4 z-20">
         <div className="flex items-center gap-0.5 p-0.5 rounded-2xl bg-black/60 backdrop-blur-xl border border-white/10 shadow-2xl shadow-black/50 relative z-50">
@@ -309,69 +397,6 @@ checklist={wizardChecklist}
           </button>
 
           <div className="h-4 w-px bg-white/10 mx-0.5" />
-
-          {/* Cataloghi Button */}
-          <button
-            type="button"
-            onClick={() => { if (toolbarLocked) return; if (view === "cataloghi") { router.push("edit") } else { router.push("cataloghi") } }}
-            disabled={toolbarLocked}
-            aria-disabled={toolbarLocked || undefined}
-            aria-label={t("ui.catalogs")}
-            title={t("ui.catalogs")}
-            className={`flex items-center gap-1.5 px-2 py-1.5 rounded-xl text-xs font-medium transition duration-150 active:scale-[0.95] cursor-pointer disabled:opacity-40 disabled:cursor-not-allowed ${
-              view === "cataloghi"
-                ? "bg-white/15 text-foreground font-semibold border border-white/20"
-                : "text-zinc-300 hover:text-white hover:bg-white/[0.08]"
-            }`}
-          >
-            <Library className="w-3.5 h-3.5 text-accent-orange" />
-            <span>{t("ui.catalogs") || "Cataloghi"}</span>
-
-          </button>
-
-          <div className="h-4 w-px bg-white/10 mx-0.5" />
-
-          {/* I Miei Poster Badge */}
-          <button
-            type="button"
-            aria-label={`${t("ui.myPostersBtn") || "I Miei Poster"} ${mappings.length}`}
-            title={t("ui.myPostersBtn")}
-            onClick={() => { if (toolbarLocked) return; if (view === "myposters") { router.push("edit") } else { router.push("myposters") } }}
-            disabled={toolbarLocked}
-            aria-disabled={toolbarLocked || undefined}
-            className={`flex items-center gap-1.5 px-2 py-1.5 rounded-xl text-xs font-medium transition duration-150 active:scale-[0.95] cursor-pointer disabled:opacity-40 disabled:cursor-not-allowed ${
-              view === "myposters"
-                ? "bg-white/15 text-foreground font-semibold border border-white/20"
-                : "text-zinc-300 hover:text-white hover:bg-white/[0.08]"
-            }`}
-          >
-            <Images className="w-3.5 h-3.5 text-accent-orange" />
-            <span className="hidden lg:inline">{t("ui.myPostersBtn") || "I Miei Poster"}</span>
-            {" "}
-            <span className="text-[9px] font-mono px-1 py-0.5 rounded-md bg-white/[0.08] text-zinc-300 border border-white/10">{mappings.length}</span>
-          </button>
-
-          {/* Miniature episodi (top-level zone) */}
-          <button
-            type="button"
-            aria-label={`${t("ui.thumbnailsNav")} ${thumbnailCount}`}
-            title={t("ui.thumbnailsNav")}
-            onClick={() => { if (toolbarLocked) return; if (view === "thumbnails") { router.push("edit") } else { router.push("thumbnails") } }}
-            disabled={toolbarLocked}
-            aria-disabled={toolbarLocked || undefined}
-            className={`flex items-center gap-1.5 px-2 py-1.5 rounded-xl text-xs font-medium transition duration-150 active:scale-[0.95] cursor-pointer disabled:opacity-40 disabled:cursor-not-allowed ${
-              view === "thumbnails"
-                ? "bg-white/15 text-foreground font-semibold border border-white/20"
-                : "text-zinc-300 hover:text-white hover:bg-white/[0.08]"
-            }`}
-            data-testid="thumbnails-nav-desktop"
-          >
-            <Clapperboard className="w-3.5 h-3.5 text-accent-orange" />
-            {" "}
-            <span className="text-[9px] font-mono px-1 py-0.5 rounded-md bg-white/[0.08] text-zinc-300 border border-white/10">
-              {thumbnailCount}
-            </span>
-          </button>
 
           {/* Proxy Modal */}
           <button
@@ -430,18 +455,37 @@ checklist={wizardChecklist}
         {/* Header globale (logo + tagline + toolbar mobile) */}
         {!(view === "edit" && selected) && (
         <div className="flex flex-col items-center pb-3 sm:pb-4 animate-fade-scale-in relative">
-          {uuidShortcutVisible && (
-            <button
-              type="button"
-              aria-label={t("ui.userSpaceTitle")}
-              title={t("ui.userSpaceTitle")}
-              onClick={handleUuidShortcut}
-              disabled={toolbarLocked}
-              aria-disabled={toolbarLocked || undefined}
-              className="md:hidden absolute top-0 right-1 p-2 rounded-xl bg-white/[0.06] border border-white/10 text-accent-orange hover:text-white transition active:scale-90 cursor-pointer min-w-[36px] min-h-[36px] flex items-center justify-center disabled:opacity-40"
-            >
-              <KeyRound className="w-4 h-4" />
-            </button>
+          {(uuidShortcutVisible || multiUserOn) && (
+            <div className="md:hidden absolute top-0 right-1 flex items-center gap-1.5">
+              {/* Proxy leaves the bottom bar when Community takes its slot (6 items max). */}
+              {multiUserOn && (
+                <button
+                  type="button"
+                  aria-label={t("ui.addonProxy")}
+                  title={t("ui.addonProxy")}
+                  onClick={() => { if (toolbarLocked) return; setProxyOpen(true) }}
+                  disabled={toolbarLocked}
+                  aria-disabled={toolbarLocked || undefined}
+                  data-testid="proxy-mobile-header"
+                  className="p-2 rounded-xl bg-white/[0.06] border border-white/10 text-accent-orange hover:text-white transition active:scale-90 cursor-pointer min-w-[36px] min-h-[36px] flex items-center justify-center disabled:opacity-40"
+                >
+                  <Plug className="w-4 h-4" />
+                </button>
+              )}
+              {uuidShortcutVisible && (
+                <button
+                  type="button"
+                  aria-label={t("ui.userSpaceTitle")}
+                  title={t("ui.userSpaceTitle")}
+                  onClick={handleUuidShortcut}
+                  disabled={toolbarLocked}
+                  aria-disabled={toolbarLocked || undefined}
+                  className="p-2 rounded-xl bg-white/[0.06] border border-white/10 text-accent-orange hover:text-white transition active:scale-90 cursor-pointer min-w-[36px] min-h-[36px] flex items-center justify-center disabled:opacity-40"
+                >
+                  <KeyRound className="w-4 h-4" />
+                </button>
+              )}
+            </div>
           )}
           {/* eslint-disable-next-line @next/next/no-img-element -- local SVG asset */}
           <img
@@ -475,7 +519,7 @@ checklist={wizardChecklist}
         <ProxyModal isOpen={proxyOpen} onClose={() => setProxyOpen(false)} />
         <InstallModal isOpen={installOpen} onClose={() => setInstallOpen(false)} posterUrlPattern={urlPattern} posterUrlPatternImdb={urlPatternImdb} posterUrlPatternAuto={urlPatternAuto} posterUrlPatternNuvio={urlPatternNuvio} posterUrlPatternNuvioImdb={urlPatternNuvioImdb} posterUrlPatternNuvioAuto={urlPatternNuvioAuto} linkMode={linkMode} onLinkModeChange={setLinkMode} hasUserSpace={!!currentUserId} />
         <div key={view} className="animate-view-enter">
-          {view === "search" ? <SearchView /> : view === "myposters" ? <MyPostersView /> : view === "thumbnails" ? <ThumbnailsView /> : view === "cataloghi" ? <CataloghiView /> : <EditView />}
+          {view === "search" ? <SearchView /> : view === "myposters" ? <MyPostersView /> : view === "thumbnails" ? <ThumbnailsView /> : view === "cataloghi" ? <CataloghiView /> : view === "community" ? <CommunityView /> : <EditView />}
         </div>
         {/* Strip di stato: presente nelle viste principali, nascosto in editor poster */}
         {!(view === "edit" && selected) && <HomeStatusStrip />}
@@ -507,8 +551,8 @@ checklist={wizardChecklist}
             <span className="text-[10px] tracking-tight truncate">{t("ui.catalogs") || "Cataloghi"}</span>
           </button>
 
-          {/* Proxy Addon (seconda voce) */}
-          <button
+          {/* Proxy Addon (seconda voce): con la Community passa nell'header mobile */}
+          {!multiUserOn && <button
             type="button"
             onClick={() => { if (toolbarLocked) return; setProxyOpen(true) }}
             disabled={toolbarLocked}
@@ -521,7 +565,7 @@ checklist={wizardChecklist}
               <Plug className="w-5 h-5 text-accent-orange" />
             </span>
             <span className="text-[10px] tracking-tight truncate">{t("ui.proxyShort") || "Proxy"}</span>
-          </button>
+          </button>}
 
           {/* Installa Hub (Featured Central Pill) */}
           <button
@@ -580,6 +624,27 @@ checklist={wizardChecklist}
             </span>
             <span className="text-[10px] tracking-tight truncate">{t("ui.thumbnailsNav")}</span>
           </button>
+
+          {/* Community presets (multi-user instances only) */}
+          {multiUserOn && (
+            <button
+              type="button"
+              onClick={() => { if (toolbarLocked) return; router.replace("community") }}
+              disabled={toolbarLocked}
+              aria-disabled={toolbarLocked || undefined}
+              className={`flex flex-col items-center justify-center gap-1 py-1 px-1 rounded-xl transition duration-150 active:scale-90 cursor-pointer disabled:opacity-40 disabled:cursor-not-allowed ${
+                view === "community"
+                  ? "text-accent-orange font-semibold"
+                  : "text-zinc-400 hover:text-zinc-200"
+              }`}
+              data-testid="community-nav-mobile"
+            >
+              <span className="h-8 flex items-center justify-center">
+                <Users className="w-5 h-5" />
+              </span>
+              <span className="text-[10px] tracking-tight truncate">{t("ui.communityNav")}</span>
+            </button>
+          )}
 
           {/* Impostazioni */}
           <button

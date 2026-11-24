@@ -108,7 +108,7 @@ describe("ElfHostedMenu (desktop)", () => {
     expect(window.sessionStorage?.getItem(DESKTOP_KEY)).toBe("1")
     expect(screen.queryByRole("link", { name: /guida gratuita/i })).toBeNull()
     fireEvent.click(screen.getByLabelText(/info sponsor/i))
-    expect(window.sessionStorage?.getItem(DESKTOP_KEY)).toBeNull()
+    expect(window.sessionStorage?.getItem(DESKTOP_KEY)).toBe("0")
     expect(screen.getByRole("link", { name: /guida gratuita/i })).toBeInTheDocument()
   })
 
@@ -131,21 +131,23 @@ describe("ElfHostedMenu (desktop)", () => {
 })
 
 describe("ElfHostedMenu (mobile)", () => {
-  it("icona + tendina aperta al primo avvio", async () => {
+  it("icona sola al primo avvio: la tendina parte chiusa e si apre al tocco", async () => {
     mockApi("elfhosted")
     renderWithCtx(<MobileCommunityLinks />)
     const btn = await screen.findByLabelText(/info sponsor/i)
-    expect(btn).toHaveAttribute("aria-expanded", "true")
+    expect(btn).toHaveAttribute("aria-expanded", "false")
+    expect(screen.queryByRole("link", { name: /guida gratuita/i })).toBeNull()
+    fireEvent.click(btn)
+    expect(window.sessionStorage?.getItem(MOBILE_KEY)).toBe("0")
     expect(screen.getByRole("link", { name: /guida gratuita/i })).toBeInTheDocument()
   })
 
-  it("parte aperto anche se il desktop è minimizzato (stati indipendenti)", async () => {
+  it("stati indipendenti: aprire il desktop non apre il mobile", async () => {
     mockApi("elfhosted")
-    window.sessionStorage?.setItem(DESKTOP_KEY, "1")
+    window.sessionStorage?.setItem(DESKTOP_KEY, "0")
     renderWithCtx(<MobileCommunityLinks />)
     const btn = await screen.findByLabelText(/info sponsor/i)
-    expect(btn).toHaveAttribute("aria-expanded", "true")
-    expect(screen.getByRole("link", { name: /guida gratuita/i })).toBeInTheDocument()
+    expect(btn).toHaveAttribute("aria-expanded", "false")
     expect(window.sessionStorage?.getItem(MOBILE_KEY)).toBeNull()
   })
 })

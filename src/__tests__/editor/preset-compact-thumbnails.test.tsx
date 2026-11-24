@@ -28,6 +28,7 @@ import { VisualPresetsSection } from "@/components/settings/VisualPresetsSection
 import { APPLE_VISUAL_DEFAULTS } from "@/lib/default-visual-presets"
 import type { VisualPreset } from "@/lib/visual-presets"
 import { renderWithCtx } from "@/__tests__/test-utils"
+import { openQuickLooks } from "@/__tests__/helpers/open-quick-looks"
 
 vi.mock("next/navigation", () => ({
   useRouter: () => ({ push: vi.fn(), replace: vi.fn(), back: vi.fn() }),
@@ -117,6 +118,7 @@ describe("PosterStyleCard compact ready thumbnails", () => {
     expect(cls).toContain("mx-auto")
     expect(cls).toContain("overflow-hidden")
     expect(cls).toContain("max-w-full")
+    openQuickLooks()
     const img = btn.querySelector("img")
     expect(img?.getAttribute("src")).toBe("https://example.com/api/poster/movie/1?age=0")
     expect(img?.getAttribute("class")).toContain("object-contain")
@@ -174,6 +176,7 @@ describe("PosterStyleCard compact ready thumbnails", () => {
     const frame = frameOf("poster-style-glass")
     expect(frame).not.toBeNull()
     expect(frame?.getAttribute("class") ?? "").toContain("aspect-[2/3]")
+    openQuickLooks()
     expect(screen.getByTestId("poster-style-glass").querySelector("img")).toBeNull()
   })
 
@@ -222,6 +225,7 @@ describe("VisualPresetsSection gallery compact thumbnails", () => {
     expect(cls).toContain("w-16")
     expect(cls).toContain("mx-auto")
     expect(cls.split(/\s+/)).not.toContain("w-full")
+    openQuickLooks()
     const img = btn.querySelector("img")
     expect(img?.getAttribute("src")).toBe("https://example.com/api/poster/movie/7?age=0")
     expect(img?.getAttribute("class")).toContain("object-contain")
@@ -270,6 +274,7 @@ describe("actual PresetsPanel compact grids", () => {
         } else {
           expect(cls).toContain("aspect-[2/3]")
         }
+        openQuickLooks()
         const src = btn.querySelector("img")?.getAttribute("src") ?? ""
         expect(src).toContain("/api/poster/")
       }

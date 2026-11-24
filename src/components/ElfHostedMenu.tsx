@@ -16,11 +16,18 @@ function storageKey(scope: ElfHostedScope): string {
   return `${MINIMIZED_KEY_PREFIX}${scope}`
 }
 
+/**
+ * Default per viewport: desktop open (side card, no layout cost), mobile
+ * minimized (inline panel would push the page down). An explicit session
+ * choice ("1" minimized / "0" open) wins over the default.
+ */
 function readMinimized(scope: ElfHostedScope): boolean {
+  const fallback = scope === "mobile"
   try {
-    return window.sessionStorage?.getItem(storageKey(scope)) === "1"
+    const stored = window.sessionStorage?.getItem(storageKey(scope))
+    return stored === "1" ? true : stored === "0" ? false : fallback
   } catch {
-    return false
+    return fallback
   }
 }
 
@@ -60,8 +67,7 @@ export function useElfHostedMenu(scope: ElfHostedScope): ElfHostedMenu {
   const toggle = useCallback(() => {
     const next = readMinimized(scope)
     try {
-      if (next) window.sessionStorage?.removeItem(storageKey(scope))
-      else window.sessionStorage?.setItem(storageKey(scope), "1")
+      window.sessionStorage?.setItem(storageKey(scope), next ? "0" : "1")
     } catch {}
     setOpen(next)
     window.dispatchEvent(new CustomEvent(TOGGLE_EVENT, { detail: { scope } }))

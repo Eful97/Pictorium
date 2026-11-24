@@ -26,6 +26,7 @@ import { APPLE_VISUAL_DEFAULTS } from "@/lib/default-visual-presets"
 import { resetGuestGuardForTests } from "@/lib/guest-guard"
 import { __resetAdminTokenForTests } from "@/lib/admin-token"
 import { renderWithCtx } from "@/__tests__/test-utils"
+import { openQuickLooks } from "@/__tests__/helpers/open-quick-looks"
 
 vi.mock("next/navigation", () => ({
   useRouter: () => ({ push: vi.fn(), replace: vi.fn(), back: vi.fn() }),
@@ -160,6 +161,7 @@ function renderPanel() {
 
 function galleryThumbParams(id: string): URLSearchParams {
   const btn = screen.getByTestId(`poster-style-${id}`)
+  openQuickLooks()
   const img = btn.querySelector("img")
   expect(img, `real thumbnail for ready preset ${id}`).not.toBeNull()
   const src = img?.getAttribute("src") ?? ""
@@ -358,6 +360,7 @@ describe("personal presets own their stored look (never inherit the live look)",
     await screen.findByTestId("poster-style-apple")
     fireEvent.click(screen.getByTestId("visual-presets-toggle"))
     const mine = await screen.findByTestId("visual-preset-00000000-0000-0000-0000-000000000001")
+    openQuickLooks()
     const beforeThumb = mine.querySelector("img")?.getAttribute("src") ?? ""
     // The personal thumbnail renders the preset's OWNED Standard layout
     // (stored explicitly, never the live Fresh it was saved under).

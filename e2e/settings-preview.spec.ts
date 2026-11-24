@@ -85,6 +85,9 @@ for (const width of [900, 1280, 390]) {
     // Pick a different setup even when a previous test persisted its defaults.
     const minimal = initialStyle !== "minimal"
     const request = page.waitForRequest((req) => isDialogXhr(req.url(), req.resourceType()) && new URL(req.url()).searchParams.get("bs") === (minimal ? "minimal" : "pill"))
+    // "Configurazioni rapide" is collapsed by default in the Preset tab.
+    const quickLooks = dialog.getByTestId("poster-style-cards-toggle")
+    if ((await quickLooks.count()) > 0 && (await quickLooks.first().getAttribute("aria-expanded")) === "false") await quickLooks.first().click()
     await dialog.getByRole("button", { name: minimal ? /Essenziale/ : /^Voti/ }).click()
     await request
     await expect.poll(() => image.getAttribute("src")).not.toBe(previousSrc)

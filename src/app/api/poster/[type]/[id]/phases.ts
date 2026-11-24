@@ -22,7 +22,7 @@ import {
   type PosterCachePayload,
   type PosterErrorStatus,
 } from "@/lib/poster-runtime-cache"
-import { DEMOSAMPLES_FLAG, isDemoSamplesRequest } from "@/lib/demo-samples"
+import { DEMOSAMPLES_FLAG, NEUTRAL_SAMPLE_FLAG, isDemoSamplesRequest, isNeutralSampleRequest } from "@/lib/demo-samples"
 import { hashUserFragment } from "@/lib/cache"
 import type { Mapping } from "@/lib/types"
 
@@ -129,6 +129,9 @@ export function buildPosterCacheParams(
   // so the entry collapses to the canonical key (same render, no split).
   const demoSamples = isDemoSamplesRequest({ isPreview, flag: hardenedParams.get(DEMOSAMPLES_FLAG) })
   if (!isPreview) hardenedParams.delete(DEMOSAMPLES_FLAG)
+  // Neutral style sample: only on top of accepted demo samples; otherwise
+  // dropped so the entry collapses to the canonical key.
+  if (!isNeutralSampleRequest({ demoSamples, flag: hardenedParams.get(NEUTRAL_SAMPLE_FLAG) })) hardenedParams.delete(NEUTRAL_SAMPLE_FLAG)
   // Effective-accent display sync (`?accentmeta=1`, server-only Stage 1): a
   // read-only JSON branch served below from the SAME canonical key. The flag
   // is the ONLY param stripped here (mirror of the L479 preview-delete

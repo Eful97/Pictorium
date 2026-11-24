@@ -42,6 +42,7 @@ import {
 import { resetGuestGuardForTests } from "@/lib/guest-guard"
 import { __resetAdminTokenForTests } from "@/lib/admin-token"
 import { renderWithCtx } from "@/__tests__/test-utils"
+import { openQuickLooks } from "@/__tests__/helpers/open-quick-looks"
 
 vi.mock("next/navigation", () => ({
   useRouter: () => ({ push: vi.fn(), replace: vi.fn(), back: vi.fn() }),
@@ -259,6 +260,7 @@ function renderPanel() {
 }
 
 function readyThumb(id: ReadyId): string {
+  openQuickLooks()
   const img = screen.getByTestId(`poster-style-${id}`).querySelector("img")
   expect(img, `real thumbnail for ready preset ${id}`).not.toBeNull()
   const src = img?.getAttribute("src") ?? ""
