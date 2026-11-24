@@ -129,3 +129,6 @@ skills-lock.json
 
 # Config MCP locale (Claude Code)
 .mcp.json
+
+# reviewed release-notes input (applied into src/data/changelog.ts, the only source)
+/notes-*.json
