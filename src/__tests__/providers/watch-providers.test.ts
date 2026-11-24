@@ -41,6 +41,22 @@ describe("parseWatchProviders", () => {
     expect(parseWatchProviders(dup, "IT").map((p) => p.id)).toEqual([2, 8])
   })
 
+  it("collapses Paramount+ tier/channel variants (Mayor of Kingstown)", () => {
+    const names = ["Paramount Plus Premium", "Paramount Plus Essential", "Paramount Plus Apple TV channel", "Paramount+ Amazon Channel", "Paramount+ Roku Premium Channel", "Netflix Standard with Ads"]
+    const flatrate = [{ provider_id: 8, provider_name: "Netflix", logo_path: "/n.jpg", display_priority: 0 }]
+    names.forEach((provider_name, i) => flatrate.push({ provider_id: 100 + i, provider_name, logo_path: `/p${i}.jpg`, display_priority: i + 1 }))
+    expect(parseWatchProviders({ results: { US: { flatrate } } }, "US").map((p) => p.id)).toEqual([8, 100])
+  })
+
+  it("collapses stacked suffixes and Netflix Kids", () => {
+    const flatrate = [
+      ["Paramount Plus", "/a"], ["Paramount Plus Basic with Ads", "/b"], ["Peacock", "/c"], ["Peacock Premium Plus Amazon Channel", "/d"],
+      ["Netflix", "/e"], ["Netflix Kids", "/f"], ["PBS Kids", "/g"],
+      ["Now TV", "/h"], ["Now TV Cinema", "/i"], ["Sling TV Orange", "/j"], ["Sling TV Orange and Blue", "/k"],
+    ].map(([provider_name, logo_path], i) => ({ provider_id: i + 1, provider_name, logo_path, display_priority: i }))
+    expect(parseWatchProviders({ results: { GB: { flatrate } } }, "GB").map((p) => p.id)).toEqual([1, 3, 5, 7, 8, 10])
+  })
+
   it("returns [] for a missing region", () => {
     expect(parseWatchProviders(doc, "US")).toEqual([])
   })
