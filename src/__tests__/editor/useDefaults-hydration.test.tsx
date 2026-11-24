@@ -36,6 +36,15 @@ const USER_SAVED = {
   extraBadgeStyle: null,
   badgeFont: "inter",
   badgePresets: null,
+  // Toggle OFF/valori base sempre espliciti: la PUT fa merge, omettere la
+  // chiave lascerebbe un valore ON/"hide" memorizzato (riadottato al refresh).
+  badgeOverflow: "move",
+  watchProviders: false,
+  watchRegion: "",
+  watchProvidersLandscape: false,
+  watchProvidersMax: 3,
+  typeIcon: false,
+  typeIconLandscape: false,
   // Explicit authoring clear: the serializer always emits the key (`null` =
   // automatic layout) because PUT /api/defaults merges over the stored value.
   badgeItemTransforms: null,

@@ -45,12 +45,18 @@ export function parseWatchProviders(json: unknown, region: string): WatchProvide
 
 /** "Apple TV Plus" / "Apple TV+" / "X Amazon Channel" → stessa famiglia del provider base (stesso logo = doppione). */
 function providerFamily(name: string): string {
-  return name
-    .toLowerCase()
-    .replace(/\s+(amazon|apple tv|roku premium) channel$/, "")
-    .replace(/\s*(plus|\+)$/, "")
-    .replace(/\s+/g, " ")
-    .trim()
+  let f = name.toLowerCase().replace(/\s+/g, " ").trim().replace(/^netflix kids$/, "netflix").replace(/^now tv cinema$/, "now tv").replace(/^sling tv orange and blue$/, "sling tv orange")
+  // Suffissi impilati ("Paramount Plus Basic with Ads", "Peacock Premium Plus Amazon Channel"): ripeti fino a stabilità.
+  for (let prev = ""; prev !== f; ) {
+    prev = f
+    f = f
+      .replace(/\s+(amazon|apple tv|roku premium) channel$/, "")
+      .replace(/\s+(premium|essential|basic|standard)?\s*(with ads)$/, "")
+      .replace(/\s+(premium|essential|basic|standard)$/, "")
+      .replace(/\s*(plus|\+)$/, "")
+      .trim()
+  }
+  return f
 }
 
 export interface WatchProvidersResult {

@@ -1398,14 +1398,15 @@ export function defaultsToPayload(d: DefaultsState): Record<string, unknown> {
     sashOrder: d.defaultSashOrder,
     disabledContentTags: d.defaultDisabledContentTags,
     disabledNetworks: d.defaultDisabledNetworks,
-    // Solo ON nel payload locale: i default salvati legacy restano identici (OFF = assente).
-    watchProviders: d.defaultWatchProviders ? true : undefined,
-    watchRegion: d.defaultWatchRegion ?? undefined,
-    // Solo se divergono dal fallback (portrait / 3): le chiavi assenti restano assenti.
-    watchProvidersLandscape: d.defaultWatchProvidersLandscape !== d.defaultWatchProviders ? d.defaultWatchProvidersLandscape : undefined,
-    watchProvidersMax: d.defaultWatchProvidersMax !== DEFAULT_WATCH_MAX ? d.defaultWatchProvidersMax : undefined,
-    typeIcon: d.defaultTypeIcon ? true : undefined,
-    typeIconLandscape: d.defaultTypeIconLandscape ? true : undefined,
+    // Sempre espliciti (OFF incluso): la PUT fa merge, omettere la chiave al
+    // toggle-OFF lascerebbe un `true` memorizzato che l'hydration riadotta al
+    // refresh. Regione assente = "" (lo schema non accetta null; sanitizeWatchRegion → null).
+    watchProviders: d.defaultWatchProviders,
+    watchRegion: d.defaultWatchRegion ?? "",
+    watchProvidersLandscape: d.defaultWatchProvidersLandscape,
+    watchProvidersMax: d.defaultWatchProvidersMax,
+    typeIcon: d.defaultTypeIcon,
+    typeIconLandscape: d.defaultTypeIconLandscape,
     autoRotateClean: d.defaultAutoRotateClean,
     defaultRotationIncludeNonClean: d.defaultRotationIncludeNonClean,
     defaultRotationIncludeOriginal: d.defaultRotationIncludeOriginal,
@@ -1456,8 +1457,8 @@ export function defaultsToPayload(d: DefaultsState): Record<string, unknown> {
     imageQualityLandscape: d.defaultImageQualityLandscape,
     imageQualityThumbnail: d.defaultImageQualityThumbnail,
     genreTopWhenFree: d.defaultGenreTopWhenFree,
-    // Assente = move (default): non si persiste "move" per non cambiare i default salvati.
-    badgeOverflow: pickBadgeOverflow(d.defaultBadgeOverflow) === "hide" ? "hide" : undefined,
+    // Sempre esplicito (PUT merge): tornare a "move" deve sovrascrivere un "hide" memorizzato.
+    badgeOverflow: pickBadgeOverflow(d.defaultBadgeOverflow),
     videoFormats: d.defaultVideoFormats,
     logoScale: d.defaultLogoScale ?? null,
     logoOffsetX: d.defaultLogoOffsetX ?? null,
