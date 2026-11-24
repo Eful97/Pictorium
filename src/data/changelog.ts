@@ -35,6 +35,7 @@ export const CHANGELOG: ChangelogRelease[] = [
     title: "Release 1.28.3",
     items: [
       { type: "fix", text: "Show one streaming icon per service in Where to watch, instead of repeated icons for plans and channels such as Paramount+" },
+      { type: "fix", text: "Fix settings toggles (Show where to watch, type icon, badge overflow) turning back on after a page refresh" },
     ],
   },
   {
