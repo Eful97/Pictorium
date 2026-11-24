@@ -30,6 +30,14 @@ export interface ChangelogRelease {
  *  (which bumps on every commit and would leave the dot permanently on). */
 export const CHANGELOG: ChangelogRelease[] = [
   {
+    version: "1.28.3",
+    date: "2026-11-24",
+    title: "Release 1.28.3",
+    items: [
+      { type: "fix", text: "Show one streaming icon per service in Where to watch, instead of repeated icons for plans and channels such as Paramount+" },
+    ],
+  },
+  {
     version: "1.28.2",
     date: "2026-11-23",
     title: "Release 1.28.2",
