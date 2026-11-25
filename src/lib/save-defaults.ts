@@ -51,6 +51,7 @@ export async function saveDefaults(ed: PosterEditorCtx): Promise<boolean> {
     watchProvidersMax: ed.defaultWatchProvidersMax,
     typeIcon: ed.defaultTypeIcon,
     rankTrend: ed.defaultRankTrend,
+    rankTrendLandscape: ed.defaultRankTrendLandscape,
     typeIconLandscape: ed.defaultTypeIconLandscape,
     badgeStyle: ed.defaultBadgeStyle,
     rankingBadgeStyle: ed.defaultRankingBadgeStyle,

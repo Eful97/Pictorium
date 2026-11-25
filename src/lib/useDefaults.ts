@@ -172,6 +172,7 @@ export interface DefaultsState {
   defaultTypeIconLandscape: boolean
   /** Freccia di movimento JW dentro il badge rank (`rt=1`), default OFF. */
   defaultRankTrend: boolean
+  defaultRankTrendLandscape: boolean
   defaultAutoRotateClean: boolean
   /**
    * Default rotazione poster: include anche i poster della lingua corrente
@@ -421,6 +422,7 @@ const DEFAULT_FLAT_DEFAULTS: Omit<DefaultsState, "landscape"> = {
   defaultTypeIcon: false,
   defaultTypeIconLandscape: false,
   defaultRankTrend: false,
+  defaultRankTrendLandscape: false,
   defaultAutoRotateClean: false,
   defaultRotationIncludeNonClean: false,
   defaultRotationIncludeOriginal: false,
@@ -685,6 +687,8 @@ interface StoredDefaults {
   typeIcon?: boolean
   defaultRankTrend?: boolean
   rankTrend?: boolean
+  defaultRankTrendLandscape?: boolean
+  rankTrendLandscape?: boolean
   defaultTypeIconLandscape?: boolean
   typeIconLandscape?: boolean
   defaultAutoRotateClean?: boolean
@@ -1129,6 +1133,7 @@ function buildFromStored(d: StoredDefaults | null): DefaultsState {
     defaultTypeIcon: d.defaultTypeIcon ?? d.typeIcon ?? false,
     defaultTypeIconLandscape: d.defaultTypeIconLandscape ?? d.typeIconLandscape ?? false,
     defaultRankTrend: d.defaultRankTrend ?? d.rankTrend ?? false,
+    defaultRankTrendLandscape: d.defaultRankTrendLandscape ?? d.rankTrendLandscape ?? false,
     defaultAutoRotateClean: d.defaultAutoRotateClean ?? d.autoRotateClean ?? false,
     defaultRotationIncludeNonClean: d.defaultRotationIncludeNonClean ?? false,
     defaultRotationIncludeOriginal: d.defaultRotationIncludeOriginal ?? false,
@@ -1414,6 +1419,7 @@ export function defaultsToPayload(d: DefaultsState): Record<string, unknown> {
     typeIcon: d.defaultTypeIcon,
     typeIconLandscape: d.defaultTypeIconLandscape,
     rankTrend: d.defaultRankTrend,
+    rankTrendLandscape: d.defaultRankTrendLandscape,
     autoRotateClean: d.defaultAutoRotateClean,
     defaultRotationIncludeNonClean: d.defaultRotationIncludeNonClean,
     defaultRotationIncludeOriginal: d.defaultRotationIncludeOriginal,
@@ -1770,6 +1776,9 @@ export function useDefaults() {
           }
           if (currentStored?.defaultRankTrend === undefined && currentStored?.rankTrend === undefined && typeof serverData.rankTrend === "boolean") {
             merged.defaultRankTrend = serverData.rankTrend
+          }
+          if (currentStored?.defaultRankTrendLandscape === undefined && currentStored?.rankTrendLandscape === undefined && typeof serverData.rankTrendLandscape === "boolean") {
+            merged.defaultRankTrendLandscape = serverData.rankTrendLandscape
           }
           if (currentStored?.defaultTypeIcon === undefined && currentStored?.typeIcon === undefined && typeof serverData.typeIcon === "boolean") {
             merged.defaultTypeIcon = serverData.typeIcon

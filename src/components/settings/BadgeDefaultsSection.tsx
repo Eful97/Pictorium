@@ -1351,8 +1351,8 @@ export function BadgeDefaultsSection({ active, shape, onPreviewFamilyChange, pre
               <div className="flex items-center justify-between py-1">
                 <span className="text-zinc-300 text-[12px]">{t("ui.rankTrendLabel")}</span>
                 <Toggle
-                  value={ed.defaultRankTrend === true}
-                  onChange={ed.setDefaultRankTrend}
+                  value={isLandscape ? ed.defaultRankTrendLandscape === true : ed.defaultRankTrend === true}
+                  onChange={isLandscape ? ed.setDefaultRankTrendLandscape : ed.setDefaultRankTrend}
                   label={t("ui.rankTrendLabel")}
                 />
               </div>

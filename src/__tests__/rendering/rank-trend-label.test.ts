@@ -118,3 +118,21 @@ describe("settings preview URL", () => {
     expect(new URL(buildDefaultsPreviewUrl({ defaultRankTrend: false }), "http://x").searchParams.has("rt")).toBe(false)
   })
 })
+
+describe("independent portrait/landscape toggle", () => {
+  it("Stremio URL reads the toggle of the poster shape only", async () => {
+    const { buildStremioPosterUrl } = await import("@/lib/stremio-poster-url")
+    const base = { origin: "http://x", type: "movie" as const, id: 42, mapping: null }
+    const portraitOnly = { rankTrend: true, rankTrendLandscape: false } as never
+    const landscapeOnly = { rankTrend: false, rankTrendLandscape: true } as never
+    expect(buildStremioPosterUrl({ ...base, defaults: portraitOnly }).searchParams.get("rt")).toBe("1")
+    expect(buildStremioPosterUrl({ ...base, defaults: portraitOnly, forceShape: "landscape" }).searchParams.has("rt")).toBe(false)
+    expect(buildStremioPosterUrl({ ...base, defaults: landscapeOnly }).searchParams.has("rt")).toBe(false)
+    expect(buildStremioPosterUrl({ ...base, defaults: landscapeOnly, forceShape: "landscape" }).searchParams.get("rt")).toBe("1")
+  })
+  it("settings preview URL follows the previewed shape toggle", async () => {
+    const { buildDefaultsPreviewUrl } = await import("@/lib/poster-url")
+    expect(new URL(buildDefaultsPreviewUrl({ defaultRankTrend: false }), "http://x").searchParams.has("rt")).toBe(false)
+    expect(new URL(buildDefaultsPreviewUrl({ defaultRankTrend: true }), "http://x").searchParams.get("rt")).toBe("1")
+  })
+})
