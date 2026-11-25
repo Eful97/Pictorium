@@ -9,6 +9,7 @@ import { usePSelector } from "@/lib/context"
 import { http } from "@/lib/http"
 import { usePresetTransfer } from "@/lib/usePresetTransfer"
 import { useAuthenticatedPreviewUrl } from "@/lib/useAuthenticatedPreview"
+import { MAX_AUTHOR_NAME } from "@/components/settings/SharedPresetsSection"
 import {
   applyPersonalLandscapeIsolated,
   applyPersonalPortraitIsolated,
@@ -31,7 +32,7 @@ const endpoint = "/api/defaults/presets"
  * format target (existing selector); each list is fully independent
  * (server-scoped names/quota, target-only apply). Not necessarily simultaneous.
  */
-export function VisualPresetsSection({ shape = "portrait", enabled = true, gallery = false, thumbnailFor, onApplyPreset, onPublishPreset }: {
+export function VisualPresetsSection({ shape = "portrait", enabled = true, gallery = false, thumbnailFor, onApplyPreset, onPublishPreset, authorName, onAuthorNameChange }: {
   shape?: VisualPresetShape
   enabled?: boolean
   /**
@@ -49,6 +50,9 @@ export function VisualPresetsSection({ shape = "portrait", enabled = true, galle
   onApplyPreset?: (preset: VisualPreset) => void
   /** Publish a copy to the instance gallery (MULTI_USER only). Absent = no publish control. */
   onPublishPreset?: (preset: VisualPreset) => void
+  /** Optional public credit used when publishing (empty = anonymous); shown with the publish control. */
+  authorName?: string
+  onAuthorNameChange?: (value: string) => void
 }) {
   const { t } = useT()
   const ed = usePosterEditor()
@@ -351,6 +355,16 @@ export function VisualPresetsSection({ shape = "portrait", enabled = true, galle
                   </button>
                 )}
               </form>
+              {onPublishPreset && onAuthorNameChange && (
+                <label className="block space-y-1">
+                  <span className="text-zinc-300 font-medium">{t("ui.sharedPresetAuthorLabel")}</span>
+                  <input type="text" value={authorName ?? ""} maxLength={MAX_AUTHOR_NAME} autoComplete="off"
+                    onChange={(event) => onAuthorNameChange(event.target.value)}
+                    data-testid="shared-preset-author-input"
+                    className="w-full bg-surface2/60 border border-white/10 rounded-lg px-3 h-11 text-zinc-200 outline-none focus:border-accent-orange/50" />
+                  <span className="block text-[10px] text-zinc-500">{t("ui.sharedPresetAuthorHint")}</span>
+                </label>
+              )}
               <div className="flex gap-2 pt-1">
                 <button type="button" disabled={busy || transferBusy}
                   onClick={() => void transfer.exportAll()}

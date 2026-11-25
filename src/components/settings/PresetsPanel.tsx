@@ -6,6 +6,8 @@ import { useT } from "@/lib/contexts/TranslationContext"
 import { ApiError, http } from "@/lib/http"
 import { isMultiUserServer } from "@/lib/guest-guard"
 import { SharedPresetsSection, sharedPresetsEndpoint } from "@/components/settings/SharedPresetsSection"
+
+const AUTHOR_NAME_KEY = "pictorium:shared-author-name"
 import { usePosterEditor, type PosterEditorCtx } from "@/lib/contexts/PosterEditorContext"
 import { usePSelector } from "@/lib/context"
 import type { DefaultsPreviewDemoMedia } from "@/lib/poster-url"
@@ -207,6 +209,16 @@ export function PresetsPanel({
     return () => { alive = false }
   }, [active])
 
+  // Optional public credit for published presets; empty = anonymous. Remembered per browser.
+  const [authorName, setAuthorName] = useState("")
+  useEffect(() => {
+    try { setAuthorName(localStorage.getItem(AUTHOR_NAME_KEY) ?? "") } catch { /* storage unavailable */ }
+  }, [])
+  const changeAuthorName = (value: string) => {
+    setAuthorName(value)
+    try { localStorage.setItem(AUTHOR_NAME_KEY, value) } catch { /* storage unavailable */ }
+  }
+
   const [publishing, setPublishing] = useState(false)
   const publishPreset = async (preset: VisualPreset) => {
     if (publishing) return
@@ -214,12 +226,12 @@ export function PresetsPanel({
     try {
       await http(sharedPresetsEndpoint, {
         method: "POST", headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ name: preset.name, shape: preset.shape, values: preset.values }), retries: 0,
+        body: JSON.stringify({ name: preset.name, shape: preset.shape, values: preset.values, authorName }), retries: 0,
       })
       toast.success(t("ui.sharedPresetPublished"))
       setSharedRefresh((n) => n + 1)
     } catch (err) {
-      toast.error(t(err instanceof ApiError && err.status === 409 ? "ui.sharedPresetLimit" : "ui.sharedPresetsError"))
+      toast.error(t(err instanceof ApiError && err.status === 409 ? "ui.sharedPresetLimit" : err instanceof ApiError && err.status === 422 ? "ui.sharedPresetNameRejected" : "ui.sharedPresetsError"))
     } finally { setPublishing(false) }
   }
 
@@ -257,6 +269,8 @@ export function PresetsPanel({
       </div>
       <VisualPresetsSection
         shape={shape}
+        authorName={authorName}
+        onAuthorNameChange={multiUser ? changeAuthorName : undefined}
         enabled={active}
         gallery
         thumbnailFor={(preset: VisualPreset) => thumbUrl(preset.values)}

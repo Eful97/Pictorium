@@ -30,6 +30,7 @@ const log = createLogger("shared-presets")
 // (eager, not lazy): keep the total near the personal list budget (20/shape).
 export const MAX_SHARED_PRESETS = 24
 export const MAX_SHARED_PRESETS_PER_AUTHOR = 5
+export const MAX_AUTHOR_NAME = 24
 
 const KEY = "shared-presets"
 const FILE = path.join(DATA_DIR, "shared-presets.json")
@@ -87,10 +88,16 @@ const sharedPresetSchema = visualPresetSchema.omit({ mode: true }).extend({
   publishedAt: z.number().int().nonnegative(),
   // Default: entries published before likes existed stay valid.
   likes: z.array(z.string().uuid()).default([]),
+  // Optional public credit chosen by the author at publish time; null = anonymous.
+  authorName: z.string().max(MAX_AUTHOR_NAME).nullable().default(null),
 })
 type SharedPreset = z.infer<typeof sharedPresetSchema>
 
-const publishSchema = visualPresetInputSchema.omit({ id: true, mode: true })
+/** Display name: trimmed, whitespace collapsed, control chars dropped; empty = anonymous. */
+const authorNameSchema = z.string().transform((raw) => raw.replace(/[\p{Cc}\p{Cf}]/gu, "").replace(/\s+/g, " ").trim())
+  .pipe(z.string().max(MAX_AUTHOR_NAME)).nullish().transform((name) => name || null)
+
+const publishSchema = visualPresetInputSchema.omit({ id: true, mode: true }).extend({ authorName: authorNameSchema })
 const unpublishSchema = z.object({ id: z.string().uuid() }).strict()
 const updateSchema = z.union([
   z.object({ id: z.string().uuid(), name: visualPresetInputSchema.shape.name }).strict(),
@@ -105,6 +112,8 @@ export interface PublicSharedPreset {
   values: SharedPreset["values"] | null
   /** Ready-look id for built-in entries; absent for user-published ones. */
   builtin?: string
+  /** Credit chosen by the author; null/absent = anonymous (and always for built-ins). */
+  authorName: string | null
   mine: boolean
   /** Author or admin (moderation): the caller may unpublish this entry. */
   canRemove: boolean
@@ -153,7 +162,7 @@ async function persist(next: SharedPreset[], changed: { set?: SharedPreset[]; de
 function toPublic(entry: SharedPreset, userId: string, isAdmin: boolean): PublicSharedPreset {
   const mine = entry.author === userId
   return {
-    id: entry.id, name: entry.name, shape: entry.shape, values: entry.values,
+    id: entry.id, name: entry.name, shape: entry.shape, values: entry.values, authorName: entry.authorName,
     mine, canRemove: mine || isAdmin,
     likeCount: entry.likes.length, likedByMe: entry.likes.includes(userId),
   }
@@ -172,7 +181,7 @@ function listFor(all: SharedPreset[], readyLikes: ReadyLikes, userId: string, sh
     return {
       order: -index,
       item: {
-        id: `ready:${shape}:${ready.id}`, name: ready.label, shape, values: null, builtin: ready.id,
+        id: `ready:${shape}:${ready.id}`, name: ready.label, shape, values: null, builtin: ready.id, authorName: null,
         mine: false, canRemove: false, likeCount: likes.length, likedByMe: likes.includes(userId),
       } satisfies PublicSharedPreset,
     }
@@ -199,12 +208,12 @@ export function publishSharedPreset(userId: string, body: unknown): Promise<Publ
   const author = owner(userId)
   return serialized(async () => {
     const input = publishSchema.parse(stripRemovedFreshFontKeys(body))
-    if (!isPresetNameAllowed(input.name)) throw new Error("Name not allowed")
+    if (!isPresetNameAllowed(input.name) || (input.authorName && !isPresetNameAllowed(input.authorName))) throw new Error("Name not allowed")
     const all = await loadAll()
     if (all.length >= MAX_SHARED_PRESETS || all.filter((entry) => entry.author === author).length >= MAX_SHARED_PRESETS_PER_AUTHOR) {
       throw new Error("Shared preset limit reached")
     }
-    const entry: SharedPreset = { id: randomUUID(), name: input.name, shape: input.shape, values: input.values, author, publishedAt: Date.now(), likes: [] }
+    const entry: SharedPreset = { id: randomUUID(), name: input.name, shape: input.shape, values: input.values, author, publishedAt: Date.now(), likes: [], authorName: input.authorName }
     const next = [...all, entry]
     await persist(next, { set: [entry] })
     return listFor(next, await loadReadyLikes(), author, input.shape, false)

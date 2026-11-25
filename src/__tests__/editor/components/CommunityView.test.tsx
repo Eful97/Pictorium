@@ -44,7 +44,7 @@ import { CommunityView } from "@/components/CommunityView"
 import type { SharedPreset } from "@/components/settings/SharedPresetsSection"
 
 const entry = (id: string, extra: Partial<SharedPreset> = {}): SharedPreset => ({
-  id, name: `Look ${id}`, shape: "portrait", values: {} as SharedPreset["values"],
+  id, name: `Look ${id}`, authorName: null, shape: "portrait", values: {} as SharedPreset["values"],
   mine: false, canRemove: false, likeCount: 0, likedByMe: false, ...extra,
 })
 

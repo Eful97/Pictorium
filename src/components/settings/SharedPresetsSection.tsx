@@ -10,9 +10,14 @@ import type { VisualPresetShape, VisualPresetValues } from "@/lib/visual-presets
 
 export const sharedPresetsEndpoint = "/api/defaults/presets/shared"
 
+/** Mirrors the server cap (shared-preset-store.ts); duplicated to keep server code out of the client bundle. */
+export const MAX_AUTHOR_NAME = 24
+
 export interface SharedPreset {
   id: string
   name: string
+  /** Credit chosen by the author; null = anonymous. */
+  authorName: string | null
   shape: VisualPresetShape
   /** null for built-in ready looks (`builtin` = ready-look id). */
   values: VisualPresetValues | null
@@ -134,7 +139,10 @@ export function SharedPresetsSection({ shape, refreshKey, limit, onSeeAll, colla
                     {thumb ? <PresetThumbnail url={thumb} /> : null}
                   </span>
                   <span className="flex items-center justify-between w-full gap-1">
-                    <span className="font-semibold text-xs text-foreground truncate">{preset.name}</span>
+                    <span className="min-w-0">
+                      <span className="block font-semibold text-xs text-foreground truncate">{preset.name}</span>
+                      {preset.authorName && <span className="block text-[10px] text-zinc-500 truncate">{t("ui.sharedPresetBy", { name: preset.authorName })}</span>}
+                    </span>
                     <span className="flex items-center gap-1 shrink-0 text-[10px]">
                       {preset.mine && <span className="text-accent-orange">{t("ui.sharedPresetMine")}</span>}
                       <span className="flex items-center gap-0.5 text-zinc-400" aria-label={`${preset.likeCount} ${t("ui.communityLikes")}`}>

@@ -268,6 +268,20 @@ describe("shared presets gallery", () => {
     expect((await users(GET(request("GET"))))[0].name).toBe("Look")
   })
 
+  it("shows the optional author credit, anonymous by default, never the user id", async () => {
+    const post = (authorName?: unknown, user = USER) => POST(request("POST", { name: "Look", shape: "portrait", values, ...(authorName === undefined ? {} : { authorName }) }, user))
+    expect((await post("  Luca\n  R  ")).status).toBe(200)
+    expect((await post(undefined, OTHER)).status).toBe(200)
+    expect((await post("   ", "123e4567-e89b-12d3-a456-426614174002")).status).toBe(200)
+    const list = await users(GET(request("GET")))
+    expect(list.map((p) => p.authorName).filter(Boolean)).toEqual(["Luca R"])
+    expect(list).toHaveLength(3)
+    expect(JSON.stringify(list)).not.toContain(USER)
+    expect((await post("x".repeat(25))).status).toBe(400)
+    expect((await post("vaffanculo")).status).toBe(422)
+    expect((await post(42)).status).toBe(400)
+  })
+
   it("rejects invalid payloads", async () => {
     expect((await POST(request("POST", { name: "Look", shape: "portrait", values: { tmdbKey: "x" } }))).status).toBe(400)
     expect((await POST(request("POST", { name: "Look", shape: "portrait", values, author: OTHER }))).status).toBe(400)

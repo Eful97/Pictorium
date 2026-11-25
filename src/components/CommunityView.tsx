@@ -194,9 +194,10 @@ export function CommunityView() {
                       </span>
                       <div className="min-w-0 flex-1">
                         <p className="truncate text-sm font-semibold leading-tight text-foreground" title={resolved.name}>{resolved.name}</p>
-                        {(preset.mine || preset.builtin) && (
+                        {(preset.mine || preset.builtin || preset.authorName) && (
                           <p className="mt-0.5 flex items-center gap-1 text-[10px] font-medium leading-none">
                             {preset.mine && <span className="text-accent-orange">{t("ui.sharedPresetMine")}</span>}
+                            {preset.authorName && <span className="truncate text-zinc-400">{t("ui.sharedPresetBy", { name: preset.authorName })}</span>}
                             {preset.builtin && (
                               <span className="text-zinc-400" data-testid={`community-builtin-${preset.id}`}>{t("ui.communityBuiltin")}</span>
                             )}

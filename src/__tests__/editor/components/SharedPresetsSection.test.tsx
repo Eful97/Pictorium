@@ -20,7 +20,7 @@ import { ApiError } from "@/lib/http"
 import { SharedPresetsSection, type SharedPreset } from "@/components/settings/SharedPresetsSection"
 
 const entry = (id: string, mine: boolean, canRemove = mine): SharedPreset => ({
-  id, name: `Look ${id}`, shape: "portrait", values: {} as SharedPreset["values"], mine, canRemove, likeCount: 0, likedByMe: false,
+  id, name: `Look ${id}`, authorName: null, shape: "portrait", values: {} as SharedPreset["values"], mine, canRemove, likeCount: 0, likedByMe: false,
 })
 
 const renderSection = (props: Partial<Parameters<typeof SharedPresetsSection>[0]> = {}) => {
