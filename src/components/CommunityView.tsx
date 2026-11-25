@@ -17,6 +17,13 @@ import { READY_PRESET_ENTRIES } from "@/lib/ready-visual-presets"
 import { requestPresetApply } from "@/lib/community-preset-apply"
 import { requestSettingsTab } from "@/lib/settings-tab"
 
+/** Podium badges (#1 gold, #2 silver, #3 bronze). */
+const RANK_BADGE = [
+  "bg-[linear-gradient(135deg,#fde68a,#f59e0b)] text-[#3b2604] border-transparent",
+  "bg-[linear-gradient(135deg,#f4f4f5,#a1a1aa)] text-[#18181b] border-transparent",
+  "bg-[linear-gradient(135deg,#fdba74,#b45309)] text-[#2a1205] border-transparent",
+]
+
 /**
  * Community page (MULTI_USER instances): the instance's published presets
  * ranked by likes. Anyone may like others' styles; authors rename or remove
@@ -158,16 +165,15 @@ export function CommunityView() {
               const isRenaming = renaming?.id === preset.id
               return (
                 <li key={preset.id} data-testid={`community-preset-${preset.id}`}
-                  className={`relative flex flex-col rounded-2xl border p-3 bg-white/[0.03] ${index < 3 ? "border-accent-orange/40" : "border-white/10"}`}>
-                  <span className={`absolute left-2 top-2 z-10 rounded-full px-2 py-0.5 text-[11px] font-bold tabular-nums ${index < 3 ? "bg-accent-orange text-white" : "bg-black/60 text-zinc-200"}`}>
-                    #{index + 1}
-                  </span>
-                  <span aria-hidden="true" className={`mx-auto w-full max-w-full rounded-lg border border-white/10 bg-zinc-950/80 overflow-hidden ${shape === "landscape" ? "aspect-video" : "aspect-[2/3]"}`}>
-                    {thumb ? <PresetThumbnail url={thumb} /> : null}
+                  className={`group relative flex flex-col rounded-2xl border p-2.5 bg-gradient-to-b from-white/[0.06] to-white/[0.015] transition duration-200 hover:-translate-y-0.5 hover:shadow-xl hover:shadow-black/40 ${index < 3 ? "border-accent-orange/35 hover:border-accent-orange/60" : "border-white/10 hover:border-white/20"}`}>
+                  <span aria-hidden="true" className={`relative block w-full rounded-xl border border-white/10 bg-zinc-950/80 overflow-hidden ${shape === "landscape" ? "aspect-video" : "aspect-[2/3]"}`}>
+                    <span className="absolute inset-0 transition-transform duration-500 group-hover:scale-[1.03]">
+                      {thumb ? <PresetThumbnail url={thumb} /> : null}
+                    </span>
                   </span>
 
                   {isRenaming ? (
-                    <form className="mt-2 flex items-center gap-1" onSubmit={(event) => { event.preventDefault(); void saveRename() }}>
+                    <form className="mt-2.5 flex items-center gap-1" onSubmit={(event) => { event.preventDefault(); void saveRename() }}>
                       <input autoFocus value={renaming.name} maxLength={40} disabled={busy}
                         aria-label={t("ui.visualPresetName")}
                         data-testid={`community-rename-input-${preset.id}`}
@@ -182,50 +188,57 @@ export function CommunityView() {
                       </button>
                     </form>
                   ) : (
-                    <div className="mt-2 flex items-center gap-1 min-w-0">
-                      <span className="truncate text-sm font-semibold text-foreground" title={resolved.name}>{resolved.name}</span>
-                      {preset.mine && <span className="shrink-0 text-[10px] text-accent-orange">{t("ui.sharedPresetMine")}</span>}
-                      {preset.builtin && (
-                        <span className="shrink-0 rounded-full border border-white/15 px-1.5 py-px text-[10px] text-zinc-300" data-testid={`community-builtin-${preset.id}`}>
-                          {t("ui.communityBuiltin")}
-                        </span>
+                    <div className="mt-2.5 flex items-center gap-2 min-w-0 min-h-9">
+                      <span className={`shrink-0 flex items-center justify-center h-7 min-w-7 px-1.5 rounded-lg border text-[11px] font-bold tabular-nums ${RANK_BADGE[index] ?? "bg-white/[0.05] border-white/10 text-zinc-300"}`}>
+                        #{index + 1}
+                      </span>
+                      <div className="min-w-0 flex-1">
+                        <p className="truncate text-sm font-semibold leading-tight text-foreground" title={resolved.name}>{resolved.name}</p>
+                        {(preset.mine || preset.builtin) && (
+                          <p className="mt-0.5 flex items-center gap-1 text-[10px] font-medium leading-none">
+                            {preset.mine && <span className="text-accent-orange">{t("ui.sharedPresetMine")}</span>}
+                            {preset.builtin && (
+                              <span className="text-zinc-400" data-testid={`community-builtin-${preset.id}`}>{t("ui.communityBuiltin")}</span>
+                            )}
+                          </p>
+                        )}
+                      </div>
+                      {preset.mine && (
+                        <button type="button" disabled={busy} aria-label={`${t("ui.communityRename")} ${resolved.name}`} title={t("ui.communityRename")}
+                          data-testid={`community-rename-${preset.id}`}
+                          onClick={() => setRenaming({ id: preset.id, name: preset.name })}
+                          className="h-8 w-8 shrink-0 flex items-center justify-center rounded-lg text-zinc-500 hover:text-accent-orange hover:bg-white/[0.06] cursor-pointer disabled:opacity-50">
+                          <Pencil className="w-3.5 h-3.5" />
+                        </button>
+                      )}
+                      {preset.canRemove && (
+                        <button type="button" disabled={busy} aria-label={`${t("ui.sharedPresetUnpublish")} ${resolved.name}`} title={t("ui.sharedPresetUnpublish")}
+                          data-testid={`community-remove-${preset.id}`}
+                          onClick={() => void mutate(preset.id, "DELETE", { id: preset.id })}
+                          className="h-8 w-8 shrink-0 flex items-center justify-center rounded-lg text-zinc-500 hover:text-red-300 hover:bg-red-950/60 cursor-pointer disabled:opacity-50">
+                          <Trash2 className="w-3.5 h-3.5" />
+                        </button>
                       )}
                     </div>
                   )}
 
-                  <div className="mt-2 flex items-center gap-1">
+                  <div className="mt-2.5 flex items-stretch gap-1 sm:gap-1.5">
                     <button type="button" disabled={busy || preset.mine}
                       aria-pressed={preset.likedByMe}
                       aria-label={`${t(preset.likedByMe ? "ui.communityUnlike" : "ui.communityLike")} ${resolved.name}`}
                       title={preset.mine ? t("ui.communityOwnLike") : t(preset.likedByMe ? "ui.communityUnlike" : "ui.communityLike")}
                       data-testid={`community-like-${preset.id}`}
                       onClick={() => void mutate(preset.id, "PATCH", { id: preset.id, like: !preset.likedByMe })}
-                      className={`flex items-center gap-1 h-9 px-2 rounded-lg text-xs font-semibold tabular-nums cursor-pointer disabled:cursor-not-allowed disabled:opacity-60 ${preset.likedByMe ? "text-rose-400 bg-rose-500/10" : "text-zinc-300 hover:bg-white/[0.06]"}`}>
+                      className={`shrink-0 flex items-center justify-center gap-1 h-10 px-2 sm:min-w-[3.25rem] sm:px-2.5 rounded-xl border text-xs font-semibold tabular-nums transition-colors cursor-pointer active:scale-95 disabled:cursor-not-allowed disabled:active:scale-100 ${preset.likedByMe ? "text-rose-300 bg-rose-500/15 border-rose-400/30 hover:bg-rose-500/20" : "text-zinc-300 bg-white/[0.04] border-white/10 hover:bg-white/[0.08] hover:text-rose-300 disabled:hover:bg-white/[0.04] disabled:hover:text-zinc-300 disabled:opacity-60"}`}>
                       <Heart className={`w-4 h-4 ${preset.likedByMe ? "fill-current" : ""}`} aria-hidden="true" />{preset.likeCount}
                     </button>
-                    <span className="flex-1" />
-                    {preset.mine && !isRenaming && (
-                      <button type="button" disabled={busy} aria-label={`${t("ui.communityRename")} ${resolved.name}`} title={t("ui.communityRename")}
-                        data-testid={`community-rename-${preset.id}`}
-                        onClick={() => setRenaming({ id: preset.id, name: preset.name })}
-                        className="h-9 w-9 flex items-center justify-center rounded-lg text-zinc-400 hover:text-accent-orange hover:bg-white/[0.06] cursor-pointer disabled:opacity-50">
-                        <Pencil className="w-4 h-4" />
-                      </button>
-                    )}
-                    {preset.canRemove && (
-                      <button type="button" disabled={busy} aria-label={`${t("ui.sharedPresetUnpublish")} ${resolved.name}`} title={t("ui.sharedPresetUnpublish")}
-                        data-testid={`community-remove-${preset.id}`}
-                        onClick={() => void mutate(preset.id, "DELETE", { id: preset.id })}
-                        className="h-9 w-9 flex items-center justify-center rounded-lg text-zinc-400 hover:text-red-300 hover:bg-red-950/60 cursor-pointer disabled:opacity-50">
-                        <Trash2 className="w-4 h-4" />
-                      </button>
-                    )}
+                    <button type="button" disabled={busy} onClick={() => apply(preset)}
+                      data-testid={`community-apply-${preset.id}`}
+                      className="btn-primary flex-1 min-w-0 h-10 gap-1.5 px-2 sm:px-3 text-xs cursor-pointer">
+                      <Wand2 className="hidden sm:block w-4 h-4 shrink-0" aria-hidden="true" />
+                      <span className="truncate">{t("ui.communityApply")}</span>
+                    </button>
                   </div>
-                  <button type="button" disabled={busy} onClick={() => apply(preset)}
-                    data-testid={`community-apply-${preset.id}`}
-                    className="mt-2 flex items-center justify-center gap-1.5 h-10 rounded-xl bg-accent-orange/15 text-accent-orange hover:bg-accent-orange/25 text-xs font-semibold cursor-pointer disabled:opacity-50">
-                    <Wand2 className="w-4 h-4" aria-hidden="true" />{t("ui.communityApply")}
-                  </button>
                 </li>
               )
             })}
