@@ -42,6 +42,7 @@ async function handle(req: NextRequest, operation?: "publish" | "update" | "unpu
     if (error instanceof ZodError || error instanceof InvalidJsonBodyError) return Response.json({ error: "Invalid preset" }, { status: 400 })
     if (error instanceof BodyTooLargeError) return Response.json({ error: "Request body too large" }, { status: 413 })
     if (error instanceof Error && error.message === "Shared preset limit reached") return Response.json({ error: error.message }, { status: 409 })
+    if (error instanceof Error && error.message === "Name not allowed") return Response.json({ error: error.message }, { status: 422 })
     if (error instanceof Error && error.message === "Preset not found") return Response.json({ error: error.message }, { status: 404 })
     if (error instanceof Error && error.message === "Forbidden") return Response.json({ error: error.message }, { status: 403 })
     log.error("Shared preset storage failed", { error: error instanceof Error ? error.message : String(error) })

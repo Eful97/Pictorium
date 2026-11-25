@@ -9,6 +9,7 @@ import { sanitizeUserId } from "./user-auth"
 import { stripRemovedFreshFontKeys, visualPresetInputSchema, visualPresetSchema, type VisualPresetShape } from "./visual-presets"
 import { createLogger } from "./logger"
 import { READY_PRESET_ENTRIES } from "./ready-visual-presets"
+import { isPresetNameAllowed } from "./preset-name-filter"
 
 const log = createLogger("shared-presets")
 
@@ -198,6 +199,7 @@ export function publishSharedPreset(userId: string, body: unknown): Promise<Publ
   const author = owner(userId)
   return serialized(async () => {
     const input = publishSchema.parse(stripRemovedFreshFontKeys(body))
+    if (!isPresetNameAllowed(input.name)) throw new Error("Name not allowed")
     const all = await loadAll()
     if (all.length >= MAX_SHARED_PRESETS || all.filter((entry) => entry.author === author).length >= MAX_SHARED_PRESETS_PER_AUTHOR) {
       throw new Error("Shared preset limit reached")
@@ -217,6 +219,7 @@ export function updateSharedPreset(userId: string, body: unknown, isAdmin: boole
   const requester = owner(userId)
   return serialized(async () => {
     const input = updateSchema.parse(body)
+    if ("name" in input && !isPresetNameAllowed(input.name)) throw new Error("Name not allowed")
     const [all, readyLikes] = await Promise.all([loadAll(), loadReadyLikes()])
     const ready = parseReadyId(input.id)
     if (ready) {

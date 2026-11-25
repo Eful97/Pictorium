@@ -253,6 +253,21 @@ describe("shared presets gallery", () => {
     expect((await publish("Other user", OTHER)).status).toBe(200)
   })
 
+  it("rejects offensive or link-spam names on publish and rename, keeps innocent ones", async () => {
+    for (const bad of ["F u c k", "sh1t look", "Vaffanculo", "NAZI", "visit spam.com", "https://x.test"]) {
+      expect((await publish(bad)).status).toBe(422)
+    }
+    for (const ok of ["Classic", "Nazionale", "Config A", "Passion", "Cinema Pop"]) {
+      expect((await publish(ok, OTHER)).status).toBe(200)
+      const [entry] = (await users(GET(request("GET", undefined, OTHER)))).filter((p) => p.name === ok)
+      await DELETE(request("DELETE", { id: entry.id }, OTHER))
+    }
+    await publish("Look")
+    const [{ id }] = await users(GET(request("GET")))
+    expect((await PATCH(request("PATCH", { id, name: "merda" }))).status).toBe(422)
+    expect((await users(GET(request("GET"))))[0].name).toBe("Look")
+  })
+
   it("rejects invalid payloads", async () => {
     expect((await POST(request("POST", { name: "Look", shape: "portrait", values: { tmdbKey: "x" } }))).status).toBe(400)
     expect((await POST(request("POST", { name: "Look", shape: "portrait", values, author: OTHER }))).status).toBe(400)
