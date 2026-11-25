@@ -829,7 +829,7 @@ export async function GET(req: NextRequest, { params }: { params: Promise<RouteP
       needTrendFetch, needAnimeFetch, trendRankLive, animeRankLive, preTrendRank, preAnimeRank,
       trendSnapshotPin, animeSnapshotPin, streamingSnapshotPin, jwFamily, chartAnimeFamily, animeListKey,
       animeKeyUsed, addonRankingInput, cacheKey, dynamicPoster, dynamicCutTtlMs,
-    }, titleMeta, { applyPreRelease, locale, dateFormat, ephemeralTtl }, effectiveTtlSec)
+    }, titleMeta, { applyPreRelease: preReleaseDetected, locale, dateFormat, ephemeralTtl }, effectiveTtlSec)
     effectiveTtlSec = factCap.effectiveTtlSec
     const { factExpiresAtMs, policyBaseMs, cappedTtlMs, factCappedWrite } = factCap
     // Normalizza i generi composti TV grezzi ("Sci-Fi & Fantasy" mai localizzato

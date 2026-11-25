@@ -187,7 +187,7 @@
   "ui.tagNextEpisode": "Prossimo episodio",
   "ui.tagSubgenresAll": "Tutti i sottogeneri",
   "ui.sourcesImdbOnly": "Solo IMDb",
-  "ui.preReleaseHint": "Velo scuro + nastro “Coming soon”. Solo film, finché non viene rilevata un'uscita digitale/streaming.",
+  "ui.preReleaseHint": "Nastro rosso (In uscita / Prossimamente / Al cinema) + velo scuro. Spento: stesse etichette come badge beige normali. Solo film.",
   "ui.source_imdb": "IMDb",
   "ui.source_tmdb": "TMDB",
   "ui.source_mdblist": "MDBList",

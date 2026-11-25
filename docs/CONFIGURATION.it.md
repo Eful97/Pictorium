@@ -89,7 +89,7 @@ Tutte le variabili usano il prefisso `PICTORIUM_*`. I vecchi nomi `POSTERIUM_*` 
 | `PICTORIUM_AGE_COUNTRY` | `IT` | Paese della classificazione per età (ISO-2, es. `US`, `FR`; `GLOBAL` è rifiutato). Indipendente dalla lingua UI e dalla regione streaming. |
 | `PICTORIUM_QUALITY_SOURCE` | `justwatch` | Sorgente live della qualità streaming: `justwatch` (solo JustWatch) o `none` (nessun provider live; il DB locale vale comunque). Il valore legacy `torrentio` e i valori ignoti sono normalizzati a `justwatch` e non causano mai chiamate live a Torrentio. I dati Torrentio servono solo ad ampliare/aggiornare il DB locale `av-specs.json` tramite gli script offline dell'operatore. Catena poster: param `quality` esplicito > DB locale > sorgente live. |
 | `PICTORIUM_NETWORK_LOGO` | `1` | Mostra/nasconde il logo del network o studio di produzione. |
-| `PICTORIUM_PRE_RELEASE` | `0` | Velo scuro + nastro "Coming Soon" per film non ancora in streaming; i film già usciti in sala mostrano solo il badge centrato "Al cinema" (niente velo, niente sfocatura). |
+| `PICTORIUM_PRE_RELEASE` | `0` | Presentazione dello stato pre-release per i film non ancora in streaming: ON = nastro rosso d'angolo (data "In uscita" / "Prossimamente" / "Al cinema") più velo scuro finché il film non è uscito; OFF = le stesse etichette come normali badge extra beige (niente nastro, niente velo). Il rilevamento gira sempre per i film recenti/in arrivo. |
 | `PICTORIUM_GRADIENT_HEIGHT` | `65` | Altezza percentuale della sfumatura scura inferiore. |
 
 </details>

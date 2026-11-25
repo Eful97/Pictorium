@@ -89,7 +89,7 @@ All variables use the `PICTORIUM_*` prefix. The legacy `POSTERIUM_*` names are s
 | `PICTORIUM_AGE_COUNTRY` | `IT` | Certification country for the age badge (ISO-2, e.g. `US`, `FR`; `GLOBAL` is rejected). Independent from UI language and streaming region. |
 | `PICTORIUM_QUALITY_SOURCE` | `justwatch` | Live streaming quality source: `justwatch` (JustWatch only: tier plus Dolby Vision/Atmos formats from offer `videoTechnology`/`audioTechnology`) or `none` (no live provider; the local DB still applies). The legacy value `torrentio` and unknown values are normalized to `justwatch` and never trigger a live Torrentio call. Torrentio data is used only to expand/update the local `av-specs.json` DB through the offline operator scripts. Poster chain: explicit `quality` param > local DB > live source. |
 | `PICTORIUM_NETWORK_LOGO` | `1` | Show or hide production network/studio logos. |
-| `PICTORIUM_PRE_RELEASE` | `0` | Dark veil + "Coming Soon" ribbon for movies not yet streaming; movies already in theaters get a centered "In theaters" badge only (no veil, no blur). |
+| `PICTORIUM_PRE_RELEASE` | `0` | Presentation of the pre-release state for movies not yet streaming: ON = red corner ribbon (upcoming date / "Coming Soon" / "In theaters") plus a dark veil until the movie is out; OFF = the same labels as plain beige extra badges (no ribbon, no veil). Detection always runs for recent/upcoming movies. |
 | `PICTORIUM_GRADIENT_HEIGHT` | `65` | Percentage height of the bottom dark gradient. |
 
 </details>
