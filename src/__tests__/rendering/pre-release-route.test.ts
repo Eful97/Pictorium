@@ -18,10 +18,8 @@ import { cacheClear } from "@/lib/cache"
 import { __resetImageBytesForTest } from "@/lib/image-bytes-cache"
 import { resolveStreamQuality } from "@/lib/stream-quality"
 import { __resetTMDBSessionCache } from "@/lib/tmdb-session-cache"
-import { fetchCustomRatings } from "@/lib/custom-rating"
 import { fetchAllWikidata } from "@/lib/awards"
 import { fetchAggregatedRating } from "@/lib/ratings"
-import * as posterService from "@/lib/poster-service"
 
 vi.mock("@/lib/custom-rating", async (importOriginal) => ({
   ...await importOriginal<typeof import("@/lib/custom-rating")>(),
@@ -171,36 +169,6 @@ const EMPTY_DETAILS = {
   status: undefined,
   networks: [],
   production_companies: [],
-}
-
-function movieReleaseDatesIT() {
-  return {
-    id: 44,
-    results: [
-      {
-        iso_3166_1: "IT",
-        release_dates: [
-          { certification: "VM14", release_date: "2024-01-10T00:00:00.000Z", type: 3 },
-        ],
-      },
-      {
-        iso_3166_1: "US",
-        release_dates: [
-          { certification: "PG-13", release_date: "2024-01-10T00:00:00.000Z", type: 3 },
-        ],
-      },
-    ],
-  }
-}
-
-function tvContentRatingsUS() {
-  return {
-    id: 1399,
-    results: [
-      { iso_3166_1: "US", rating: "TV-MA", descriptors: [] },
-      { iso_3166_1: "IT", rating: "VM14", descriptors: [] },
-    ],
-  }
 }
 
 async function imageBuffer(color: string, width: number, height: number): Promise<Buffer> {
