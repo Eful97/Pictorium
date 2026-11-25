@@ -36,6 +36,8 @@ export const CHANGELOG: ChangelogRelease[] = [
     items: [
       { type: "feature", text: "New Community page on multi-user instances: publish your saved styles, like other users' styles and browse the ranking, Pictorium's ready looks included" },
       { type: "feature", text: "Apply a community style in one click: it opens as a draft in the Preset tab, ready to review and save" },
+      { type: "feature", text: "Credit your published styles: add an optional author name or nickname under Manage saved styles (leave it empty to stay anonymous). It shows as \"by <name>\" in the community gallery" },
+      { type: "feature", text: "Community style and author names are checked: offensive words and links are rejected when you publish or rename" },
       { type: "feature", text: "Style thumbnails use the same neutral sample title (Pictorium logo, Drama, 2026, 8.0, Netflix), so looks are easy to compare" },
       { type: "feature", text: "Preset tab: Quick looks and the community gallery are collapsible and start closed, while Manage saved styles starts open" },
       { type: "feature", text: "Pages now sit in a centered bar at the top; on phones the ElfHosted panel starts collapsed" },
