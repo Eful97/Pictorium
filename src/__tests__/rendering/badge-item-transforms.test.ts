@@ -449,3 +449,13 @@ describe("quality stack homes", () => {
     expect(applyBadgeItemTransform(isolated, null)).toEqual(isolated)
   })
 })
+
+describe("prototype keys are not identities", () => {
+  it("rejects constructor/__proto__ as home or format marks", async () => {
+    const m = await import("@/lib/badge-item-transforms")
+    expect(m.isQualityHomeItemId("quality:home:constructor")).toBe(false)
+    expect(m.homeIdForPainted("quality:home:constructor")).toBeNull()
+    expect(m.homeIdForPainted("quality:format:constructor")).toBeNull()
+    expect(m.homeIdForPainted("quality:format:__proto__")).toBeNull()
+  })
+})

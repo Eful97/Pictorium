@@ -3,8 +3,8 @@ import { gotoPresetTab } from "./settings-tab"
 
 async function ensureManageOpen(dialog: ReturnType<Page["getByRole"]>) {
   // Personal presets live in a gallery disclosure closed by default, and the
-  // save form in a nested manage disclosure (also closed by default; both
-  // bodies unmount while closed and reset on tab switches/remounts). Expand
+  // save form in a nested manage disclosure (open by default; both bodies
+  // unmount while closed and reset on tab switches/remounts). Expand
   // whatever is collapsed. All save/apply/delete assertions unchanged.
   // The save control is addressed by test id: its label is "Save as new
   // preset" here (creating never overwrites the applied preset; the explicit

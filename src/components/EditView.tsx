@@ -1928,7 +1928,7 @@ export default function EditView() {
         </div>
       )}
       {profileGate && (
-        <div className="max-w-md mx-auto mt-16 mb-16 animate-fade-scale-in-hero">
+        <div className="max-w-md mx-auto mt-6 sm:mt-16 mb-10 sm:mb-16 animate-fade-scale-in-hero">
           <div className="text-center mb-5">
             <div className="mb-4"><span className="hero-kicker">{t("ui.profileGateKicker")}</span></div>
             <h2 className="text-lg font-bold text-zinc-100 mb-2">{t("ui.profileGateTitle")}</h2>

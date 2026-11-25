@@ -99,10 +99,11 @@ function pinWith(rows: Array<{ tmdbId: number; rank: number }>) {
   }
 }
 
-async function router(input: unknown): Promise<Response> {
+async function router(input: unknown, init?: RequestInit): Promise<Response> {
   const url = String((input as { url?: unknown }).url ?? input)
   if (url.includes("apis.justwatch.com")) {
-    jwCalls++
+    // Solo le query CHART contano come traffico ranking: le offerte (rilevamento pre-digitale, sempre attivo per i film) sono un altro uso di JW.
+    if (String(init?.body ?? "").includes("GetStreamingChartInfo")) jwCalls++
     return Response.json({ data: { streamingCharts: { edges: [] } } })
   }
   if (url.includes("api.mdblist.com")) return Response.json({ ratings: [] })

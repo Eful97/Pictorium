@@ -1,7 +1,7 @@
 "use client"
 
 import { useCallback, useEffect, useId, useRef, useState } from "react"
-import { BookmarkPlus, Check, ChevronDown, Download, Upload, X } from "lucide-react"
+import { BookmarkPlus, Check, ChevronDown, Download, Share2, Upload, X } from "lucide-react"
 import { toast } from "sonner"
 import { useT } from "@/lib/contexts/TranslationContext"
 import { usePosterEditor } from "@/lib/contexts/PosterEditorContext"
@@ -9,6 +9,7 @@ import { usePSelector } from "@/lib/context"
 import { http } from "@/lib/http"
 import { usePresetTransfer } from "@/lib/usePresetTransfer"
 import { useAuthenticatedPreviewUrl } from "@/lib/useAuthenticatedPreview"
+import { MAX_AUTHOR_NAME } from "@/components/settings/SharedPresetsSection"
 import {
   applyPersonalLandscapeIsolated,
   applyPersonalPortraitIsolated,
@@ -31,7 +32,7 @@ const endpoint = "/api/defaults/presets"
  * format target (existing selector); each list is fully independent
  * (server-scoped names/quota, target-only apply). Not necessarily simultaneous.
  */
-export function VisualPresetsSection({ shape = "portrait", enabled = true, gallery = false, thumbnailFor, onApplyPreset }: {
+export function VisualPresetsSection({ shape = "portrait", enabled = true, gallery = false, thumbnailFor, onApplyPreset, onPublishPreset, authorName, onAuthorNameChange }: {
   shape?: VisualPresetShape
   enabled?: boolean
   /**
@@ -47,6 +48,11 @@ export function VisualPresetsSection({ shape = "portrait", enabled = true, galle
   /** Custom apply (e.g. target-specific session apply preserving the other
    *  shape). Absent = legacy target-only apply. */
   onApplyPreset?: (preset: VisualPreset) => void
+  /** Publish a copy to the instance gallery (MULTI_USER only). Absent = no publish control. */
+  onPublishPreset?: (preset: VisualPreset) => void
+  /** Optional public credit used when publishing (empty = anonymous); shown with the publish control. */
+  authorName?: string
+  onAuthorNameChange?: (value: string) => void
 }) {
   const { t } = useT()
   const ed = usePosterEditor()
@@ -216,7 +222,8 @@ export function VisualPresetsSection({ shape = "portrait", enabled = true, galle
       : clean
   }
 
-  const [manageOpen, setManageOpen] = useState(false)
+  // Open by default: opening "My presets" shows the save/manage controls too.
+  const [manageOpen, setManageOpen] = useState(true)
   const [updateArmed, setUpdateArmed] = useState(false)
   const manageBodyId = useId()
   const applyPresetOrCustom = (preset: VisualPreset) => {
@@ -348,6 +355,16 @@ export function VisualPresetsSection({ shape = "portrait", enabled = true, galle
                   </button>
                 )}
               </form>
+              {onPublishPreset && onAuthorNameChange && (
+                <label className="block space-y-1">
+                  <span className="text-zinc-300 font-medium">{t("ui.sharedPresetAuthorLabel")}</span>
+                  <input type="text" value={authorName ?? ""} maxLength={MAX_AUTHOR_NAME} autoComplete="off"
+                    onChange={(event) => onAuthorNameChange(event.target.value)}
+                    data-testid="shared-preset-author-input"
+                    className="w-full bg-surface2/60 border border-white/10 rounded-lg px-3 h-11 text-zinc-200 outline-none focus:border-accent-orange/50" />
+                  <span className="block text-[10px] text-zinc-500">{t("ui.sharedPresetAuthorHint")}</span>
+                </label>
+              )}
               <div className="flex gap-2 pt-1">
                 <button type="button" disabled={busy || transferBusy}
                   onClick={() => void transfer.exportAll()}
@@ -371,6 +388,11 @@ export function VisualPresetsSection({ shape = "portrait", enabled = true, galle
                   <div key={preset.id} className="flex items-center justify-between gap-2 rounded-lg border border-white/[0.08] bg-white/[0.03] px-2.5 py-1.5">
                     <span className="truncate text-[11px] text-zinc-300">{preset.name}</span>
                     <span className="flex items-center gap-1 shrink-0">
+                      {onPublishPreset && (
+                        <button type="button" disabled={busy} data-testid={`visual-preset-publish-${preset.id}`} aria-label={`${t("ui.sharedPresetPublish")} ${preset.name}`} title={`${t("ui.sharedPresetPublish")} ${preset.name}`} onClick={() => onPublishPreset(preset)} className="p-2 rounded-lg text-zinc-400 hover:text-accent-orange cursor-pointer disabled:opacity-50">
+                          <Share2 className="w-3.5 h-3.5" />
+                        </button>
+                      )}
                       <button type="button" disabled={busy} aria-label={`${t("ui.presetFileExportOne")} ${preset.name}`} title={`${t("ui.presetFileExportOne")} ${preset.name}`} onClick={() => transfer.exportVisual(preset)} className="p-2 rounded-lg text-zinc-400 hover:text-accent-orange cursor-pointer disabled:opacity-50">
                         <Download className="w-3.5 h-3.5" />
                       </button>
@@ -465,7 +487,7 @@ export function VisualPresetsSection({ shape = "portrait", enabled = true, galle
  * downgraded the request and the demo badges disappeared). One hook per
  * rendered card: it cannot run inside the presets map.
  */
-function PresetThumbnail({ url }: { url: string }) {
+export function PresetThumbnail({ url }: { url: string }) {
   const src = useAuthenticatedPreviewUrl(url)
   if (!src) return null
   return (

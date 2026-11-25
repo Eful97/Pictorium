@@ -307,6 +307,13 @@ export async function deleteUser(userId: string): Promise<number> {
     traktLock = null
   }
   try {
+    // Community gallery lives outside the namespace: drop this user's entries and likes.
+    try {
+      const { removeUserFromSharedPresets } = await import("@/lib/shared-preset-store")
+      await removeUserFromSharedPresets(userId)
+    } catch (e) {
+      log.warn("user wipe shared presets failed (best-effort)", { error: e instanceof Error ? e.message : String(e) })
+    }
     if (isKvMode()) {
       const kv = getKv()
       const keys = [

@@ -23,7 +23,7 @@ import {
 } from "@/lib/poster-runtime-cache"
 import { type EffectiveAccentMeta } from "@/lib/effective-accent"
 import { resolveFinalRankWithListContext, sanitizePortraitBaseBackdropPath } from "@/lib/poster-params-hardening"
-import { DEMO_SAMPLE_GENRE, DEMO_SAMPLE_MOVIE_DATE, DEMO_SAMPLE_RANK, DEMO_SAMPLE_TV_DATE, mergeDemoSampleRatings } from "@/lib/demo-samples"
+import { DEMO_SAMPLE_GENRE, DEMO_SAMPLE_MOVIE_DATE, DEMO_SAMPLE_NETWORK, DEMO_SAMPLE_RANK, DEMO_SAMPLE_TV_DATE, NEUTRAL_SAMPLE_FLAG, isNeutralSampleRequest, mergeDemoSampleRatings, neutralSampleRatings } from "@/lib/demo-samples"
 import {
   STD_W,
   STD_H,
@@ -75,7 +75,7 @@ import { resolvePosterCacheIdentity } from "./cache-key"
 import { finalizePosterRender } from "./finalize"
 import { resolveRenderDisplay } from "./display-state"
 import type { PosterArtwork, PosterTitleMeta } from "./sources"
-import { resolveAutoSources, resolveMappingSources, resolveQuerySources, type SourceResolutionContext } from "./resolve-sources"
+import { resolveAutoSources, resolveMappingSources, resolveNeutralSampleSources, resolveQuerySources, type SourceResolutionContext } from "./resolve-sources"
 
 /** Cap del fetch provider (parità col cap rating): oltre, il poster esce senza icone. */
 const WATCH_PROVIDERS_TIMEOUT_MS = 1500
@@ -173,6 +173,9 @@ export async function GET(req: NextRequest, { params }: { params: Promise<RouteP
     effMdblistKey,
     effSimklKey,
   })
+  // Neutral style sample (preset thumbnails): phases already dropped the flag
+  // unless it rides an accepted demo-samples preview.
+  const neutralSample = isNeutralSampleRequest({ demoSamples, flag: hardenedParams.get(NEUTRAL_SAMPLE_FLAG) })
   // Preflight ranking (ranking-preflight.ts): snapshot rank pre-cache riusato dal render.
   const {
     rankingSourcePre, rankingCustomPre, streamingRankPre, needTrendFetch, needAnimeFetch, animeListKey,
@@ -439,7 +442,9 @@ export async function GET(req: NextRequest, { params }: { params: Promise<RouteP
     reqRatingSources, renderAbort, queryPoster, queryLogo, queryBackdrop,
     queryPortraitBase, queryGenre, queryVote,
   }
-  if (queryPoster) {
+  if (neutralSample) {
+    ;({ showBadges, rankingBadges } = await resolveNeutralSampleSources(sourceCtx, artwork, titleMeta))
+  } else if (queryPoster) {
     ;({ showBadges, rankingBadges } = resolveQuerySources(sourceCtx, artwork, titleMeta))
   } else if (mapping) {
     ;({ showBadges, rankingBadges } = await resolveMappingSources(sourceCtx, mapping, artwork, titleMeta))
@@ -452,7 +457,7 @@ export async function GET(req: NextRequest, { params }: { params: Promise<RouteP
   // fallback live a details.backdrop_path (poi primo backdrops di /images).
   // Solo ramo landscape: il portrait non ne ha bisogno. Su errore resta null
   // e il blocco landscape sotto risponde 404 onesto.
-  if (isLandscape && !queryBackdrop && !mapping?.backdropPath && !artwork.autoBackdropPath) {
+  if (isLandscape && !neutralSample && !queryBackdrop && !mapping?.backdropPath && !artwork.autoBackdropPath) {
     try {
       const fbApiKey = effTmdbKey
       const fbLang = canonicalLang || mapping?.language || posterRegion.lang2
@@ -526,7 +531,8 @@ export async function GET(req: NextRequest, { params }: { params: Promise<RouteP
     // Ramo landscape: la base è lo sfondo TMDB (query `backdrop` > mapping >
     // ramo automatico). Senza sfondo la base diventa pillarbox dal poster
     // (mai 404: nessun riquadro rotto su Stremio).
-    if (isLandscape) {
+    // Neutral sample: its bundled backdrop is already resolved (never the mapping's).
+    if (isLandscape && !neutralSample) {
       artwork.backdropPath = queryBackdrop || mapping?.backdropPath || artwork.autoBackdropPath || artwork.backdropPath
     }
 
@@ -606,7 +612,9 @@ export async function GET(req: NextRequest, { params }: { params: Promise<RouteP
       ratingAbort?.abort()
     }
     // Copia merged (mai in place: l'aggregato reale può essere cachato).
-    const effectiveAggregated = demoSamples ? mergeDemoSampleRatings(aggregated, reqRatingSources) : aggregated
+    const effectiveAggregated = neutralSample
+      ? neutralSampleRatings(reqRatingSources)
+      : demoSamples ? mergeDemoSampleRatings(aggregated, reqRatingSources) : aggregated
     if (effectiveAggregated) {
       const imdbRating = effectiveAggregated?.sources.imdb
       if (customRatingConfig.enabled && typeof imdbRating === "number" && Number.isFinite(imdbRating) && imdbRating > 0 && imdbRating <= 10) {
@@ -646,7 +654,10 @@ export async function GET(req: NextRequest, { params }: { params: Promise<RouteP
     // su fetch fallito (nei catch sopra), MAI su miss genuina. Altrimenti un
     // titolo uscito dalla chart mostrerebbe per sempre il rank del save
     // precedente (es. "top 15" di un titolo oggi fuori top 20).
-    const rankingRank = rankingResult ?? (demoSamples && rankingEnabledEarly ? DEMO_SAMPLE_RANK : null)
+    // Neutral sample: fixed demo rank (never the demo title's live chart position).
+    const rankingRank = neutralSample
+      ? (rankingEnabledEarly ? DEMO_SAMPLE_RANK : null)
+      : rankingResult ?? (demoSamples && rankingEnabledEarly ? DEMO_SAMPLE_RANK : null)
     // rank/label dalla query hardenata (stessa del cache key): su presets il
     // label free-text è droppato/canonicalizzato, il rank numerico resta.
     // Precedenza rank: `rank=` esplicito (override manuale, vince) > `rk=`
@@ -789,6 +800,9 @@ export async function GET(req: NextRequest, { params }: { params: Promise<RouteP
     // cache key (verrebbe letta prima del fetch), il ritorno al poster normale
     // avviene alla scadenza del TTL (6h non-mappati, 24h mappati).
     const applyPreRelease = preRelease && preReleaseDetected
+    // Stesso rilevamento, `pre` spento: stesse etichette ma come badge beige
+    // normali (niente nastro rosso, niente velo).
+    const applyPreBeige = !preRelease && preReleaseDetected
 
     // Qualità + formati A/V (vedi quality.ts).
     const { finalQuality, finalVideoFormats } = resolveRenderQuality({
@@ -811,11 +825,11 @@ export async function GET(req: NextRequest, { params }: { params: Promise<RouteP
     // Task D — freshness cap dai fatti volatili consumati (vedi freshness.ts).
     const factCap = resolveFactCap({
       mediaType, tmdbId, posterRegion, t, scopedUser, effTmdbKey, effMdblistKey, effTvdbKey,
-      rankingEnabled, preRelease, preDigital, preJw, rankingSourcePre, rankingCustomPre, streamingRankPre,
+      rankingEnabled, preRelease: mediaType === "movie", preDigital, preJw, rankingSourcePre, rankingCustomPre, streamingRankPre,
       needTrendFetch, needAnimeFetch, trendRankLive, animeRankLive, preTrendRank, preAnimeRank,
       trendSnapshotPin, animeSnapshotPin, streamingSnapshotPin, jwFamily, chartAnimeFamily, animeListKey,
       animeKeyUsed, addonRankingInput, cacheKey, dynamicPoster, dynamicCutTtlMs,
-    }, titleMeta, { applyPreRelease, locale, dateFormat, ephemeralTtl }, effectiveTtlSec)
+    }, titleMeta, { applyPreRelease: preReleaseDetected, locale, dateFormat, ephemeralTtl }, effectiveTtlSec)
     effectiveTtlSec = factCap.effectiveTtlSec
     const { factExpiresAtMs, policyBaseMs, cappedTtlMs, factCappedWrite } = factCap
     // Normalizza i generi composti TV grezzi ("Sci-Fi & Fantasy" mai localizzato
@@ -869,6 +883,16 @@ export async function GET(req: NextRequest, { params }: { params: Promise<RouteP
         completePosterRender(null)
         return Response.json(debugJson)
       }
+    }
+
+    // Neutral sample: Netflix is the network logo (never the demo title's own
+    // networks/companies). First candidate wins in the renderer.
+    if (neutralSample) {
+      titleMeta.tmdbNetworks = [DEMO_SAMPLE_NETWORK.name]
+      titleMeta.tmdbNetworksDetailed = [{ name: DEMO_SAMPLE_NETWORK.name, logoPath: DEMO_SAMPLE_NETWORK.logoPath }]
+      titleMeta.productionCompanies = []
+      titleMeta.productionCompaniesDetailed = []
+      titleMeta.tmdbStudios = []
     }
 
     // Fallback mapping network logo per poster salvati (quando non c'è fetch live)
@@ -960,6 +984,7 @@ export async function GET(req: NextRequest, { params }: { params: Promise<RouteP
       onAccentMeta: (m) => { collectedAccentMeta = m },
       demoSamples,
       accentOverride, imdbTop250, whatsonFeatures: aggregated?.whatsonFeatures ?? null, preRelease: applyPreRelease,
+      preBeige: applyPreBeige,
       preInTheaters,
       shape: posterShape,
       posterLayout,
@@ -1032,7 +1057,7 @@ export async function GET(req: NextRequest, { params }: { params: Promise<RouteP
     return await finalizePosterRender({
       mediaType, tmdbId, startTime, mapping, isPreview, isConditional, ifNoneMatch, isLive,
       cacheKey, mappingTag, outputFormat, needsVariant, dynamicPoster, dynamicDayBucket, dynamicCutTtlMs, customRatingConfig,
-      titleMeta, finalRank, imdbTop250, applyPreRelease, useSeparate, bottomActive, sepItems, ephemeralTtl,
+      titleMeta, finalRank, imdbTop250, applyPreRelease, applyPreBeige, useSeparate, bottomActive, sepItems, ephemeralTtl,
       effectiveImmutable, effectiveTtlSec, cappedTtlMs, policyBaseMs, factExpiresAtMs, factCappedWrite, genInput, composited,
       collectedAccentMeta, tFetchMs, tCompositeStart, completePosterRender, serveResponseVariant,
     })

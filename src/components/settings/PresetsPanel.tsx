@@ -1,7 +1,13 @@
 "use client"
 
-import { useCallback, useMemo } from "react"
+import { useCallback, useEffect, useMemo, useRef, useState } from "react"
+import { toast } from "sonner"
 import { useT } from "@/lib/contexts/TranslationContext"
+import { ApiError, http } from "@/lib/http"
+import { isMultiUserServer } from "@/lib/guest-guard"
+import { SharedPresetsSection, sharedPresetsEndpoint } from "@/components/settings/SharedPresetsSection"
+
+const AUTHOR_NAME_KEY = "pictorium:shared-author-name"
 import { usePosterEditor, type PosterEditorCtx } from "@/lib/contexts/PosterEditorContext"
 import { usePSelector } from "@/lib/context"
 import type { DefaultsPreviewDemoMedia } from "@/lib/poster-url"
@@ -10,10 +16,6 @@ import { PosterStyleCard } from "@/components/settings/PosterStyleCard"
 import { VisualPresetsSection } from "@/components/settings/VisualPresetsSection"
 import { READY_PRESET_ENTRIES } from "@/lib/ready-visual-presets"
 import {
-  applyLandscapeIsolated,
-  applyPersonalLandscapeIsolated,
-  applyPersonalPortraitIsolated,
-  applyPortraitIsolated,
   captureVisualPreset,
   isTargetLayoutFresh,
   isTargetLayoutStandard,
@@ -22,15 +24,11 @@ import {
   personalLandscapeProfilePatch,
   portraitPresetPatch,
   resolveEffectiveLandscape,
-  withReadyPresetAgeOff,
-  withReadyPresetWatchProvidersOff,
-  withReadyPresetLayoutFresh,
-  withReadyPresetLayoutStandard,
   type VisualPreset,
   type VisualPresetValues,
 } from "@/lib/visual-presets"
-import { withReadyPresetExtraStyleReset } from "@/lib/quick-visual-presets"
-import { clearedExtraForPresetApply } from "@/lib/extra-materialize"
+import { projectPreset, withTargetExtraCleanup, type ProjectionEditor } from "@/lib/preset-apply-projection"
+import { consumePresetApply } from "@/lib/community-preset-apply"
 import type { ActivePresetMeta } from "@/lib/active-preset-baseline"
 
 type PresetShape = "portrait" | "landscape"
@@ -103,13 +101,6 @@ export function PresetsPanel({
     () => ({ ...captureVisualPreset(ed), landscape: ed.landscape }),
     [ed],
   )
-  // Live age state for the ready-preset opt-out (the preset contract carries
-  // no age keys, so `live` above cannot supply them; personal presets never
-  // read this — their stored content applies verbatim).
-  const liveAge = useMemo(
-    () => ({ defaultAgeBadge: ed.defaultAgeBadge, landscape: ed.landscape }),
-    [ed.defaultAgeBadge, ed.landscape],
-  )
   const currentKey = useMemo(() => normKey(live, shape), [live, shape])
   // Effective target age (same `ed` the thumbnails and the apply path read,
   // so staged and live mounts agree): gates the age-blind highlight below.
@@ -131,46 +122,10 @@ export function PresetsPanel({
     ? ((ed.landscape as unknown as Record<string, unknown> | undefined)?.extraBadgeStyle ?? null) === "follow-rank"
     : (ed as unknown as Record<string, unknown>).defaultExtraBadgeStyle == null
 
-  const project = useCallback((desired: VisualPresetValues, ageOff = false, readyPin = false, freshPin = false): VisualPresetValues => {
-    // Personal presets (the default path: no ready overlays) own their full
-    // visual recipe through the personal isolated helpers (owned
-    // layout/scope/extra-style/age, canonically normalized — never the live
-    // previous look); ready looks keep the frozen contract + overlays below.
-    const personal = !ageOff && !readyPin
-    const isolated = personal
-      ? (shape === "landscape" ? applyPersonalLandscapeIsolated(live, desired) : applyPersonalPortraitIsolated(live, desired))
-      : (shape === "landscape" ? applyLandscapeIsolated(live, desired) : applyPortraitIsolated(live, desired))
-    // Delivery format never follows a preset (Badge tab precedent).
-    const { ...rest } = isolated as unknown as Record<string, unknown>
-    delete rest.defaultPosterShape
-    // Ready canonical layout: the six Standard looks own Standard, the Fresh
-    // look owns Fresh+ranked (own ranking mode, never inherits the other);
-    // personal presets own their stored layout via the helpers above. The
-    // other shape's effective output is frozen in both cases.
-    // Thumbnails share this exact projection so the preview matches the
-    // post-click result; never a fake render. Pure preset apply: Fresh uses
-    // its own stored positions (already 0/null per the export) — never the
-    // Fresh-entry slider reset, which would destroy the explicit recipe.
-    const withLayout = ageOff
-      ? (freshPin ? withReadyPresetLayoutFresh(ed, rest, shape) : withReadyPresetLayoutStandard(ed, rest, shape))
-      : rest
-    // Every ready look owns the standalone extra style too (outside the
-    // preset contract): the edited shape returns to follow-own-rank instead
-    // of inheriting a tuned extra style; personal presets own their stored
-    // style via the personal isolated helpers above (legacy snapshots resolve
-    // to follow-own-rank, never the live style). Portrait freezes the
-    // inheriting other-shape profile to the pre-edit effective flat first
-    // (live `ed`: the capture `live` above is schema-stripped and drops the
-    // standalone extra key), so the other format cannot move.
-    const withExtra = readyPin
-      ? withReadyPresetExtraStyleReset(withLayout, shape, ed as unknown as { defaultExtraBadgeStyle?: unknown; landscape?: unknown })
-      : withLayout
-    if (!ageOff) return withExtra as unknown as VisualPresetValues
-    return withReadyPresetWatchProvidersOff(
-      withReadyPresetAgeOff(liveAge, withExtra, shape),
-      shape,
-    ) as unknown as VisualPresetValues
-  }, [live, liveAge, ed, shape])
+  // Shared projection (personal + ready paths): the community page renders
+  // thumbnails with the same function, so previews match what Apply stages.
+  const project = useCallback((desired: VisualPresetValues, ageOff = false, readyPin = false, freshPin = false): VisualPresetValues =>
+    projectPreset(ed as unknown as ProjectionEditor, live, desired, shape, ageOff, readyPin, freshPin), [live, ed, shape])
 
   // COMPLETE expected post-apply snapshot: the same isolated projection
   // the click stages PLUS the exact shared target-extra cleanup the
@@ -178,36 +133,8 @@ export function PresetsPanel({
   // clears the target's missing/null extra axes to null). Highlight and
   // thumbnail share this snapshot so the preview matches the post-click
   // result; never a partial-vs-full compare.
-  const expectedAfterApply = useCallback((desired: VisualPresetValues, ageOff = false, readyPin = false, freshPin = false): VisualPresetValues => {
-    const isolated = project(desired, ageOff, readyPin, freshPin) as unknown as Record<string, unknown>
-    if (shape === "landscape") {
-      const land = isolated.landscape
-      if (land != null && typeof land === "object") {
-        const l = { ...(land as Record<string, unknown>) }
-        const cleared = clearedExtraForPresetApply(
-          { scale: l.topBadgeScale as number | null | undefined, offsetX: l.topBadgeOffsetX as number | null | undefined, offsetY: l.topBadgeOffsetY as number | null | undefined },
-          { scale: l.extraBadgeScale as number | null | undefined, offsetX: l.extraBadgeOffsetX as number | null | undefined, offsetY: l.extraBadgeOffsetY as number | null | undefined },
-        )
-        if (cleared) {
-          l.extraBadgeScale = cleared.scale
-          l.extraBadgeOffsetX = cleared.offsetX
-          l.extraBadgeOffsetY = cleared.offsetY
-        }
-        isolated.landscape = l
-      }
-    } else {
-      const cleared = clearedExtraForPresetApply(
-        { scale: isolated.defaultTopBadgeScale as number | null | undefined, offsetX: isolated.defaultTopBadgeOffsetX as number | null | undefined, offsetY: isolated.defaultTopBadgeOffsetY as number | null | undefined },
-        { scale: isolated.defaultExtraBadgeScale as number | null | undefined, offsetX: isolated.defaultExtraBadgeOffsetX as number | null | undefined, offsetY: isolated.defaultExtraBadgeOffsetY as number | null | undefined },
-      )
-      if (cleared) {
-        isolated.defaultExtraBadgeScale = cleared.scale
-        isolated.defaultExtraBadgeOffsetX = cleared.offsetX
-        isolated.defaultExtraBadgeOffsetY = cleared.offsetY
-      }
-    }
-    return isolated as unknown as VisualPresetValues
-  }, [project, shape])
+  const expectedAfterApply = useCallback((desired: VisualPresetValues, ageOff = false, readyPin = false, freshPin = false): VisualPresetValues =>
+    withTargetExtraCleanup(project(desired, ageOff, readyPin, freshPin), shape), [project, shape])
 
   const applyDesired = (desired: VisualPresetValues, ageOff = false, readyPin = false, freshPin = false, meta?: ActivePresetMeta) => {
     const isolated = project(desired, ageOff, readyPin, freshPin)
@@ -228,7 +155,7 @@ export function PresetsPanel({
     try {
       return buildDefaultsPreviewUrlFromEditor(
         { ...ed, ...expectedAfterApply(desired, ageOff, readyPin, freshPin) } as unknown as PosterEditorCtx,
-        { tmdbKey, userId, configToken: localConfigToken, lang, demoMedia: demoMedia ?? null, previewShape: shape, previewFamily: null },
+        { tmdbKey, userId, configToken: localConfigToken, lang, demoMedia: demoMedia ?? null, previewShape: shape, previewFamily: null, neutralSample: true },
       ).url
     } catch {
       return null
@@ -253,6 +180,61 @@ export function PresetsPanel({
   // normalizePresetExtraTuning).
   const expectedKey = (desired: VisualPresetValues, readyPin = false, freshPin = false): string => normKey(expectedAfterApply(desired, true, readyPin, freshPin), shape)
 
+  // Community "Apply": consume a pending request once, only for this shape,
+  // through the same personal apply path (staged draft, reviewed + saved).
+  const applyDesiredRef = useRef(applyDesired)
+  applyDesiredRef.current = applyDesired
+  useEffect(() => {
+    if (!active) return
+    const pending = consumePresetApply(shape)
+    if (!pending) return
+    if (pending.ready) applyDesiredRef.current(pending.values, true, true, pending.ready.fresh, { id: pending.id, name: pending.name, kind: "ready" })
+    else applyDesiredRef.current(pending.values, false, false, false, { id: pending.id, name: pending.name, kind: "personal" })
+  }, [active, shape])
+
+  const router = usePSelector((v) => v.router)
+  const openCommunity = () => {
+    // Guarded close: an unsaved draft still gets the session's confirm dialog.
+    window.dispatchEvent(new CustomEvent("pictorium:settings-close-request"))
+    router.push("community")
+  }
+
+  // Community gallery exists only on MULTI_USER servers.
+  const [multiUser, setMultiUser] = useState(false)
+  const [sharedRefresh, setSharedRefresh] = useState(0)
+  useEffect(() => {
+    if (!active) return
+    let alive = true
+    isMultiUserServer().then((on) => { if (alive) setMultiUser(on) }, () => {})
+    return () => { alive = false }
+  }, [active])
+
+  // Optional public credit for published presets; empty = anonymous. Remembered per browser.
+  const [authorName, setAuthorName] = useState("")
+  useEffect(() => {
+    try { setAuthorName(localStorage.getItem(AUTHOR_NAME_KEY) ?? "") } catch { /* storage unavailable */ }
+  }, [])
+  const changeAuthorName = (value: string) => {
+    setAuthorName(value)
+    try { localStorage.setItem(AUTHOR_NAME_KEY, value) } catch { /* storage unavailable */ }
+  }
+
+  const [publishing, setPublishing] = useState(false)
+  const publishPreset = async (preset: VisualPreset) => {
+    if (publishing) return
+    setPublishing(true)
+    try {
+      await http(sharedPresetsEndpoint, {
+        method: "POST", headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ name: preset.name, shape: preset.shape, values: preset.values, authorName }), retries: 0,
+      })
+      toast.success(t("ui.sharedPresetPublished"))
+      setSharedRefresh((n) => n + 1)
+    } catch (err) {
+      toast.error(t(err instanceof ApiError && err.status === 409 ? "ui.sharedPresetLimit" : err instanceof ApiError && err.status === 422 ? "ui.sharedPresetNameRejected" : "ui.sharedPresetsError"))
+    } finally { setPublishing(false) }
+  }
+
   return (
     <div
       role="tabpanel"
@@ -269,6 +251,7 @@ export function PresetsPanel({
           thumbnailShape={shape}
           showBadge={false}
           compact
+          collapsible
           active={active}
           options={READY_PRESET_ENTRIES.map((entry) => {
             const desired = entry.desired(shape === "portrait")
@@ -286,11 +269,25 @@ export function PresetsPanel({
       </div>
       <VisualPresetsSection
         shape={shape}
+        authorName={authorName}
+        onAuthorNameChange={multiUser ? changeAuthorName : undefined}
         enabled={active}
         gallery
         thumbnailFor={(preset: VisualPreset) => thumbUrl(preset.values)}
         onApplyPreset={(preset: VisualPreset) => applyDesired(preset.values, false, false, false, { id: preset.id, name: preset.name, kind: "personal" })}
+        onPublishPreset={multiUser ? (preset: VisualPreset) => void publishPreset(preset) : undefined}
       />
+      {active && multiUser && (
+        <SharedPresetsSection
+          shape={shape}
+          refreshKey={sharedRefresh}
+          limit={6}
+          collapsible
+          onSeeAll={openCommunity}
+          thumbnailFor={(values) => thumbUrl(values)}
+          onApply={(preset) => { if (preset.values) applyDesired(preset.values, false, false, false, { id: preset.id, name: preset.name, kind: "personal" }) }}
+        />
+      )}
     </div>
   )
 }

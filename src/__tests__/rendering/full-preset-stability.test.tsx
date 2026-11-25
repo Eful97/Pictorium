@@ -30,6 +30,7 @@ import { QUICK_BADGE_PATCHES, isFullQuickLook, quickLookDesired, withReadyPreset
 import { resetGuestGuardForTests } from "@/lib/guest-guard"
 import { __resetAdminTokenForTests } from "@/lib/admin-token"
 import { renderWithCtx } from "@/__tests__/test-utils"
+import { openQuickLooks } from "@/__tests__/helpers/open-quick-looks"
 
 vi.mock("next/navigation", () => ({
   useRouter: () => ({ push: vi.fn(), replace: vi.fn(), back: vi.fn() }),
@@ -271,6 +272,7 @@ function renderPanel() {
 
 function fullThumb(): string {
   const btn = screen.getByTestId("poster-style-full")
+  openQuickLooks()
   const img = btn.querySelector("img")
   expect(img, "real Full thumbnail").not.toBeNull()
   const src = img?.getAttribute("src") ?? ""

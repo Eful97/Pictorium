@@ -114,6 +114,39 @@ export function mergeDemoSampleRatings(
 }
 
 /**
+ * Neutral style sample (preset thumbnails: community page + Preset tab).
+ * `sample=neutral` on an effective preview WITH demo samples renders a
+ * synthetic title instead of the demo title's artwork and metadata: neutral
+ * generated base, bundled Pictorium logo, fixed genre/year/rating. Styles
+ * then compare like for like and render without any TMDB key.
+ */
+export const NEUTRAL_SAMPLE_FLAG = "sample"
+export const NEUTRAL_SAMPLE_VALUE = "neutral"
+export const NEUTRAL_SAMPLE_GENRE = "Drama"
+export const NEUTRAL_SAMPLE_MOVIE_DATE = "2026-01-01"
+export const NEUTRAL_SAMPLE_TV_DATE = "2026-01-01"
+export const NEUTRAL_SAMPLE_RATING = 8.0
+
+/** Accepted only together with an accepted demo-samples request. */
+export function isNeutralSampleRequest(input: {
+  demoSamples: boolean
+  flag: string | null | undefined
+}): boolean {
+  return input.demoSamples === true && input.flag === NEUTRAL_SAMPLE_VALUE
+}
+
+/** Every requested source at the fixed neutral rating (same shape as the fetch). */
+export function neutralSampleRatings(requestedSources: readonly string[]): DemoSampledRatings {
+  const sources: Record<string, number> = {}
+  for (const raw of requestedSources) {
+    const src = raw.trim().toLowerCase()
+    if (src) sources[src] = NEUTRAL_SAMPLE_RATING
+  }
+  const count = Object.keys(sources).length
+  return { sources, average: count > 0 ? NEUTRAL_SAMPLE_RATING : 0, count }
+}
+
+/**
  * Accepted demo-samples request: effective preview (post downgrade) plus the
  * explicit flag at exactly "1". Anything else (absent, garbage, non-preview)
  * renders the genuine data path.

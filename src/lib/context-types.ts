@@ -7,7 +7,7 @@ import type { SaveConfigOverrides, ThumbnailSettingsWrite } from "./usePosterSav
 import type { AggregatedRatings } from "./ratings"
 import type { CatalogShapes } from "./catalog-shape"
 
-export type ViewType = "search" | "myposters" | "thumbnails" | "edit" | "cataloghi"
+export type ViewType = "search" | "myposters" | "thumbnails" | "edit" | "cataloghi" | "community"
 
 export interface MetaInfo {
   genres: { id: number; name: string }[]
@@ -137,7 +137,7 @@ export interface PictoriumCtx {
   removeMapping: (m: Mapping) => Promise<void>
   mappingsMap: Map<string, Mapping>
   goHome: () => void
-  sourceView: "edit" | "search" | "myposters" | "thumbnails" | "cataloghi" | null
+  sourceView: "edit" | "search" | "myposters" | "thumbnails" | "cataloghi" | "community" | null
   /**
    * Apre un titolo nell'editor. `originatingListName` è il nome visibile
    * della lista/catalogo di origine (contesto effimero per il `theme=`

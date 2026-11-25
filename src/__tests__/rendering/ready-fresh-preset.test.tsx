@@ -26,6 +26,7 @@ import { visualPresetValuesSchema } from "@/lib/visual-presets"
 import { resetGuestGuardForTests } from "@/lib/guest-guard"
 import { __resetAdminTokenForTests } from "@/lib/admin-token"
 import { renderWithCtx } from "@/__tests__/test-utils"
+import { openQuickLooks } from "@/__tests__/helpers/open-quick-looks"
 
 vi.mock("next/navigation", () => ({
   useRouter: () => ({ push: vi.fn(), replace: vi.fn(), back: vi.fn() }),
@@ -114,6 +115,7 @@ function renderPanel() {
 
 function thumbParams(id: string): URLSearchParams {
   const btn = screen.getByTestId(`poster-style-${id}`)
+  openQuickLooks()
   const img = btn.querySelector("img")
   expect(img, `real thumbnail for ${id}`).not.toBeNull()
   const src = img?.getAttribute("src") ?? ""
@@ -344,6 +346,7 @@ describe("Fresh gallery tile (actual SettingsPanel)", () => {
     await screen.findByTestId("poster-style-fresh")
     fireEvent.click(screen.getByTestId("visual-presets-toggle"))
     const mine = await screen.findByTestId("visual-preset-00000000-0000-0000-0000-000000000007")
+    openQuickLooks()
     const mineThumb = mine.querySelector("img")?.getAttribute("src") ?? ""
     expect(new URL(mineThumb, "http://localhost").searchParams.get("layout")).toBe("fresh")
     fireEvent.click(mine)

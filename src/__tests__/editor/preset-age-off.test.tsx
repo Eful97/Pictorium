@@ -32,6 +32,7 @@ import {
 } from "@/lib/visual-presets"
 import { buildDefaultsPreviewUrl } from "@/lib/poster-url"
 import { renderWithCtx } from "@/__tests__/test-utils"
+import { openQuickLooks } from "@/__tests__/helpers/open-quick-looks"
 
 vi.mock("next/navigation", () => ({
   useRouter: () => ({ push: vi.fn(), replace: vi.fn(), back: vi.fn() }),
@@ -326,6 +327,7 @@ function renderPanel() {
 /** Real rendered gallery thumbnail age param for a ready tile (never a fake render). */
 function galleryThumbAge(id: string): string | null {
   const btn = screen.getByTestId(`poster-style-${id}`)
+  openQuickLooks()
   const img = btn.querySelector("img")
   expect(img, `real thumbnail for ready preset ${id}`).not.toBeNull()
   const src = img?.getAttribute("src") ?? ""

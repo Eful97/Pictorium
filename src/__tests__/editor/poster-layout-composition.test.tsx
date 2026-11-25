@@ -26,6 +26,7 @@ import { PosterLayoutSelector } from "@/components/PosterLayoutSelector"
 import { usePosterEditor, type PosterEditorCtx } from "@/lib/contexts/PosterEditorContext"
 import { renderWithCtx } from "@/__tests__/test-utils"
 import { captureVisualPreset } from "@/lib/visual-presets"
+import { openQuickLooks } from "@/__tests__/helpers/open-quick-looks"
 
 vi.mock("next/navigation", () => ({
   useRouter: () => ({ push: vi.fn(), replace: vi.fn(), back: vi.fn() }),
@@ -135,6 +136,7 @@ function skinRadio(name: string): HTMLElement {
 
 function thumbSrc(id: string): string {
   const btn = screen.getByTestId(`poster-style-${id}`)
+  openQuickLooks()
   const img = btn.querySelector("img")
   expect(img, `real thumbnail for ${id}`).not.toBeNull()
   const src = img!.getAttribute("src") ?? ""

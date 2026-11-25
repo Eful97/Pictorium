@@ -15,6 +15,25 @@ const DIGITAL_RELEASE_TYPE = 4
 // poco senza offerte streaming è quasi sempre in finestra theatrical.
 const THEATRICAL_WINDOW_MS = 120 * 24 * 60 * 60 * 1000
 
+// Oltre questa età della data teatrale il rilevamento non può più dare un
+// esito (finestra 120gg; margine ampio per uscite digitali molto ritardate):
+// si salta ogni chiamata upstream e il poster resta normale.
+const DETECTION_MAX_AGE_MS = 365 * 24 * 60 * 60 * 1000
+
+/**
+ * True se vale la pena interrogare TMDB/JustWatch: data teatrale ignota
+ * (fail-open) o futura/recente. Film vecchi → false, zero rete.
+ */
+export function isWithinDetectionWindow(
+  theatricalDate: string | null | undefined,
+  now: number = Date.now(),
+): boolean {
+  if (!theatricalDate) return true
+  const t = Date.parse(theatricalDate)
+  if (!Number.isFinite(t)) return true
+  return now - t < DETECTION_MAX_AGE_MS
+}
+
 // Opacità del velo nero sul poster pre-release (0-1).
 export const PRE_RELEASE_DIM_ALPHA = 0.45
 

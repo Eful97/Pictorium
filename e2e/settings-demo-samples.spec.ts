@@ -511,6 +511,9 @@ test.describe("Settings demo samples: search, zoom, badges", () => {
     const dialog = await openSettings(page)
     await waitPreview(seen, (u) => u.pathname.includes("/movie/19995"))
     const n = seen.urls.length
+    // "Configurazioni rapide" is collapsed by default in the Preset tab.
+    const quickLooks = dialog.getByTestId("poster-style-cards-toggle")
+    if ((await quickLooks.count()) > 0 && (await quickLooks.first().getAttribute("aria-expanded")) === "false") await quickLooks.first().click()
     await dialog.getByRole("button", { name: /Essenziale/ }).click()
     const p = await nextPreview(seen, async () => {}, (u) => u.searchParams.get("ranking") === "0")
     expect(p.get("ranking")).toBe("0")

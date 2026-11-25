@@ -103,10 +103,11 @@ function jwEdges(ids: number[]) {
   }
 }
 
-async function router(input: unknown): Promise<Response> {
+async function router(input: unknown, init?: RequestInit): Promise<Response> {
   const url = String((input as { url?: unknown }).url ?? input)
   if (url.includes("apis.justwatch.com")) {
-    jwCalls++
+    // Solo le query CHART contano come traffico ranking: le offerte (rilevamento pre-digitale, sempre attivo per i film) sono un altro uso di JW.
+    if (String(init?.body ?? "").includes("GetStreamingChartInfo")) jwCalls++
     return Response.json(jwEdges([707, 709]))
   }
   if (url.includes("/lists/u/rank-")) return Response.json(listPayload)

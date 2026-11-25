@@ -646,9 +646,8 @@ async function openPersonalManage() {
   const panel = screen.getByTestId("presets-panel")
   fireEvent.click(within(panel).getByTestId("visual-presets-toggle"))
   // The gallery body mounts after the async preset list loads.
-  await within(panel).findByTestId("visual-presets-manage-toggle").then((btn) => {
-    fireEvent.click(btn)
-  })
+  // Manage disclosure is open by default (never click: that would close it).
+  await within(panel).findByTestId("visual-presets-manage-toggle")
 }
 
 function personalTile(name: string): HTMLElement {

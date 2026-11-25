@@ -1,6 +1,6 @@
 "use client"
 
-export type View = "edit" | "search" | "myposters" | "thumbnails" | "cataloghi"
+export type View = "edit" | "search" | "myposters" | "thumbnails" | "cataloghi" | "community"
 
 /**
  * API di navigazione centralizzata. Tutte le transizioni di view passano da

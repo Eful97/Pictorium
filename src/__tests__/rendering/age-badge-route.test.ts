@@ -285,8 +285,9 @@ describe("GET /api/poster age badge (mocked production route)", () => {
     expect(body.age.degraded).toBe(false)
     // Production bounds: same-country lookup only (one call), render signal,
     // 8s TMDB cap — never an unbounded or signal-less fetch.
-    expect(mockedGetReleaseDates).toHaveBeenCalledTimes(1)
-    const args = mockedGetReleaseDates.mock.calls[0]
+    // 1 chiamata età + 1 del rilevamento pre-digitale (film, sempre attivo).
+    expect(mockedGetReleaseDates).toHaveBeenCalledTimes(2)
+    const args = mockedGetReleaseDates.mock.calls.find((c) => c[0] === "movie") ?? []
     expect(args[0]).toBe("movie")
     expect(args[1]).toBe(44)
     expect(args[2]).toBe("test")
@@ -348,7 +349,7 @@ describe("GET /api/poster age badge (mocked production route)", () => {
     const body = await res.json()
     expect(body.age.enabled).toBe(false)
     expect(body.age.label).toBeNull()
-    expect(mockedGetReleaseDates).not.toHaveBeenCalled()
+    expect(mockedGetReleaseDates).toHaveBeenCalledTimes(1) // solo rilevamento pre-digitale
     expect(mockedGetContentRatings).not.toHaveBeenCalled()
   })
 
@@ -361,7 +362,7 @@ describe("GET /api/poster age badge (mocked production route)", () => {
     })
     expect(res.status).toBe(200)
     // No optional fetch purely for a hidden badge.
-    expect(mockedGetReleaseDates).not.toHaveBeenCalled()
+    expect(mockedGetReleaseDates).toHaveBeenCalledTimes(1) // solo rilevamento pre-digitale
     expect(mockedGetContentRatings).not.toHaveBeenCalled()
     // Production renderer input carries no age label under master OFF.
     const spy = vi.mocked(posterService.generatePosterBuffer)

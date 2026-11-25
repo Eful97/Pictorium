@@ -337,6 +337,9 @@ for (const viewport of [
     // Tab until the enabled Save owns focus.
     if (viewport.width < 640) await dialog.locator("#mobile-settings-category").selectOption("preset")
     else await dialog.getByRole("tab", { name: "Preset", exact: true }).click()
+    // "Configurazioni rapide" is collapsed by default: open it first.
+    const quickLooks = dialog.getByTestId("poster-style-cards-toggle")
+    if ((await quickLooks.getAttribute("aria-expanded")) === "false") await quickLooks.click()
     const inactivePreset = dialog.getByTestId("poster-style-cards").locator('button[aria-pressed="false"]').first()
     await inactivePreset.click()
     const saveBtn = dialog.getByTestId("settings-save")

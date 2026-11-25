@@ -19,6 +19,7 @@ import { PresetsPanel } from "@/components/settings/PresetsPanel"
 import { PosterConfigurationGuide } from "@/components/settings/PosterConfigurationGuide"
 import { usePosterEditor, type PosterEditorCtx } from "@/lib/contexts/PosterEditorContext"
 import { renderWithCtx } from "@/__tests__/test-utils"
+import { openQuickLooks } from "@/__tests__/helpers/open-quick-looks"
 
 vi.mock("next/navigation", () => ({
   useRouter: () => ({ push: vi.fn(), replace: vi.fn(), back: vi.fn() }),
@@ -104,6 +105,7 @@ describe("PresetsPanel gallery", () => {
       expect(screen.getByTestId(`poster-style-${id}`)).toBeInTheDocument()
     }
     // Real thumbnails: actual poster URLs, never a fake render.
+    openQuickLooks()
     const imgs = screen.getByTestId("presets-panel").querySelectorAll("img")
     expect(imgs.length).toBeGreaterThanOrEqual(6)
     for (const img of Array.from(imgs)) {
@@ -153,6 +155,7 @@ describe("PresetsPanel gallery", () => {
       // Exactly one selected at a time: the last click wins.
       expect(screen.getByTestId("poster-style-mono")).toHaveAttribute("aria-pressed", "true")
       // Thumbnails are real poster URLs for every look.
+      openQuickLooks()
       const imgs = screen.getByTestId("presets-panel").querySelectorAll("img")
       expect(imgs.length).toBeGreaterThanOrEqual(6)
       for (const img of Array.from(imgs)) {
@@ -174,6 +177,7 @@ describe("PresetsPanel gallery", () => {
     expect(ctx().defaultNetworkLogo).toBe(true)
     // The gallery thumbnail for the pressed look equals a preview built
     // from the same staged editor (same demo title + actual URL builder).
+    openQuickLooks()
     const thumb = screen.getByTestId("poster-style-full").querySelector("img")?.getAttribute("src") ?? ""
     expect(thumb).toContain("/api/poster/")
     expect(thumb).toContain("shape=poster")
@@ -187,10 +191,9 @@ describe("PresetsPanel gallery", () => {
     // Await the presets fetch before asserting the empty library copy
     // (never assert sync: loading resolves first).
     expect(await screen.findByText("ui.perTitlePresetsEmpty", undefined, { timeout: 3000 })).toBeInTheDocument()
-    expect(screen.queryByPlaceholderText("ui.visualPresetName")).not.toBeInTheDocument()
-    // Secondary manage disclosure owns save/import/export/delete.
+    // Secondary manage disclosure owns save/import/export/delete: open by default.
     const manage = screen.getByTestId("visual-presets-manage-toggle")
-    fireEvent.click(manage)
+    expect(manage).toHaveAttribute("aria-expanded", "true")
     expect(screen.getByPlaceholderText("ui.visualPresetName")).toBeInTheDocument()
     expect(screen.getByText("ui.presetFileExportAll")).toBeInTheDocument()
     expect(screen.getByText("ui.presetFileImport")).toBeInTheDocument()

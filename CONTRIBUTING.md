@@ -89,7 +89,7 @@ Releases are curated, never generated from commit subjects.
 
 1. Collect source material (prints only):
    `node scripts/write-changelog-release.mjs <version> --collect`
-2. Write the reviewed notes file, e.g. `{"items":[{"type":"fix","text":"..."}]}`: one bullet per user-visible benefit, plain prose, no trailing period, max 200 characters.
+2. Write the reviewed notes file, e.g. `{"items":[{"type":"fix","text":"..."}]}`: one bullet per user-visible benefit, plain prose, no trailing period, max 200 characters. Root `notes-*.json` files are gitignored scratch input: `src/data/changelog.ts` is the only committed source.
 3. Apply the notes and bump the version:
    `node scripts/write-changelog-release.mjs <version> --notes notes-<version>.json`
    then set `version` in `package.json` and `package-lock.json`.

@@ -219,7 +219,7 @@ function resolveBucket(bucket: SashBucket, params: BadgeParams, t: T): BadgeResu
       return null
     case "award":
       if (params.award && !off("award")) return { type: "extra", label: params.award }
-      if (params.imdbTop250 && !off("absoluteCinema")) return { type: "extra", label: t("badge.absoluteCinema") }
+      if (params.mediaType === "movie" && params.imdbTop250 && !off("absoluteCinema")) return { type: "extra", label: t("badge.absoluteCinema") }
       if (params.nomination && !off("nomination")) return { type: "extra", label: params.nomination }
       return null
     case "extra":

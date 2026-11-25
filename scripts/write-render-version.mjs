@@ -117,6 +117,9 @@ const RENDER_FILES = [
   "src/lib/types.ts",
   "src/lib/svg-badge.ts",
   "src/lib/wikidata-cache.ts",
+  // Neutral style sample (preset thumbnails): generated base + bundled logo.
+  "src/lib/neutral-sample-assets.ts",
+  "public/pictorium.svg",
   "public/quality-badges/mono/4k-label-icon.svg",
   "public/quality-badges/mono/full-hd-label-icon.svg",
   "public/quality-badges/mono/hd-label-icon.svg",

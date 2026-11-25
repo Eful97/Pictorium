@@ -62,6 +62,9 @@ vi.mock("@/lib/svg-badge", async () => {
     renderRankingBadge: vi.fn(async () => png()),
     renderExtraBadge: vi.fn(async () => png()),
     renderQualityBadge: vi.fn(async () => png()),
+    // Neutral sample artwork (base + bundled logo) rasterizes through renderSVG.
+    renderSVG: vi.fn(async () => tiny),
+    TEXT_LOGO_RENDER_WIDTH: 1200,
   }
 })
 
@@ -245,6 +248,41 @@ describe("GET /api/poster demo samples (Settings preview only)", () => {
     expect(body.quality.value).toBe("4K")
     expect(body.genre.name).toBe("Avventura")
     expect(body.genre.year).toBe("2009")
+  })
+
+  it("neutral sample: fixed Drama/2026/8.0, bundled artwork, no TMDB image download", async () => {
+    const url = "http://localhost:3000/api/poster/movie/44?rsrc=imdb,tmdb&badges=1&ranking=1&preview=1&demosamples=1&sample=neutral&debug=1&api_key=test"
+    const res = await GET(renderReq(url), { params: Promise.resolve({ type: "movie", id: "44" }) })
+    expect(res.status).toBe(200)
+    const body = await res.json()
+    expect(body.genre.name).toBe("Drama")
+    expect(body.genre.year).toBe("2026")
+    expect(body.vote.average).toBeCloseTo(8, 5)
+    expect(body.rankings.finalRank).toBe(11)
+    const dump = JSON.stringify(body)
+    expect(dump).toContain("pictorium:neutral")
+    expect(dump).toContain("pictorium:logo")
+    const fetched = vi.mocked(globalThis.fetch).mock.calls.map(([input]) => String(input))
+    expect(fetched.some((u) => u.includes("image.tmdb.org") || u.includes("/t/p/"))).toBe(false)
+  })
+
+  it("neutral sample always shows Netflix, never the demo title's own network", async () => {
+    mockedGetDetails.mockResolvedValue({ ...EMPTY_DETAILS, networks: [{ id: 1, name: "HBO", logo_path: "/hbo.png" }] } as never)
+    const url = "http://localhost:3000/api/poster/movie/44?rsrc=imdb&badges=1&netLogo=1&preview=1&demosamples=1&sample=neutral&api_key=test"
+    const res = await GET(renderReq(url), { params: Promise.resolve({ type: "movie", id: "44" }) })
+    expect(res.status).toBe(200)
+    const input = vi.mocked(posterService.generatePosterBuffer).mock.calls.at(-1)?.[0] as unknown as { tmdbNetworksDetailed?: Array<{ name: string }>; productionCompaniesDetailed?: unknown[] }
+    expect(input.tmdbNetworksDetailed?.map((n) => n.name)).toEqual(["Netflix"])
+    expect(input.productionCompaniesDetailed).toEqual([])
+  })
+
+  it("neutral sample needs demo samples on an accepted preview", async () => {
+    const url = "http://localhost:3000/api/poster/movie/44?poster=%2Fq.jpg&rsrc=imdb,tmdb&badges=1&ranking=1&preview=1&sample=neutral&debug=1&api_key=test"
+    const res = await GET(renderReq(url), { params: Promise.resolve({ type: "movie", id: "44" }) })
+    expect(res.status).toBe(200)
+    const body = await res.json()
+    expect(body.genre.name).toBeNull()
+    expect(JSON.stringify(body)).not.toContain("pictorium:neutral")
   })
 
   it("renders genuine emptiness without the flag on the same preview", async () => {

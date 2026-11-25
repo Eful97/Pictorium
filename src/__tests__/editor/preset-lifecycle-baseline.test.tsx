@@ -191,8 +191,8 @@ describe("preset baseline vs global defaults (staged settings)", () => {
 
     // Applying prefilled the name and exposed the explicit update action:
     // submitting the form is a CREATE, never a silent overwrite.
-    fireEvent.click(screen.getByTestId("visual-presets-manage-toggle"))
-    await settle()
+    // (Manage disclosure is open by default.)
+    expect(screen.getByTestId("visual-presets-manage-toggle")).toHaveAttribute("aria-expanded", "true")
     const nameInput = screen.getByLabelText("ui.visualPresetName") as HTMLInputElement
     expect(nameInput.value).toBe("Mine")
     await act(async () => {
@@ -232,8 +232,6 @@ describe("preset baseline vs global defaults (staged settings)", () => {
     })
     await settle()
 
-    fireEvent.click(screen.getByTestId("visual-presets-manage-toggle"))
-    await settle()
     const nameInput = screen.getByLabelText("ui.visualPresetName") as HTMLInputElement
     fireEvent.change(nameInput, { target: { value: "Mine copy" } })
     await act(async () => {

@@ -14,7 +14,7 @@ import { type WikidataResult, fetchAllWikidata } from "@/lib/awards"
 import { buildTextLogoBuffer } from "@/lib/svg-badge"
 import { combineAbortSignals } from "@/lib/abort-signal"
 import { cropBackdropToPortrait, landscapeBackdropUrl } from "@/lib/image-utils"
-import { extractDigitalReleaseDate, extractProviderAvailability, resolveTheatricalPhase } from "@/lib/pre-release"
+import { extractDigitalReleaseDate, extractProviderAvailability, isWithinDetectionWindow, resolveTheatricalPhase } from "@/lib/pre-release"
 import { fetchAggregatedRating, isMdbTmdbIdentityUsable } from "@/lib/ratings"
 import { fetchImg, fetchLogoImg, imgSrc } from "@/lib/poster-render-helpers"
 import { fetchPosterBaseWithCustom, fetchValidatedCustomImage, resolveEffectiveCustomUrl, safeTmdbImgSrc } from "@/lib/custom-poster-base"
@@ -107,10 +107,8 @@ export async function fetchRenderData(
   const hasQueryEarly = !!queryPoster || !!mapping || !!configToken
   const rankingEnabledEarly = qRankingEarly !== null ? qRankingEarly !== "0" : (hasQueryEarly ? (earlyEffMapping?.rankingBadges ?? rankingBadges) : true)
   const badgeQualityEarly = qBqEarly !== null ? qBqEarly !== "0" : (earlyEffMapping?.badgeQuality ?? configOverride?.badgeQuality ?? earlyEffSd.badgeQuality ?? sd.badgeQuality ?? true)
-  // Flag pre-digitale per il fetch condizionato: query `pre` > config token
-  // > server defaults > false (stessa catena di poster-config, senza mapping).
-  const qPreEarly = req.nextUrl.searchParams.get("pre")
-  const preReleaseEnabledEarly = qPreEarly !== null ? qPreEarly !== "0" : (configOverride?.preRelease ?? earlyEffSd.preRelease ?? sd.preRelease ?? false)
+  // Il rilevamento pre-digitale gira SEMPRE per i film: il flag `pre` decide
+  // solo la presentazione (nastro rosso + velo vs badge beige normale).
   // Segnali grezzi del rilevamento pre-digitale (solo debug=1).
   let preJw: boolean | null = null
   let preDigital: string | null = null
@@ -306,7 +304,9 @@ export async function fetchRenderData(
       // historic throw on non-TMDB paths: never changed here). A custom URL
       // in backdropPath never goes through landscapeBackdropUrl/imgSrc
       // (they would throw on non-TMDB hosts).
-      backdropCustomForFetch
+      artwork.backdropPathBuffer
+        ? Promise.resolve(artwork.backdropPathBuffer)
+        : backdropCustomForFetch
         ? fetchPosterBaseWithCustom(backdropCustomForFetch, tmdbBackdropSrc, renderAbort.signal).then((r) => (r ? r.buf : null))
         // SOLO landscape: il portrait non ha alcun layer backdrop (la base è
         // `posterPath`/crop) — un buffer qui finiva composto come banda 16:9
@@ -356,7 +356,7 @@ export async function fetchRenderData(
       // JustWatch ha la precedenza, TMDB release_dates (type 4) come
       // fallback. Tetto 2500ms con fail-open: a dati ignoti il poster
       // resta normale invece di attendere gli upstream.
-      (preReleaseEnabledEarly && mediaType === "movie"
+      (mediaType === "movie" && isWithinDetectionWindow(titleMeta.releaseDate ?? mapping?.releaseDate ?? null)
         ? (async (): Promise<boolean> => {
             let preTimer: ReturnType<typeof setTimeout> | undefined
             const preTimeout = new Promise<false>((r) => {

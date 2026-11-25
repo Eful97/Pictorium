@@ -175,6 +175,8 @@ export interface DefaultsPreviewBuildOpts {
    * delivered URLs do. Absent/null in named spaces → byte-identical URL.
    */
   configToken?: string | null
+  /** Preset thumbnails: neutral style sample instead of the demo title. */
+  neutralSample?: boolean
 }
 
 /**
@@ -332,6 +334,7 @@ export function buildDefaultsPreviewUrlFromEditor(
       defaultTypeIcon: previewIsLandscape ? ed.defaultTypeIconLandscape : ed.defaultTypeIcon,
       previewFamily: opts.previewFamily ?? null,
       previewExtra,
+      neutralSample: opts.neutralSample === true,
     })
   return { url, shape: previewIsLandscape ? "landscape" as const : "poster" as const }
 }

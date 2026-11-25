@@ -54,6 +54,7 @@ export interface PosterFinalizeContext {
   readonly finalRank: number | null
   readonly imdbTop250: boolean
   readonly applyPreRelease: boolean
+  readonly applyPreBeige?: boolean
   readonly useSeparate: boolean
   readonly bottomActive: boolean
   readonly sepItems: SeparateRating[]
@@ -77,7 +78,7 @@ export async function finalizePosterRender(ctx: PosterFinalizeContext): Promise<
   const {
     mediaType, tmdbId, startTime, mapping, isPreview, isConditional, ifNoneMatch, isLive,
     cacheKey, mappingTag, outputFormat, needsVariant, dynamicPoster, dynamicDayBucket, dynamicCutTtlMs, customRatingConfig,
-    titleMeta, finalRank, imdbTop250, applyPreRelease, useSeparate, bottomActive, sepItems, ephemeralTtl,
+    titleMeta, finalRank, imdbTop250, applyPreRelease, applyPreBeige, useSeparate, bottomActive, sepItems, ephemeralTtl,
     effectiveImmutable, cappedTtlMs, policyBaseMs, factExpiresAtMs, factCappedWrite, genInput, composited,
     collectedAccentMeta, tFetchMs, tCompositeStart, completePosterRender, serveResponseVariant,
   } = ctx
@@ -98,7 +99,7 @@ export async function finalizePosterRender(ctx: PosterFinalizeContext): Promise<
     // Rotazione dinamica: il bucket giorno entra nell'ETag così la
     // rivalidazione tra giorni non risponde mai 304 sul poster di ieri.
     const dynEtagSuffix = dynamicDayBucket !== null ? `:${dynamicDayBucket}` : ""
-    etag = `${etag.slice(0, -1)}:${finalRank ?? "X"}:${imdbTop250}:${titleMeta.voteAverage ?? "0"}:${applyPreRelease ? "P" : "x"}:${sepSig}${dynEtagSuffix}"`
+    etag = `${etag.slice(0, -1)}:${finalRank ?? "X"}:${imdbTop250}:${titleMeta.voteAverage ?? "0"}:${applyPreRelease ? "P" : applyPreBeige ? "B" : "x"}:${sepSig}${dynEtagSuffix}"`
   }
 
   // 11. Cache + response

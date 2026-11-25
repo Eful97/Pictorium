@@ -23,6 +23,13 @@ import { combineAbortSignals } from "@/lib/abort-signal"
 import { cachedImageBytes } from "@/lib/image-bytes-cache"
 import { timedFetch, readResponseBody } from "@/lib/outbound-stats"
 import { createLogger } from "@/lib/logger"
+import {
+  NEUTRAL_SAMPLE_GENRE,
+  NEUTRAL_SAMPLE_MOVIE_DATE,
+  NEUTRAL_SAMPLE_RATING,
+  NEUTRAL_SAMPLE_TV_DATE,
+} from "@/lib/demo-samples"
+import { NEUTRAL_SAMPLE_LOGO_PATH, NEUTRAL_SAMPLE_POSTER_PATH, neutralSampleBase, neutralSampleLogo } from "@/lib/neutral-sample-assets"
 import type { PosterAdmission } from "./admission"
 import { POSTER_TMDB_TIMEOUT_MS, RATING_WAIT_MS } from "./constants"
 import type { PosterArtwork, PosterTitleMeta } from "./sources"
@@ -130,6 +137,43 @@ export function resolveQuerySources(
   showBadges = req.nextUrl.searchParams.get("badges") !== "0"
   rankingBadges = req.nextUrl.searchParams.get("ranking") !== "0"
   return { showBadges, rankingBadges }
+}
+
+/**
+ * Ramo campione neutro (`sample=neutral`, solo preview con demo samples):
+ * titolo sintetico per le miniature degli stili. Base neutra generata, logo
+ * Pictorium dal bundle, genere/anno/voto fissi: nessuna rete, nessuna chiave.
+ */
+export async function resolveNeutralSampleSources(
+  ctx: SourceResolutionContext,
+  artwork: PosterArtwork,
+  titleMeta: PosterTitleMeta,
+): Promise<ExplicitSourcesResult> {
+  const { req, mediaType, isLandscape } = ctx
+  const [base, landscapeBase, logo] = await Promise.all([
+    neutralSampleBase(false),
+    isLandscape ? neutralSampleBase(true) : Promise.resolve(null),
+    // Logo failure = composition without logo (never 500), like any logo.
+    neutralSampleLogo().catch(() => null),
+  ])
+  artwork.posterPath = NEUTRAL_SAMPLE_POSTER_PATH
+  artwork.posterPathBuffer = base
+  if (landscapeBase) {
+    artwork.backdropPath = NEUTRAL_SAMPLE_POSTER_PATH
+    artwork.backdropPathBuffer = landscapeBase
+  }
+  artwork.logoPath = logo ? NEUTRAL_SAMPLE_LOGO_PATH : null
+  artwork.logoPathBuffer = logo
+  artwork.textLogo = null
+  artwork.textLogoAuto = false
+  titleMeta.genreName = NEUTRAL_SAMPLE_GENRE
+  titleMeta.voteAverage = NEUTRAL_SAMPLE_RATING
+  if (mediaType === "tv") titleMeta.firstAirDate = NEUTRAL_SAMPLE_TV_DATE
+  else titleMeta.releaseDate = NEUTRAL_SAMPLE_MOVIE_DATE
+  return {
+    showBadges: req.nextUrl.searchParams.get("badges") !== "0",
+    rankingBadges: req.nextUrl.searchParams.get("ranking") !== "0",
+  }
 }
 
 /** Ramo mapping: titolo salvato (base, logo/wordmark, backdrop, genere localizzato). */

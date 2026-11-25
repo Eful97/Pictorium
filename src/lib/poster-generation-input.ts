@@ -425,6 +425,12 @@ export interface GenerationInput {
    */
   preRelease?: boolean
   /**
+   * Film rilevato pre-digitale con `pre` SPENTO: le stesse etichette
+   * ("Prossimamente" / "Al cinema") come badge extra beige normale, senza
+   * nastro rosso né velo. Mutuamente esclusivo con `preRelease`.
+   */
+  preBeige?: boolean
+  /**
    * Fase teatrale del rilevamento pre-digitale (solo film): true = già uscito
    * in sala (data teatrale passata), false = non ancora uscito. Cambia
    * l'etichetta del badge ("Al cinema" vs "Prossimamente") e, per la fase in

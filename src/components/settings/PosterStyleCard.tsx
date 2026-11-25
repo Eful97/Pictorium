@@ -1,6 +1,7 @@
 "use client"
 
-import { Check } from "lucide-react"
+import { useId, useState } from "react"
+import { Check, ChevronDown } from "lucide-react"
 import { useAuthenticatedPreviewUrl } from "@/lib/useAuthenticatedPreview"
 
 export interface PosterStyleOption {
@@ -60,6 +61,7 @@ export function PosterStyleCard({
   showBadge = true,
   compact = false,
   active = true,
+  collapsible = false,
 }: {
   title: string
   desc: string
@@ -72,7 +74,13 @@ export function PosterStyleCard({
   compact?: boolean
   /** When false, thumbnails do not fetch/render (inactive panel). */
   active?: boolean
+  /** Header toggles the body, closed by default (Preset tab). Collapsed body
+   *  stays mounted but hidden, and its thumbnails do not fetch. */
+  collapsible?: boolean
 }) {
+  const [open, setOpen] = useState(!collapsible)
+  const bodyId = useId()
+  const thumbsEnabled = active && open
   const landscape = thumbnailShape === "landscape"
   // Compact frames stay measurably smaller than the legacy full-card-width
   // frame: bounded responsive widths + the same 2:3/16:9 aspect, centered
@@ -86,10 +94,23 @@ export function PosterStyleCard({
       }`
   return (
     <section aria-label={title} data-testid="poster-style-cards" className="bg-surface/50 border border-surface2/60 rounded-xl p-3.5 space-y-2.5 shadow-sm">
-      <div className="flex items-center justify-between">
-        <span className="font-semibold text-zinc-200">{title}</span>
-        {showBadge && <span className="text-[10px] text-zinc-400 font-mono">1-click</span>}
-      </div>
+      {collapsible ? (
+        <button type="button" onClick={() => setOpen((v) => !v)} aria-expanded={open} aria-controls={bodyId}
+          data-testid="poster-style-cards-toggle"
+          className="w-full flex items-center justify-between gap-2 min-h-[44px] -my-2 cursor-pointer touch-manipulation">
+          <span className="font-semibold text-zinc-200">{title}</span>
+          <span className="flex items-center gap-2">
+            {showBadge && <span className="text-[10px] text-zinc-400 font-mono">1-click</span>}
+            <ChevronDown aria-hidden="true" className={`w-4 h-4 text-zinc-400 transition-transform duration-200 ${open ? "rotate-180" : ""}`} />
+          </span>
+        </button>
+      ) : (
+        <div className="flex items-center justify-between">
+          <span className="font-semibold text-zinc-200">{title}</span>
+          {showBadge && <span className="text-[10px] text-zinc-400 font-mono">1-click</span>}
+        </div>
+      )}
+      <div id={bodyId} hidden={!open} className="space-y-2.5">
       <p className="text-[11px] text-zinc-400 -mt-1">{desc}</p>
       <div className="grid grid-cols-2 sm:grid-cols-3 gap-2 pt-0.5">
         {options.map((opt) => (
@@ -112,7 +133,7 @@ export function PosterStyleCard({
                 aria-hidden="true"
                 className={frameClass}
               >
-                {opt.thumbnailUrl ? <StyleThumbnail url={opt.thumbnailUrl} enabled={active} /> : null}
+                {opt.thumbnailUrl ? <StyleThumbnail url={opt.thumbnailUrl} enabled={thumbsEnabled} /> : null}
               </span>
             ) : null}
             <div className="flex items-center justify-between w-full">
@@ -124,6 +145,7 @@ export function PosterStyleCard({
         ))}
       </div>
       <p className="text-[10px] text-zinc-500 italic leading-snug pt-0.5">{note}</p>
+      </div>
     </section>
   )
 }

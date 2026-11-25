@@ -946,6 +946,10 @@ export interface DefaultsPreviewParams {
    *  Informazioni family shows a pertinent sample even when the demo title has
    *  no real informational badge. Absent = genuine data path. */
   previewExtra?: string | null
+  /** Preset thumbnails only: render the neutral style sample (`sample=neutral`:
+   *  neutral base, Pictorium logo, fixed genre/year/rating) instead of the
+   *  demo title. Absent = the demo title as usual. */
+  neutralSample?: boolean
 }
 
 export const DEFAULTS_PREVIEW_DEMO_MEDIA = {
@@ -1018,6 +1022,7 @@ export function buildDefaultsPreviewUrl(bp: DefaultsPreviewParams): string {
   // Demo samples (Settings preview only): la route applica campioni dimostrativi
   // ai soli dati assenti, mai a Stremio/editor (builder dedicati intatti).
   const params: string[] = [`rv=${RENDER_VERSION}`, "preview=1", "demosamples=1"]
+  if (bp.neutralSample) params.push("sample=neutral")
   if (bp.tmdbKey) params.push(`api_key=${encodeURIComponent(bp.tmdbKey)}`)
   if (bp.userId) params.push(`u=${encodeURIComponent(bp.userId)}`)
   // Device config (profileless spaces): the ranking source selection and the

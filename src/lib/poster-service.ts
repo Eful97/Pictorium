@@ -122,6 +122,7 @@ export async function generatePosterBuffer(input: GenerationInput): Promise<Buff
     qLabel, queryExtra, qNetLogo, networkLogo, networkLogoPosition = "auto", logoAnchor = "auto", qualityAnchor = "auto", topBadgeAnchor = "auto", extraBadgeAnchor = "auto", bottomAnchor = "auto", networkLogoFollowTitle, networkFixedX, networkFixedY, onNetworkGeometry, onBadgeGeometry, badgeItemTransforms, badgeHomeGhosts, onAccentMeta, sd, accentOverride, imdbTop250, whatsonFeatures,
     logoSrc, backdropSrc, analysisKey,
     preRelease = false,
+    preBeige = false,
     preInTheaters = false,
     hideLogo = false,
     seasonalTheme = null,
@@ -262,19 +263,24 @@ export async function generatePosterBuffer(input: GenerationInput): Promise<Buff
   const comingSoonLabel = t("badge.comingSoon")
   const inTheatersLabel = t("badge.inTheaters")
   const preReleaseLabel = preInTheaters ? inTheatersLabel : comingSoonLabel
-  if (preRelease && !gatedQueryExtra) {
-    const isUpcoming = computed.upcomingRelease
-      && topBadge?.type === "extra"
-      && topBadge.label === computed.upcomingRelease
-    if (!isUpcoming) {
-      topBadge = { type: "extra" as const, label: preReleaseLabel }
-    }
+  // `pre` ON: le tre etichette (data "In uscita", "Prossimamente", "Al cinema")
+  // vivono nel nastro rosso. `pre` OFF (preBeige): stesse etichette ma come
+  // badge extra beige normale, soggetto a classifiche + master "Badge extra".
+  const preBeigeActive = preBeige && rankingEnabled && extrasEnabled
+  const isUpcomingTop = !!computed.upcomingRelease
+    && topBadge?.type === "extra"
+    && topBadge.label === computed.upcomingRelease
+  if ((preRelease || preBeigeActive) && !gatedQueryExtra && !isUpcomingTop) {
+    topBadge = { type: "extra" as const, label: preReleaseLabel }
   }
   const showComingSoon = !!preRelease && !gatedQueryExtra
-    && topBadge?.type === "extra" && topBadge.label === comingSoonLabel
-    // Nastro disattivato: il Coming Soon resta come badge extra centrale
+    && topBadge?.type === "extra"
+    && (topBadge.label === comingSoonLabel || topBadge.label === inTheatersLabel || isUpcomingTop)
+    // Nastro disattivato: l'etichetta resta come badge extra centrale
     // (ramo rank standard) invece del nastro angolare rosso.
     && ribbonEnabled
+  // Testo effettivo del nastro (una delle tre etichette).
+  const ribbonTextLabel = showComingSoon && topBadge?.type === "extra" ? topBadge.label : comingSoonLabel
   const ribbonLayout = showComingSoon ? comingSoonRibbonLayout(badgePw) : null
 
   // Fresh opt-in layout EFFETTIVO: stessa risoluzione input, composizione
@@ -825,7 +831,7 @@ export async function generatePosterBuffer(input: GenerationInput): Promise<Buff
     topBadge, animeRankResult, rankingBadgeStyle, extraBadgeStyle, extraBadgeScale, topBadgeScale,
     extraBadgeOffsetX, topBadgeOffsetX, extraBadgeOffsetY, topBadgeOffsetY, badgeQuality, quality,
     videoFormats, ageLabel, badgesEnabled, qualityBadgeStyle, ageBadgeStyle, rawQualityGroupLayout,
-    topLight, qualityBadgeScale, ribbonSide, comingSoonLabel, isFresh, isCard,
+    topLight, qualityBadgeScale, ribbonSide, comingSoonLabel: ribbonTextLabel, isFresh, isCard,
     bottomAnchor, qualityAnchor, logoResult, networkLogoPosition, extraBadgeAnchor, topBadgeAnchor,
     showComingSoon, networkLogo, input, shape, badgeStyle, topBadgeLight,
     genreBadgeLight, typeIcon, mediaType, hasGenreBadge, genreName, voteAverage,
@@ -2573,7 +2579,7 @@ export async function generatePosterBuffer(input: GenerationInput): Promise<Buff
   // -----------------------------------------------------------------------
   return composeFinalPoster({
     composites, CW, CH, isLandscape, isCard, cardPng, freshBaseBuf, freshBottomShadeLayer,
-    seasonalTheme, seasonalFrameAfter, blurOverlay, showComingSoon, glassLayers, glassBlurOverrides,
+    seasonalTheme, seasonalFrameAfter, blurOverlay, showComingSoon: showComingSoon && !preInTheaters, glassLayers, glassBlurOverrides,
     typeIcon, typeIconInlineAux, genreTypeIconInline: !!(genreTypeIcon && safeGenreBadgeResult),
     mediaType, badgePw, format: input.format, imageQuality: input.imageQuality,
   })

@@ -8,6 +8,7 @@ import {
   extractDigitalReleaseDate,
   hasDigitalOffer,
   isDigitalPreRelease,
+  isWithinDetectionWindow,
   resolveTheatricalPhase,
   PRE_RELEASE_DIM_ALPHA,
   PRE_RELEASE_BLUR_SIGMA,
@@ -571,12 +572,25 @@ describe("Coming Soon ribbon and quality badge placement", () => {
     expect(topRightLightPixels).toBeGreaterThan(100)
   }, 30000)
 
-  it("already-released films get the centered badge instead of the ribbon", async () => {
+  it("pre ON: already-released films show 'Al cinema' in the red ribbon", async () => {
     const buf = await renderTestPoster("left", { preInTheaters: true })
+    const { data, info } = await sharp(buf).ensureAlpha().raw().toBuffer({ resolveWithObject: true })
+    let topLeftRedPixels = 0
+    for (let y = 15; y < 70; y++) {
+      for (let x = 10; x < 90; x++) {
+        const i = (y * info.width + x) * 4
+        if (data[i] > 150 && data[i + 1] < 100 && data[i + 2] < 100) topLeftRedPixels++
+      }
+    }
+    expect(topLeftRedPixels).toBeGreaterThan(100)
+  }, 30000)
+
+  it("pre OFF (beige): detected films get the centered badge instead of the ribbon", async () => {
+    const buf = await renderTestPoster("left", { preInTheaters: true, preRelease: false, preBeige: true, rankingEnabled: true })
     const { data, info } = await sharp(buf).ensureAlpha().raw().toBuffer({ resolveWithObject: true })
 
     // Ribbon area (top-left, same window as the Coming Soon assertions): no
-    // red diagonal at all — "Al cinema" is a normal extra badge.
+    // red diagonal at all — with `pre` off the label is a normal extra badge.
     let topLeftRedPixels = 0
     for (let y = 15; y < 70; y++) {
       for (let x = 10; x < 90; x++) {
@@ -599,3 +613,17 @@ describe("Coming Soon ribbon and quality badge placement", () => {
 })
 
 
+
+describe("isWithinDetectionWindow", () => {
+  const now = Date.parse("2026-07-27T12:00:00Z")
+  it("runs for unknown, invalid, future and recent dates", () => {
+    expect(isWithinDetectionWindow(null, now)).toBe(true)
+    expect(isWithinDetectionWindow("nope", now)).toBe(true)
+    expect(isWithinDetectionWindow("2026-12-25", now)).toBe(true)
+    expect(isWithinDetectionWindow("2026-06-01", now)).toBe(true)
+  })
+  it("skips old films (no upstream calls)", () => {
+    expect(isWithinDetectionWindow("2020-01-15", now)).toBe(false)
+    expect(isWithinDetectionWindow("2025-01-01", now)).toBe(false)
+  })
+})
