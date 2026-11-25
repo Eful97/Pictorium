@@ -65,7 +65,7 @@ export function badgeSampleWindow(anchor: BadgeSampleAnchor, canvasW: number): {
 // ★/stile-specifiche — solo geometria base).
 export function landscapeRightAnchorLeft(contentW: number, CW: number, extra = 0, opticalShift = 40): number {
   const rightPadX = Math.round(18 * CW / 380)
-  return Math.min(CW - contentW, Math.max(0, CW - contentW - rightPadX + opticalShift + extra))
+  return Math.max(0, Math.min(CW - contentW, CW - contentW - rightPadX + opticalShift + extra))
 }
 
 // ---------------------------------------------------------------------------

@@ -1009,3 +1009,17 @@ describe("resolveBadgeSelectionDragDelta (multi-selection move)", () => {
     expect(move.delta.y).toBe(-3)
   })
 })
+
+describe("containBadgeDragDelta fractional bounds", () => {
+  it("never rounds a delta past a fractional frame bound", () => {
+    // Box at x=100.5, w=100 in a 300 canvas: max travel = 99.5 (hi=200 - 100.5).
+    const r = containBadgeDragDelta({
+      box: { left: 100.5, top: 0, w: 100, h: 100 },
+      canvasW: 300,
+      canvasH: 750,
+      delta: { x: 99.5, y: 0 },
+    })
+    expect(100.5 + r.delta.x + 100).toBeLessThanOrEqual(300)
+    expect(Number.isInteger(r.delta.x)).toBe(true)
+  })
+})

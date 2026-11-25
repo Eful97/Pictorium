@@ -146,7 +146,12 @@ export function isQualityHomeItemId(id: string): boolean {
 export function qualityHomeKind(id: string): QualityHomeKind | null {
   if (!id.startsWith(QUALITY_HOME_PREFIX)) return null
   const kind = id.slice(QUALITY_HOME_PREFIX.length)
-  return kind in QUALITY_HOME_IDS ? (kind as QualityHomeKind) : null
+  return own(QUALITY_HOME_IDS, kind) ? (kind as QualityHomeKind) : null
+}
+
+/** Own-key test: `in` / bracket lookups would match `constructor`, `__proto__`… */
+function own(obj: object, key: string): boolean {
+  return Object.prototype.hasOwnProperty.call(obj, key)
 }
 
 /** Identity of the home that owns content group `kind`. */
@@ -175,8 +180,7 @@ export function homeIdForPainted(id: string): string | null {
   if (id === BADGE_ITEM_QUALITY_COMBO) return BADGE_ITEM_QUALITY_HOME_DOLBY
   if (id.startsWith("quality:format:")) {
     const markId = id.slice("quality:format:".length)
-    const kind = FORMAT_HOME_KIND[markId]
-    if (kind) return QUALITY_HOME_IDS[kind]
+    if (own(FORMAT_HOME_KIND, markId)) return QUALITY_HOME_IDS[FORMAT_HOME_KIND[markId]]
     // Pack marks declare an optional home (`dolby`/`hdr`/`imax`/…); without
     // one they stay identity-only (no home, no ghost — unchanged behavior).
     const packHome = packMarkHome(markId)

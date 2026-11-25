@@ -465,7 +465,8 @@ export function clampBadgeResizeScale(
     }
     const maxScale = Math.max(limits.min, Math.floor(start * growth))
     if (next > maxScale) {
-      next = maxScale
+      // Never below the current scale: a refused growth must not shrink.
+      next = Math.max(maxScale, Math.min(next, Math.round(start)))
       frameClamped = true
     }
   }
@@ -914,25 +915,21 @@ function containAxis(input: {
   const { start, size, delta, canvas } = input
   if (!finite(start) || !finite(size) || !finite(canvas) || !finite(delta)) return { delta: 0, clamped: true }
   if (size <= 0 || canvas <= 0) return { delta, clamped: false }
-  const maxPos = canvas - size
-  // Fits: [0, maxPos]. Oversized: [maxPos, 0] (still covering the canvas).
-  const lo = Math.min(0, maxPos)
-  const hi = Math.max(0, maxPos)
-  const target = start + delta
-  let next: number
-  if (start < lo) {
-    next = Math.min(start + Math.max(0, delta), hi)
-  } else if (start > hi) {
-    next = Math.max(start + Math.min(0, delta), lo)
-  } else {
-    next = Math.min(Math.max(target, lo), hi)
-  }
-  const raw = next - start
-  const clamped = next !== target
-  // Integers only (the stored offsets are integers). A shortened axis is
-  // rounded INWARD so the rounded write cannot land half a pixel outside.
-  const rounded = clamped ? (raw > 0 ? Math.floor(raw) : Math.ceil(raw)) : Math.round(raw)
-  return { delta: rounded, clamped }
+  // Fits: [0, canvas - size]. Oversized: [canvas - size, 0] (still covering
+  // the canvas). Already outside: further out refused, back in free.
+  const travel = axisTravel({ start, size, canvas })
+  const bounded = Math.min(Math.max(delta, travel.min), travel.max)
+  const clamped = bounded !== delta
+  return { delta: roundWithinTravel(bounded, travel), clamped }
+}
+
+/**
+ * Integer delta (the stored offsets are integers) that can never leave the
+ * travel: rounding to nearest, then pulled back inside, so a fractional bound
+ * (5.6) never admits the rounded-up value (6) half a pixel outside the frame.
+ */
+function roundWithinTravel(value: number, travel: { readonly min: number; readonly max: number }): number {
+  return Math.min(Math.max(Math.round(value), Math.ceil(travel.min)), Math.floor(travel.max)) || 0
 }
 
 /**
@@ -1205,8 +1202,6 @@ function clampSharedAxis(input: {
   const bounded = Math.min(Math.max(delta, min), max)
   if (!finite(bounded)) return { delta: Math.round(delta), clamped: false }
   const clamped = bounded !== delta
-  // Integers, rounded INWARD when clamped so the rounded write cannot land
-  // half a pixel outside the strictest member bound.
-  const rounded = clamped ? (bounded > delta ? Math.ceil(bounded) : Math.floor(bounded)) : Math.round(bounded)
-  return { delta: rounded, clamped }
+  // Integers, never outside the strictest member bound (see roundWithinTravel).
+  return { delta: roundWithinTravel(bounded, { min, max }), clamped }
 }
