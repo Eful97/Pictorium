@@ -14,7 +14,7 @@ import { type WikidataResult, fetchAllWikidata } from "@/lib/awards"
 import { buildTextLogoBuffer } from "@/lib/svg-badge"
 import { combineAbortSignals } from "@/lib/abort-signal"
 import { cropBackdropToPortrait, landscapeBackdropUrl } from "@/lib/image-utils"
-import { extractDigitalReleaseDate, extractProviderAvailability, resolveTheatricalPhase } from "@/lib/pre-release"
+import { extractDigitalReleaseDate, extractProviderAvailability, isWithinDetectionWindow, resolveTheatricalPhase } from "@/lib/pre-release"
 import { fetchAggregatedRating, isMdbTmdbIdentityUsable } from "@/lib/ratings"
 import { fetchImg, fetchLogoImg, imgSrc } from "@/lib/poster-render-helpers"
 import { fetchPosterBaseWithCustom, fetchValidatedCustomImage, resolveEffectiveCustomUrl, safeTmdbImgSrc } from "@/lib/custom-poster-base"
@@ -356,7 +356,7 @@ export async function fetchRenderData(
       // JustWatch ha la precedenza, TMDB release_dates (type 4) come
       // fallback. Tetto 2500ms con fail-open: a dati ignoti il poster
       // resta normale invece di attendere gli upstream.
-      (mediaType === "movie"
+      (mediaType === "movie" && isWithinDetectionWindow(titleMeta.releaseDate ?? mapping?.releaseDate ?? null)
         ? (async (): Promise<boolean> => {
             let preTimer: ReturnType<typeof setTimeout> | undefined
             const preTimeout = new Promise<false>((r) => {

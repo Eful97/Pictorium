@@ -8,6 +8,7 @@ import {
   extractDigitalReleaseDate,
   hasDigitalOffer,
   isDigitalPreRelease,
+  isWithinDetectionWindow,
   resolveTheatricalPhase,
   PRE_RELEASE_DIM_ALPHA,
   PRE_RELEASE_BLUR_SIGMA,
@@ -612,3 +613,17 @@ describe("Coming Soon ribbon and quality badge placement", () => {
 })
 
 
+
+describe("isWithinDetectionWindow", () => {
+  const now = Date.parse("2026-07-27T12:00:00Z")
+  it("runs for unknown, invalid, future and recent dates", () => {
+    expect(isWithinDetectionWindow(null, now)).toBe(true)
+    expect(isWithinDetectionWindow("nope", now)).toBe(true)
+    expect(isWithinDetectionWindow("2026-12-25", now)).toBe(true)
+    expect(isWithinDetectionWindow("2026-06-01", now)).toBe(true)
+  })
+  it("skips old films (no upstream calls)", () => {
+    expect(isWithinDetectionWindow("2020-01-15", now)).toBe(false)
+    expect(isWithinDetectionWindow("2025-01-01", now)).toBe(false)
+  })
+})
