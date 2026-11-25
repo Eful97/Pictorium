@@ -1270,7 +1270,7 @@ export async function generatePosterBuffer(input: GenerationInput): Promise<Buff
     // The pill (centered or corner) sits 10px below the top edge (fixed
     // editorial measure). Default is flush with the top. Pill/corner only,
     // independent of the quality badge.
-    const pillTopGap = topBadgeStyle === "pill" || topBadgeStyle === "tinta" || topBadgeStyle === "sfumato" || isCornerAnchoredStyle(topBadgeStyle) ? 10 : 0
+    const pillTopGap = topBadgeStyle === "pill" || isCornerAnchoredStyle(topBadgeStyle) ? 10 : 0
     const rankBody = badgeBody(safeRankBadgeResult)
     let left: number
     if (isNetflixRibbon && isRightRibbon) {

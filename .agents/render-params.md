@@ -362,9 +362,10 @@ cambia; validazione/hardening/cache derivano dagli enum di `badge-styles.ts`).
 - Metriche genere dei nuovi stili a placca (`tinta`/`sfumato`/`split`) =
   quelle della pill genere (`genrePillHeight`, `GENRE_PILL_PAD_X_FACTOR`, cap
   larghezza `genrePillMaxW`): stessa linea visiva e stessa distanza dal logo.
-- Classifica/extra `tinta`/`sfumato` riusano gli stessi builder col solo testo
-  (`TOP_TEXT_ONLY`) e `padTop = TOP_SHADOW_PAD`; in `poster-service.ts`
-  ricevono il `pillTopGap` 10px come `pill`. Landscape genere: `tinta`,
+- Classifica/extra `tinta` (`buildTopTintSvg`) e `sfumato`
+  (`buildTopGradientBorderSvg`) sono agganciati come `bordo`/`vetro`: canvas = box
+  (nessun pad ombra), a filo del bordo alto, `r = fs*0.55`, `pillTopGap` 0,
+  stessa ricetta materiale del genere (velo + accent / placca + cornice `gsf`). Landscape genere: `tinta`,
   `sfumato`, `split` prendono lo stesso shift d'angolo di `bordo`/`vetro`.
 - `genreBadgeConsumesAccent` include `tinta`/`sfumato`/`split`;
   `topBadgeConsumesAccent` include `tinta`/`sfumato`.

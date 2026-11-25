@@ -70,6 +70,18 @@ describe("top badges reuse the material builders", () => {
     expect(buildHouseRankingSvg({ rank: 1, label: "Oggi", pw: 380, style: "tinta", accentColor: ACCENT }).svg).toContain('fill-opacity="0.25"')
     expect(buildHouseExtraSvg({ label: "Oscar", pw: 380, style: "sfumato", accentColor: ACCENT }).svg).toContain('stroke="url(#gsf)"')
   })
+
+  it("top tinta/sfumato are anchored like bordo: same box, no shadow pad, flush top", () => {
+    for (const style of ["tinta", "sfumato"] as const) for (const light of [false, true]) {
+      const sf = buildHouseRankingSvg({ rank: 1, label: "Oggi", pw: 380, style, accentColor: ACCENT, topLight: light })
+      const bo = buildHouseRankingSvg({ rank: 1, label: "Oggi", pw: 380, style: "bordo", accentColor: ACCENT, topLight: light })
+      expect([sf.w, sf.h]).toEqual([bo.w, bo.h])
+      expect(sf.svg).toContain(`viewBox="0 0 ${sf.w} ${sf.h}"`)
+      const ex = buildHouseExtraSvg({ label: "Oscar", pw: 380, style, accentColor: ACCENT, topLight: light })
+      const exBo = buildHouseExtraSvg({ label: "Oscar", pw: 380, style: "bordo", accentColor: ACCENT, topLight: light })
+      expect([ex.w, ex.h]).toEqual([exBo.w, exBo.h])
+    }
+  })
 })
 
 describe("editoriale across families", () => {
