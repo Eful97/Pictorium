@@ -9,6 +9,11 @@ export interface Top20RankItem {
   readonly imdbId: string | null
   readonly rank: number
   readonly title?: string | null
+  /** JW daily chart movement (only the JW charts branch carries it). */
+  readonly trend?: "UP" | "DOWN" | "STABLE"
+  readonly trendDifference?: number
+  readonly topRank?: number
+  readonly daysInTop10?: number
 }
 
 export type Top20RankingStatus = "ok" | "empty" | "unsupported" | "error"
@@ -202,6 +207,10 @@ export async function fetchTop20Ranking(input: FetchTop20RankingInput): Promise<
       imdbId: r.imdbId || null,
       rank: r.rank,
       title: r.title || null,
+      ...(r.trend ? { trend: r.trend } : {}),
+      ...(r.trendDifference !== undefined ? { trendDifference: r.trendDifference } : {}),
+      ...(r.topRank !== undefined ? { topRank: r.topRank } : {}),
+      ...(r.daysInTop10 !== undefined ? { daysInTop10: r.daysInTop10 } : {}),
     })
     if (items.length >= 20) break
   }

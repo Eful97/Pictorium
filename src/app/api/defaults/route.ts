@@ -375,6 +375,7 @@ const defaultsSchema = z.object({
   watchProvidersLandscape: z.boolean().optional(),
   watchProvidersMax: z.number().int().min(1).max(6).optional(),
   typeIcon: z.boolean().optional(),
+  rankTrend: z.boolean().optional(),
   typeIconLandscape: z.boolean().optional(),
 })
 

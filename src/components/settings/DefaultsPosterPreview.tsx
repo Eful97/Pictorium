@@ -332,6 +332,7 @@ export function buildDefaultsPreviewUrlFromEditor(
         : ed.defaultWatchRegion) ?? undefined,
       defaultWatchProvidersMax: (previewIsLandscape ? ed.landscape.watchProvidersMax : undefined) ?? ed.defaultWatchProvidersMax,
       defaultTypeIcon: previewIsLandscape ? ed.defaultTypeIconLandscape : ed.defaultTypeIcon,
+      defaultRankTrend: ed.defaultRankTrend,
       previewFamily: opts.previewFamily ?? null,
       previewExtra,
       neutralSample: opts.neutralSample === true,

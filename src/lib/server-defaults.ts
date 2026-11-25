@@ -483,6 +483,8 @@ export interface ServerDefaults {
   watchProvidersMax?: number
   /** Icona tipo (film/serie) sui poster verticali (default OFF). Query `ti`. */
   typeIcon?: boolean
+  /** Freccia di movimento JW nel badge rank (`rt=1`). */
+  rankTrend?: boolean
   /** Icona tipo sui landscape, indipendente dal verticale (default OFF). Query `ti`. */
   typeIconLandscape?: boolean
   /**

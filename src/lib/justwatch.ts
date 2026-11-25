@@ -13,7 +13,7 @@ const JW_API = process.env.JUSTWATCH_API_URL || "https://apis.justwatch.com/grap
 const QUERY = `query GetStreamingChartInfo($country: Country!, $countryStreamingCharts: Country, $language: Language!, $filter: StreamingChartsFilter, $first: Int!) {
   streamingCharts(country: $countryStreamingCharts, filter: $filter, first: $first) {
     edges {
-      streamingChartInfo { rank }
+      streamingChartInfo { rank trend trendDifference topRank daysInTop10 }
       node {
         ... on MovieOrShowOrSeason {
           content(country: $country, language: $language) {
@@ -33,6 +33,12 @@ export interface JWRankEntry {
   imdbId: string | null
   rank: number
   title?: string | null
+  /** Movimento di classifica JW (assente se il provider non lo fornisce). */
+  trend?: "UP" | "DOWN" | "STABLE"
+  trendDifference?: number
+  /** Miglior posizione mai raggiunta. */
+  topRank?: number
+  daysInTop10?: number
 }
 
 export const PLATFORM_JW_PACKAGES: Record<string, string[]> = {
@@ -460,7 +466,13 @@ interface JWLooseEdge {
       readonly externalIds?: { readonly tmdbId?: number | string | null; readonly imdbId?: string | null }
     }
   }
-  readonly streamingChartInfo?: { readonly rank?: number | null }
+  readonly streamingChartInfo?: {
+    readonly rank?: number | null
+    readonly trend?: string | null
+    readonly trendDifference?: number | null
+    readonly topRank?: number | null
+    readonly daysInTop10?: number | null
+  }
 }
 
 /**
@@ -658,11 +670,20 @@ export async function getJWRankings(
     const imdbId = e?.node?.content?.externalIds?.imdbId || null
     const title = e?.node?.content?.title || null
     const relDate = e?.node?.content?.originalReleaseDate
-    const rank = e?.streamingChartInfo?.rank
+    const info = e?.streamingChartInfo
+    const rank = info?.rank
     if (!tmdbId || !rank || seenTmdb.has(tmdbId)) continue
     if (relDate && relDate > today) continue
     seenTmdb.add(tmdbId)
-    result.push({ tmdbId, imdbId, rank, title })
+    // Campi trend solo se presenti: le righe senza restano identiche a prima.
+    const trend = info?.trend === "UP" || info?.trend === "DOWN" || info?.trend === "STABLE" ? info.trend : undefined
+    result.push({
+      tmdbId, imdbId, rank, title,
+      ...(trend ? { trend } : {}),
+      ...(typeof info?.trendDifference === "number" ? { trendDifference: info.trendDifference } : {}),
+      ...(typeof info?.topRank === "number" ? { topRank: info.topRank } : {}),
+      ...(typeof info?.daysInTop10 === "number" ? { daysInTop10: info.daysInTop10 } : {}),
+    })
     if (result.length >= first) break
   }
 
@@ -947,6 +968,7 @@ const TITLE_OFFERS_QUERY = `query GetTitleOffers($country: Country!, $language: 
           presentationType
           videoTechnology
           audioTechnology
+          availableTo
         }
       }
     }
@@ -992,12 +1014,38 @@ export function resolveJWFormats(
   return (["dv", "hdr", "hdr10plus", "atmos", "imax"] as const).filter((f) => found.has(f))
 }
 
-const qualityCache = new Map<string, { data: JWQuality | null; formats: VideoFormat[]; timestamp: number }>()
+/**
+ * Data (YYYY-MM-DD) in cui il titolo lascia lo streaming incluso/gratuito:
+ * la `availableTo` più vicina, non nel passato, tra le offerte FLATRATE/FREE/ADS.
+ * Acquisto/noleggio non scadono per l'utente. Null se nessuna scadenza nota.
+ */
+export function resolveJWLeavingDate(
+  offers: ReadonlyArray<{ monetizationType?: string | null; availableTo?: string | null }>,
+  today: string = new Date().toISOString().slice(0, 10),
+): string | null {
+  let best: string | null = null
+  let hasOpenEnded = false
+  for (const o of offers) {
+    const type = String(o.monetizationType ?? "").toUpperCase()
+    if (type !== "FLATRATE" && type !== "FREE" && type !== "ADS") continue
+    const to = typeof o.availableTo === "string" ? o.availableTo.slice(0, 10) : ""
+    if (!/^\d{4}-\d{2}-\d{2}$/.test(to)) { hasOpenEnded = true; continue }
+    if (to < today) continue
+    if (!best || to < best) best = to
+  }
+  // Una piattaforma senza scadenza nota tiene il titolo disponibile: non
+  // dichiarare "in uscita" se c'è un'offerta streaming a tempo indeterminato.
+  return hasOpenEnded ? null : best
+}
+
+const qualityCache = new Map<string, { data: JWQuality | null; formats: VideoFormat[]; leavingOn: string | null; timestamp: number }>()
 
 export interface JWTitleQualityResult {
   readonly quality: JWQuality | null
   /** Formati A/V live (vuoto se ignoti o nessuna offerta li dichiara). */
   readonly formats: VideoFormat[]
+  /** Scadenza più vicina dello streaming (YYYY-MM-DD), solo se nota e senza offerte aperte. */
+  readonly leavingOn?: string
   /** False quando il null NON è un miss genuino: breaker aperto o fallimento
    *  di trasporto (ingoiato da fetchTitleOffersShared). Il chiamante decide
    *  il TTL effimero invece di cachare a lungo un degradato. */
@@ -1026,7 +1074,7 @@ export async function getJWTitleQualityResult(
   const cacheKey = `${objectType}:${country}:${tmdbId}`
   const cached = qualityCache.get(cacheKey)
   if (cached && Date.now() - cached.timestamp < CACHE_TTL) {
-    return { quality: cached.data, formats: cached.formats, ok: true }
+    return { quality: cached.data, formats: cached.formats, ...(cached.leavingOn ? { leavingOn: cached.leavingOn } : {}), ok: true }
   }
 
   const filter: Record<string, unknown> = {
@@ -1073,16 +1121,17 @@ export async function getJWTitleQualityResult(
       matchedNode = (edges[0] as { node?: unknown }).node
     }
 
-    type Offer = { presentationType?: string; videoTechnology?: string[] | null; audioTechnology?: string[] | null }
+    type Offer = { presentationType?: string; monetizationType?: string | null; availableTo?: string | null; videoTechnology?: string[] | null; audioTechnology?: string[] | null }
     const node = matchedNode as { offers?: Offer[] } | null
     const offers = node?.offers || []
     const presTypes = offers.map((o) => o.presentationType)
     const maxQ = resolveMaxQuality(presTypes)
     const formats = resolveJWFormats(offers)
+    const leavingOn = resolveJWLeavingDate(offers)
 
     if (qualityCache.size >= CACHE_MAX) qualityCache.delete(qualityCache.keys().next().value!)
-    qualityCache.set(cacheKey, { data: maxQ, formats, timestamp: Date.now() })
-    return { quality: maxQ, formats, ok: true }
+    qualityCache.set(cacheKey, { data: maxQ, formats, leavingOn, timestamp: Date.now() })
+    return { quality: maxQ, formats, ...(leavingOn ? { leavingOn } : {}), ok: true }
   }
 }
 

@@ -170,6 +170,8 @@ export interface DefaultsState {
   /** Icona tipo film/serie, verticale / landscape indipendenti (default OFF). */
   defaultTypeIcon: boolean
   defaultTypeIconLandscape: boolean
+  /** Freccia di movimento JW dentro il badge rank (`rt=1`), default OFF. */
+  defaultRankTrend: boolean
   defaultAutoRotateClean: boolean
   /**
    * Default rotazione poster: include anche i poster della lingua corrente
@@ -418,6 +420,7 @@ const DEFAULT_FLAT_DEFAULTS: Omit<DefaultsState, "landscape"> = {
   defaultWatchProvidersMax: 3,
   defaultTypeIcon: false,
   defaultTypeIconLandscape: false,
+  defaultRankTrend: false,
   defaultAutoRotateClean: false,
   defaultRotationIncludeNonClean: false,
   defaultRotationIncludeOriginal: false,
@@ -680,6 +683,8 @@ interface StoredDefaults {
   watchProvidersMax?: number
   defaultTypeIcon?: boolean
   typeIcon?: boolean
+  defaultRankTrend?: boolean
+  rankTrend?: boolean
   defaultTypeIconLandscape?: boolean
   typeIconLandscape?: boolean
   defaultAutoRotateClean?: boolean
@@ -1123,6 +1128,7 @@ function buildFromStored(d: StoredDefaults | null): DefaultsState {
     defaultWatchProvidersMax: sanitizeWatchMax(d.defaultWatchProvidersMax ?? d.watchProvidersMax) ?? DEFAULT_WATCH_MAX,
     defaultTypeIcon: d.defaultTypeIcon ?? d.typeIcon ?? false,
     defaultTypeIconLandscape: d.defaultTypeIconLandscape ?? d.typeIconLandscape ?? false,
+    defaultRankTrend: d.defaultRankTrend ?? d.rankTrend ?? false,
     defaultAutoRotateClean: d.defaultAutoRotateClean ?? d.autoRotateClean ?? false,
     defaultRotationIncludeNonClean: d.defaultRotationIncludeNonClean ?? false,
     defaultRotationIncludeOriginal: d.defaultRotationIncludeOriginal ?? false,
@@ -1407,6 +1413,7 @@ export function defaultsToPayload(d: DefaultsState): Record<string, unknown> {
     watchProvidersMax: d.defaultWatchProvidersMax,
     typeIcon: d.defaultTypeIcon,
     typeIconLandscape: d.defaultTypeIconLandscape,
+    rankTrend: d.defaultRankTrend,
     autoRotateClean: d.defaultAutoRotateClean,
     defaultRotationIncludeNonClean: d.defaultRotationIncludeNonClean,
     defaultRotationIncludeOriginal: d.defaultRotationIncludeOriginal,
@@ -1760,6 +1767,9 @@ export function useDefaults() {
           }
           if (currentStored?.defaultWatchProvidersMax === undefined && currentStored?.watchProvidersMax === undefined && typeof serverData.watchProvidersMax === "number") {
             merged.defaultWatchProvidersMax = serverData.watchProvidersMax
+          }
+          if (currentStored?.defaultRankTrend === undefined && currentStored?.rankTrend === undefined && typeof serverData.rankTrend === "boolean") {
+            merged.defaultRankTrend = serverData.rankTrend
           }
           if (currentStored?.defaultTypeIcon === undefined && currentStored?.typeIcon === undefined && typeof serverData.typeIcon === "boolean") {
             merged.defaultTypeIcon = serverData.typeIcon

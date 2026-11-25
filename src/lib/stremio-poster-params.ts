@@ -85,6 +85,7 @@ export interface StremioPosterParamsInput {
   readonly watchProvidersMax?: number | null
   /** Icona tipo film/serie: emesso come `ti=1` solo quando ON. */
   readonly typeIcon?: boolean | null
+  readonly rankTrend?: boolean | null
   readonly badgeStyle?: BadgeStyle
   readonly rankingBadgeStyle?: RankingBadgeStyle
   /** Standalone extra-badge style: emitted as `xbs` only when defined (incl. "follow-rank" sentinel). */
@@ -500,6 +501,7 @@ export function buildStremioPosterSearchParams(input: StremioPosterParamsInput):
     if (wpm !== null && wpm !== DEFAULT_WATCH_MAX) params.set("wpm", String(wpm))
   }
   if (input.typeIcon === true) params.set("ti", "1")
+  if (input.rankTrend === true) params.set("rt", "1")
   if (input.customBadge) params.set("extra", input.customBadge)
   if (input.dateFormat && input.dateFormat !== "locale") {
     params.set("df", input.dateFormat)

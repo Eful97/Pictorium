@@ -41,6 +41,8 @@ export interface PosterCacheIdentityContext {
   readonly cacheParams: URLSearchParams
   readonly preTrendRank: number | null
   readonly preAnimeRank: number | null
+  /** `rt=1` trend suffix of the live rank (changes the pixels, so it keys the cache). */
+  readonly rankTrend?: "up" | "down" | null
   readonly startTime: number
 }
 
@@ -75,7 +77,7 @@ export async function resolvePosterCacheIdentity(ctx: PosterCacheIdentityContext
   const {
     req, mediaType, tmdbId, scopedUser, isPreview, previewUnlocked, configOverride, mapping, sd,
     posterRegion, earlyLandscape, isRotating, customRatingConfig, sepDisplay, sdHash, hardenedParams,
-    cacheParams, preTrendRank, preAnimeRank, startTime,
+    cacheParams, preTrendRank, preAnimeRank, rankTrend, startTime,
   } = ctx
   const cachedRank = mapping?.trendRank ?? null
   const rotateKey = isRotating
@@ -138,7 +140,7 @@ export async function resolvePosterCacheIdentity(ctx: PosterCacheIdentityContext
   const portraitBaseKey = !earlyLandscape && mapping?.portraitBackdropPath && !hardenedParams.get("poster")
     ? `:pbp${mapping.portraitBackdropPath}`
     : ""
-  const cacheKey = `poster:v${RENDER_VERSION}:${mediaType}:${tmdbId}:reg${posterRegion.code}:r${cachedRank ?? "x"}:lr${preTrendRank ?? "x"}:la${preAnimeRank ?? "x"}:sd${sdHash}:${cacheParams.toString()}${rotateKey}${mapVersion}${dynamicBucketKey}${portraitBaseKey}${configHash ? `:cfg${configHash}` : ""}${formatKey}${qualityKey}`
+  const cacheKey = `poster:v${RENDER_VERSION}:${mediaType}:${tmdbId}:reg${posterRegion.code}:r${cachedRank ?? "x"}:lr${preTrendRank ?? "x"}${rankTrend ? `:lt${rankTrend === "up" ? "u" : "d"}` : ""}:la${preAnimeRank ?? "x"}:sd${sdHash}:${cacheParams.toString()}${rotateKey}${mapVersion}${dynamicBucketKey}${portraitBaseKey}${configHash ? `:cfg${configHash}` : ""}${formatKey}${qualityKey}`
   const needsVariant = !legacyAvif && outputFormat !== canonicalFormat
   const variantKey = needsVariant ? `${cacheKey}:fmt${outputFormat}` : cacheKey
   // Disk L1.5: after a restart/deploy the canonical render comes back from

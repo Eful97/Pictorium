@@ -453,6 +453,9 @@ export interface PosterEditorCtx {
   defaultWatchProvidersMax: number
   setDefaultWatchProvidersMax: (v: number) => void
   /** Icona tipo film/serie: verticale e landscape indipendenti (default OFF). */
+  /** Freccia di movimento JW nel badge rank (`rt=1`), default OFF. */
+  defaultRankTrend: boolean
+  setDefaultRankTrend: (v: boolean | ((prev: boolean) => boolean)) => void
   defaultTypeIcon: boolean
   setDefaultTypeIcon: (v: boolean | ((prev: boolean) => boolean)) => void
   defaultTypeIconLandscape: boolean
@@ -954,7 +957,7 @@ export function PosterEditorProvider({
     defaultBadgeItemTransforms,
     defaultGenreBadgeOffsetX, defaultGenreBadgeOffsetY, defaultQualityBadgeOffsetX, defaultQualityBadgeOffsetY,
     defaultNetworkLogoOffsetX, defaultNetworkLogoOffsetY,
-    defaultBadgeGenre, defaultBadgeYear, defaultBadgeRating, defaultBadgeQuality, defaultAgeBadge, defaultAgeCountry, defaultAgeBadgeStyle, defaultAwardBadgeStyle, defaultCustomRatings, defaultCustomRatingEndpoint, defaultCustomRatingApiKeyHeader, defaultRatingSources, defaultSeparateRatings, defaultSeparateRatingsStyle, defaultPosterLayout, defaultPosterFreshScope, defaultSashOrder, defaultDisabledContentTags, defaultDisabledNetworks, defaultWatchProviders, defaultWatchRegion, defaultWatchProvidersLandscape, defaultWatchProvidersMax, defaultTypeIcon, defaultTypeIconLandscape,
+    defaultBadgeGenre, defaultBadgeYear, defaultBadgeRating, defaultBadgeQuality, defaultAgeBadge, defaultAgeCountry, defaultAgeBadgeStyle, defaultAwardBadgeStyle, defaultCustomRatings, defaultCustomRatingEndpoint, defaultCustomRatingApiKeyHeader, defaultRatingSources, defaultSeparateRatings, defaultSeparateRatingsStyle, defaultPosterLayout, defaultPosterFreshScope, defaultSashOrder, defaultDisabledContentTags, defaultDisabledNetworks, defaultWatchProviders, defaultWatchRegion, defaultWatchProvidersLandscape, defaultWatchProvidersMax, defaultRankTrend, defaultTypeIcon, defaultTypeIconLandscape,
     defaultAutoRotateClean, defaultRotationIncludeNonClean, defaultRotationIncludeOriginal, defaultAutoRotateBackdrop, defaultPortraitFitEnabled, defaultLandscapeFitEnabled, defaultNetworkLogo, defaultNetworkLogoPosition, defaultNetworkLogoFollowTitle, defaultPreRelease, defaultRibbonSide, defaultRibbonEnabled, defaultPosterShape, defaultLogoAlign,
     defaultLogoAnchor,
     defaultQualityAnchor,
@@ -1812,6 +1815,11 @@ export function PosterEditorProvider({
     }, [defaultWatchProvidersLandscape, update])
   const setDefaultWatchProvidersMax = useCallback(
     (v: number) => update({ defaultWatchProvidersMax: v }), [update])
+  const setDefaultRankTrend = useCallback(
+    (v: boolean | ((prev: boolean) => boolean)) => {
+      const next = typeof v === "function" ? v(defaultRankTrend) : v
+      update({ defaultRankTrend: next })
+    }, [defaultRankTrend, update])
   const setDefaultTypeIcon = useCallback(
     (v: boolean | ((prev: boolean) => boolean)) => {
       const next = typeof v === "function" ? v(defaultTypeIcon) : v
@@ -2541,6 +2549,8 @@ export function PosterEditorProvider({
       setDefaultWatchProvidersLandscape,
       defaultWatchProvidersMax,
       setDefaultWatchProvidersMax,
+      defaultRankTrend,
+      setDefaultRankTrend,
       defaultTypeIcon,
       setDefaultTypeIcon,
       defaultTypeIconLandscape,
@@ -2896,7 +2906,7 @@ export function PosterEditorProvider({
       defaultSashOrder, setDefaultSashOrder,
       defaultDisabledContentTags, setDefaultDisabledContentTags,
       defaultDisabledNetworks, setDefaultDisabledNetworks,
-      defaultWatchProviders, setDefaultWatchProviders, defaultWatchRegion, setDefaultWatchRegion, defaultWatchProvidersLandscape, setDefaultWatchProvidersLandscape, defaultWatchProvidersMax, setDefaultWatchProvidersMax, defaultTypeIcon, setDefaultTypeIcon, defaultTypeIconLandscape, setDefaultTypeIconLandscape,
+      defaultWatchProviders, setDefaultWatchProviders, defaultWatchRegion, setDefaultWatchRegion, defaultWatchProvidersLandscape, setDefaultWatchProvidersLandscape, defaultWatchProvidersMax, setDefaultWatchProvidersMax, defaultTypeIcon, setDefaultRankTrend, setDefaultTypeIcon, defaultTypeIconLandscape, setDefaultTypeIconLandscape,
       defaultAutoRotateClean, setDefaultAutoRotateClean,
       defaultRotationIncludeNonClean, setDefaultRotationIncludeNonClean,
       defaultRotationIncludeOriginal, setDefaultRotationIncludeOriginal,

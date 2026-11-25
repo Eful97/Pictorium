@@ -26,6 +26,14 @@ and/or the trend badges. Full architecture: `.agents/catalog.md`.
 - Returns `{ tmdbId, imdbId, rank }[]` — **imdbId comes from JustWatch itself**;
   do NOT re-fetch TMDB external_ids for these rows (platform JW rows append
   external_ids inside the same `getDetails` call — never a second per-title fetch).
+- Chart rows also carry optional `trend` (UP/DOWN/STABLE), `trendDifference`,
+  `topRank`, `daysInTop10` (omitted when JW doesn't send them). Quality result
+  adds optional `leavingOn` (YYYY-MM-DD): nearest future `availableTo` among
+  FLATRATE/FREE/ADS offers, null if any such offer is open-ended
+  (`resolveJWLeavingDate`). Trend fields survive chart snapshots (`ChartRow`,
+  validated in `normalizeRow`), are returned by `/api/trending/rank` for the
+  JW day/popular/trending branches, and drive the editor `JwRankBadge` arrow +
+  "days in Top 10" tooltip. Poster pixels and `leavingOn` badges: not yet.
 - Shared in-memory cache, 6 h TTL, max 1000 entries. Key
   `{objectType}:{country}:{first}:{packages}:{language}` (titles add
   offset/sort/genres/monetization/overfetch). Empty results are cached 60 s

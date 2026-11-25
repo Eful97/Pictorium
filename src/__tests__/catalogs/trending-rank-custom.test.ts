@@ -115,7 +115,7 @@ describe("GET /api/trending/rank with custom ranking source", () => {
     expect(await warm.json()).toMatchObject({ rank: 1 })
     const pin = await pinChartFamily({ regionCode: "IT", regionLang: "it-IT", family: "jw:movie:charts" })
     const group = chartListGroupKey({ regionCode: "IT", regionLang: "it-IT" })
-    const poisonedKey = `rank:v2:movie:721:f20:rIT:g${group}${chartPinCacheFragment(pin)}`
+    const poisonedKey = `rank:v3:movie:721:f20:rIT:g${group}${chartPinCacheFragment(pin)}`
     cacheSet(poisonedKey, { rank: 21, period: "day", top: 20 }, ["rank", "justwatch"])
 
     // The gate rejects the stale body and recomputes: 721 is off-window.

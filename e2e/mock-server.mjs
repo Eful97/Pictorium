@@ -464,8 +464,9 @@ const server = http.createServer(async (req, res) => {
       }
 
       const movieEdges = [
-        { streamingChartInfo: { rank: 1 }, node: { content: { externalIds: { tmdbId: 19995 } } } },
-        { streamingChartInfo: { rank: 2 }, node: { content: { externalIds: { tmdbId: 157336 } } } },
+        { streamingChartInfo: { rank: 1, trend: "UP", trendDifference: 5, topRank: 1, daysInTop10: 12 }, node: { content: { externalIds: { tmdbId: 19995 } } } },
+        { streamingChartInfo: { rank: 2, trend: "DOWN", trendDifference: 3, topRank: 1, daysInTop10: 30 }, node: { content: { externalIds: { tmdbId: 157336 } } } },
+        { streamingChartInfo: { rank: 3, trend: "UP", trendDifference: 7, topRank: 2, daysInTop10: 4 }, node: { content: { externalIds: { tmdbId: 550 } } } },
       ]
       const showEdges = [
         { streamingChartInfo: { rank: 1 }, node: { content: { externalIds: { tmdbId: 19995 } } } },

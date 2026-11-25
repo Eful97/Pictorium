@@ -204,6 +204,8 @@ export interface GenerationInput {
   /** Data uscita digitale già calcolata dal pre-release: Just Added. */
   digitalReleaseDate?: string | null
   finalRank: number | null
+  /** Opt-in (`rt=1`) JW chart movement of the automatic rank (arrow beside the badge), else null. */
+  rankTrend?: "up" | "down" | null
   animeRankResult: number | null
   rankingResult: number | null
   mapping: Mapping | null

@@ -23,6 +23,17 @@ import { getOriginFromRequest } from "@/lib/poster-public-url"
 
 const log = createLogger("trending-rank")
 
+/** Optional JW chart movement of a matched row (absent for other sources). */
+function trendFields(row: { trend?: string; trendDifference?: number; topRank?: number; daysInTop10?: number } | undefined) {
+  if (!row) return {}
+  return {
+    ...(row.trend ? { trend: row.trend } : {}),
+    ...(row.trendDifference !== undefined ? { trendDifference: row.trendDifference } : {}),
+    ...(row.topRank !== undefined ? { topRank: row.topRank } : {}),
+    ...(row.daysInTop10 !== undefined ? { daysInTop10: row.daysInTop10 } : {}),
+  }
+}
+
 function hashFragment(value: string | undefined): string {
   return value ? crypto.createHash("sha1").update(value).digest("hex").slice(0, 8) : "none"
 }
@@ -110,7 +121,7 @@ export async function GET(req: NextRequest) {
   if (rankingSource.kind === "custom" && rankingCustom) {
     const resolvedKeys = await resolveUserApiKeys(req, scopedUser)
     const cacheKey =
-      `rank:v2:${rawType}:${id}:f20:r${region.code}` +
+      `rank:v3:${rawType}:${id}:f20:r${region.code}` +
       `:rs${hashFragment(`${rankingSource.customId}:${rankingCustom.url}:${rankingCustom.datasetId ?? ""}`)}` +
       customCatalogSortFragment(detectCatalogProvider(rankingCustom.url)?.provider, rankingCustom.sortBy, rankingCustom.sortHow) +
       `${scopedUser ? `:u${hashFragment(scopedUser)}` : ""}` +
@@ -174,7 +185,7 @@ export async function GET(req: NextRequest) {
     }
     const streamingGroup = chartListGroupKey({ regionCode: coords.regionCode, regionLang: coords.regionLang })
     const cacheKey =
-      `rank:v2:${rawType}:${id}:f10:r${coords.regionCode}` +
+      `rank:v3:${rawType}:${id}:f10:r${coords.regionCode}` +
       `:rss${hashFragment(rankingSource.catalogId)}:g${streamingGroup}` +
       `${scopedUser ? `:u${hashFragment(scopedUser)}` : ""}` +
       chartPinCacheFragment(pin)
@@ -214,7 +225,7 @@ export async function GET(req: NextRequest) {
       requestOrigin: getOriginFromRequest(req),
     }
     const cacheKey =
-      `rank:v2:${rawType}:${id}:ra${addonRankingSourceKey(rankingCustom.addon)}:${slot}` +
+      `rank:v3:${rawType}:${id}:ra${addonRankingSourceKey(rankingCustom.addon)}:${slot}` +
       `${scopedUser ? `:u${hashFragment(scopedUser)}` : ""}` +
       `${configParam ? `:cfg${hashFragment(configParam)}` : ""}` +
       `:ak${hashFragment(resolvedKeys.tmdb.key)}:vk${hashFragment(resolvedKeys.tvdb.key)}`
@@ -283,7 +294,7 @@ export async function GET(req: NextRequest) {
   const chartFloor = chartFamily ? familySlotFloorMs(chartFamily) : currentChartSlotFloor()
 
   if (rankingSource.kind === "justwatch" && (rankingSource.mode === "popular" || rankingSource.mode === "trending")) {
-    const cacheKey = `rank:v2:${rawType}:${id}:f20:r${region.code}:${rankingSource.mode}:g${chartGroup}${chartCgFragment}`
+    const cacheKey = `rank:v3:${rawType}:${id}:f20:r${region.code}:${rankingSource.mode}:g${chartGroup}${chartCgFragment}`
     const cached = cacheGet<{ rank: number | null; top: number; period: string }>(cacheKey)
     if (cached) {
       return Response.json(cached, { headers: mutableSourceHeaders })
@@ -294,7 +305,7 @@ export async function GET(req: NextRequest) {
       const res = { items: pinnedFamilyRows(chartPin) ?? [] }
       const found = res.items.find((r) => r.tmdbId === id)
       if (found) {
-        const body = { rank: found.rank, period: rankingSource.mode, top: 20 }
+        const body = { rank: found.rank, period: rankingSource.mode, top: 20, ...trendFields(found) }
         cacheSet(cacheKey, body, ["rank", "justwatch"])
         return Response.json(body, { headers: mutableSourceHeaders })
       }
@@ -310,7 +321,7 @@ export async function GET(req: NextRequest) {
   // Exact canonical window only (first=20, unfiltered): other windows stay
   // live with today's keys+semantics (cycle-aware: in-slot fresh via the
   // floor) and are never published as canonical.
-  const cacheKey = `rank:v2:${rawType}:${id}:f${first}:r${region.code}:g${chartGroup}${chartCanonical ? chartCgFragment : ""}`
+  const cacheKey = `rank:v3:${rawType}:${id}:f${first}:r${region.code}:g${chartGroup}${chartCanonical ? chartCgFragment : ""}`
   const cached = cacheGet<{ rank: number | null; period?: string }>(cacheKey)
   if (cached && (cached.rank === null || cached.rank === undefined || isAutomaticTrendRank(cached.rank))) {
     // Mutable defaults can retarget this same URL to another source, so even
@@ -336,7 +347,7 @@ export async function GET(req: NextRequest) {
     // popular/trending windows pass through unchanged.
     const autoRank = found && isAutomaticTrendRank(found.rank) ? found.rank : null
     if (autoRank !== null) {
-      const body = { rank: autoRank, period: "day", top: first }
+      const body = { rank: autoRank, period: "day", top: first, ...trendFields(found) }
       cacheSet(cacheKey, body, ["rank", "justwatch"])
       return Response.json(body, { headers })
     }

@@ -435,6 +435,11 @@ export interface ChartRow {
    * rows there) — generic renewal sets it, serving filters/enriches per item.
    */
   readonly mediaType?: "movie" | "tv" | null
+  /** JW chart movement (optional: only JustWatch daily charts carry it). */
+  readonly trend?: "UP" | "DOWN" | "STABLE"
+  readonly trendDifference?: number
+  readonly topRank?: number
+  readonly daysInTop10?: number
 }
 
 export type ChartFamilyStatus = "ok" | "empty" | "error"
@@ -494,7 +499,19 @@ function normalizeRow(raw: unknown, index: number, allowZeroTmdb: boolean): Char
   const year = Number.isFinite(yearRaw) && yearRaw > 0 ? Math.floor(yearRaw) : null
   const mediaType = r.mediaType === "movie" || r.mediaType === "tv" ? r.mediaType : null
   const row: ChartRow = { tmdbId: Math.floor(tmdbId), imdbId, rank: Math.floor(rank), title, year }
-  return mediaType ? { ...row, mediaType } : row
+  const trend = r.trend === "UP" || r.trend === "DOWN" || r.trend === "STABLE" ? r.trend : null
+  const int = (v: unknown): number | null => (typeof v === "number" && Number.isFinite(v) ? Math.trunc(v) : null)
+  const trendDifference = int(r.trendDifference)
+  const topRank = int(r.topRank)
+  const daysInTop10 = int(r.daysInTop10)
+  return {
+    ...row,
+    ...(mediaType ? { mediaType } : {}),
+    ...(trend ? { trend } : {}),
+    ...(trendDifference !== null ? { trendDifference } : {}),
+    ...(topRank !== null && topRank > 0 ? { topRank } : {}),
+    ...(daysInTop10 !== null && daysInTop10 >= 0 ? { daysInTop10 } : {}),
+  }
 }
 
 function normalizeRows(raw: unknown, cap: number, allowZeroTmdb = false): ChartRow[] | null {

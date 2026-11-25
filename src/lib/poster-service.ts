@@ -1,5 +1,7 @@
 import { renderWatchProviderRow } from "@/lib/watch-providers-render"
 import sharp from "sharp"
+import { cardLayoutGeometry } from "./card-layout-geometry"
+import { attachRankTrendArrow, buildRankTrendArrowSvg, placeRankTrendArrow, rankTrendModeFor } from "./rank-trend-label"
 import { renderMultiRatings } from "./multi-rating-renderer"
 import { MAX_SEPARATE_RATINGS } from "./ratings"
 import { renderSeparateRatingStack,renderSeparateRatingsBottom,renderSeparateRatingsNotch,renderSeparateRatingsSideNotch,notchSeparateStepBodyHeight,notchSeparateStepText,type SeparateRatingStack } from "./separate-rating-renderer"
@@ -113,7 +115,7 @@ export async function generatePosterBuffer(input: GenerationInput): Promise<Buff
     separateBadgeOffsetX, separateBadgeOffsetY,
     genreBadgeOffsetX, genreBadgeOffsetY, qualityBadgeOffsetX, qualityBadgeOffsetY,
     networkLogoOffsetX, networkLogoOffsetY,
-    mediaType, finalRank, animeRankResult,
+    mediaType, finalRank, rankTrend, animeRankResult,
     mapping, tmdbNetworks, productionCompanies, tmdbStudios,
     tmdbNetworksDetailed, productionCompaniesDetailed, watchProviders, typeIcon,
     tvType, tvStatus, releaseDate, firstAirDate,
@@ -317,6 +319,16 @@ export async function generatePosterBuffer(input: GenerationInput): Promise<Buff
     rawFreshScope,
     topBadge?.type === "rank" ? topBadge.rank : null,
   )
+  // `rt=1` su badge con contenitore (pill, vetro, notch…): uno spazio largo in
+  // coda al testo riserva DENTRO il badge il posto della freccia (disegnata
+  // poi da attachRankTrendArrow, modo "inside"). Solo rank automatico standard.
+  if (
+    rankTrend && !qLabel && !isFresh && !isCard && topBadge?.type === "rank"
+    && topBadge.rank === finalRank && topBadge.rank !== animeRankResult
+    && rankTrendModeFor(rankingBadgeStyle) === "inside"
+  ) {
+    topBadge = { ...topBadge, label: `${topBadge.label} ` }
+  }
 
   // Task16 experiment (ONE reversible candidate, Fresh WITH valid numeral
   // ONLY): the full-bleed base shifts right ~6% CW with the vacated left gap
@@ -906,29 +918,36 @@ export async function generatePosterBuffer(input: GenerationInput): Promise<Buff
   // La cache resta valida (chiave senza scala): la scala si applica a valle.
   // Tutta la matematica di posizione/overlap sotto usa già le dimensioni
   // scalate. La posizione del badge genere usa safeGenreBadgeResult.h.
+  // `rt=1`: la freccia entra NEL bitmap del badge rank standard (dopo la cache
+  // del badge): ogni stile/posizione la tratta come parte del corpo.
+  const rankTrendOnBadge = !!rankTrend && !isFresh && !isCard && !!rankBadgeResult
+    && topBadge?.type === "rank" && !isExtraTopBadge && topBadge.rank === finalRank && topBadge.rank !== animeRankResult
+  const rankBadgeBase = rankBadgeResult && rankTrendOnBadge && rankTrend
+    ? await attachRankTrendArrow(rankBadgeResult, rankTrend, CW, rankTrendModeFor(rankingBadgeStyle), rankingBadgeStyle)
+    : rankBadgeResult
   let [rankBadgeForLayout, genreBadgeForLayout, qualityBadgeForLayout, networkLogoForLayout] = await Promise.all([
-    rankBadgeResult
+    rankBadgeBase
       ? (async () => {
           // Landscape: scala % + riduzione -20px in UN solo resize (prima due
           // resize sharp in serie sullo stesso bitmap). Stesse dimensioni
           // finali del vecchio codice, un solo passaggio di ricampionamento.
           if (shape === "landscape") {
-            const scaledH = Math.max(1, Math.round(rankBadgeResult.h * effTopBadgeScale / 100))
-            const scaledW = Math.max(1, Math.round(rankBadgeResult.w * effTopBadgeScale / 100))
+            const scaledH = Math.max(1, Math.round(rankBadgeBase.h * effTopBadgeScale / 100))
+            const scaledW = Math.max(1, Math.round(rankBadgeBase.w * effTopBadgeScale / 100))
             const targetH = Math.max(1, scaledH - 20)
             const targetW = Math.max(1, Math.round(scaledW * (targetH / scaledH)))
-            if (targetH !== rankBadgeResult.h || targetW !== rankBadgeResult.w) {
-              const png = await sharp(rankBadgeResult.png).resize(targetW, targetH).toBuffer()
-              const bleed = rankBadgeResult.bleed
-                ? scaleBadgeBleed(rankBadgeResult.bleed, targetW / rankBadgeResult.w, targetH / rankBadgeResult.h)
+            if (targetH !== rankBadgeBase.h || targetW !== rankBadgeBase.w) {
+              const png = await sharp(rankBadgeBase.png).resize(targetW, targetH).toBuffer()
+              const bleed = rankBadgeBase.bleed
+                ? scaleBadgeBleed(rankBadgeBase.bleed, targetW / rankBadgeBase.w, targetH / rankBadgeBase.h)
                 : undefined
-              return { ...rankBadgeResult, png, w: targetW, h: targetH, ...(bleed ? { bleed } : {}) }
+              return { ...rankBadgeBase, png, w: targetW, h: targetH, ...(bleed ? { bleed } : {}) }
             }
-            return rankBadgeResult
+            return rankBadgeBase
           }
           return effTopBadgeScale !== 100
-            ? await scaleBitmapForLayout(rankBadgeResult, effTopBadgeScale)
-            : rankBadgeResult
+            ? await scaleBitmapForLayout(rankBadgeBase, effTopBadgeScale)
+            : rankBadgeBase
         })()
       : Promise.resolve(null),
     genreBadgeResult && genreBadgeScale !== 100 && badgeStyle !== "bar"
@@ -2573,6 +2592,23 @@ export async function generatePosterBuffer(input: GenerationInput): Promise<Buff
     cardMainBadgeRendered, accentColorGenre, genreStdAccent, rankStdAccent, accentOverride, blurOverlay,
     tintStrength, blurTintHex, sceneTintHex, bottomBand, topBand,
   })
+
+  // -----------------------------------------------------------------------
+  // 6e. Rank trend arrow (`rt=1`): small colored up/down arrow beside the
+  // rank (standard badge body, Fresh numeral or Card numeral). Automatic
+  // live rank only (never anime, custom label or manual rank).
+  // -----------------------------------------------------------------------
+  if (rankTrend && (isFresh || isCard) && topBadge?.type === "rank" && !isExtraTopBadge && topBadge.rank === finalRank && topBadge.rank !== animeRankResult) {
+    const body = isFresh ? freshOverlayGeo?.numeral ?? null : cardOverlayGeo?.numeral ?? null
+    const gutterW = isCard && topBadge.type === "rank"
+      ? cardLayoutGeometry(isLandscape ? "landscape" : "poster", CW, CH, topBadge.rank)?.card.x
+      : undefined
+    const spot = body ? placeRankTrendArrow(body, CW, CH, isFresh ? "fresh" : "card", gutterW) : null
+    if (spot) {
+      const arrowPng = await sharp(Buffer.from(buildRankTrendArrowSvg(rankTrend, spot.size))).png().toBuffer()
+      composites.push({ input: arrowPng, top: spot.top, left: spot.left })
+    }
+  }
 
   // -----------------------------------------------------------------------
   // 7. Final composite

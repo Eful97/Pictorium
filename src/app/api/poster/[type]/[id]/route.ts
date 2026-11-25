@@ -72,6 +72,7 @@ import { serveAccentMetaRequest } from "./accent-meta"
 import { createResponseVariantServer } from "./variant"
 import { loadPosterRequestContext } from "./request-context"
 import { resolvePosterCacheIdentity } from "./cache-key"
+import { rankTrendFromPin } from "@/lib/rank-trend-label"
 import { finalizePosterRender } from "./finalize"
 import { resolveRenderDisplay } from "./display-state"
 import type { PosterArtwork, PosterTitleMeta } from "./sources"
@@ -185,6 +186,11 @@ export async function GET(req: NextRequest, { params }: { params: Promise<RouteP
     req, hardenedParams, mediaType, tmdbId, mapping, earlyEffMapping, sd, configOverride, configToken,
     posterRegion, scopedUser, effTmdbKey, effMdblistKey, effTvdbKey, startTime,
   })
+  // Opt-in `rt=1`: freccia (su/giù) di movimento JW sul rank AUTOMATICO (stessa riga
+  // dello snapshot da cui viene preTrendRank). Entra in cache key/ETag.
+  const rankTrend = hardenedParams.get("rt") === "1"
+    ? rankTrendFromPin(trendSnapshotPin, tmdbId, preTrendRank)
+    : null
   // Chiave di cache, ETag base, formato, policy TTL/immutable e flag di
   // debug (cache-key.ts). Idrata la entry canonica dal disco.
   const {
@@ -195,7 +201,7 @@ export async function GET(req: NextRequest, { params }: { params: Promise<RouteP
   } = await resolvePosterCacheIdentity({
     req, mediaType, tmdbId, scopedUser, isPreview, previewUnlocked, configOverride, mapping, sd,
     posterRegion, earlyLandscape, isRotating, customRatingConfig, sepDisplay, sdHash, hardenedParams,
-    cacheParams, preTrendRank, preAnimeRank, startTime,
+    cacheParams, preTrendRank, preAnimeRank, rankTrend, startTime,
   })
 
   // Effective-accent metadata branch (`?accentmeta=1`, read-only, no-store,
@@ -658,6 +664,9 @@ export async function GET(req: NextRequest, { params }: { params: Promise<RouteP
     const rankingRank = neutralSample
       ? (rankingEnabledEarly ? DEMO_SAMPLE_RANK : null)
       : rankingResult ?? (demoSamples && rankingEnabledEarly ? DEMO_SAMPLE_RANK : null)
+    // Rank dimostrativo (anteprima Impostazioni): non esiste una riga di
+    // classifica reale, quindi con `rt=1` mostra una freccia verde di esempio.
+    const usedDemoRank = rankingRank === DEMO_SAMPLE_RANK && (neutralSample || (rankingResult == null && demoSamples))
     // rank/label dalla query hardenata (stessa del cache key): su presets il
     // label free-text è droppato/canonicalizzato, il rank numerico resta.
     // Precedenza rank: `rank=` esplicito (override manuale, vince) > `rk=`
@@ -961,6 +970,12 @@ export async function GET(req: NextRequest, { params }: { params: Promise<RouteP
       networkLogoOffsetX, networkLogoOffsetY,
       mediaType: mediaType as "movie" | "tv",
       finalRank, animeRankResult, rankingResult,
+      // Il suffisso vale solo se il rank finale è proprio quello automatico.
+      rankTrend: hardenedParams.get("rt") !== "1" || finalRank === null
+        ? null
+        : usedDemoRank && finalRank === rankingRank
+          ? "up"
+          : finalRank === preTrendRank ? rankTrend : null,
       mapping, tmdbId, digitalReleaseDate: preDigital ?? null, tmdbNetworks: titleMeta.tmdbNetworks, productionCompanies: titleMeta.productionCompanies, tmdbStudios: titleMeta.tmdbStudios,
       tmdbNetworksDetailed: titleMeta.tmdbNetworksDetailed, productionCompaniesDetailed: titleMeta.productionCompaniesDetailed,
       ...(watchProviderList.length > 0 ? { watchProviders: watchProviderList } : {}),

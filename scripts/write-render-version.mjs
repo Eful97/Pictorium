@@ -83,6 +83,7 @@ const RENDER_FILES = [
   "src/lib/poster-card-helpers.ts",
   "src/lib/poster-card-compose.ts",
   "src/lib/poster-badge-geometry.ts",
+  "src/lib/rank-trend-label.ts",
   "src/lib/poster-accent-meta.ts",
   "src/lib/poster-badge-placement.ts",
   "src/lib/poster-fresh-compose.ts",

@@ -72,6 +72,31 @@ describe("JwRankBadge with ranking sources", () => {
     expect(rankInits(fetchSpy)[0]).toMatchObject({ cache: "no-store" })
   })
 
+  it("adds the JW trend arrow and the days-in-top-10 tooltip when the API sends them", async () => {
+    mockRank({ rank: 3, top: 20, trend: "UP", trendDifference: 8, topRank: 1, daysInTop10: 24 })
+    const { container } = renderWithCtx(<JwRankBadge tmdbId={101} type="movie" regionCode="IT" userId={null} />)
+
+    await waitFor(() =>
+      expect(screen.getByText("ui.rankTrending rank=3 flag=🇮🇹")).toBeInTheDocument(),
+    )
+    const badge = container.querySelector("span[title]") as HTMLElement
+    expect(badge.getAttribute("title")).toContain("ui.rankTrendDetail days=24 peak=1")
+    expect(badge.textContent).toContain("8")
+    expect(badge.querySelector("svg.lucide-arrow-up")).not.toBeNull()
+  })
+
+  it("renders no trend mark and no extra tooltip without trend data", async () => {
+    mockRank({ rank: 3, top: 20 })
+    const { container } = renderWithCtx(<JwRankBadge tmdbId={101} type="movie" regionCode="IT" userId={null} />)
+
+    await waitFor(() =>
+      expect(screen.getByText("ui.rankTrending rank=3 flag=🇮🇹")).toBeInTheDocument(),
+    )
+    const badge = container.querySelector("span[title]") as HTMLElement
+    expect(badge.getAttribute("title")).not.toContain("ui.rankTrendDetail")
+    expect(badge.querySelector("svg.lucide-arrow-up, svg.lucide-arrow-down, svg.lucide-minus")).toBeNull()
+  })
+
   it("shows the custom list name with no region flag", async () => {
     const fetchSpy = mockRank({ rank: 2, top: 20 })
     renderWithCtx(<JwRankBadge tmdbId={101} type="movie" regionCode="IT" userId="u1" />, {

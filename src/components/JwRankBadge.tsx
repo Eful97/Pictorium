@@ -1,7 +1,7 @@
 "use client"
 
 import { useEffect, useState } from "react"
-import { TrendingUp, Trophy } from "lucide-react"
+import { ArrowDown, ArrowUp, Minus, TrendingUp, Trophy } from "lucide-react"
 import { useT } from "@/lib/contexts/TranslationContext"
 import { usePSelector } from "@/lib/context"
 import { getRegionDef } from "@/lib/regions"
@@ -20,11 +20,32 @@ interface Props {
   userId?: string | null
 }
 
+interface RankTrend {
+  trend?: "UP" | "DOWN" | "STABLE"
+  trendDifference?: number
+  topRank?: number
+  daysInTop10?: number
+}
+
+/** Freccia di movimento JW accanto al rank (solo se il provider la fornisce). */
+function TrendMark({ info }: { info: RankTrend | null }) {
+  if (!info?.trend) return null
+  const diff = Math.abs(info.trendDifference ?? 0)
+  if (info.trend === "UP") {
+    return <span className="inline-flex items-center text-emerald-400" aria-hidden><ArrowUp className="w-3 h-3" />{diff > 0 ? diff : null}</span>
+  }
+  if (info.trend === "DOWN") {
+    return <span className="inline-flex items-center text-rose-400" aria-hidden><ArrowDown className="w-3 h-3" />{diff > 0 ? diff : null}</span>
+  }
+  return <span className="inline-flex items-center text-zinc-400" aria-hidden><Minus className="w-3 h-3" /></span>
+}
+
 export function JwRankBadge({ tmdbId, type, regionCode = "IT", userId }: Props) {
   const { t } = useT()
   const [rank, setRank] = useState<number | null | undefined>(undefined)
   const [unavailable, setUnavailable] = useState(false)
   const [top, setTop] = useState(20)
+  const [trend, setTrend] = useState<RankTrend | null>(null)
   const region = getRegionDef(regionCode)
   // Effective source mirrors the catalogs (pure client resolver on the same
   // state): a custom-driven slot never shows region flags or JW wording.
@@ -57,6 +78,7 @@ export function JwRankBadge({ tmdbId, type, regionCode = "IT", userId }: Props) 
   useEffect(() => {
     let active = true
     setRank(undefined)
+    setTrend(null)
     setUnavailable(false)
     // Suspended mint: no request at all (a namespace read here would flash a
     // JW rank under a custom selection). Failed mint: visible error state.
@@ -86,6 +108,12 @@ export function JwRankBadge({ tmdbId, type, regionCode = "IT", userId }: Props) 
         }
         setRank(data.rank ?? null)
         setTop(data.top ?? 20)
+        const t = data.trend
+        setTrend(
+          t === "UP" || t === "DOWN" || t === "STABLE"
+            ? { trend: t, trendDifference: data.trendDifference, topRank: data.topRank, daysInTop10: data.daysInTop10 }
+            : null,
+        )
       })
       .catch(() => {
         // Network failure is explicit too: never disguised as "outside Top 20".
@@ -131,10 +159,16 @@ export function JwRankBadge({ tmdbId, type, regionCode = "IT", userId }: Props) 
       className={`inline-flex items-center gap-1 text-[11px] font-semibold px-2 py-0.5 rounded-full border ${
         isTop3 ? "bg-amber-500/15 text-amber-300 border-amber-500/30" : "bg-white/[0.06] text-zinc-200 border-white/10"
       }`}
-      title={t("ui.rankTitle", { rank, country: region.label })}
+      title={
+        t("ui.rankTitle", { rank, country: region.label }) +
+        (trend?.daysInTop10 !== undefined && trend.topRank !== undefined
+          ? ` — ${t("ui.rankTrendDetail", { days: trend.daysInTop10, peak: trend.topRank })}`
+          : "")
+      }
     >
       {isTop3 ? <Trophy className="w-3 h-3" /> : <TrendingUp className="w-3 h-3 text-accent-orange" />}
       {t("ui.rankTrending", { rank, flag: region.flag })}
+      <TrendMark info={trend} />
     </span>
   )
 }
