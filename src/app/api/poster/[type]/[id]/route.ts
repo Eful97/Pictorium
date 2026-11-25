@@ -800,6 +800,9 @@ export async function GET(req: NextRequest, { params }: { params: Promise<RouteP
     // cache key (verrebbe letta prima del fetch), il ritorno al poster normale
     // avviene alla scadenza del TTL (6h non-mappati, 24h mappati).
     const applyPreRelease = preRelease && preReleaseDetected
+    // Stesso rilevamento, `pre` spento: stesse etichette ma come badge beige
+    // normali (niente nastro rosso, niente velo).
+    const applyPreBeige = !preRelease && preReleaseDetected
 
     // Qualità + formati A/V (vedi quality.ts).
     const { finalQuality, finalVideoFormats } = resolveRenderQuality({
@@ -822,7 +825,7 @@ export async function GET(req: NextRequest, { params }: { params: Promise<RouteP
     // Task D — freshness cap dai fatti volatili consumati (vedi freshness.ts).
     const factCap = resolveFactCap({
       mediaType, tmdbId, posterRegion, t, scopedUser, effTmdbKey, effMdblistKey, effTvdbKey,
-      rankingEnabled, preRelease, preDigital, preJw, rankingSourcePre, rankingCustomPre, streamingRankPre,
+      rankingEnabled, preRelease: mediaType === "movie", preDigital, preJw, rankingSourcePre, rankingCustomPre, streamingRankPre,
       needTrendFetch, needAnimeFetch, trendRankLive, animeRankLive, preTrendRank, preAnimeRank,
       trendSnapshotPin, animeSnapshotPin, streamingSnapshotPin, jwFamily, chartAnimeFamily, animeListKey,
       animeKeyUsed, addonRankingInput, cacheKey, dynamicPoster, dynamicCutTtlMs,
@@ -981,6 +984,7 @@ export async function GET(req: NextRequest, { params }: { params: Promise<RouteP
       onAccentMeta: (m) => { collectedAccentMeta = m },
       demoSamples,
       accentOverride, imdbTop250, whatsonFeatures: aggregated?.whatsonFeatures ?? null, preRelease: applyPreRelease,
+      preBeige: applyPreBeige,
       preInTheaters,
       shape: posterShape,
       posterLayout,
@@ -1053,7 +1057,7 @@ export async function GET(req: NextRequest, { params }: { params: Promise<RouteP
     return await finalizePosterRender({
       mediaType, tmdbId, startTime, mapping, isPreview, isConditional, ifNoneMatch, isLive,
       cacheKey, mappingTag, outputFormat, needsVariant, dynamicPoster, dynamicDayBucket, dynamicCutTtlMs, customRatingConfig,
-      titleMeta, finalRank, imdbTop250, applyPreRelease, useSeparate, bottomActive, sepItems, ephemeralTtl,
+      titleMeta, finalRank, imdbTop250, applyPreRelease, applyPreBeige, useSeparate, bottomActive, sepItems, ephemeralTtl,
       effectiveImmutable, effectiveTtlSec, cappedTtlMs, policyBaseMs, factExpiresAtMs, factCappedWrite, genInput, composited,
       collectedAccentMeta, tFetchMs, tCompositeStart, completePosterRender, serveResponseVariant,
     })

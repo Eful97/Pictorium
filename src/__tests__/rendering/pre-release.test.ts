@@ -571,12 +571,25 @@ describe("Coming Soon ribbon and quality badge placement", () => {
     expect(topRightLightPixels).toBeGreaterThan(100)
   }, 30000)
 
-  it("already-released films get the centered badge instead of the ribbon", async () => {
+  it("pre ON: already-released films show 'Al cinema' in the red ribbon", async () => {
     const buf = await renderTestPoster("left", { preInTheaters: true })
+    const { data, info } = await sharp(buf).ensureAlpha().raw().toBuffer({ resolveWithObject: true })
+    let topLeftRedPixels = 0
+    for (let y = 15; y < 70; y++) {
+      for (let x = 10; x < 90; x++) {
+        const i = (y * info.width + x) * 4
+        if (data[i] > 150 && data[i + 1] < 100 && data[i + 2] < 100) topLeftRedPixels++
+      }
+    }
+    expect(topLeftRedPixels).toBeGreaterThan(100)
+  }, 30000)
+
+  it("pre OFF (beige): detected films get the centered badge instead of the ribbon", async () => {
+    const buf = await renderTestPoster("left", { preInTheaters: true, preRelease: false, preBeige: true, rankingEnabled: true })
     const { data, info } = await sharp(buf).ensureAlpha().raw().toBuffer({ resolveWithObject: true })
 
     // Ribbon area (top-left, same window as the Coming Soon assertions): no
-    // red diagonal at all — "Al cinema" is a normal extra badge.
+    // red diagonal at all — with `pre` off the label is a normal extra badge.
     let topLeftRedPixels = 0
     for (let y = 15; y < 70; y++) {
       for (let x = 10; x < 90; x++) {

@@ -107,10 +107,8 @@ export async function fetchRenderData(
   const hasQueryEarly = !!queryPoster || !!mapping || !!configToken
   const rankingEnabledEarly = qRankingEarly !== null ? qRankingEarly !== "0" : (hasQueryEarly ? (earlyEffMapping?.rankingBadges ?? rankingBadges) : true)
   const badgeQualityEarly = qBqEarly !== null ? qBqEarly !== "0" : (earlyEffMapping?.badgeQuality ?? configOverride?.badgeQuality ?? earlyEffSd.badgeQuality ?? sd.badgeQuality ?? true)
-  // Flag pre-digitale per il fetch condizionato: query `pre` > config token
-  // > server defaults > false (stessa catena di poster-config, senza mapping).
-  const qPreEarly = req.nextUrl.searchParams.get("pre")
-  const preReleaseEnabledEarly = qPreEarly !== null ? qPreEarly !== "0" : (configOverride?.preRelease ?? earlyEffSd.preRelease ?? sd.preRelease ?? false)
+  // Il rilevamento pre-digitale gira SEMPRE per i film: il flag `pre` decide
+  // solo la presentazione (nastro rosso + velo vs badge beige normale).
   // Segnali grezzi del rilevamento pre-digitale (solo debug=1).
   let preJw: boolean | null = null
   let preDigital: string | null = null
@@ -358,7 +356,7 @@ export async function fetchRenderData(
       // JustWatch ha la precedenza, TMDB release_dates (type 4) come
       // fallback. Tetto 2500ms con fail-open: a dati ignoti il poster
       // resta normale invece di attendere gli upstream.
-      (preReleaseEnabledEarly && mediaType === "movie"
+      (mediaType === "movie"
         ? (async (): Promise<boolean> => {
             let preTimer: ReturnType<typeof setTimeout> | undefined
             const preTimeout = new Promise<false>((r) => {
