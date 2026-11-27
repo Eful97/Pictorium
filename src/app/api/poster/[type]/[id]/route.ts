@@ -72,6 +72,7 @@ import { serveAccentMetaRequest } from "./accent-meta"
 import { createResponseVariantServer } from "./variant"
 import { loadPosterRequestContext } from "./request-context"
 import { resolvePosterCacheIdentity } from "./cache-key"
+import { rankTrendFromPin } from "@/lib/rank-trend-label"
 import { finalizePosterRender } from "./finalize"
 import { resolveRenderDisplay } from "./display-state"
 import type { PosterArtwork, PosterTitleMeta } from "./sources"
@@ -185,17 +186,22 @@ export async function GET(req: NextRequest, { params }: { params: Promise<RouteP
     req, hardenedParams, mediaType, tmdbId, mapping, earlyEffMapping, sd, configOverride, configToken,
     posterRegion, scopedUser, effTmdbKey, effMdblistKey, effTvdbKey, startTime,
   })
+  // Opt-in `rt=1`: freccia (su/giù) di movimento JW sul rank AUTOMATICO (stessa riga
+  // dello snapshot da cui viene preTrendRank). Entra in cache key/ETag.
+  const rankTrend = hardenedParams.get("rt") === "1"
+    ? rankTrendFromPin(trendSnapshotPin, tmdbId, preTrendRank)
+    : null
   // Chiave di cache, ETag base, formato, policy TTL/immutable e flag di
   // debug (cache-key.ts). Idrata la entry canonica dal disco.
   const {
     dynamicDayBucket, dynamicRotationIncludeNonClean, dynamicRotationIncludeOriginal, dynamicCutTtlMs, outputFormat, legacyAvif,
-    canonicalFormat, imageQuality, cacheKey, needsVariant, variantKey, immutablePoster, refreshRequest,
+    canonicalFormat, imageQuality, cacheKey, staleBridgeKey, needsVariant, variantKey, immutablePoster, refreshRequest,
     isLive, isDebug, wantNetGeo, wantBadgeGhosts, dynamicPoster, mappingTag, dynamicTtlSec,
     variantTtlSec, ifNoneMatch, isConditional,
   } = await resolvePosterCacheIdentity({
     req, mediaType, tmdbId, scopedUser, isPreview, previewUnlocked, configOverride, mapping, sd,
     posterRegion, earlyLandscape, isRotating, customRatingConfig, sepDisplay, sdHash, hardenedParams,
-    cacheParams, preTrendRank, preAnimeRank, startTime,
+    cacheParams, preTrendRank, preAnimeRank, rankTrend, startTime,
   })
 
   // Effective-accent metadata branch (`?accentmeta=1`, read-only, no-store,
@@ -234,7 +240,14 @@ export async function GET(req: NextRequest, { params }: { params: Promise<RouteP
   const variantLookupResponse = checkPosterVariantFastPath(cacheLookupCtx)
   if (variantLookupResponse) return variantLookupResponse
   const cachedPosterNow = Date.now()
-  const cachedPoster = readCachedPoster(cacheKey, cachedPosterNow)
+  let cachedPoster = readCachedPoster(cacheKey, cachedPosterNow)
+  // A/V data update: no current-epoch body yet -> serve the previous epoch's as
+  // stale (background refresh re-renders under the new key). Never for
+  // previews (they must show the staged settings) or fact-capped bodies.
+  if (!cachedPoster.payload && staleBridgeKey && !isPreview) {
+    const bridged = readCachedPoster(staleBridgeKey, cachedPosterNow)
+    if (bridged.payload && !bridged.factCapped) cachedPoster = { ...bridged, stale: true }
+  }
   const canonicalLookupResponse = checkPosterCanonicalCache(cacheLookupCtx, cachedPoster, cachedPosterNow)
   if (canonicalLookupResponse) return canonicalLookupResponse
   // Copia scaduta con condizionale o live=1, oppure nessuna copia: si
@@ -369,6 +382,8 @@ export async function GET(req: NextRequest, { params }: { params: Promise<RouteP
     lastAirDate: null,
     seasonCount: null,
     nextEpisodeAirDate: null,
+    nextEpisodeSeason: null,
+    nextEpisodeNumber: null,
     numberOfEpisodes: null,
     originCountries: [],
     genreIds: null,
@@ -658,6 +673,9 @@ export async function GET(req: NextRequest, { params }: { params: Promise<RouteP
     const rankingRank = neutralSample
       ? (rankingEnabledEarly ? DEMO_SAMPLE_RANK : null)
       : rankingResult ?? (demoSamples && rankingEnabledEarly ? DEMO_SAMPLE_RANK : null)
+    // Rank dimostrativo (anteprima Impostazioni): non esiste una riga di
+    // classifica reale, quindi con `rt=1` mostra una freccia verde di esempio.
+    const usedDemoRank = rankingRank === DEMO_SAMPLE_RANK && (neutralSample || (rankingResult == null && demoSamples))
     // rank/label dalla query hardenata (stessa del cache key): su presets il
     // label free-text è droppato/canonicalizzato, il rank numerico resta.
     // Precedenza rank: `rank=` esplicito (override manuale, vince) > `rk=`
@@ -701,7 +719,7 @@ export async function GET(req: NextRequest, { params }: { params: Promise<RouteP
     extraBadgeStyle,
       blurEnabled, blurIntensity, blurDarkness, tintStrength, topShade, topShadeHeight,
       badgesEnabled, rankingEnabled,
-      badgeGenre, badgeYear, badgeRating, badgeQuality, ageBadge, ageBadgeStyle, awardBadgeStyle, minQuality, sashOrder,
+      badgeGenre, badgeYear, badgeRating, badgeQuality, genreShort, ageBadge, ageBadgeStyle, awardBadgeStyle, minQuality, sashOrder,
       disabledContentTags, disabledNetworks,
       separateRatings, separateRatingsStyle,
       logoScale, logoOffsetX, logoOffsetY,
@@ -928,7 +946,7 @@ export async function GET(req: NextRequest, { params }: { params: Promise<RouteP
       backdropScale: artwork.backdropScale, backdropOffsetX: artwork.backdropOffsetX, backdropOffsetY: artwork.backdropOffsetY,
       blurEnabled, blurHeight: effBlurHeight, blurIntensity, blurFade: effBlurFade, blurDarkness, tintStrength, topShade, topShadeHeight,
       badgesEnabled, rankingEnabled, genreName: titleMeta.genreName, voteAverage: titleMeta.voteAverage, badgeStyle,
-      rankingBadgeStyle, extraBadgeStyle, badgeFont, badgeGenre: effectiveBadgeGenre, badgeYear: effectiveBadgeYear, badgeRating: effectiveBadgeRating, badgeQuality,
+      rankingBadgeStyle, extraBadgeStyle, badgeFont, badgeGenre: effectiveBadgeGenre, badgeYear: effectiveBadgeYear, badgeRating: effectiveBadgeRating, badgeQuality, genreShort,
       qualityBadgeStyle,
       qualityGroupLayout,
       videoFormats: finalVideoFormats,
@@ -961,12 +979,18 @@ export async function GET(req: NextRequest, { params }: { params: Promise<RouteP
       networkLogoOffsetX, networkLogoOffsetY,
       mediaType: mediaType as "movie" | "tv",
       finalRank, animeRankResult, rankingResult,
+      // Il suffisso vale solo se il rank finale è proprio quello automatico.
+      rankTrend: hardenedParams.get("rt") !== "1" || finalRank === null
+        ? null
+        : usedDemoRank && finalRank === rankingRank
+          ? "up"
+          : finalRank === preTrendRank ? rankTrend : null,
       mapping, tmdbId, digitalReleaseDate: preDigital ?? null, tmdbNetworks: titleMeta.tmdbNetworks, productionCompanies: titleMeta.productionCompanies, tmdbStudios: titleMeta.tmdbStudios,
       tmdbNetworksDetailed: titleMeta.tmdbNetworksDetailed, productionCompaniesDetailed: titleMeta.productionCompaniesDetailed,
       ...(watchProviderList.length > 0 ? { watchProviders: watchProviderList } : {}),
       ...(typeIcon ? { typeIcon: true } : {}),
       tvType: titleMeta.tvType, tvStatus: titleMeta.tvStatus, releaseDate: titleMeta.releaseDate, firstAirDate: titleMeta.firstAirDate,
-      lastAirDate: titleMeta.lastAirDate, seasonCount: titleMeta.seasonCount, nextEpisodeAirDate: titleMeta.nextEpisodeAirDate, numberOfEpisodes: titleMeta.numberOfEpisodes, originCountries: titleMeta.originCountries, genreIds: titleMeta.genreIds,
+      lastAirDate: titleMeta.lastAirDate, seasonCount: titleMeta.seasonCount, nextEpisodeAirDate: titleMeta.nextEpisodeAirDate, nextEpisodeSeason: titleMeta.nextEpisodeSeason, nextEpisodeNumber: titleMeta.nextEpisodeNumber, numberOfEpisodes: titleMeta.numberOfEpisodes, originCountries: titleMeta.originCountries, genreIds: titleMeta.genreIds,
       wikidataResult, tmdbKeywords, locale, t,
       dateFormat,
       genreTopWhenFree,

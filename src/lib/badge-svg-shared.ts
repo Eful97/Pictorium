@@ -1825,6 +1825,50 @@ export function buildExtraBorderedSvg(label: string, fs: number, textColor: stri
   return { svg: `<svg xmlns="http://www.w3.org/2000/svg" width="${totalW}" height="${boxH}" viewBox="0 0 ${totalW} ${boxH}">${bgEl}${textEl}</svg>`, w: totalW, h: boxH }
 }
 
+/**
+ * `sfumato` per il badge superiore (rank/extra): stessa geometria agganciata di
+ * `bordo` (canvas = box, nessun pad ombra, a filo del bordo alto, `r = fs*0.55`)
+ * con la ricetta materiale di `buildGenreGradientBorderSvg` (placca scura/chiara +
+ * cornice a gradiente bianco → accent → bianco tenue). Id gradiente `gsf`.
+ */
+export function buildTopGradientBorderSvg(label: string, fs: number, accentColor: string | null | undefined, topLight: boolean, font: BadgeFont = "inter") {
+  const px = Math.round(fs * BADGE_BOX_PAD_X_FACTOR)
+  const textW = Math.max(estimateTextWidth(label, fs, font), fs)
+  const totalW = textW + px * 2
+  const boxH = badgeBoxHeight(fs)
+  const r = Math.round(fs * 0.55)
+  const bw = 1.6
+  const a = usableAccent(accentColor) ?? "#ffffff"
+  const plate = topLight ? "rgba(255,255,255,0.80)" : "rgba(10,14,24,0.74)"
+  const ink = topLight ? "rgba(0,0,0,0.85)" : "rgba(255,255,255,0.95)"
+  const edge = topLight ? "#000000" : "#ffffff"
+  const defs = `<defs><linearGradient id="gsf" x1="0" y1="0" x2="1" y2="1"><stop offset="0" stop-color="${edge}" stop-opacity="0.9"/><stop offset="0.5" stop-color="${a}"/><stop offset="1" stop-color="${edge}" stop-opacity="0.25"/></linearGradient></defs>`
+  const bgEl = `<rect x="${bw / 2}" y="${bw / 2}" width="${totalW - bw}" height="${boxH - bw}" rx="${r}" fill="${plate}" stroke="url(#gsf)" stroke-width="${bw}"/>`
+  const textEl = `<text x="${totalW / 2}" y="${boxH / 2}" text-anchor="middle" dominant-baseline="central" font-family="${fontFamilyFor(label, font)}" font-weight="700" font-size="${fs}" fill="${ink}"${textFitAttrs(textW)}>${escSvg(label)}</text>`
+  return { svg: `<svg xmlns="http://www.w3.org/2000/svg" width="${totalW}" height="${boxH}" viewBox="0 0 ${totalW} ${boxH}">${defs}${bgEl}${textEl}</svg>`, w: totalW, h: boxH }
+}
+
+/**
+ * `tinta` per il badge superiore (rank/extra): stessa geometria agganciata di
+ * `bordo`/`sfumato` (canvas = box, nessun pad ombra, a filo del bordo alto) con
+ * la ricetta materiale di `buildGenreTintSvg` (velo neutro + accent 25% con
+ * bordo accent 60%, testo = accent schiarito/scurito).
+ */
+export function buildTopTintSvg(label: string, fs: number, accentColor: string | null | undefined, topLight: boolean, font: BadgeFont = "inter") {
+  const px = Math.round(fs * BADGE_BOX_PAD_X_FACTOR)
+  const textW = Math.max(estimateTextWidth(label, fs, font), fs)
+  const totalW = textW + px * 2
+  const boxH = badgeBoxHeight(fs)
+  const r = Math.round(fs * 0.55)
+  const a = usableAccent(accentColor) ?? "#ffffff"
+  const ink = topLight ? mixHex(a, -0.55) : mixHex(a, 0.62)
+  const veil = topLight ? "rgba(255,255,255,0.62)" : "rgba(0,0,0,0.38)"
+  const bgEl = `<rect x="0" y="0" width="${totalW}" height="${boxH}" rx="${r}" fill="${veil}"/>` +
+    `<rect x="0.6" y="0.6" width="${totalW - 1.2}" height="${boxH - 1.2}" rx="${r}" fill="${a}" fill-opacity="0.25" stroke="${a}" stroke-opacity="0.6" stroke-width="1.2"/>`
+  const textEl = `<text x="${totalW / 2}" y="${boxH / 2}" text-anchor="middle" dominant-baseline="central" font-family="${fontFamilyFor(label, font)}" font-weight="700" font-size="${fs}" fill="${ink}"${textFitAttrs(textW)}>${escSvg(label)}</text>`
+  return { svg: `<svg xmlns="http://www.w3.org/2000/svg" width="${totalW}" height="${boxH}" viewBox="0 0 ${totalW} ${boxH}">${bgEl}${textEl}</svg>`, w: totalW, h: boxH }
+}
+
 // ---------------------------------------------------------------------------
 // Common VISIBLE box of the quality/age/formats column.
 //
@@ -2987,11 +3031,12 @@ export function buildHouseRankingSvg(input: HouseRankingInput): { svg: string; w
     return buildRankingNumberSvg(rank, pw, font)
   } else if (s === "editoriale") {
     return buildEditorialLabelSvg(fullText, fs, !!topLight)
-  } else if (s === "tinta" || s === "sfumato") {
-    // Same material builders as the genre badge (single recipe), fed by the
-    // rank text; top shadow pad like the pill so the plate floats.
-    const build = s === "tinta" ? buildGenreTintSvg : buildGenreGradientBorderSvg
-    return build(fullText, "", "", fs, accentColor, !!topLight, TOP_TEXT_ONLY, font, TOP_SHADOW_PAD)
+  } else if (s === "tinta") {
+    // Anchored like bordo/vetro: flush with the top edge, no gap.
+    return buildTopTintSvg(fullText, fs, accentColor, !!topLight, font)
+  } else if (s === "sfumato") {
+    // Anchored like bordo/vetro: flush with the top edge, no gap.
+    return buildTopGradientBorderSvg(fullText, fs, accentColor, !!topLight, font)
   } else if (notch) {
     return buildNotchSvg(fullText, "", "", fs, accentColor, !!topLight, notch, "top", TOP_TEXT_ONLY, font)
   } else if (s === "vetro") {
@@ -3080,9 +3125,10 @@ export function buildHouseExtraSvg(input: HouseExtraInput): { svg: string; w: nu
     result = buildRankingCornerSvg(input.label, fs, input.accentColor || "#555555", f)
   } else if (s === "editoriale") {
     result = buildEditorialLabelSvg(input.label, fs, !!input.topLight)
-  } else if (s === "tinta" || s === "sfumato") {
-    const build = s === "tinta" ? buildGenreTintSvg : buildGenreGradientBorderSvg
-    result = build(input.label, "", "", fs, input.accentColor, !!input.topLight, TOP_TEXT_ONLY, f, TOP_SHADOW_PAD)
+  } else if (s === "tinta") {
+    result = buildTopTintSvg(input.label, fs, input.accentColor, !!input.topLight, f)
+  } else if (s === "sfumato") {
+    result = buildTopGradientBorderSvg(input.label, fs, input.accentColor, !!input.topLight, f)
   } else if (notch) {
     result = buildNotchSvg(input.label, "", "", fs, input.accentColor, !!input.topLight, notch, "top", TOP_TEXT_ONLY, f)
   } else if (isGlass) {

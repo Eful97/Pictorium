@@ -51,7 +51,7 @@ interface PosterSaveDeps {
   setPreviewPoster: (poster: TMDBImage | null) => void
   setPreviewId: (id: string | null) => void
   posters: TMDBImage[]
-  metaInfo: { genres: { id: number; name: string }[]; voteAverage: number; type?: string; status?: string; release_date?: string; first_air_date?: string; last_air_date?: string; next_episode_to_air?: { air_date: string } | null; number_of_seasons?: number; number_of_episodes?: number; awards?: string[]; nominations?: string[]; studios?: string[]; director?: string | null; keywords?: string[]; imdb_id?: string | null; wikidata_id?: string | null; networksDetailed?: { name: string; logo_path: string | null; origin_country?: string }[]; productionCompaniesDetailed?: { name: string; logo_path: string | null; origin_country?: string }[] }
+  metaInfo: { genres: { id: number; name: string }[]; voteAverage: number; type?: string; status?: string; release_date?: string; first_air_date?: string; last_air_date?: string; next_episode_to_air?: { air_date: string; season_number?: number; episode_number?: number } | null; number_of_seasons?: number; number_of_episodes?: number; awards?: string[]; nominations?: string[]; studios?: string[]; director?: string | null; keywords?: string[]; imdb_id?: string | null; wikidata_id?: string | null; networksDetailed?: { name: string; logo_path: string | null; origin_country?: string }[]; productionCompaniesDetailed?: { name: string; logo_path: string | null; origin_country?: string }[] }
   /** IMDb Top 250 membership for the selected content. */
   imdbTop250?: boolean
   trendRank: number | null
@@ -568,6 +568,8 @@ export function usePosterSave(deps: PosterSaveDeps) {
       tvType: selected.media_type === "tv" ? metaInfo.type : null,
       tvStatus: selected.media_type === "tv" ? metaInfo.status : null,
       nextEpisodeAirDate: selected.media_type === "tv" ? (metaInfo.next_episode_to_air?.air_date ?? null) : null,
+      nextEpisodeSeason: selected.media_type === "tv" ? (metaInfo.next_episode_to_air?.season_number ?? null) : null,
+      nextEpisodeNumber: selected.media_type === "tv" ? (metaInfo.next_episode_to_air?.episode_number ?? null) : null,
       numberOfEpisodes: selected.media_type === "tv" ? (metaInfo.number_of_episodes ?? null) : null,
       keywords: metaInfo.keywords ?? [],
       imdbTop250: !!imdbTop250,

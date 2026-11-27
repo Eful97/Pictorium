@@ -145,6 +145,8 @@ export interface PosterEditorCtx {
   setBadgeGenre: (v: boolean | ((prev: boolean) => boolean)) => void
   badgeYear: boolean
   setBadgeYear: (v: boolean | ((prev: boolean) => boolean)) => void
+  badgeGenreShort: boolean
+  setBadgeGenreShort: (v: boolean | ((prev: boolean) => boolean)) => void
   badgeRating: boolean
   setBadgeRating: (v: boolean | ((prev: boolean) => boolean)) => void
   badgeQuality: boolean
@@ -391,6 +393,8 @@ export interface PosterEditorCtx {
   setDefaultBadgeGenre: (v: boolean | ((prev: boolean) => boolean)) => void
   defaultBadgeYear: boolean
   setDefaultBadgeYear: (v: boolean | ((prev: boolean) => boolean)) => void
+  defaultBadgeGenreShort: boolean
+  setDefaultBadgeGenreShort: (v: boolean | ((prev: boolean) => boolean)) => void
   defaultBadgeRating: boolean
   setDefaultBadgeRating: (v: boolean | ((prev: boolean) => boolean)) => void
   defaultBadgeQuality: boolean
@@ -453,6 +457,11 @@ export interface PosterEditorCtx {
   defaultWatchProvidersMax: number
   setDefaultWatchProvidersMax: (v: number) => void
   /** Icona tipo film/serie: verticale e landscape indipendenti (default OFF). */
+  /** Freccia di movimento JW nel badge rank (`rt=1`), default OFF. */
+  defaultRankTrend: boolean
+  setDefaultRankTrend: (v: boolean | ((prev: boolean) => boolean)) => void
+  defaultRankTrendLandscape: boolean
+  setDefaultRankTrendLandscape: (v: boolean | ((prev: boolean) => boolean)) => void
   defaultTypeIcon: boolean
   setDefaultTypeIcon: (v: boolean | ((prev: boolean) => boolean)) => void
   defaultTypeIconLandscape: boolean
@@ -928,7 +937,7 @@ export function PosterEditorProvider({
     topBadgeAnchor,
     extraBadgeAnchor,
     bottomAnchor,
-    badgeGenre, badgeYear, badgeRating, badgeQuality, customRatings, ratingSources, separateRatings, separateRatingsStyle, posterLayout, posterFreshScope,
+    badgeGenre, badgeYear, badgeGenreShort, badgeRating, badgeQuality, customRatings, ratingSources, separateRatings, separateRatingsStyle, posterLayout, posterFreshScope,
     gradientHeight, blurIntensity, blurFade, blurDarkness, blurEnabled, tintStrength, topShade, topShadeHeight,
     topBadgeScale, topBadgeOffsetX, topBadgeOffsetY,
     extraBadgeScale, extraBadgeOffsetX, extraBadgeOffsetY,
@@ -954,7 +963,7 @@ export function PosterEditorProvider({
     defaultBadgeItemTransforms,
     defaultGenreBadgeOffsetX, defaultGenreBadgeOffsetY, defaultQualityBadgeOffsetX, defaultQualityBadgeOffsetY,
     defaultNetworkLogoOffsetX, defaultNetworkLogoOffsetY,
-    defaultBadgeGenre, defaultBadgeYear, defaultBadgeRating, defaultBadgeQuality, defaultAgeBadge, defaultAgeCountry, defaultAgeBadgeStyle, defaultAwardBadgeStyle, defaultCustomRatings, defaultCustomRatingEndpoint, defaultCustomRatingApiKeyHeader, defaultRatingSources, defaultSeparateRatings, defaultSeparateRatingsStyle, defaultPosterLayout, defaultPosterFreshScope, defaultSashOrder, defaultDisabledContentTags, defaultDisabledNetworks, defaultWatchProviders, defaultWatchRegion, defaultWatchProvidersLandscape, defaultWatchProvidersMax, defaultTypeIcon, defaultTypeIconLandscape,
+    defaultBadgeGenre, defaultBadgeYear, defaultBadgeGenreShort, defaultBadgeRating, defaultBadgeQuality, defaultAgeBadge, defaultAgeCountry, defaultAgeBadgeStyle, defaultAwardBadgeStyle, defaultCustomRatings, defaultCustomRatingEndpoint, defaultCustomRatingApiKeyHeader, defaultRatingSources, defaultSeparateRatings, defaultSeparateRatingsStyle, defaultPosterLayout, defaultPosterFreshScope, defaultSashOrder, defaultDisabledContentTags, defaultDisabledNetworks, defaultWatchProviders, defaultWatchRegion, defaultWatchProvidersLandscape, defaultWatchProvidersMax, defaultRankTrend, defaultRankTrendLandscape, defaultTypeIcon, defaultTypeIconLandscape,
     defaultAutoRotateClean, defaultRotationIncludeNonClean, defaultRotationIncludeOriginal, defaultAutoRotateBackdrop, defaultPortraitFitEnabled, defaultLandscapeFitEnabled, defaultNetworkLogo, defaultNetworkLogoPosition, defaultNetworkLogoFollowTitle, defaultPreRelease, defaultRibbonSide, defaultRibbonEnabled, defaultPosterShape, defaultLogoAlign,
     defaultLogoAnchor,
     defaultQualityAnchor,
@@ -1088,6 +1097,11 @@ export function PosterEditorProvider({
       const next = typeof v === "function" ? v(badgeYear) : v
       update({ badgeYear: next })
     }, [badgeYear, update])
+  const setBadgeGenreShort = useCallback(
+    (v: boolean | ((prev: boolean) => boolean)) => {
+      const next = typeof v === "function" ? v(badgeGenreShort) : v
+      update({ badgeGenreShort: next })
+    }, [badgeGenreShort, update])
   const setBadgeRating = useCallback(
     (v: boolean | ((prev: boolean) => boolean)) => {
       const next = typeof v === "function" ? v(badgeRating) : v
@@ -1695,6 +1709,11 @@ export function PosterEditorProvider({
       const next = typeof v === "function" ? v(defaultBadgeYear) : v
       update({ defaultBadgeYear: next })
     }, [defaultBadgeYear, update])
+  const setDefaultBadgeGenreShort = useCallback(
+    (v: boolean | ((prev: boolean) => boolean)) => {
+      const next = typeof v === "function" ? v(defaultBadgeGenreShort) : v
+      update({ defaultBadgeGenreShort: next })
+    }, [defaultBadgeGenreShort, update])
   const setDefaultBadgeRating = useCallback(
     (v: boolean | ((prev: boolean) => boolean)) => {
       const next = typeof v === "function" ? v(defaultBadgeRating) : v
@@ -1812,6 +1831,16 @@ export function PosterEditorProvider({
     }, [defaultWatchProvidersLandscape, update])
   const setDefaultWatchProvidersMax = useCallback(
     (v: number) => update({ defaultWatchProvidersMax: v }), [update])
+  const setDefaultRankTrend = useCallback(
+    (v: boolean | ((prev: boolean) => boolean)) => {
+      const next = typeof v === "function" ? v(defaultRankTrend) : v
+      update({ defaultRankTrend: next })
+    }, [defaultRankTrend, update])
+  const setDefaultRankTrendLandscape = useCallback(
+    (v: boolean | ((prev: boolean) => boolean)) => {
+      const next = typeof v === "function" ? v(defaultRankTrendLandscape) : v
+      update({ defaultRankTrendLandscape: next })
+    }, [defaultRankTrendLandscape, update])
   const setDefaultTypeIcon = useCallback(
     (v: boolean | ((prev: boolean) => boolean)) => {
       const next = typeof v === "function" ? v(defaultTypeIcon) : v
@@ -2298,7 +2327,7 @@ export function PosterEditorProvider({
       topShade: landscapeDefaults?.topShade ?? defaultTopShade,
       topShadeHeight: landscapeDefaults?.topShadeHeight ?? defaultTopShadeHeight,
     })
-  }, [update, posterShape, landscapeDefaults, defaultGlobalBadges, defaultRankingBadges, defaultBadgeGenre, defaultBadgeYear, defaultBadgeRating, defaultBadgeQuality, defaultAgeBadge, defaultAgeCountry, defaultAgeBadgeStyle, defaultAwardBadgeStyle, defaultCustomRatings, defaultRatingSources, defaultSeparateRatings, defaultSeparateRatingsStyle, defaultPosterLayout, defaultPosterFreshScope, defaultBadgeStyle, defaultRankingBadgeStyle, defaultExtraBadgeStyle, defaultBadgeFont, defaultQualityBadgeStyle, defaultQualityGroupLayout, defaultVideoFormats, defaultNetworkLogo, defaultNetworkLogoPosition, defaultLogoAnchor, defaultTopBadgeAnchor, defaultExtraBadgeAnchor, defaultBottomAnchor, defaultNetworkLogoFollowTitle, defaultRibbonEnabled, defaultGradientHeight, defaultBlurEnabled, defaultBlurIntensity, defaultBlurFade, defaultBlurDarkness, defaultTintStrength, defaultTopShade, defaultTopShadeHeight, defaultTopBadgeScale, defaultTopBadgeOffsetX, defaultTopBadgeOffsetY, defaultExtraBadgeScale, defaultExtraBadgeOffsetX, defaultExtraBadgeOffsetY, defaultGenreBadgeScale, defaultGenreBadgeOffsetX, defaultGenreBadgeOffsetY, defaultQualityBadgeScale, defaultQualityBadgeOffsetX, defaultQualityBadgeOffsetY, defaultSeparateBadgeScale, defaultSeparateBadgeOffsetX, defaultSeparateBadgeOffsetY, defaultNetworkLogoScale, defaultNetworkLogoOffsetX, defaultNetworkLogoOffsetY, defaultLogoScale, defaultLogoOffsetX, defaultLogoOffsetY, setAgeBadge, setAgeCountry, setAgeBadgeStyle, setAwardBadgeStyle, setSeasonalTheme]) // eslint-disable-line react-hooks/exhaustive-deps -- setter refs are stable
+  }, [update, posterShape, landscapeDefaults, defaultGlobalBadges, defaultRankingBadges, defaultBadgeGenre, defaultBadgeYear, defaultBadgeGenreShort, defaultBadgeRating, defaultBadgeQuality, defaultAgeBadge, defaultAgeCountry, defaultAgeBadgeStyle, defaultAwardBadgeStyle, defaultCustomRatings, defaultRatingSources, defaultSeparateRatings, defaultSeparateRatingsStyle, defaultPosterLayout, defaultPosterFreshScope, defaultBadgeStyle, defaultRankingBadgeStyle, defaultExtraBadgeStyle, defaultBadgeFont, defaultQualityBadgeStyle, defaultQualityGroupLayout, defaultVideoFormats, defaultNetworkLogo, defaultNetworkLogoPosition, defaultLogoAnchor, defaultTopBadgeAnchor, defaultExtraBadgeAnchor, defaultBottomAnchor, defaultNetworkLogoFollowTitle, defaultRibbonEnabled, defaultGradientHeight, defaultBlurEnabled, defaultBlurIntensity, defaultBlurFade, defaultBlurDarkness, defaultTintStrength, defaultTopShade, defaultTopShadeHeight, defaultTopBadgeScale, defaultTopBadgeOffsetX, defaultTopBadgeOffsetY, defaultExtraBadgeScale, defaultExtraBadgeOffsetX, defaultExtraBadgeOffsetY, defaultGenreBadgeScale, defaultGenreBadgeOffsetX, defaultGenreBadgeOffsetY, defaultQualityBadgeScale, defaultQualityBadgeOffsetX, defaultQualityBadgeOffsetY, defaultSeparateBadgeScale, defaultSeparateBadgeOffsetX, defaultSeparateBadgeOffsetY, defaultNetworkLogoScale, defaultNetworkLogoOffsetX, defaultNetworkLogoOffsetY, defaultLogoScale, defaultLogoOffsetX, defaultLogoOffsetY, setAgeBadge, setAgeCountry, setAgeBadgeStyle, setAwardBadgeStyle, setSeasonalTheme]) // eslint-disable-line react-hooks/exhaustive-deps -- setter refs are stable
 
   const editorCtx = useMemo<PosterEditorCtx>(
     () => ({
@@ -2314,6 +2343,8 @@ export function PosterEditorProvider({
       setBadgeGenre,
       badgeYear,
       setBadgeYear,
+      badgeGenreShort,
+      setBadgeGenreShort,
       badgeRating,
       setBadgeRating,
       badgeQuality,
@@ -2499,6 +2530,8 @@ export function PosterEditorProvider({
       setDefaultBadgeGenre,
       defaultBadgeYear,
       setDefaultBadgeYear,
+      defaultBadgeGenreShort,
+      setDefaultBadgeGenreShort,
       defaultBadgeRating,
       setDefaultBadgeRating,
       defaultBadgeQuality,
@@ -2541,6 +2574,10 @@ export function PosterEditorProvider({
       setDefaultWatchProvidersLandscape,
       defaultWatchProvidersMax,
       setDefaultWatchProvidersMax,
+      defaultRankTrend,
+      setDefaultRankTrend,
+      defaultRankTrendLandscape,
+      setDefaultRankTrendLandscape,
       defaultTypeIcon,
       setDefaultTypeIcon,
       defaultTypeIconLandscape,
@@ -2761,6 +2798,7 @@ export function PosterEditorProvider({
       rankingBadges, setRankingBadges,
       badgeGenre, setBadgeGenre,
       badgeYear, setBadgeYear,
+      badgeGenreShort, setBadgeGenreShort,
       badgeRating, setBadgeRating,
       badgeQuality, setBadgeQuality,
       ageBadge, setAgeBadge,
@@ -2879,6 +2917,7 @@ export function PosterEditorProvider({
       defaultRankingBadges, setDefaultRankingBadges,
       defaultBadgeGenre, setDefaultBadgeGenre,
       defaultBadgeYear, setDefaultBadgeYear,
+      defaultBadgeGenreShort, setDefaultBadgeGenreShort,
       defaultBadgeRating, setDefaultBadgeRating,
       defaultBadgeQuality, setDefaultBadgeQuality,
       defaultAgeBadge, setDefaultAgeBadge,
@@ -2896,7 +2935,7 @@ export function PosterEditorProvider({
       defaultSashOrder, setDefaultSashOrder,
       defaultDisabledContentTags, setDefaultDisabledContentTags,
       defaultDisabledNetworks, setDefaultDisabledNetworks,
-      defaultWatchProviders, setDefaultWatchProviders, defaultWatchRegion, setDefaultWatchRegion, defaultWatchProvidersLandscape, setDefaultWatchProvidersLandscape, defaultWatchProvidersMax, setDefaultWatchProvidersMax, defaultTypeIcon, setDefaultTypeIcon, defaultTypeIconLandscape, setDefaultTypeIconLandscape,
+      defaultWatchProviders, setDefaultWatchProviders, defaultWatchRegion, setDefaultWatchRegion, defaultWatchProvidersLandscape, setDefaultWatchProvidersLandscape, defaultWatchProvidersMax, setDefaultWatchProvidersMax, defaultTypeIcon, setDefaultRankTrend, setDefaultRankTrendLandscape, setDefaultTypeIcon, defaultTypeIconLandscape, setDefaultTypeIconLandscape,
       defaultAutoRotateClean, setDefaultAutoRotateClean,
       defaultRotationIncludeNonClean, setDefaultRotationIncludeNonClean,
       defaultRotationIncludeOriginal, setDefaultRotationIncludeOriginal,

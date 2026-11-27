@@ -4,6 +4,7 @@
 // TTL dinamici e validatore condizionale. Idrata la entry canonica dal disco
 // (L1.5). Corpo spostato da route.ts invariato.
 
+import { avSpecsEpoch, avSpecsPrevEpoch } from "@/lib/av-specs-remote"
 import type { NextRequest } from "next/server"
 import type { Mapping } from "@/lib/types"
 import type { RegionDef } from "@/lib/regions"
@@ -41,6 +42,8 @@ export interface PosterCacheIdentityContext {
   readonly cacheParams: URLSearchParams
   readonly preTrendRank: number | null
   readonly preAnimeRank: number | null
+  /** `rt=1` trend suffix of the live rank (changes the pixels, so it keys the cache). */
+  readonly rankTrend?: "up" | "down" | null
   readonly startTime: number
 }
 
@@ -55,6 +58,8 @@ export interface PosterCacheIdentity {
   canonicalFormat: "jpeg" | "webp" | "avif"
   imageQuality: ImageQuality
   cacheKey: string
+  /** Same render under the previous A/V epoch (or the pre-load key): served as stale while the current key warms. */
+  staleBridgeKey: string | null
   needsVariant: boolean
   variantKey: string
   immutablePoster: boolean
@@ -75,7 +80,7 @@ export async function resolvePosterCacheIdentity(ctx: PosterCacheIdentityContext
   const {
     req, mediaType, tmdbId, scopedUser, isPreview, previewUnlocked, configOverride, mapping, sd,
     posterRegion, earlyLandscape, isRotating, customRatingConfig, sepDisplay, sdHash, hardenedParams,
-    cacheParams, preTrendRank, preAnimeRank, startTime,
+    cacheParams, preTrendRank, preAnimeRank, rankTrend, startTime,
   } = ctx
   const cachedRank = mapping?.trendRank ?? null
   const rotateKey = isRotating
@@ -138,12 +143,24 @@ export async function resolvePosterCacheIdentity(ctx: PosterCacheIdentityContext
   const portraitBaseKey = !earlyLandscape && mapping?.portraitBackdropPath && !hardenedParams.get("poster")
     ? `:pbp${mapping.portraitBackdropPath}`
     : ""
-  const cacheKey = `poster:v${RENDER_VERSION}:${mediaType}:${tmdbId}:reg${posterRegion.code}:r${cachedRank ?? "x"}:lr${preTrendRank ?? "x"}:la${preAnimeRank ?? "x"}:sd${sdHash}:${cacheParams.toString()}${rotateKey}${mapVersion}${dynamicBucketKey}${portraitBaseKey}${configHash ? `:cfg${configHash}` : ""}${formatKey}${qualityKey}`
+  // Snapshot A/V remoto: un aggiornamento dei dati non deve essere servito da
+  // poster resi con i dati vecchi (come l epoca dello snapshot filler). Vuoto
+  // finche lo snapshot non e stato caricato: chiave storica invariata.
+  const avEpoch = avSpecsEpoch()
+  const avKey = avEpoch ? `:av${avEpoch}` : ""
+  const keyBase = `poster:v${RENDER_VERSION}:${mediaType}:${tmdbId}:reg${posterRegion.code}:r${cachedRank ?? "x"}:lr${preTrendRank ?? "x"}${rankTrend ? `:lt${rankTrend === "up" ? "u" : "d"}` : ""}:la${preAnimeRank ?? "x"}:sd${sdHash}:${cacheParams.toString()}${rotateKey}${mapVersion}${dynamicBucketKey}${portraitBaseKey}${configHash ? `:cfg${configHash}` : ""}${formatKey}${qualityKey}`
+  const cacheKey = `${keyBase}${avKey}`
+  // A data update changes `avKey` for every title. Instead of a cold miss storm,
+  // the previous epoch's body (or the pre-load key right after a restart) is
+  // served as stale while a background refresh renders under the new key.
+  const avPrev = avSpecsPrevEpoch()
+  const staleBridgeKey = avKey ? (avPrev ? `${keyBase}:av${avPrev}` : keyBase) : null
   const needsVariant = !legacyAvif && outputFormat !== canonicalFormat
   const variantKey = needsVariant ? `${cacheKey}:fmt${outputFormat}` : cacheKey
   // Disk L1.5: after a restart/deploy the canonical render comes back from
   // disk (original timestamp → same TTL/SWR) instead of a cold render.
   await hydratePosterFromDisk(cacheKey)
+  if (staleBridgeKey && !isPreview) await hydratePosterFromDisk(staleBridgeKey)
   const currentMappingVersion = mappingVersionParam(mapping)
   // Rating dinamici: con provider abilitato niente cache immutable annuale
   // (i rating cambiano) — vale anche il display-aware locale: solo la riga
@@ -207,6 +224,7 @@ export async function resolvePosterCacheIdentity(ctx: PosterCacheIdentityContext
     canonicalFormat,
     imageQuality,
     cacheKey,
+    staleBridgeKey,
     needsVariant,
     variantKey,
     immutablePoster,

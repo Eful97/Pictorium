@@ -22,6 +22,7 @@ import { userFetch } from "@/lib/http"
 import { currentPathUuid } from "@/lib/user-token"
 import { X, Check, ListPlus, Plus, Trash2, Film, Tv, Shuffle, Power, SlidersHorizontal, Home, RefreshCw } from "lucide-react"
 import { StreamingCatalogDialog } from "@/components/StreamingCatalogDialog"
+import { JwDynamicCatalogDialog } from "@/components/JwDynamicCatalogDialog"
 import { StreamingCatalogCard } from "@/components/StreamingCatalogCard"
 import { CatalogSourceBadge } from "@/components/CatalogSourceBadge"
 import { PublicationLine } from "@/components/PublicationLine"
@@ -760,6 +761,8 @@ export function CataloghiView() {
   const [isAddAddonOpen, setIsAddAddonOpen] = useState(false)
   const [isManagerOpen, setIsManagerOpen] = useState(false)
   const [isStreamDialogOpen, setIsStreamDialogOpen] = useState(false)
+  const [isJwDynOpen, setIsJwDynOpen] = useState(false)
+  const addCustomCatalog = usePSelector((v) => v.addCustomCatalog)
   const [refreshing, setRefreshing] = useState(false)
 
   const savedKeys = useMemo(
@@ -1007,6 +1010,26 @@ export function CataloghiView() {
                 existing={streamingSelections}
                 isLegacy={!isStreamingOptIn}
                 onAddBatch={addStreamingSelections}
+              />
+            </div>
+            <div className="relative">
+              <button
+                type="button"
+                onClick={(e) => {
+                  e.stopPropagation()
+                  setIsJwDynOpen((prev) => !prev)
+                }}
+                className="flex items-center gap-2 px-3.5 py-2 rounded-xl bg-surface2 border border-white/10 hover:border-white/20 text-zinc-200 text-xs font-semibold hover:text-white active:scale-95 transition shadow-sm"
+              >
+                <Plus className="w-4 h-4" />
+                <span>{t("ui.jwDynAdd")}</span>
+              </button>
+              <JwDynamicCatalogDialog
+                isOpen={isJwDynOpen}
+                onClose={() => setIsJwDynOpen(false)}
+                defaultCountry={activeRegion.code}
+                existingUrls={customCatalogs.map((c) => c.url)}
+                onAdd={addCustomCatalog}
               />
             </div>
             <div className="relative">

@@ -128,7 +128,7 @@ const INFLIGHT_TIMEOUT_MS = 60_000
 // cache L1/L2 e inflight. Non include enum/numerici (side, netPos, qbs, tint),
 // che mantengono il proprio valore semantico.
 const POSTER_BOOLEAN_CACHE_PARAMS: ReadonlySet<string> = new Set([
-  "badges", "ranking", "bg", "by", "br", "bq", "ribbon", "cr", "sep",
+  "badges", "ranking", "rt", "bg", "by", "gs", "br", "bq", "ribbon", "cr", "sep",
   "netLogo", "netFollow", "pre", "hideLogo", "be", "gtop", "wp", "ti",
 ])
 

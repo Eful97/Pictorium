@@ -62,6 +62,8 @@ interface BadgeParams {
   /** Componenti del badge genere/rating: `false` emette `bg/by/br=0`. */
   badgeGenre?: boolean
   badgeYear?: boolean
+  /** Genere abbreviato: emesso come `gs=1` solo quando true (assente = default OFF). */
+  badgeGenreShort?: boolean
   badgeRating?: boolean
   badgeQuality?: boolean
   /** Badge età testuale: `false` emette `age=0` (default OFF). */
@@ -199,6 +201,8 @@ interface BadgeParams {
   watchProvidersMax?: number | null
   /** Icona tipo film/serie già risolta per la forma: `ti=0|1` esplicito quando definito. */
   typeIcon?: boolean | null
+  /** Freccia di movimento JW nel badge rank: `rt=1` solo se true (default OFF). */
+  rankTrend?: boolean | null
 }
 
 interface PosterState {
@@ -376,6 +380,7 @@ export function buildUrlPattern(bp: BadgeParams & {
     rankingBadges: bp.rankingBadges,
     badgeGenre: bp.badgeGenre,
     badgeYear: bp.badgeYear,
+    badgeGenreShort: bp.badgeGenreShort,
     badgeRating: bp.badgeRating,
     badgeQuality: bp.badgeQuality,
     ageBadge: bp.ageBadge ?? undefined,
@@ -476,6 +481,7 @@ export function buildPreviewUrl(ps: PosterState, bp: BadgeParams, configToken?: 
   params.push(`ranking=${bp.rankingBadges ? "1" : "0"}`)
   params.push(`bg=${bp.badgeGenre !== false ? "1" : "0"}`)
   params.push(`by=${bp.badgeYear !== false ? "1" : "0"}`)
+  if (bp.badgeGenreShort) params.push("gs=1")
   params.push(`br=${bp.badgeRating !== false ? "1" : "0"}`)
   params.push(`bq=${bp.badgeQuality !== false ? "1" : "0"}`)
   // Badge età sempre esplicito in preview (ON e OFF): senza, un default
@@ -688,6 +694,7 @@ export function buildPreviewUrl(ps: PosterState, bp: BadgeParams, configToken?: 
   }
   pushWatchProviderParams(params, bp.watchProviders, bp.watchRegion, bp.watchProvidersMax)
   if (bp.typeIcon != null) params.push(`ti=${bp.typeIcon ? "1" : "0"}`)
+  if (bp.rankTrend === true) params.push("rt=1")
   // Cornice stagionale (scelta per-titolo sopra il contesto lista di
   // origine, su entrambi i canvas col proprio asset — portrait 500×750,
   // landscape 768×432; senza contesto né scelta nessun parametro (URL
@@ -815,6 +822,7 @@ export interface DefaultsPreviewParams {
   defaultRankingBadges?: boolean
   defaultBadgeGenre?: boolean
   defaultBadgeYear?: boolean
+  defaultBadgeGenreShort?: boolean
   defaultBadgeRating?: boolean
   defaultBadgeQuality?: boolean
   /** Badge età testuale di default portrait (default OFF): sempre esplicito in preview. In preview landscape vince il profilo `landscape` (`land ?? flat`). */
@@ -934,6 +942,7 @@ export interface DefaultsPreviewParams {
   defaultWatchProvidersMax?: number | null
   /** Icona tipo già risolta per la forma in anteprima (`ti=0|1` esplicito). */
   defaultTypeIcon?: boolean | null
+  defaultRankTrend?: boolean | null
   /** Preview-only editing family: `rank` targets the rank bucket (`sash=rank`
    *  when the configured preview can paint a rank; otherwise the actual
    *  without-ranking composition, never an empty third state); `info`/`extra`
@@ -1085,12 +1094,15 @@ export function buildDefaultsPreviewUrl(bp: DefaultsPreviewParams): string {
   }
   pushWatchProviderParams(params, bp.defaultWatchProviders, bp.defaultWatchRegion, bp.defaultWatchProvidersMax)
   if (bp.defaultTypeIcon != null) params.push(`ti=${bp.defaultTypeIcon ? "1" : "0"}`)
+  if (bp.defaultRankTrend === true) params.push("rt=1")
   // Preview-only info sample (Informazioni family): explicit `extra=` wins
   // over the computed badge exactly like an editor custom badge; ignored when
   // ranking is off, so a disabled master never shows a phantom sample.
   if (bp.previewExtra) params.push(`extra=${encodeURIComponent(bp.previewExtra)}`)
   params.push(`bg=${pick(land.badgeGenre, bp.defaultBadgeGenre) !== false ? "1" : "0"}`)
   params.push(`by=${pick(land.badgeYear, bp.defaultBadgeYear) !== false ? "1" : "0"}`)
+  // Esplicito (anche `0`): la bozza non salvata deve vincere sul default server.
+  params.push(`gs=${pick(land.badgeGenreShort, bp.defaultBadgeGenreShort) === true ? "1" : "0"}`)
   params.push(`br=${pick(land.badgeRating, bp.defaultBadgeRating) !== false ? "1" : "0"}`)
   params.push(`bq=${pick(land.badgeQuality, bp.defaultBadgeQuality) !== false ? "1" : "0"}`)
   // Badge età sempre esplicito in preview (toggle + paese non salvati devono

@@ -123,6 +123,31 @@ FlixPatrol. I filtri genere globali si applicano dopo l'arricchimento TMDB.
    `tmdb:<id>` in fallback quando assente/invalido.
 4. Poster: `/api/poster/{type}/{tmdbId}?rv=...` (+ `mv` se esiste un mapping salvato).
 
+### Cataloghi dinamici JustWatch (custom, provider `justwatch`)
+
+Opt-in dal bottone «Aggiungi catalogo dinamico JustWatch» (sezione Cataloghi,
+`JwDynamicCatalogDialog`): l'utente sceglie kind × tipo × paese (e i generi per
+«Top per genere») e ogni combinazione diventa un normale **catalogo custom**
+(`customCatalogs`) con URL sintetico `justwatch:<kind>?type=movie|series&country=<CC>[&genre=<jw>]`
+(`buildJWDynamicUrl` / `parseJWDynamicUrl` in `catalog-provider-detect.ts`,
+fail-closed su kind/type/country/genre fuori allowlist). Card, manager, rename,
+ordine, shape, preview e cancellazione sono quindi quelli dei custom: nessun
+secondo sistema di persistenza o di manifest.
+
+- Kind: `new` (NEW), `leaving` (LEAVING_SOON), `upcoming` (UPCOMING) via
+  `newTitles`; `rising` = righe UP della chart del giorno ordinate per
+  `trendDifference`; `genre` = `getJWTitles` POPULAR per genere. Fetch in
+  `lib/jw-dynamic.ts` (`fetchJWDynamicList`), transport condiviso
+  `jwGraphql` (stesso breaker/header/cookie delle chart).
+- Le serie arrivano come stagioni (`SHOW_SEASON`): l'id è quello dello **show**
+  (`show.content.externalIds`), mai `<id>:<n>`; `LEAVING_SOON` ignora
+  `objectTypes`, quindi si filtra anche lato client. Max 60 titoli, 4 pagine.
+- Freschezza: nessuno snapshot/pin. Il dispatcher (`fetchUnifiedCatalogResult`)
+  cacha 6h con la **data UTC nella chiave** (cambia ogni giorno); il body
+  Stremio dei custom resta sul TTL storico di 1h. Outage = `unavailable`
+  (mai un vuoto fasullo, non cachato). Nessun badge rank automatico.
+- Paesi: i 18 `RegionDef`; la lingua JW segue la regione.
+
 ### Ricerca (`pictorium-search-movies` / `pictorium-search-series`, `pictorium-search-people-*`)
 Ricerca TMDB diretta (`searchMovies`/`searchTV`, max 20 risultati, pagine via
 `skip`); persone via `searchPerson` → `pickTopPerson` → crediti film/serie

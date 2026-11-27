@@ -45,6 +45,8 @@ const USER_SAVED = {
   watchProvidersMax: 3,
   typeIcon: false,
   typeIconLandscape: false,
+  rankTrend: false,
+  rankTrendLandscape: false,
   // Explicit authoring clear: the serializer always emits the key (`null` =
   // automatic layout) because PUT /api/defaults merges over the stored value.
   badgeItemTransforms: null,
@@ -80,6 +82,7 @@ const USER_SAVED = {
   globalBadges: true,
   rankingBadges: true,
   badgeGenre: true,
+  badgeGenreShort: false,
   badgeYear: false,
   badgeRating: true,
   badgeQuality: true,

@@ -46,6 +46,9 @@ export interface BadgeInput {
   tvStatus: string | null | undefined
   /** TMDB `next_episode_to_air.air_date` (TV) — "Next episode" badge input. */
   nextEpisodeAirDate?: string | null
+  /** TMDB `next_episode_to_air` season/episode numbers (a season premiere is episode 1 of season >= 2). */
+  nextEpisodeSeason?: number | null
+  nextEpisodeNumber?: number | null
   /** TMDB `number_of_episodes` (TV) — enriches Miniseries 1..8. */
   numberOfEpisodes?: number | null
   networkLogoMatched?: boolean
@@ -76,6 +79,8 @@ export interface ComputedTopBadge {
   readonly isNewSeries: boolean
   readonly newSeason: string | null
   readonly nextEpisode: string | null
+  /** Dated "S{n} · {date}" label of a returning series (null when plain/none). */
+  readonly returningSeason: string | null
   readonly justAdded: string | null
   readonly seriesEnded: string | null
   readonly extraFallback: string | null
@@ -230,16 +235,86 @@ export function getNextEpisodeLabel(input: {
   if (input.mediaType !== "tv") return null
   const date = parseStrictTmdbDate(input.airDate)
   if (!date) return null
+  const days = calendarDaysUntil(date)
+  if (days < 1 || days > NEXT_EPISODE_WINDOW_DAYS) return null
+  return input.t("badge.nextEpisode", { date: formatReleaseDate(date, input.locale ?? "it", input.dateFormat ?? "locale") })
+}
+
+/** Days ahead the "New episode" badge covers; a farther premiere is a dated "returning" label. */
+export const NEXT_EPISODE_WINDOW_DAYS = 14
+/** Farther than this a TMDB premiere date is treated as a placeholder, not shown. */
+export const RETURNING_SEASON_MAX_DAYS = 366
+
+/**
+ * Calendar-day difference from today (local) to `date`. UTC-based, so it is
+ * DST-safe: across a DST switch a plain ms/86400000 division yields 14.04 and
+ * would wrongly drop day 14. Shared by the next-episode and returning-season
+ * labels (never fork the formula).
+ */
+function calendarDaysUntil(date: Date): number {
   const today = new Date()
   today.setHours(0, 0, 0, 0)
-  // Calendar-day difference (UTC, DST-safe: across a DST switch a plain
-  // ms/86400000 division yields 14.04 and would wrongly drop day 14).
-  const days = Math.round(
+  return Math.round(
     (Date.UTC(date.getFullYear(), date.getMonth(), date.getDate()) -
       Date.UTC(today.getFullYear(), today.getMonth(), today.getDate())) / (24 * 60 * 60 * 1000),
   )
-  if (days < 1 || days > 14) return null
-  return input.t("badge.nextEpisode", { date: formatReleaseDate(date, input.locale ?? "it", input.dateFormat ?? "locale") })
+}
+
+export interface ReturningSeason {
+  readonly season: number
+  readonly date: Date
+  /**
+   * Local `YYYY-MM-DD` on which the "New episode" badge takes over from this
+   * label (premiere minus the next-episode window): the label's last day is
+   * the day before, so the poster cache must not outlive that midnight.
+   */
+  readonly takeoverDate: string
+}
+
+/**
+ * Season premiere of a RETURNING series that is farther away than the
+ * next-episode window: TMDB `next_episode_to_air` is episode 1 of season >= 2,
+ * strictly in the future (a date of today or earlier is TMDB lagging behind
+ * the show: no label) and within RETURNING_SEASON_MAX_DAYS. Null otherwise.
+ */
+export function resolveReturningSeason(input: {
+  tvStatus?: string | null | undefined
+  airDate?: string | null
+  season?: number | null
+  episode?: number | null
+}): ReturningSeason | null {
+  if (!isReturningStatus(input.tvStatus)) return null
+  const season = input.season
+  if (typeof season !== "number" || !Number.isInteger(season) || season < 2) return null
+  if (input.episode !== 1) return null
+  const date = parseStrictTmdbDate(input.airDate)
+  if (!date) return null
+  const days = calendarDaysUntil(date)
+  if (days <= NEXT_EPISODE_WINDOW_DAYS || days > RETURNING_SEASON_MAX_DAYS) return null
+  const takeover = new Date(date.getFullYear(), date.getMonth(), date.getDate() - NEXT_EPISODE_WINDOW_DAYS)
+  const pad = (n: number) => String(n).padStart(2, "0")
+  return { season, date, takeoverDate: `${takeover.getFullYear()}-${pad(takeover.getMonth() + 1)}-${pad(takeover.getDate())}` }
+}
+
+/**
+ * "S{n} · {date}" for a returning series with a known season premiere
+ * beyond the next-episode window; replaces the undated "Returning" label.
+ */
+export function getReturningSeasonLabel(input: {
+  tvStatus?: string | null | undefined
+  airDate?: string | null
+  season?: number | null
+  episode?: number | null
+  locale?: string
+  dateFormat?: DateFormat | null
+  t: BadgeT
+}): string | null {
+  const r = resolveReturningSeason(input)
+  if (!r) return null
+  return input.t("badge.returningSeason", {
+    n: r.season,
+    date: formatReleaseDate(r.date, input.locale ?? "it", input.dateFormat ?? "locale"),
+  })
 }
 
 /**
@@ -513,8 +588,22 @@ export function computeTopBadge(input: BadgeInput, t: BadgeT, locale?: string, o
   const miniseries = input.mediaType === "tv" && isMiniseriesType(input.tvType)
     ? (fewEpisodes ?? t("badge.miniseries"))
     : null
+  // A returning series with a known season premiere beyond the next-episode
+  // window wears it ("S3 · 4 Mar") instead of the undated label; same
+  // bucket, order and toggle as plain Returning.
+  const returningSeason = input.mediaType === "tv" && !miniseries
+    ? getReturningSeasonLabel({
+        tvStatus: input.tvStatus,
+        airDate: input.nextEpisodeAirDate,
+        season: input.nextEpisodeSeason,
+        episode: input.nextEpisodeNumber,
+        locale: locale || "it",
+        dateFormat: dateFormat ?? "locale",
+        t,
+      })
+    : null
   const returning = input.mediaType === "tv" && !miniseries && isReturningStatus(input.tvStatus)
-    ? t("badge.returning")
+    ? (returningSeason ?? t("badge.returning"))
     : null
 
   const badge = computeBadge({
@@ -555,6 +644,7 @@ export function computeTopBadge(input: BadgeInput, t: BadgeT, locale?: string, o
     isNewSeries,
     newSeason,
     nextEpisode,
+    returningSeason,
     justAdded,
     seriesEnded,
     extraFallback,
@@ -580,7 +670,7 @@ export function computeTopBadge(input: BadgeInput, t: BadgeT, locale?: string, o
  * (permanent properties).
  */
 export function resolveSavedBadgeExtra(
-  computed: Pick<ComputedTopBadge, "badge" | "upcomingRelease" | "newSeason"> & Partial<Pick<ComputedTopBadge, "justAdded" | "seriesEnded" | "nextEpisode">>,
+  computed: Pick<ComputedTopBadge, "badge" | "upcomingRelease" | "newSeason"> & Partial<Pick<ComputedTopBadge, "justAdded" | "seriesEnded" | "nextEpisode" | "returningSeason">>,
   t: BadgeT,
 ): string | undefined {
   if (computed.badge?.type !== "extra") return undefined
@@ -588,6 +678,7 @@ export function resolveSavedBadgeExtra(
   if (computed.newSeason && computed.badge.label === computed.newSeason) return undefined
   if (computed.nextEpisode && computed.badge.label === computed.nextEpisode) return undefined
   if (computed.badge.label === t("badge.returning")) return undefined
+  if (computed.returningSeason && computed.badge.label === computed.returningSeason) return undefined
   if (computed.justAdded && computed.badge.label === computed.justAdded) return undefined
   if (computed.seriesEnded && computed.badge.label === computed.seriesEnded) return undefined
   return computed.badge.label

@@ -97,6 +97,8 @@ export function buildPosterDebugJson(input: PosterDebugInput): Record<string, un
     lastAirDate: titleMeta.lastAirDate ?? null,
     seasonCount: titleMeta.seasonCount ?? null,
     nextEpisodeAirDate: titleMeta.nextEpisodeAirDate ?? null,
+    nextEpisodeSeason: titleMeta.nextEpisodeSeason ?? null,
+    nextEpisodeNumber: titleMeta.nextEpisodeNumber ?? null,
     numberOfEpisodes: titleMeta.numberOfEpisodes ?? null,
     originCountries: [...titleMeta.originCountries],
     genreIds: titleMeta.genreIds ? [...titleMeta.genreIds] : null,

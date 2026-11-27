@@ -264,14 +264,55 @@ export const TMDB_BASE_URL = process.env.TMDB_BASE_URL || "https://api.themovied
 const TMDB_BASE = TMDB_BASE_URL
 const IMG_BASE = process.env.TMDB_IMG_URL || "https://image.tmdb.org/t/p"
 
-const fetchCache = new Map<string, { data: unknown; timestamp: number }>()
+const fetchCache = new Map<string, { data: unknown; timestamp: number; ttlMs?: number }>()
 const CACHE_TTL = 5 * 60 * 1000
+
+/**
+ * Details (`/movie/{id}`, `/tv/{id}`) get an ADAPTIVE lifetime instead of the
+ * flat 5 minutes: up to 24h when nothing is imminent, short when the title is
+ * unreleased/recent/undated, and never past the day a date-driven fact flips
+ * (release, first air, next episode). Every other endpoint keeps CACHE_TTL.
+ */
+const DETAILS_PATH = /^\/(movie|tv)\/\d+(\?|$)/
+const DETAILS_MAX_TTL = 24 * 60 * 60 * 1000
+const DETAILS_MIN_TTL = 60 * 1000
+const DETAILS_STALE_NEXT_RETRY = 6 * 60 * 60 * 1000
+const DETAILS_RECENT_MS = 14 * 24 * 60 * 60 * 1000
+
+function localDayStartMs(value: unknown): number | null {
+  if (typeof value !== "string") return null
+  const m = /^(\d{4})-(\d{2})-(\d{2})/.exec(value)
+  if (!m) return null
+  const y = Number(m[1]), mo = Number(m[2]), d = Number(m[3])
+  const date = new Date(y, mo - 1, d)
+  return date.getFullYear() === y && date.getMonth() === mo - 1 && date.getDate() === d ? date.getTime() : null
+}
+
+/** Cache lifetime (ms) of a TMDB details body; pure, exported for tests. */
+export function detailsCacheTtlMs(data: unknown, mediaType: "movie" | "tv", now: number = Date.now()): number {
+  if (!data || typeof data !== "object") return CACHE_TTL
+  const d = data as { release_date?: unknown; first_air_date?: unknown; next_episode_to_air?: { air_date?: unknown } | null }
+  let ttl = DETAILS_MAX_TTL
+  const date = localDayStartMs(mediaType === "movie" ? d.release_date : d.first_air_date)
+  if (date === null) return CACHE_TTL
+  if (date > now) ttl = Math.min(ttl, date - now)
+  else if (now - date < DETAILS_RECENT_MS) return CACHE_TTL
+  if (mediaType === "tv") {
+    const next = localDayStartMs(d.next_episode_to_air?.air_date)
+    if (next !== null) {
+      // Valid through its own day; once past, TMDB is lagging: retry sooner.
+      ttl = Math.min(ttl, next + 24 * 60 * 60 * 1000 > now ? next + 24 * 60 * 60 * 1000 - now : DETAILS_STALE_NEXT_RETRY)
+    }
+  }
+  return Math.max(DETAILS_MIN_TTL, ttl)
+}
 /**
  * Cold-catalog enlargement (H4, capacity only): 500 entries thrash when cold
  * catalogs fan out across regions/languages/users on the shared layer (each
  * cold 20-row catalog is ~60 details/images/external_ids entries before the
  * 5min TTL even matters). 2500 small entries stay a few MB. The 5min TTL is
- * intentionally unchanged — catalog/chart tests pin short-TTL refetch
+ * intentionally unchanged for every endpoint except details (adaptive, see
+ * DETAILS_PATH) — catalog/chart tests pin short-TTL refetch
  * semantics on this layer, and body freshness stays owned by the catalog
  * (1h) and chart-cycle TTLs above it.
  */
@@ -602,7 +643,7 @@ async function tmdbFetch(path: string, apiKey?: string, signal?: AbortSignal, ti
 
   // In-memory cache (5 min) — promote on hit for LRU eviction
   const cached = fetchCache.get(cacheKey)
-  if (cached && Date.now() - cached.timestamp < CACHE_TTL) {
+  if (cached && Date.now() - cached.timestamp < (cached.ttlMs ?? CACHE_TTL)) {
     tmdbStats.cacheHits++
     // Move to end of Map (= most-recently-used position)
     fetchCache.delete(cacheKey)
@@ -662,7 +703,7 @@ async function tmdbFetch(path: string, apiKey?: string, signal?: AbortSignal, ti
       tmdbStats.cacheHits++
       if (inflight.get(cacheKey) === current.promise) {
         if (fetchCache.size >= CACHE_MAX) fetchCache.delete(fetchCache.keys().next().value!)
-        fetchCache.set(cacheKey, { data: shared.data, timestamp: shared.timestamp })
+        fetchCache.set(cacheKey, { data: shared.data, timestamp: shared.timestamp, ttlMs: shared.ttlMs })
       }
       return shared.data
     }
@@ -688,11 +729,13 @@ async function tmdbFetch(path: string, apiKey?: string, signal?: AbortSignal, ti
       // Evict LRU (first key = least-recently-used) when at capacity
       if (fetchCache.size >= CACHE_MAX) fetchCache.delete(fetchCache.keys().next().value!)
       const timestamp = Date.now()
-      fetchCache.set(cacheKey, { data, timestamp })
+      const detailsMatch = DETAILS_PATH.exec(path)
+      const ttlMs = detailsMatch ? detailsCacheTtlMs(data, detailsMatch[1] as "movie" | "tv", timestamp) : CACHE_TTL
+      fetchCache.set(cacheKey, { data, timestamp, ttlMs })
       // Fase 4: pubblica sullo shared layer con la stessa TTL (5 min). La
       // guardia 64KB/no-Buffer di cache.ts scarta i payload grandi (es.
       // immagini/crediti): restano locali, nessun cambio di resa.
-      cacheSetSharedUpstream(`tmdb:${cacheKey}`, data, CACHE_TTL, timestamp)
+      cacheSetSharedUpstream(`tmdb:${cacheKey}`, data, ttlMs, timestamp)
       return data
     } finally {
       if (inflight.get(cacheKey) === current.promise) inflight.delete(cacheKey)

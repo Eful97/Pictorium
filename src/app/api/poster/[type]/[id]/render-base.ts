@@ -92,7 +92,11 @@ export async function prepareRenderBase(
       if (!titleMeta.firstAirDate) titleMeta.firstAirDate = details.first_air_date || null
       if (!titleMeta.lastAirDate) titleMeta.lastAirDate = details.last_air_date || null
       if (titleMeta.seasonCount == null) titleMeta.seasonCount = details.number_of_seasons ?? null
-      if (!titleMeta.nextEpisodeAirDate) titleMeta.nextEpisodeAirDate = details.next_episode_to_air?.air_date || null
+      if (!titleMeta.nextEpisodeAirDate) {
+        titleMeta.nextEpisodeAirDate = details.next_episode_to_air?.air_date || null
+        titleMeta.nextEpisodeSeason = details.next_episode_to_air?.season_number ?? null
+        titleMeta.nextEpisodeNumber = details.next_episode_to_air?.episode_number ?? null
+      }
       if (titleMeta.numberOfEpisodes == null) titleMeta.numberOfEpisodes = details.number_of_episodes ?? null
       if (titleMeta.originCountries.length === 0) {
         titleMeta.originCountries = [...(details.networks || []), ...(details.production_companies || [])]

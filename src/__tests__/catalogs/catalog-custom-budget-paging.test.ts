@@ -1115,8 +1115,10 @@ describe("transient row failures flag incomplete; confirmed misses do not", () =
     const retry = await getCatalog(cid, token)
     expect(retry.body.metas).toHaveLength(2)
     // The body recomputed (short TTL, not frozen) AND the logo memo was
-    // skipped: both layers refetched, and both rows show the logo.
-    expect(retryDetails).toBeGreaterThan(0)
+    // skipped: the images layer refetched and both rows show the logo. The
+    // details of an old title (2024-01-01) now sit in the adaptive 24h TMDB
+    // details cache, so they are legitimately NOT refetched after 6 minutes.
+    expect(retryDetails).toBe(0)
     expect(retryImages).toBeGreaterThan(0)
     expect(retry.body.metas[0].logo).toContain("logo.png")
     expect(retry.body.metas[1].logo).toContain("logo.png")

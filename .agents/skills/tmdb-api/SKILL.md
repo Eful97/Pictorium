@@ -3,7 +3,7 @@ name: tmdb-api
 description: >
   TMDB API usage in Pictorium. Covers the v3 endpoints used (find, external_ids,
   details, images), API key resolution (request > user namespace > permitted
-  instance fallback), caching (5 min in-memory, URL without api_key), inflight
+  instance fallback), caching (5 min in-memory, adaptive up to 24h for details, URL without api_key), inflight
   coalescing, health checks, and image URL construction (TMDB_IMG_URL, w500/original).
   Trigger: "tmdb", "api key", "external_ids", "resolveImdbId", "getDetails",
   "poster path", "image.tmdb.org", "chiamata TMDB", "chiave api", "mock server".
@@ -55,7 +55,8 @@ reintroduce a default key in the fetch layer itself.
   (`TMDB_BASE_URL` set) uses `mock-key` so e2e works without a real key
   (`e2e/mock-server.mjs`).
 - Cache key = URL WITHOUT `api_key` (shared across users, key never in memory/Map).
-- In-memory cache 5 min, max 500 entries, LRU eviction (promote on hit).
+- In-memory cache 5 min (every endpoint except details), max 2500 entries, LRU eviction (promote on hit).
+- Details (`/movie/{id}`, `/tv/{id}`) use an ADAPTIVE lifetime (`detailsCacheTtlMs`): up to 24h for titles released >14 days ago and quiet series; 5 min when unreleased-undated, undated or released/first aired within 14 days; never past the day a release / first-air date or the next-episode air day flips; a next episode date already past (TMDB lag) retries after 6h; floor 1 min. Stored per entry (`ttlMs`) and published to the shared layer with the same TTL.
 - Inflight coalescing: identical requests share the transport; each waiter races
   its own caller signal. Inspect `tmdbFetch` before changing cancellation.
 - Per-request timeout 30 s; `checkTmdbEndpoint` 8 s.

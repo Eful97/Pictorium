@@ -156,6 +156,15 @@ Semantica di resa:
 
 - built-in (`dv`, `hdr`, `hdr10plus`, `atmos`, `imax`): come sempre, solo se il titolo
   li possiede nell'av-specs locale; precedenza HDR10+ e combo DV+Atmos invariate.
+  Sorgente: seed `src/data/av-specs.json` (bundle, usato anche dal client) con overlay server-only
+  `src/lib/av-specs-remote.ts` (snapshot GitHub `Eful97/pictorium-quality-database`, refresh 24h,
+  fail-closed; voce remota > seed per id; env `PICTORIUM_AV_SPECS_URL`/`_REFRESH_HOURS`).
+  Come i filler: i dati NON stanno piu nel bundle client (`av-specs.ts` e solo tipi/costanti); il client riceve
+  `avSpecs` dalla route `/api/tmdb/{id}/details` (risolto lato server), e l epoca dello snapshot (hash del
+  contenuto, `avSpecsEpoch()`) entra nella chiave cache del poster (`:av{epoch}`; assente finche non caricato).
+  Al cambio dati la route non fa miss a freddo: senza copia nella chiave nuova serve la copia dell epoca
+  precedente (`avSpecsPrevEpoch()`, o la chiave senza `:av` dopo un riavvio) come stale e ri-rende in background
+  (`staleBridgeKey` in `cache-key.ts`; mai per preview ne per entry fact-capped).
 - pack: nessun dato per-titolo → compaiono **solo** quando la selezione esplicita
   (`formats=` / mapping / default non vuoti) li contiene. `formats=none` o assenza
   di selezione = nessun pack mark (render legacy byte-identico).
@@ -362,9 +371,10 @@ cambia; validazione/hardening/cache derivano dagli enum di `badge-styles.ts`).
 - Metriche genere dei nuovi stili a placca (`tinta`/`sfumato`/`split`) =
   quelle della pill genere (`genrePillHeight`, `GENRE_PILL_PAD_X_FACTOR`, cap
   larghezza `genrePillMaxW`): stessa linea visiva e stessa distanza dal logo.
-- Classifica/extra `tinta`/`sfumato` riusano gli stessi builder col solo testo
-  (`TOP_TEXT_ONLY`) e `padTop = TOP_SHADOW_PAD`; in `poster-service.ts`
-  ricevono il `pillTopGap` 10px come `pill`. Landscape genere: `tinta`,
+- Classifica/extra `tinta` (`buildTopTintSvg`) e `sfumato`
+  (`buildTopGradientBorderSvg`) sono agganciati come `bordo`/`vetro`: canvas = box
+  (nessun pad ombra), a filo del bordo alto, `r = fs*0.55`, `pillTopGap` 0,
+  stessa ricetta materiale del genere (velo + accent / placca + cornice `gsf`). Landscape genere: `tinta`,
   `sfumato`, `split` prendono lo stesso shift d'angolo di `bordo`/`vetro`.
 - `genreBadgeConsumesAccent` include `tinta`/`sfumato`/`split`;
   `topBadgeConsumesAccent` include `tinta`/`sfumato`.
@@ -491,6 +501,7 @@ Selezione manuale dagli stessi meccanismi (dropdown `BadgeControls` =
 | `badge.basedOnBook` ("Based on a book") | `getBasedOnBookLabel`: match esatto in {`based on novel or book`, `based on novel`, `based on book`, `based on young adult novel`} — `based on comic book` resta fuori; film e serie; con storia vera valgono entrambe, auto = storia vera | Extra, dopo la storia vera (stesso bucket, mai sopra) |
 | `badge.nextEpisode` ("Nuovo episodio · {data}") | `getNextEpisodeLabel`: SOLO serie TV, `air_date` futura di 1..14 giorni DI CALENDARIO (diff UTC DST-safe, oggi/passato/>14/assente/invalido esclusi; film mai); data formattata come l'upcoming (`df`/locale) | Bucket `new`, subito dopo la nuova stagione e sopra i premi (stesso ordine del fork); MAI congelato nel mapping (`resolveSavedBadgeExtra` lo esclude come upcoming/nuova stagione) + TTL effimero 120s quando mostrato, così la data non resta stantia oltre la messa in onda |
 | `badge.onlyEpisodes` ("Solo {n} episodi") | `getFewEpisodesLabel`: SOLO tipo miniserie (`isMiniseriesType`, mai una serie ordinaria breve) con conteggio intero noto 1..8; fuori bound = Miniserie semplice invariata | Arricchisce la Miniserie in coda all'extra (stesso slot, non un nuovo bucket); congelabile come la Miniserie (formato permanente) |
+| `badge.returningSeason` ("S{n} · {data}") | `getReturningSeasonLabel`/`resolveReturningSeason`: SOLO serie con stato Returning e TMDB `next_episode_to_air` = episodio 1 di stagione >= 2, data futura di calendario OLTRE la finestra del prossimo episodio (>14 e <=366 giorni; oggi/passato = TMDB in ritardo = nessuna etichetta); numeri via `nextEpisodeSeason`/`nextEpisodeNumber` (server `titleMeta`, client `metaInfo.next_episode_to_air`) | Sostituisce `badge.returning` nello stesso slot/toggle/ordine (nessun nuovo bucket); MAI congelato nel mapping; cap TTL `returningTakeoverDate` = mezzanotte locale di (premiere − 14 giorni), quando subentra `badge.nextEpisode` (solo restrizione, `resolvePosterFactCapMs`) |
 
 Liste keyword e idee riusate dal fork kesemb2/Pictorium-HE al commit
 pinnato documentato in NOTICE (solo `s_truestory`/`s_book`, `fewEpisodes`,
@@ -798,8 +809,10 @@ dither Bayer deterministico (ETag stabile). L'ombra lineare superiore è
 |---|---|---|
 | `badges` | `globalBadges ? null : "0"` | `qBadges !== "0"` — master del SOLO gruppo basso genere/rating (`hasGenreBadge`, custom/separate rows, età): `badges=0` NON spegne la placca superiore (rank/extra restano se `ranking=1`, per disegno utente) |
 | `ranking` | `rankingBadges ? null : "0"` | `qRanking !== "0"` — master della SOLA placca superiore (rank/extra, sash inclusa): `ranking=0` la spegne sempre, anche con `badges=1`; `badges=0` non la tocca |
+| `rt` | `defaultRankTrend`/`rankTrend` → `rt=1` solo se true (poster-url, stremio-poster-params; toggle Settings → Informazioni, default OFF, INDIPENDENTE per forma: `defaultRankTrend` verticale / `defaultRankTrendLandscape` orizzontale, l'URL Stremio e l'anteprima leggono quello della forma del poster) | opt-in `rt=1`: freccia SOTTILE verde (↑) / rossa (↓) di movimento JW, disegnata DENTRO il badge rank (`attachRankTrendArrow`): stili con contenitore = spazio em riservato in coda al testo + freccia nello spazio; nastri netflix/colored = a destra del numerale; `number`/`editoriale` = accanto; Fresh = a destra dell'inchiostro del numerale, Card = sopra il numerale nel margine. Solo rank AUTOMATICO JW live: nessun effetto con `label=`, `rank=`/`rk=`, rank anime, rank di mapping salvato o fonti non JW; STABLE = nessuna freccia. Entra in cache key (`:lt<u\|d>`) e ETag. Dato: `ChartRow.trend` dello snapshot JW pinnato (`rank-trend-label.ts`) |
 | `bg` | `badgeGenre === false ? "0" : null` | `qBg !== null ? qBg !== "0"` — nasconde il GENERE nel badge genere/rating |
 | `by` | `badgeYear === false ? "0" : null` | `qBy !== null ? qBy !== "0"` — nasconde l'ANNO nel badge genere/rating |
+| `gs` | `badgeGenreShort ? "1" : null` (solo se attivo: URL storici invariati; default globali per-forma: flat portrait + profilo `landscape.badgeGenreShort`, non per-titolo; la preview Impostazioni emette sempre `gs=0|1` esplicito perché la bozza vinca sul default server) | `qGs !== null ? qGs === "1"` → `configOverride` > `esd`/`sd` > off. Abbrevia SOLO il testo mostrato (`abbreviateGenreName`, `genre-abbrev.ts`: Science Fiction→Sci-Fi, Documentary→Docu, History→Hist, Biography→Bio, TV Movie→TV; nome ignoto invariato). `genreName` intero resta la chiave di accent/tinta (`GENRE_FALLBACK`); chiave cache badge usa l'etichetta mostrata |
 | `br` | `badgeRating === false ? "0" : null` | `qBr !== null ? qBr !== "0"` — nasconde il VOTO nel badge genere/rating |
 | `bq` | `badgeQuality === false ? "0" : null` | `qBq` — spegne il **tech stack qualità** (tier + marchi A/V): `qBq !== null ? qBq !== "0"`, catena `query > mapping effettivo per formato > config token > server defaults > true` (`poster-config.ts`). `bq=0` azzera `effectiveQuality`/`effectiveFormats` (`poster-service.ts`), quindi niente 4K né DV/Atmos; **non** tocca la pill età (governata da `age` + master `badges`) né genere/ranking |
 | `be` | `blurEnabled ? "1" : "0"` (sempre esplicito in preview, `poster-url.ts`); solo-OFF in pattern/Stremio | `q.get("be")` — master della sfocatura di scena: `be !== "0"` (`poster-config.ts`); `be=0` non produce l'overlay blur/tinta (`applyBlur` esce subito) e lascia l'artwork nitido. Catena `query > mapping > config > defaults > true` |

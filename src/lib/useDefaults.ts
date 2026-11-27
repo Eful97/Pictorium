@@ -121,6 +121,8 @@ export interface DefaultsState {
   /** Componenti del badge genere/rating di default (default tutti ON). */
   defaultBadgeGenre: boolean
   defaultBadgeYear: boolean
+  /** Genere abbreviato (es. Science Fiction → Sci-Fi); default OFF. */
+  defaultBadgeGenreShort: boolean
   defaultBadgeRating: boolean
   defaultBadgeQuality: boolean
   /** Badge età testuale di default portrait (default OFF). */
@@ -170,6 +172,9 @@ export interface DefaultsState {
   /** Icona tipo film/serie, verticale / landscape indipendenti (default OFF). */
   defaultTypeIcon: boolean
   defaultTypeIconLandscape: boolean
+  /** Freccia di movimento JW dentro il badge rank (`rt=1`), default OFF. */
+  defaultRankTrend: boolean
+  defaultRankTrendLandscape: boolean
   defaultAutoRotateClean: boolean
   /**
    * Default rotazione poster: include anche i poster della lingua corrente
@@ -247,6 +252,8 @@ export interface DefaultsState {
   /** Componenti del badge genere/rating (default tutti ON). */
   badgeGenre: boolean
   badgeYear: boolean
+  /** Genere abbreviato nel badge (default OFF). */
+  badgeGenreShort: boolean
   badgeRating: boolean
   badgeQuality: boolean
   /** Riga rating custom provider (default ON). */
@@ -397,6 +404,7 @@ const DEFAULT_FLAT_DEFAULTS: Omit<DefaultsState, "landscape"> = {
   defaultRankingBadges: true,
   defaultBadgeGenre: true,
   defaultBadgeYear: true,
+  defaultBadgeGenreShort: false,
   defaultBadgeRating: true,
   defaultBadgeQuality: true,
   defaultAgeBadge: false,
@@ -418,6 +426,8 @@ const DEFAULT_FLAT_DEFAULTS: Omit<DefaultsState, "landscape"> = {
   defaultWatchProvidersMax: 3,
   defaultTypeIcon: false,
   defaultTypeIconLandscape: false,
+  defaultRankTrend: false,
+  defaultRankTrendLandscape: false,
   defaultAutoRotateClean: false,
   defaultRotationIncludeNonClean: false,
   defaultRotationIncludeOriginal: false,
@@ -464,6 +474,7 @@ const DEFAULT_FLAT_DEFAULTS: Omit<DefaultsState, "landscape"> = {
   rankingBadges: true,
   badgeGenre: true,
   badgeYear: true,
+  badgeGenreShort: false,
   badgeRating: true,
   badgeQuality: true,
   customRatings: true,
@@ -545,6 +556,7 @@ interface StoredDefaults {
   rankingBadges?: boolean
   badgeGenre?: boolean
   badgeYear?: boolean
+  badgeGenreShort?: boolean
   badgeRating?: boolean
   badgeQuality?: boolean
   ageBadge?: boolean
@@ -628,6 +640,7 @@ interface StoredDefaults {
   defaultRankingBadges?: boolean
   defaultBadgeGenre?: boolean
   defaultBadgeYear?: boolean
+  defaultBadgeGenreShort?: boolean
   defaultBadgeRating?: boolean
   defaultBadgeQuality?: boolean
   defaultAgeBadge?: boolean
@@ -680,6 +693,10 @@ interface StoredDefaults {
   watchProvidersMax?: number
   defaultTypeIcon?: boolean
   typeIcon?: boolean
+  defaultRankTrend?: boolean
+  rankTrend?: boolean
+  defaultRankTrendLandscape?: boolean
+  rankTrendLandscape?: boolean
   defaultTypeIconLandscape?: boolean
   typeIconLandscape?: boolean
   defaultAutoRotateClean?: boolean
@@ -1084,6 +1101,7 @@ function buildFromStored(d: StoredDefaults | null): DefaultsState {
     defaultRankingBadges: d.defaultRankingBadges ?? d.rankingBadges ?? true,
     defaultBadgeGenre: d.defaultBadgeGenre ?? d.badgeGenre ?? true,
     defaultBadgeYear: d.defaultBadgeYear ?? d.badgeYear ?? true,
+    defaultBadgeGenreShort: d.defaultBadgeGenreShort ?? d.badgeGenreShort ?? false,
     defaultBadgeRating: d.defaultBadgeRating ?? d.badgeRating ?? true,
     defaultBadgeQuality: d.defaultBadgeQuality ?? d.badgeQuality ?? true,
     // Badge età portrait: default OFF; paese validato fail-closed su "IT"
@@ -1123,6 +1141,8 @@ function buildFromStored(d: StoredDefaults | null): DefaultsState {
     defaultWatchProvidersMax: sanitizeWatchMax(d.defaultWatchProvidersMax ?? d.watchProvidersMax) ?? DEFAULT_WATCH_MAX,
     defaultTypeIcon: d.defaultTypeIcon ?? d.typeIcon ?? false,
     defaultTypeIconLandscape: d.defaultTypeIconLandscape ?? d.typeIconLandscape ?? false,
+    defaultRankTrend: d.defaultRankTrend ?? d.rankTrend ?? false,
+    defaultRankTrendLandscape: d.defaultRankTrendLandscape ?? d.rankTrendLandscape ?? false,
     defaultAutoRotateClean: d.defaultAutoRotateClean ?? d.autoRotateClean ?? false,
     defaultRotationIncludeNonClean: d.defaultRotationIncludeNonClean ?? false,
     defaultRotationIncludeOriginal: d.defaultRotationIncludeOriginal ?? false,
@@ -1207,6 +1227,7 @@ function buildFromStored(d: StoredDefaults | null): DefaultsState {
     rankingBadges: d.rankingBadges ?? d.defaultRankingBadges ?? true,
     badgeGenre: d.badgeGenre ?? d.defaultBadgeGenre ?? true,
     badgeYear: d.badgeYear ?? d.defaultBadgeYear ?? true,
+    badgeGenreShort: d.badgeGenreShort ?? d.defaultBadgeGenreShort ?? false,
     badgeRating: d.badgeRating ?? d.defaultBadgeRating ?? true,
     badgeQuality: d.badgeQuality ?? d.defaultBadgeQuality ?? true,
     customRatings: d.customRatings ?? d.defaultCustomRatings ?? true,
@@ -1379,6 +1400,7 @@ export function defaultsToPayload(d: DefaultsState): Record<string, unknown> {
     rankingBadges: d.defaultRankingBadges,
     badgeGenre: d.defaultBadgeGenre,
     badgeYear: d.defaultBadgeYear,
+    badgeGenreShort: d.defaultBadgeGenreShort,
     badgeRating: d.defaultBadgeRating,
     badgeQuality: d.defaultBadgeQuality,
     ageBadge: d.defaultAgeBadge,
@@ -1407,6 +1429,8 @@ export function defaultsToPayload(d: DefaultsState): Record<string, unknown> {
     watchProvidersMax: d.defaultWatchProvidersMax,
     typeIcon: d.defaultTypeIcon,
     typeIconLandscape: d.defaultTypeIconLandscape,
+    rankTrend: d.defaultRankTrend,
+    rankTrendLandscape: d.defaultRankTrendLandscape,
     autoRotateClean: d.defaultAutoRotateClean,
     defaultRotationIncludeNonClean: d.defaultRotationIncludeNonClean,
     defaultRotationIncludeOriginal: d.defaultRotationIncludeOriginal,
@@ -1760,6 +1784,12 @@ export function useDefaults() {
           }
           if (currentStored?.defaultWatchProvidersMax === undefined && currentStored?.watchProvidersMax === undefined && typeof serverData.watchProvidersMax === "number") {
             merged.defaultWatchProvidersMax = serverData.watchProvidersMax
+          }
+          if (currentStored?.defaultRankTrend === undefined && currentStored?.rankTrend === undefined && typeof serverData.rankTrend === "boolean") {
+            merged.defaultRankTrend = serverData.rankTrend
+          }
+          if (currentStored?.defaultRankTrendLandscape === undefined && currentStored?.rankTrendLandscape === undefined && typeof serverData.rankTrendLandscape === "boolean") {
+            merged.defaultRankTrendLandscape = serverData.rankTrendLandscape
           }
           if (currentStored?.defaultTypeIcon === undefined && currentStored?.typeIcon === undefined && typeof serverData.typeIcon === "boolean") {
             merged.defaultTypeIcon = serverData.typeIcon

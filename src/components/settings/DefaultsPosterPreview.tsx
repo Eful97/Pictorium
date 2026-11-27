@@ -71,6 +71,7 @@ interface DefaultsPosterPreviewProps {
     defaultRankingBadges: boolean
     defaultBadgeGenre: boolean
     defaultBadgeYear: boolean
+    defaultBadgeGenreShort: boolean
     defaultBadgeRating: boolean
     defaultBadgeQuality: boolean
     defaultCustomRatings: boolean
@@ -203,6 +204,29 @@ export function buildDefaultsPreviewUrlFromEditor(
         : null),
     } as PosterEditorCtx
   }
+  // Preset thumbnails: presets carry only visual keys (see visualPresetValuesSchema).
+  // Everything else the user configured (trend arrow, genre short, award style,
+  // date format, genre-top, overflow, content/network exclusions, watch max)
+  // is reset to factory so it never leaks into every thumbnail.
+  if (opts.neutralSample === true) {
+    const landKeep: Record<string, unknown> = { ...(ed.landscape as unknown as Record<string, unknown>) }
+    for (const k of ["badgeGenreShort", "awardBadgeStyle", "badgeOverflow", "watchProvidersMax"]) delete landKeep[k]
+    ed = {
+      ...ed,
+      defaultRankTrend: false,
+      defaultRankTrendLandscape: false,
+      defaultBadgeGenreShort: false,
+      defaultAwardBadgeStyle: undefined,
+      defaultDateFormat: undefined,
+      defaultGenreTopWhenFree: false,
+      defaultBadgeOverflow: undefined,
+      defaultDisabledContentTags: [],
+      defaultDisabledNetworks: [],
+      defaultWatchProvidersMax: undefined,
+      defaultWatchProvidersMaxLandscape: undefined,
+      landscape: landKeep,
+    } as unknown as PosterEditorCtx
+  }
   // Previewed shape mirrors the builder rule (`land ?? flat` only applies in
   // landscape): portrait always reads the shared flats.
   const previewIsLandscape =
@@ -255,6 +279,7 @@ export function buildDefaultsPreviewUrlFromEditor(
       defaultRankingBadges: ed.defaultRankingBadges,
       defaultBadgeGenre: ed.defaultBadgeGenre,
       defaultBadgeYear: ed.defaultBadgeYear,
+      defaultBadgeGenreShort: ed.defaultBadgeGenreShort,
       defaultBadgeRating: ed.defaultBadgeRating,
       defaultBadgeQuality: ed.defaultBadgeQuality,
       defaultAgeBadge: ed.defaultAgeBadge,
@@ -332,6 +357,7 @@ export function buildDefaultsPreviewUrlFromEditor(
         : ed.defaultWatchRegion) ?? undefined,
       defaultWatchProvidersMax: (previewIsLandscape ? ed.landscape.watchProvidersMax : undefined) ?? ed.defaultWatchProvidersMax,
       defaultTypeIcon: previewIsLandscape ? ed.defaultTypeIconLandscape : ed.defaultTypeIcon,
+      defaultRankTrend: previewIsLandscape ? ed.defaultRankTrendLandscape : ed.defaultRankTrend,
       previewFamily: opts.previewFamily ?? null,
       previewExtra,
       neutralSample: opts.neutralSample === true,
@@ -519,6 +545,7 @@ export function DefaultsPosterPreview({ compact, floating, suspended, previewSha
     ed.defaultRankingBadges,
     ed.defaultBadgeGenre,
     ed.defaultBadgeYear,
+    ed.defaultBadgeGenreShort,
     ed.defaultBadgeRating,
     ed.defaultBadgeQuality,
     ed.defaultAgeBadge,

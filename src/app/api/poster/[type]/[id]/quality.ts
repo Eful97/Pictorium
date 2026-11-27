@@ -8,7 +8,7 @@ import type { Mapping } from "@/lib/types"
 import type { ServerDefaults } from "@/lib/server-defaults"
 import type { StreamQualityResult } from "@/lib/stream-quality"
 import { applyMinQuality, type StreamQuality } from "@/lib/quality-tiers"
-import { lookupAVSpecs } from "@/lib/av-specs"
+import { lookupAVSpecsServer } from "@/lib/av-specs-remote"
 import { isQualityMarkId } from "@/lib/quality-badge-pack"
 import { resolveEffectiveQualityMarks } from "@/lib/quality-marks-selection"
 import { DEMO_SAMPLE_QUALITY, sampleDemoVideoFormats } from "@/lib/demo-samples"
@@ -39,7 +39,7 @@ export function resolveRenderQuality(ctx: RenderQualityContext, titleMeta: Poste
     minQuality, badgeQuality, demoSamples,
   } = ctx
   // Database locale AV specs (prioritario per 4K e formati, zero rete):
-  const localSpec = lookupAVSpecs(titleMeta.imdbId)
+  const localSpec = lookupAVSpecsServer(titleMeta.imdbId)
   // Soglia minima qualità all'uscita: la cache upstream (`resolveStreamQuality`)
   // tiene sempre il raw — qui si sopprime solo il badge sotto soglia.
   // Demo samples (Settings preview only): a demo tier only when no real

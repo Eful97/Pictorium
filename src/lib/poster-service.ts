@@ -1,10 +1,13 @@
 import { renderWatchProviderRow } from "@/lib/watch-providers-render"
 import sharp from "sharp"
+import { cardLayoutGeometry } from "./card-layout-geometry"
+import { attachRankTrendArrow, buildRankTrendArrowSvg, placeRankTrendArrow, rankTrendModeFor } from "./rank-trend-label"
 import { renderMultiRatings } from "./multi-rating-renderer"
 import { MAX_SEPARATE_RATINGS } from "./ratings"
 import { renderSeparateRatingStack,renderSeparateRatingsBottom,renderSeparateRatingsNotch,renderSeparateRatingsSideNotch,notchSeparateStepBodyHeight,notchSeparateStepText,type SeparateRatingStack } from "./separate-rating-renderer"
 import { cacheGet,cacheSet } from "./cache"
 import { GENRE_FALLBACK } from "./badges"
+import { abbreviateGenreName } from "./genre-abbrev"
 import { applyBlur } from "./blur"
 import { STD_W,STD_H,extractSceneTint,fitBadgeToCanvas,BadgeRender,PosterComposite,badgeBody,badgeCanvasForBody,scaleBadgeBleed,topBandMeanRGB,bottomBandMeanRGB,effectiveTopBackgroundLuminance,effectiveBottomBackgroundLuminance,adaptiveAccentHexForBand } from "./poster-render-helpers"
 import { LAND_W,LAND_H } from "./image-utils"
@@ -113,11 +116,11 @@ export async function generatePosterBuffer(input: GenerationInput): Promise<Buff
     separateBadgeOffsetX, separateBadgeOffsetY,
     genreBadgeOffsetX, genreBadgeOffsetY, qualityBadgeOffsetX, qualityBadgeOffsetY,
     networkLogoOffsetX, networkLogoOffsetY,
-    mediaType, finalRank, animeRankResult,
+    mediaType, finalRank, rankTrend, animeRankResult,
     mapping, tmdbNetworks, productionCompanies, tmdbStudios,
     tmdbNetworksDetailed, productionCompaniesDetailed, watchProviders, typeIcon,
     tvType, tvStatus, releaseDate, firstAirDate,
-    lastAirDate, seasonCount, nextEpisodeAirDate, numberOfEpisodes, originCountries, genreIds,
+    lastAirDate, seasonCount, nextEpisodeAirDate, nextEpisodeSeason, nextEpisodeNumber, numberOfEpisodes, originCountries, genreIds,
     wikidataResult, tmdbKeywords, locale, t,
     qLabel, queryExtra, qNetLogo, networkLogo, networkLogoPosition = "auto", logoAnchor = "auto", qualityAnchor = "auto", topBadgeAnchor = "auto", extraBadgeAnchor = "auto", bottomAnchor = "auto", networkLogoFollowTitle, networkFixedX, networkFixedY, onNetworkGeometry, onBadgeGeometry, badgeItemTransforms, badgeHomeGhosts, onAccentMeta, sd, accentOverride, imdbTop250, whatsonFeatures,
     logoSrc, backdropSrc, analysisKey,
@@ -139,6 +142,9 @@ export async function generatePosterBuffer(input: GenerationInput): Promise<Buff
   const genreBadgeLight = genreBadgeLightOpt ?? bottomLight
   // Font badge normalizzato (assente/invalido → "inter" = resa storica).
   const badgeFont = normalizeBadgeFont(input.badgeFont)
+  // Testo del genere mostrato: abbreviato solo se il toggle è attivo. Il nome
+  // intero (`genreName`) resta la chiave per accent/tinta (GENRE_FALLBACK).
+  const genreLabel = input.genreShort && genreName ? abbreviateGenreName(genreName) : genreName
   // Stile pill età normalizzato (assente/invalido → "standard" = resa
   // storica; entra nella chiave solo con l'età presente).
   const ageBadgeStyle: AgeBadgeStyle = isAgeBadgeStyle(rawAgeBadgeStyle) ? rawAgeBadgeStyle : DEFAULT_AGE_BADGE_STYLE
@@ -188,6 +194,8 @@ export async function generatePosterBuffer(input: GenerationInput): Promise<Buff
     lastAirDate: lastAirDate ?? null,
     seasonCount: seasonCount ?? null,
     nextEpisodeAirDate: nextEpisodeAirDate ?? null,
+    nextEpisodeSeason: nextEpisodeSeason ?? null,
+    nextEpisodeNumber: nextEpisodeNumber ?? null,
     numberOfEpisodes: numberOfEpisodes ?? null,
     originCountries: [...originCountries],
     genreIds: genreIds ? [...genreIds] : null,
@@ -317,6 +325,16 @@ export async function generatePosterBuffer(input: GenerationInput): Promise<Buff
     rawFreshScope,
     topBadge?.type === "rank" ? topBadge.rank : null,
   )
+  // `rt=1` su badge con contenitore (pill, vetro, notch…): uno spazio largo in
+  // coda al testo riserva DENTRO il badge il posto della freccia (disegnata
+  // poi da attachRankTrendArrow, modo "inside"). Solo rank automatico standard.
+  if (
+    rankTrend && !qLabel && !isFresh && !isCard && topBadge?.type === "rank"
+    && topBadge.rank === finalRank && topBadge.rank !== animeRankResult
+    && rankTrendModeFor(rankingBadgeStyle) === "inside"
+  ) {
+    topBadge = { ...topBadge, label: `${topBadge.label} ` }
+  }
 
   // Task16 experiment (ONE reversible candidate, Fresh WITH valid numeral
   // ONLY): the full-bleed base shifts right ~6% CW with the vacated left gap
@@ -518,7 +536,7 @@ export async function generatePosterBuffer(input: GenerationInput): Promise<Buff
   const notchStepRawYear = input.freshRawBadgeYear ?? badgeYear
   const notchStepLabel = isNotchSeparateRatingsStyle(effBottomStyle)
     ? notchSeparateStepText({
-        genre: notchStepRawGenre && genreName ? genreName : null,
+        genre: notchStepRawGenre && genreLabel ? genreLabel : null,
         year: notchStepRawYear && year ? year : null,
       })
     : ""
@@ -834,7 +852,7 @@ export async function generatePosterBuffer(input: GenerationInput): Promise<Buff
     topLight, qualityBadgeScale, ribbonSide, comingSoonLabel: ribbonTextLabel, isFresh, isCard,
     bottomAnchor, qualityAnchor, logoResult, networkLogoPosition, extraBadgeAnchor, topBadgeAnchor,
     showComingSoon, networkLogo, input, shape, badgeStyle, topBadgeLight,
-    genreBadgeLight, typeIcon, mediaType, hasGenreBadge, genreName, voteAverage,
+    genreBadgeLight, typeIcon, mediaType, hasGenreBadge, genreName: genreLabel, voteAverage,
     CW, year, badgeFont, genreStdAccent, badgeGenre, badgeYear,
     badgeRating, genreBadgeScale, rankStdAccent, rankingBadgeAccent, awardLogoTopKey, awardLogoTopCaption,
     badgeItemTransforms, genreBadgeOffsetX, genreBadgeOffsetY,
@@ -848,7 +866,7 @@ export async function generatePosterBuffer(input: GenerationInput): Promise<Buff
     genreBadgeKey
       ? (cacheGet<BadgeRender>(genreBadgeKey)
           || coalesceBadgeRender(genreBadgeKey, () =>
-                renderGenreBadge(genreName ?? "", voteAverage ?? 0, badgePw, year, badgeStyle, genreStdAccent, genreLight, { showGenre: badgeGenre, showYear: badgeYear, showRating: badgeRating, typeIcon: genreTypeIcon }, badgeStyle === "bar" ? genreBadgeScale : 100, badgeFont)
+                renderGenreBadge(genreLabel ?? "", voteAverage ?? 0, badgePw, year, badgeStyle, genreStdAccent, genreLight, { showGenre: badgeGenre, showYear: badgeYear, showRating: badgeRating, typeIcon: genreTypeIcon }, badgeStyle === "bar" ? genreBadgeScale : 100, badgeFont)
                 .then((r) => { if (r) cacheSet(genreBadgeKey, r, ["badge"], BADGE_CACHE_TTL); return r })
             ))
       : Promise.resolve(null)
@@ -906,29 +924,36 @@ export async function generatePosterBuffer(input: GenerationInput): Promise<Buff
   // La cache resta valida (chiave senza scala): la scala si applica a valle.
   // Tutta la matematica di posizione/overlap sotto usa già le dimensioni
   // scalate. La posizione del badge genere usa safeGenreBadgeResult.h.
+  // `rt=1`: la freccia entra NEL bitmap del badge rank standard (dopo la cache
+  // del badge): ogni stile/posizione la tratta come parte del corpo.
+  const rankTrendOnBadge = !!rankTrend && !isFresh && !isCard && !!rankBadgeResult
+    && topBadge?.type === "rank" && !isExtraTopBadge && topBadge.rank === finalRank && topBadge.rank !== animeRankResult
+  const rankBadgeBase = rankBadgeResult && rankTrendOnBadge && rankTrend
+    ? await attachRankTrendArrow(rankBadgeResult, rankTrend, CW, rankTrendModeFor(rankingBadgeStyle), rankingBadgeStyle)
+    : rankBadgeResult
   let [rankBadgeForLayout, genreBadgeForLayout, qualityBadgeForLayout, networkLogoForLayout] = await Promise.all([
-    rankBadgeResult
+    rankBadgeBase
       ? (async () => {
           // Landscape: scala % + riduzione -20px in UN solo resize (prima due
           // resize sharp in serie sullo stesso bitmap). Stesse dimensioni
           // finali del vecchio codice, un solo passaggio di ricampionamento.
           if (shape === "landscape") {
-            const scaledH = Math.max(1, Math.round(rankBadgeResult.h * effTopBadgeScale / 100))
-            const scaledW = Math.max(1, Math.round(rankBadgeResult.w * effTopBadgeScale / 100))
+            const scaledH = Math.max(1, Math.round(rankBadgeBase.h * effTopBadgeScale / 100))
+            const scaledW = Math.max(1, Math.round(rankBadgeBase.w * effTopBadgeScale / 100))
             const targetH = Math.max(1, scaledH - 20)
             const targetW = Math.max(1, Math.round(scaledW * (targetH / scaledH)))
-            if (targetH !== rankBadgeResult.h || targetW !== rankBadgeResult.w) {
-              const png = await sharp(rankBadgeResult.png).resize(targetW, targetH).toBuffer()
-              const bleed = rankBadgeResult.bleed
-                ? scaleBadgeBleed(rankBadgeResult.bleed, targetW / rankBadgeResult.w, targetH / rankBadgeResult.h)
+            if (targetH !== rankBadgeBase.h || targetW !== rankBadgeBase.w) {
+              const png = await sharp(rankBadgeBase.png).resize(targetW, targetH).toBuffer()
+              const bleed = rankBadgeBase.bleed
+                ? scaleBadgeBleed(rankBadgeBase.bleed, targetW / rankBadgeBase.w, targetH / rankBadgeBase.h)
                 : undefined
-              return { ...rankBadgeResult, png, w: targetW, h: targetH, ...(bleed ? { bleed } : {}) }
+              return { ...rankBadgeBase, png, w: targetW, h: targetH, ...(bleed ? { bleed } : {}) }
             }
-            return rankBadgeResult
+            return rankBadgeBase
           }
           return effTopBadgeScale !== 100
-            ? await scaleBitmapForLayout(rankBadgeResult, effTopBadgeScale)
-            : rankBadgeResult
+            ? await scaleBitmapForLayout(rankBadgeBase, effTopBadgeScale)
+            : rankBadgeBase
         })()
       : Promise.resolve(null),
     genreBadgeResult && genreBadgeScale !== 100 && badgeStyle !== "bar"
@@ -1141,12 +1166,12 @@ export async function generatePosterBuffer(input: GenerationInput): Promise<Buff
       // divergono con shrink overflow e metriche dei font).
       let sepCenterShift = 0
       if (anchorRight && genreBadgeResult && (input.separateRatings?.length ?? 0) > 0) {
-        const fullKey = badgeCacheKey("genre", genreName, voteAverage, CW, year, badgeStyle, badgeFont, genreStdAccent, genreBadgeLight, badgeGenre, badgeYear, true, genreBadgeScale, genreTypeIcon)
+        const fullKey = badgeCacheKey("genre", genreLabel, voteAverage, CW, year, badgeStyle, badgeFont, genreStdAccent, genreBadgeLight, badgeGenre, badgeYear, true, genreBadgeScale, genreTypeIcon)
         const fullHit = cacheGet<{ png: Buffer; w: number; h: number }>(fullKey)
         const fullW = fullHit
           ? fullHit.w
           : await coalesceBadgeRender(fullKey, () =>
-              renderGenreBadge(genreName ?? "", voteAverage ?? 0, badgePw, year, badgeStyle, genreStdAccent, genreBadgeLight, { showGenre: badgeGenre, showYear: badgeYear, showRating: true, typeIcon: genreTypeIcon }, 100, badgeFont)
+              renderGenreBadge(genreLabel ?? "", voteAverage ?? 0, badgePw, year, badgeStyle, genreStdAccent, genreBadgeLight, { showGenre: badgeGenre, showYear: badgeYear, showRating: true, typeIcon: genreTypeIcon }, 100, badgeFont)
                 .then((r) => { if (r) cacheSet(fullKey, r, ["badge"], BADGE_CACHE_TTL); return r }),
             ).then((r) => (r ? r.w : null), () => null)
         if (fullW != null && fullW > genreBadgeResult.w) {
@@ -1251,7 +1276,7 @@ export async function generatePosterBuffer(input: GenerationInput): Promise<Buff
     // The pill (centered or corner) sits 10px below the top edge (fixed
     // editorial measure). Default is flush with the top. Pill/corner only,
     // independent of the quality badge.
-    const pillTopGap = topBadgeStyle === "pill" || topBadgeStyle === "tinta" || topBadgeStyle === "sfumato" || isCornerAnchoredStyle(topBadgeStyle) ? 10 : 0
+    const pillTopGap = topBadgeStyle === "pill" || isCornerAnchoredStyle(topBadgeStyle) ? 10 : 0
     const rankBody = badgeBody(safeRankBadgeResult)
     let left: number
     if (isNetflixRibbon && isRightRibbon) {
@@ -2319,7 +2344,7 @@ export async function generatePosterBuffer(input: GenerationInput): Promise<Buff
     const bottom = cached ?? await coalesceBadgeRender(bottomKey, () =>
       (isNotchStep
         ? renderSeparateRatingsNotch(items, badgePw, bottomVariant, badgeFont, separateBadgeScaleEff, availW, effSepBottomLight, {
-            genre: notchStepRawGenre && genreName ? genreName : null,
+            genre: notchStepRawGenre && genreLabel ? genreLabel : null,
             year: notchStepRawYear && year ? year : null,
           }, notchStepAccent)
         : renderSeparateRatingsBottom(items, badgePw, bottomVariant, badgeFont, separateBadgeScaleEff, availW, effSepBottomLight, itemTransformsForSeparate))
@@ -2497,7 +2522,7 @@ export async function generatePosterBuffer(input: GenerationInput): Promise<Buff
   // -----------------------------------------------------------------------
   ;({ freshOverlayGeo, freshBottomShadeLayer, typeIconInlineAux } = await composeFreshLayer({
     isFresh, topBadge, input, freshBaseBuf, CW, CH,
-    badgesEnabled, badgeGenre, badgeYear, isBottomStyle, bottomVariant, genreName,
+    badgesEnabled, badgeGenre, badgeYear, isBottomStyle, bottomVariant, genreName: genreLabel,
     year, voteAverage, typeIcon, mediaType, logoResult, networkLogoForLayout,
     badgeFont, freshOverlayGeo, topBadgeScale, topBadgeOffsetX, topBadgeOffsetY, genreBadgeScale,
     genreBadgeOffsetX, genreBadgeOffsetY, networkLogoScale, networkLogoOffsetX, networkLogoOffsetY, networkLogoFollowTitle,
@@ -2521,7 +2546,7 @@ export async function generatePosterBuffer(input: GenerationInput): Promise<Buff
   let cardMainBadgeRendered = false
   ;({ cardMainBadgeRendered, typeIconInlineAux, cardPng, cardOverlayGeo } = await composeCardLayer({
     isCard, topBadge, input, badgesEnabled, badgeGenre, badgeYear,
-    isBottomStyle, bottomVariant, voteAverage, genreName, year, typeIcon,
+    isBottomStyle, bottomVariant, voteAverage, genreName: genreLabel, year, typeIcon,
     mediaType, badgePw, CW, badgeStyle, accentColorGenre, bottomLight,
     badgeFont, genreBadgeScale, cardMainBadgeRendered, typeIconInlineAux, genreBadgeLight, isLandscape,
     separateBadgeScaleEff, effSepBottomLight, CH, qualityStackAnchor, rankingBadgeStyle, ribbonSide,
@@ -2573,6 +2598,23 @@ export async function generatePosterBuffer(input: GenerationInput): Promise<Buff
     cardMainBadgeRendered, accentColorGenre, genreStdAccent, rankStdAccent, accentOverride, blurOverlay,
     tintStrength, blurTintHex, sceneTintHex, bottomBand, topBand,
   })
+
+  // -----------------------------------------------------------------------
+  // 6e. Rank trend arrow (`rt=1`): small colored up/down arrow beside the
+  // rank (standard badge body, Fresh numeral or Card numeral). Automatic
+  // live rank only (never anime, custom label or manual rank).
+  // -----------------------------------------------------------------------
+  if (rankTrend && (isFresh || isCard) && topBadge?.type === "rank" && !isExtraTopBadge && topBadge.rank === finalRank && topBadge.rank !== animeRankResult) {
+    const body = isFresh ? freshOverlayGeo?.numeral ?? null : cardOverlayGeo?.numeral ?? null
+    const gutterW = isCard && topBadge.type === "rank"
+      ? cardLayoutGeometry(isLandscape ? "landscape" : "poster", CW, CH, topBadge.rank)?.card.x
+      : undefined
+    const spot = body ? placeRankTrendArrow(body, CW, CH, isFresh ? "fresh" : "card", gutterW) : null
+    if (spot) {
+      const arrowPng = await sharp(Buffer.from(buildRankTrendArrowSvg(rankTrend, spot.size))).png().toBuffer()
+      composites.push({ input: arrowPng, top: spot.top, left: spot.left })
+    }
+  }
 
   // -----------------------------------------------------------------------
   // 7. Final composite

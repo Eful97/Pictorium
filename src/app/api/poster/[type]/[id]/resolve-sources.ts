@@ -409,6 +409,8 @@ export async function resolveAutoSources(
     titleMeta.lastAirDate = details.last_air_date || null
     titleMeta.seasonCount = details.number_of_seasons ?? null
     titleMeta.nextEpisodeAirDate = details.next_episode_to_air?.air_date || null
+    titleMeta.nextEpisodeSeason = details.next_episode_to_air?.season_number ?? null
+    titleMeta.nextEpisodeNumber = details.next_episode_to_air?.episode_number ?? null
     titleMeta.numberOfEpisodes = details.number_of_episodes ?? null
     titleMeta.originCountries = [...(details.networks || []), ...(details.production_companies || [])]
       .map((c) => c.origin_country)

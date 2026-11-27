@@ -269,6 +269,7 @@ export function BadgeDefaultsSection({ active, shape, onPreviewFamilyChange, pre
   const [globalBadges, setGlobalBadges] = scoped("globalBadges", ed.defaultGlobalBadges, ed.setDefaultGlobalBadges)
   const [badgeGenre, setBadgeGenre] = scoped("badgeGenre", ed.defaultBadgeGenre, ed.setDefaultBadgeGenre)
   const [badgeYear, setBadgeYear] = scoped("badgeYear", ed.defaultBadgeYear, ed.setDefaultBadgeYear)
+  const [badgeGenreShort, setBadgeGenreShort] = scoped("badgeGenreShort", ed.defaultBadgeGenreShort, ed.setDefaultBadgeGenreShort)
   const [badgeRating, setBadgeRating] = scoped("badgeRating", ed.defaultBadgeRating, ed.setDefaultBadgeRating)
   const [separateRatings, setSeparateRatings] = scoped("separateRatings", ed.defaultSeparateRatings, ed.setDefaultSeparateRatings)
   const [separateRatingsStyle, setSeparateRatingsStyle] = scoped("separateRatingsStyle", ed.defaultSeparateRatingsStyle, ed.setDefaultSeparateRatingsStyle)
@@ -1345,6 +1346,20 @@ export function BadgeDefaultsSection({ active, shape, onPreviewFamilyChange, pre
             />
           </div>
           <p className="text-[11px] text-zinc-400 leading-snug -mt-1">{t("ui.rankingsToggleHint")}</p>
+          {/* Freccia di movimento JW (verde su / rossa giù) dentro il badge classifica: opt-in, default OFF. */}
+          {rankMasterVisible && (
+            <div className="pl-3 border-l-2 border-surface2 ml-1 animate-fade-in" title={t("ui.rankTrendHint")}>
+              <div className="flex items-center justify-between py-1">
+                <span className="text-zinc-300 text-[12px]">{t("ui.rankTrendLabel")}</span>
+                <Toggle
+                  value={isLandscape ? ed.defaultRankTrendLandscape === true : ed.defaultRankTrend === true}
+                  onChange={isLandscape ? ed.setDefaultRankTrendLandscape : ed.setDefaultRankTrend}
+                  label={t("ui.rankTrendLabel")}
+                />
+              </div>
+              <p className="text-[11px] text-zinc-400 leading-snug">{t("ui.rankTrendHint")}</p>
+            </div>
+          )}
           <div className="flex items-center justify-between py-1">
             <span className="text-zinc-300 font-medium flex items-center gap-1.5">
               <Star className="w-3.5 h-3.5 text-amber-400" />
@@ -1599,6 +1614,14 @@ export function BadgeDefaultsSection({ active, shape, onPreviewFamilyChange, pre
                   }}
                   label={t("ui.badgeYear")}
                   disabled={defaultBottomMetaLocked}
+                />
+              </div>
+              <div className="flex items-center justify-between" title={t("ui.badgeGenreShortHint")}>
+                <span className="text-muted">{t("ui.badgeGenreShort")}</span>
+                <Toggle
+                  value={badgeGenreShort}
+                  onChange={(v) => setBadgeGenreShort(v)}
+                  label={t("ui.badgeGenreShort")}
                 />
               </div>
               </fieldset>

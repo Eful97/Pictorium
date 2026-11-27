@@ -93,6 +93,7 @@ export interface LandscapeServerDefaults {
   rankingBadges?: boolean
   badgeGenre?: boolean
   badgeYear?: boolean
+  badgeGenreShort?: boolean
   badgeRating?: boolean
   badgeQuality?: boolean
   /**
@@ -210,6 +211,7 @@ export interface ServerDefaults {
   rankingBadges?: boolean
   badgeGenre?: boolean
   badgeYear?: boolean
+  badgeGenreShort?: boolean
   badgeRating?: boolean
   badgeQuality?: boolean
   /** Badge testuale di classificazione per età (default OFF). Flat portrait:
@@ -483,6 +485,9 @@ export interface ServerDefaults {
   watchProvidersMax?: number
   /** Icona tipo (film/serie) sui poster verticali (default OFF). Query `ti`. */
   typeIcon?: boolean
+  /** Freccia di movimento JW nel badge rank (`rt=1`). */
+  rankTrend?: boolean
+  rankTrendLandscape?: boolean
   /** Icona tipo sui landscape, indipendente dal verticale (default OFF). Query `ti`. */
   typeIconLandscape?: boolean
   /**

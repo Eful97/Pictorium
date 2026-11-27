@@ -18,6 +18,7 @@ All variables use the `PICTORIUM_*` prefix. The legacy `POSTERIUM_*` names are s
 | `UPSTASH_REDIS_REST_URL` / `UPSTASH_REDIS_REST_TOKEN` | *(empty)* | Canonical Upstash REST credentials for serverless deployments. The legacy Vercel names `KV_REST_API_URL` / `KV_REST_API_TOKEN` carry the same credentials and are accepted with a deprecation warning. |
 | `PICTORIUM_KV_CACHE` | *(on with KV)* | With Redis/KV, set `0` to keep the response cache in memory only (state stays in KV). Useful on public instances; not recommended on serverless. |
 | `PICTORIUM_IMAGE_FORMAT` | `webp` | Poster format for clients that declare no preference: `webp` (~25–30% lighter at equal quality) or `jpeg` (universal, for dated clients). `?fmt=` overrides per request both ways. Requires restart; switching invalidates the cache once. |
+| `PICTORIUM_AV_SPECS_URL` / `PICTORIUM_AV_SPECS_REFRESH_HOURS` | GitHub raw / `24` | Remote A/V specs snapshot (4K, HDR, Dolby Vision, Atmos, IMAX per IMDb id) refreshed in the background over the bundled seed; fail-closed. URL `off` disables it; hours `0` = once per process. |
 | `PICTORIUM_HOSTED_BY` | *(empty)* | Public hosting sponsor: `elfhosted` shows the ElfHosted banner (auto-detected from an `elfhosted.com` host). Empty = no banner. |
 | ~~`PICTORIUM_PUBLIC_INSTANCE`~~ | *(removed)* | Legacy switch, no longer read: if still set it is ignored and opens nothing. Admin routes are always fail-closed without a token or PIN session. |
 

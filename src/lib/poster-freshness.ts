@@ -123,6 +123,8 @@ export interface PosterFactDeadlines {
   readonly digitalReleaseDate?: string | null
   /** Release/first-air date only when the upcoming badge actually renders. */
   readonly upcomingReleaseDate?: string | null
+  /** Local `YYYY-MM-DD` where the dated returning-season label hands over to the next-episode badge (only when it renders). */
+  readonly returningTakeoverDate?: string | null
   readonly nowMs?: number
 }
 
@@ -141,6 +143,7 @@ export function resolvePosterFactCapMs(facts: PosterFactDeadlines): number | nul
     facts.availabilityRemainingMs,
     facts.digitalReleaseDate ? msUntilUtcDateBoundary(facts.digitalReleaseDate, nowMs) : null,
     facts.upcomingReleaseDate ? msUntilLocalDateBoundary(facts.upcomingReleaseDate, nowMs) : null,
+    facts.returningTakeoverDate ? msUntilLocalDateBoundary(facts.returningTakeoverDate, nowMs) : null,
   ]
   let earliest: number | null = null
   for (const candidate of candidates) {

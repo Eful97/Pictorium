@@ -135,6 +135,8 @@ const RETRY_MS = 5 * 60 * 1000
 const FETCH_TIMEOUT_MS = 5000
 const MAX_SNAPSHOT_BYTES = 5 * 1024 * 1024
 const MIN_REMOTE_RECORDS = 10
+/** A refresh smaller than this share of the active own index is rejected (truncated or wiped snapshot). */
+const MIN_REMOTE_RATIO = 0.75
 
 interface LoadedSnapshot {
   index: FillerIndex
@@ -405,6 +407,8 @@ async function fetchRemoteSnapshot(): Promise<boolean> {
     const records = (parsed as { records: unknown }).records
     const index = buildIndex(records)
     if (index.records.length < MIN_REMOTE_RECORDS) return false
+    const baseline = (remoteSnapshot?.index ?? OWN_INDEX).records.length
+    if (index.records.length < baseline * MIN_REMOTE_RATIO) return false
 
     const rawMeta = (parsed as { meta?: unknown }).meta
     const meta = isPlainObject(rawMeta) ? rawMeta : {}

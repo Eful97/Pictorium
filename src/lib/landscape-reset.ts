@@ -57,6 +57,7 @@ export const LANDSCAPE_RESET_KEYS = [
   "rankingBadges",
   "badgeGenre",
   "badgeYear",
+  "badgeGenreShort",
   "badgeRating",
   "badgeQuality",
   "ageBadge",

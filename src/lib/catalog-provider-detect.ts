@@ -18,6 +18,52 @@ export type CatalogProviderType =
   | "tvdb"
   | "imdb"
   | "mdblist"
+  | "justwatch"
+
+/**
+ * Cataloghi dinamici JustWatch: URL sintetico `justwatch:<kind>?type=..&country=..`
+ * (nessun sito reale: vive come "url" di un catalogo custom, così card, manager,
+ * rename, ordine, shape e preview restano quelli esistenti). Il contenuto cambia
+ * ogni giorno perché è la lista JustWatch del momento, mai uno snapshot.
+ */
+export const JW_DYNAMIC_KINDS = ["new", "leaving", "upcoming", "rising", "genre"] as const
+export type JWDynamicKind = (typeof JW_DYNAMIC_KINDS)[number]
+/** Codici genere JustWatch (stessi di `JW_GENRE_MAP`). */
+export const JW_DYNAMIC_GENRES = [
+  "act", "ani", "cmy", "crm", "doc", "drm", "fml", "fnt", "hrr",
+  "hst", "msc", "mys", "rma", "scf", "spt", "trl", "war", "wsn",
+] as const
+
+export interface JWDynamicSpec {
+  kind: JWDynamicKind
+  type: "movie" | "series"
+  /** ISO 3166-1 alpha-2 maiuscolo. */
+  country: string
+  /** Solo per `kind === "genre"`: codice JW (`hrr`, `cmy`, ...). */
+  genre?: string
+}
+
+export function buildJWDynamicUrl(spec: JWDynamicSpec): string {
+  const genre = spec.kind === "genre" && spec.genre ? `&genre=${spec.genre}` : ""
+  return `justwatch:${spec.kind}?type=${spec.type}&country=${spec.country.toUpperCase()}${genre}`
+}
+
+/** Parse fail-closed: kind/type/country/genre fuori allowlist → null. */
+export function parseJWDynamicUrl(input: string): JWDynamicSpec | null {
+  const m = input.trim().match(/^justwatch:([a-z]+)\?([^#]*)$/)
+  if (!m) return null
+  const kind = m[1] as JWDynamicKind
+  if (!(JW_DYNAMIC_KINDS as readonly string[]).includes(kind)) return null
+  const params = new URLSearchParams(m[2])
+  const type = params.get("type")
+  if (type !== "movie" && type !== "series") return null
+  const country = (params.get("country") ?? "").toUpperCase()
+  if (!/^[A-Z]{2}$/.test(country)) return null
+  if (kind !== "genre") return { kind, type, country }
+  const genre = params.get("genre") ?? ""
+  if (!(JW_DYNAMIC_GENRES as readonly string[]).includes(genre)) return null
+  return { kind, type, country, genre }
+}
 
 export interface ProviderDetectionResult {
   provider: CatalogProviderType
@@ -66,6 +112,17 @@ export function isTraktWatchlistUrl(input: string): boolean {
 export function detectCatalogProvider(input: string): ProviderDetectionResult | null {
   const trimmed = input.trim()
   if (!trimmed) return null
+
+  // 0. JustWatch dinamico (URL sintetico, vedi buildJWDynamicUrl)
+  const jwSpec = parseJWDynamicUrl(trimmed)
+  if (jwSpec) {
+    return {
+      provider: "justwatch",
+      nameSuggestion: `JustWatch ${jwSpec.kind}`,
+      defaultType: jwSpec.type,
+      identifier: trimmed,
+    }
+  }
 
   // 1. Letterboxd
   // es. https://letterboxd.com/arinbicer/list/mcu/ o https://letterboxd.com/user/watchlist/

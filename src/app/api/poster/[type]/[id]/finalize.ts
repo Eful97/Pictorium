@@ -99,7 +99,7 @@ export async function finalizePosterRender(ctx: PosterFinalizeContext): Promise<
     // Rotazione dinamica: il bucket giorno entra nell'ETag così la
     // rivalidazione tra giorni non risponde mai 304 sul poster di ieri.
     const dynEtagSuffix = dynamicDayBucket !== null ? `:${dynamicDayBucket}` : ""
-    etag = `${etag.slice(0, -1)}:${finalRank ?? "X"}:${imdbTop250}:${titleMeta.voteAverage ?? "0"}:${applyPreRelease ? "P" : applyPreBeige ? "B" : "x"}:${sepSig}${dynEtagSuffix}"`
+    etag = `${etag.slice(0, -1)}:${finalRank ?? "X"}${genInput.rankTrend ? `~${genInput.rankTrend === "up" ? "u" : "d"}` : ""}:${imdbTop250}:${titleMeta.voteAverage ?? "0"}:${applyPreRelease ? "P" : applyPreBeige ? "B" : "x"}:${sepSig}${dynEtagSuffix}"`
   }
 
   // 11. Cache + response

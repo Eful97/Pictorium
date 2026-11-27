@@ -172,6 +172,7 @@ const itDict: Record<string, string> = {
   "badge.nextEpisode": "Nuovo episodio · {date}",
   "badge.onlyEpisodes": "Solo {n} episodi",
   "badge.returning": "Ritorna",
+  "badge.returningSeason": "S{n} · {date}",
   "badge.justAddedMovie": "Appena aggiunto",
   "badge.justAddedSeries": "Appena aggiunta",
   "badge.seriesEnded": "Serie conclusa",

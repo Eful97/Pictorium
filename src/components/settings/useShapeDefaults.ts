@@ -89,6 +89,7 @@ export const BADGE_VISUAL_LAND_KEYS = [
   "rankingBadges",
   "badgeGenre",
   "badgeYear",
+  "badgeGenreShort",
   "badgeRating",
   "badgeQuality",
   "customRatings",

@@ -15,7 +15,7 @@ import type { RankingSource } from "@/lib/ranking-source"
 import { type DateFormat, parseDateFormat, getUpcomingReleaseLabel } from "@/lib/release-badge"
 import { sanitizeAgeLabel } from "@/lib/certification"
 import { DEMO_SAMPLE_AGE_LABEL } from "@/lib/demo-samples"
-import { isNextEpisodeDisplayed } from "@/lib/poster-badge"
+import { isNextEpisodeDisplayed, resolveReturningSeason } from "@/lib/poster-badge"
 import { isPreReleaseDetectionUndecided, isRankFactConsumed, resolvePosterFactCapMs, capPosterTtlMs } from "@/lib/poster-freshness"
 import { type ChartFamilyPin, familySlotEndMs, chartSlotEndMs } from "@/lib/chart-generation"
 import { customRankingRemainingMs } from "@/lib/custom-ranking"
@@ -145,6 +145,8 @@ export function resolveEphemeralPolicy(ctx: EphemeralPolicyContext, titleMeta: P
       lastAirDate: titleMeta.lastAirDate ?? null,
       seasonCount: titleMeta.seasonCount ?? null,
       nextEpisodeAirDate: titleMeta.nextEpisodeAirDate ?? null,
+      nextEpisodeSeason: titleMeta.nextEpisodeSeason ?? null,
+      nextEpisodeNumber: titleMeta.nextEpisodeNumber ?? null,
       numberOfEpisodes: titleMeta.numberOfEpisodes ?? null,
       originCountries: [...titleMeta.originCountries],
       genreIds: titleMeta.genreIds ? [...titleMeta.genreIds] : null,
@@ -376,12 +378,24 @@ export function resolveFactCap(
   const upcomingDateForCap = upcomingLabelForCap
     ? (mediaType === "movie" ? titleMeta.releaseDate : titleMeta.firstAirDate)
     : null
+  // Dated "S{n} · {date}" label of a returning series: it hands over to the
+  // next-episode badge 14 days before the premiere, so the poster cannot
+  // outlive that local midnight. Restriction only, like every fact cap.
+  const returningSeasonForCap = mediaType === "tv"
+    ? resolveReturningSeason({
+        tvStatus: titleMeta.tvStatus,
+        airDate: titleMeta.nextEpisodeAirDate,
+        season: titleMeta.nextEpisodeSeason,
+        episode: titleMeta.nextEpisodeNumber,
+      })
+    : null
   const factCapMs = resolvePosterFactCapMs({
     trendRankRemainingMs: trendFactMs,
     animeRankRemainingMs: animeFactMs,
     availabilityRemainingMs: offersFactMs,
     digitalReleaseDate: digitalDateForCap,
     upcomingReleaseDate: upcomingDateForCap,
+    returningTakeoverDate: returningSeasonForCap?.takeoverDate ?? null,
     nowMs: factNowMs,
   })
   // Base di policy invariata: il cap la restringe soltanto. Senza fatti
