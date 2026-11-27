@@ -11,4 +11,5 @@ export interface RecentChange {
 }
 
 export const RECENT_CHANGES: RecentChange[] = [
+  { type: "feature", text: "dynamic JustWatch catalogs (new, leaving, rising, upcoming, top by genre)", sha: "b910611", date: "2026-11-27" },
 ]
