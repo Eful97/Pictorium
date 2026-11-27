@@ -505,6 +505,8 @@
   "ui.styleGenreBadge": "Estilo de badge",
   "ui.commonAppearance": "Apariencia común",
   "ui.badgeFont": "Fuente de los badges",
+  "ui.badgeGenreShort": "Géneros abreviados",
+  "ui.badgeGenreShortHint": "Abrevia los géneros largos (p. ej. Science Fiction → Sci-Fi, Documentary → Docu)",
   "ui.textLogo": "Texto del logo",
   "ui.textLogoPlaceholder": "Escribe el título…",
   "ui.textLogoFont": "Fuente del logo",

@@ -93,6 +93,7 @@ export const configTokenSchema = z.object({
   rankingBadges: z.boolean(),
   badgeGenre: z.boolean().optional(),
   badgeYear: z.boolean().optional(),
+  badgeGenreShort: z.boolean().optional(),
   badgeRating: z.boolean().optional(),
   badgeQuality: z.boolean().optional(),
   /** Badge età testuale (default OFF): opzionale per back-compat token vecchi. */

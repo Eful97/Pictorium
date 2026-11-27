@@ -510,6 +510,8 @@
   "ui.styleGenreBadge": "Styl odznaki",
   "ui.commonAppearance": "Wygląd ogólny",
   "ui.badgeFont": "Font odznak",
+  "ui.badgeGenreShort": "Krótkie nazwy gatunków",
+  "ui.badgeGenreShortHint": "Skracaj długie gatunki (np. Science Fiction → Sci-Fi, Documentary → Docu)",
   "ui.textLogo": "Tekst logo",
   "ui.textLogoPlaceholder": "Wpisz tytuł…",
   "ui.textLogoFont": "Czcionka logo",

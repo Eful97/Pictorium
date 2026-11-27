@@ -510,6 +510,8 @@
   "ui.styleGenreBadge": "Stil insignă",
   "ui.commonAppearance": "Aspect comun",
   "ui.badgeFont": "Font insigne",
+  "ui.badgeGenreShort": "Genuri abreviate",
+  "ui.badgeGenreShortHint": "Abreviază genurile lungi (ex. Science Fiction → Sci-Fi, Documentary → Docu)",
   "ui.textLogo": "Text logo",
   "ui.textLogoPlaceholder": "Scrie titlul…",
   "ui.textLogoFont": "Font logo",

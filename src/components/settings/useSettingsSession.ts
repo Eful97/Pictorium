@@ -690,6 +690,7 @@ export function useSettingsSession(): SettingsSessionResult {
       setDefaultRankingBadges: makeSimpleSetter(updateSession, "defaultRankingBadges"),
       setDefaultBadgeGenre: makeSimpleSetter(updateSession, "defaultBadgeGenre"),
       setDefaultBadgeYear: makeSimpleSetter(updateSession, "defaultBadgeYear"),
+      setDefaultBadgeGenreShort: makeSimpleSetter(updateSession, "defaultBadgeGenreShort"),
       setDefaultBadgeRating: makeSimpleSetter(updateSession, "defaultBadgeRating"),
       setDefaultBadgeQuality: makeSimpleSetter(updateSession, "defaultBadgeQuality"),
       setDefaultAgeBadge,

@@ -502,6 +502,8 @@
   "ui.styleGenreBadge": "Badge-Stil",
   "ui.commonAppearance": "Gemeinsames Aussehen",
   "ui.badgeFont": "Badge-Schriftart",
+  "ui.badgeGenreShort": "Kurze Genre-Namen",
+  "ui.badgeGenreShortHint": "Lange Genres abkürzen (z. B. Science Fiction → Sci-Fi, Documentary → Docu)",
   "ui.textLogo": "Logo-Text",
   "ui.textLogoPlaceholder": "Titel eingeben…",
   "ui.textLogoFont": "Logo-Schrift",

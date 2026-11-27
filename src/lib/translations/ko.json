@@ -510,6 +510,8 @@
   "ui.styleGenreBadge": "배지 스타일",
   "ui.commonAppearance": "공통 외관",
   "ui.badgeFont": "배지 글꼴",
+  "ui.badgeGenreShort": "짧은 장르 이름",
+  "ui.badgeGenreShortHint": "긴 장르 이름 줄이기 (예: Science Fiction → Sci-Fi, Documentary → Docu)",
   "ui.textLogo": "로고 텍스트",
   "ui.textLogoPlaceholder": "제목을 입력하세요…",
   "ui.textLogoFont": "로고 글꼴",

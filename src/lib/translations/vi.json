@@ -516,6 +516,8 @@
   "ui.styleGenreBadge": "Kiểu huy hiệu",
   "ui.commonAppearance": "Giao diện chung",
   "ui.badgeFont": "Phông huy hiệu",
+  "ui.badgeGenreShort": "Tên thể loại rút gọn",
+  "ui.badgeGenreShortHint": "Rút gọn tên thể loại dài (ví dụ: Science Fiction → Sci-Fi, Documentary → Docu)",
   "ui.textLogo": "Chữ logo",
   "ui.textLogoPlaceholder": "Nhập tiêu đề…",
   "ui.textLogoFont": "Phông chữ logo",

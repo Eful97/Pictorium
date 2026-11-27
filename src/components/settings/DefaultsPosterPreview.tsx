@@ -71,6 +71,7 @@ interface DefaultsPosterPreviewProps {
     defaultRankingBadges: boolean
     defaultBadgeGenre: boolean
     defaultBadgeYear: boolean
+    defaultBadgeGenreShort: boolean
     defaultBadgeRating: boolean
     defaultBadgeQuality: boolean
     defaultCustomRatings: boolean
@@ -255,6 +256,7 @@ export function buildDefaultsPreviewUrlFromEditor(
       defaultRankingBadges: ed.defaultRankingBadges,
       defaultBadgeGenre: ed.defaultBadgeGenre,
       defaultBadgeYear: ed.defaultBadgeYear,
+      defaultBadgeGenreShort: ed.defaultBadgeGenreShort,
       defaultBadgeRating: ed.defaultBadgeRating,
       defaultBadgeQuality: ed.defaultBadgeQuality,
       defaultAgeBadge: ed.defaultAgeBadge,
@@ -520,6 +522,7 @@ export function DefaultsPosterPreview({ compact, floating, suspended, previewSha
     ed.defaultRankingBadges,
     ed.defaultBadgeGenre,
     ed.defaultBadgeYear,
+    ed.defaultBadgeGenreShort,
     ed.defaultBadgeRating,
     ed.defaultBadgeQuality,
     ed.defaultAgeBadge,

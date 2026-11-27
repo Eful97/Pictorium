@@ -516,6 +516,8 @@
   "ui.styleGenreBadge": "Badge style",
   "ui.commonAppearance": "Common appearance",
   "ui.badgeFont": "Badge font",
+  "ui.badgeGenreShort": "Short genre names",
+  "ui.badgeGenreShortHint": "Abbreviate long genres (e.g. Science Fiction → Sci-Fi, Documentary → Docu)",
   "ui.textLogo": "Logo text",
   "ui.textLogoPlaceholder": "Type the title…",
   "ui.textLogoFont": "Logo font",

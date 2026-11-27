@@ -24,6 +24,7 @@ export async function saveDefaults(ed: PosterEditorCtx): Promise<boolean> {
     rankingBadges: ed.defaultRankingBadges,
     badgeGenre: ed.defaultBadgeGenre,
     badgeYear: ed.defaultBadgeYear,
+    badgeGenreShort: ed.defaultBadgeGenreShort,
     badgeRating: ed.defaultBadgeRating,
     badgeQuality: ed.defaultBadgeQuality,
     // Badge età portrait (default OFF, paese IT): persistito come gli altri
