@@ -74,6 +74,7 @@ const RENDER_FILES = [
   "src/lib/type-icon-render.ts",
   "src/lib/poster-auto-fit.ts",
   "src/lib/poster-badge.ts",
+  "src/lib/genre-abbrev.ts",
   "src/lib/poster-cache-infra.ts",
   "src/lib/poster-overlay-cache.ts",
   "src/lib/poster-image-cache.ts",

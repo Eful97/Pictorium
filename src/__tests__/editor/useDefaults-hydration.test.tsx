@@ -82,6 +82,7 @@ const USER_SAVED = {
   globalBadges: true,
   rankingBadges: true,
   badgeGenre: true,
+  badgeGenreShort: false,
   badgeYear: false,
   badgeRating: true,
   badgeQuality: true,

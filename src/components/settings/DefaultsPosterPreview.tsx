@@ -209,10 +209,8 @@ export function buildDefaultsPreviewUrlFromEditor(
   // date format, genre-top, overflow, content/network exclusions, watch max)
   // is reset to factory so it never leaks into every thumbnail.
   if (opts.neutralSample === true) {
-    const {
-      badgeGenreShort: _gs, awardBadgeStyle: _aw, badgeOverflow: _ov, watchProvidersMax: _wm,
-      ...landKeep
-    } = ed.landscape as unknown as Record<string, unknown>
+    const landKeep: Record<string, unknown> = { ...(ed.landscape as unknown as Record<string, unknown>) }
+    for (const k of ["badgeGenreShort", "awardBadgeStyle", "badgeOverflow", "watchProvidersMax"]) delete landKeep[k]
     ed = {
       ...ed,
       defaultRankTrend: false,
