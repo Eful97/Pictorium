@@ -204,6 +204,31 @@ export function buildDefaultsPreviewUrlFromEditor(
         : null),
     } as PosterEditorCtx
   }
+  // Preset thumbnails: presets carry only visual keys (see visualPresetValuesSchema).
+  // Everything else the user configured (trend arrow, genre short, award style,
+  // date format, genre-top, overflow, content/network exclusions, watch max)
+  // is reset to factory so it never leaks into every thumbnail.
+  if (opts.neutralSample === true) {
+    const {
+      badgeGenreShort: _gs, awardBadgeStyle: _aw, badgeOverflow: _ov, watchProvidersMax: _wm,
+      ...landKeep
+    } = ed.landscape as unknown as Record<string, unknown>
+    ed = {
+      ...ed,
+      defaultRankTrend: false,
+      defaultRankTrendLandscape: false,
+      defaultBadgeGenreShort: false,
+      defaultAwardBadgeStyle: undefined,
+      defaultDateFormat: undefined,
+      defaultGenreTopWhenFree: false,
+      defaultBadgeOverflow: undefined,
+      defaultDisabledContentTags: [],
+      defaultDisabledNetworks: [],
+      defaultWatchProvidersMax: undefined,
+      defaultWatchProvidersMaxLandscape: undefined,
+      landscape: landKeep,
+    } as unknown as PosterEditorCtx
+  }
   // Previewed shape mirrors the builder rule (`land ?? flat` only applies in
   // landscape): portrait always reads the shared flats.
   const previewIsLandscape =
