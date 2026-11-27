@@ -30,6 +30,16 @@ export interface ChangelogRelease {
  *  (which bumps on every commit and would leave the dot permanently on). */
 export const CHANGELOG: ChangelogRelease[] = [
   {
+    version: "1.28.5",
+    date: "2026-11-27",
+    title: "Release 1.28.5",
+    items: [
+      { type: "feature", text: "Add dynamic JustWatch catalogs: from Catalogs, tap \"Add a JustWatch dynamic catalog\" and pick New today, Leaving soon, Rising today, Coming soon or Top by genre, for movies and/or series in your country. They refresh every day" },
+      { type: "feature", text: "Optional trend arrow in the ranking badge: a thin green arrow up or red arrow down shows how a title moved in the JustWatch chart. Turn it on in Settings, Info, right under Rankings; portrait and landscape posters have separate switches" },
+      { type: "fix", text: "Top tinta and sfumato badges now sit flush with the top edge of the poster, like bordo and glass, instead of floating slightly lower" },
+    ],
+  },
+  {
     version: "1.28.4",
     date: "2026-11-25",
     title: "Release 1.28.4",
