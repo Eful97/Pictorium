@@ -195,7 +195,7 @@ export async function GET(req: NextRequest, { params }: { params: Promise<RouteP
   // debug (cache-key.ts). Idrata la entry canonica dal disco.
   const {
     dynamicDayBucket, dynamicRotationIncludeNonClean, dynamicRotationIncludeOriginal, dynamicCutTtlMs, outputFormat, legacyAvif,
-    canonicalFormat, imageQuality, cacheKey, needsVariant, variantKey, immutablePoster, refreshRequest,
+    canonicalFormat, imageQuality, cacheKey, staleBridgeKey, needsVariant, variantKey, immutablePoster, refreshRequest,
     isLive, isDebug, wantNetGeo, wantBadgeGhosts, dynamicPoster, mappingTag, dynamicTtlSec,
     variantTtlSec, ifNoneMatch, isConditional,
   } = await resolvePosterCacheIdentity({
@@ -240,7 +240,14 @@ export async function GET(req: NextRequest, { params }: { params: Promise<RouteP
   const variantLookupResponse = checkPosterVariantFastPath(cacheLookupCtx)
   if (variantLookupResponse) return variantLookupResponse
   const cachedPosterNow = Date.now()
-  const cachedPoster = readCachedPoster(cacheKey, cachedPosterNow)
+  let cachedPoster = readCachedPoster(cacheKey, cachedPosterNow)
+  // A/V data update: no current-epoch body yet -> serve the previous epoch's as
+  // stale (background refresh re-renders under the new key). Never for
+  // previews (they must show the staged settings) or fact-capped bodies.
+  if (!cachedPoster.payload && staleBridgeKey && !isPreview) {
+    const bridged = readCachedPoster(staleBridgeKey, cachedPosterNow)
+    if (bridged.payload && !bridged.factCapped) cachedPoster = { ...bridged, stale: true }
+  }
   const canonicalLookupResponse = checkPosterCanonicalCache(cacheLookupCtx, cachedPoster, cachedPosterNow)
   if (canonicalLookupResponse) return canonicalLookupResponse
   // Copia scaduta con condizionale o live=1, oppure nessuna copia: si

@@ -45,6 +45,7 @@ let lastAttemptAt = 0
 let inFlight = false
 let etag: string | null = null
 let epoch: string | null = null
+let prevEpoch: string | null = null
 
 function parseEntry(raw: unknown): AVSpecEntry | null {
   if (!raw || typeof raw !== "object") return null
@@ -87,7 +88,9 @@ async function fetchRemote(): Promise<boolean> {
     if (!map) return false
     if (map.size < (remote?.size ?? seed.size) * MIN_REMOTE_RATIO) return false
     remote = map
-    epoch = createHash("sha1").update(text).digest("hex").slice(0, 8)
+    const nextEpoch = createHash("sha1").update(text).digest("hex").slice(0, 8)
+    if (epoch && epoch !== nextEpoch) prevEpoch = epoch
+    epoch = nextEpoch
     loadedAt = Date.now()
     etag = response.headers.get("etag")
     return true
@@ -124,6 +127,15 @@ export function avSpecsEpoch(): string | null {
   return epoch
 }
 
+/**
+ * Epoch of the snapshot this process held before the current one (null when
+ * the data never changed since the first load). The poster route reads the
+ * posters of that epoch as stale-while-revalidate while the new key warms up.
+ */
+export function avSpecsPrevEpoch(): string | null {
+  return prevEpoch
+}
+
 /** Test/admin hook: refresh now and report whether the snapshot is current. */
 export async function refreshAVSpecsNow(): Promise<boolean> {
   if (REMOTE_DISABLED) return false
@@ -139,4 +151,5 @@ export function __resetAVSpecsRemoteForTests(): void {
   inFlight = false
   etag = null
   epoch = null
+  prevEpoch = null
 }

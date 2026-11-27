@@ -162,6 +162,9 @@ Semantica di resa:
   Come i filler: i dati NON stanno piu nel bundle client (`av-specs.ts` e solo tipi/costanti); il client riceve
   `avSpecs` dalla route `/api/tmdb/{id}/details` (risolto lato server), e l epoca dello snapshot (hash del
   contenuto, `avSpecsEpoch()`) entra nella chiave cache del poster (`:av{epoch}`; assente finche non caricato).
+  Al cambio dati la route non fa miss a freddo: senza copia nella chiave nuova serve la copia dell epoca
+  precedente (`avSpecsPrevEpoch()`, o la chiave senza `:av` dopo un riavvio) come stale e ri-rende in background
+  (`staleBridgeKey` in `cache-key.ts`; mai per preview ne per entry fact-capped).
 - pack: nessun dato per-titolo → compaiono **solo** quando la selezione esplicita
   (`formats=` / mapping / default non vuoti) li contiene. `formats=none` o assenza
   di selezione = nessun pack mark (render legacy byte-identico).

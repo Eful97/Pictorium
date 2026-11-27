@@ -102,4 +102,17 @@ describe("av-specs epoch", () => {
     await refreshAVSpecsNow()
     expect(avSpecsEpoch()).not.toBe(first)
   })
+
+  it("keeps the previous epoch only after the data changed", async () => {
+    const { avSpecsEpoch, avSpecsPrevEpoch } = await import("@/lib/av-specs-remote")
+    mockFetch(async () => json(snapshot(BIG)))
+    await refreshAVSpecsNow()
+    const first = avSpecsEpoch()
+    expect(avSpecsPrevEpoch()).toBeNull()
+    await refreshAVSpecsNow()
+    expect(avSpecsPrevEpoch()).toBeNull()
+    mockFetch(async () => json(snapshot(BIG + 1)))
+    await refreshAVSpecsNow()
+    expect(avSpecsPrevEpoch()).toBe(first)
+  })
 })
