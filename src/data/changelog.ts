@@ -36,7 +36,11 @@ export const CHANGELOG: ChangelogRelease[] = [
     items: [
       { type: "feature", text: "Add dynamic JustWatch catalogs: from Catalogs, tap \"Add a JustWatch dynamic catalog\" and pick New today, Leaving soon, Rising today, Coming soon or Top by genre, for movies and/or series in your country. They refresh every day" },
       { type: "feature", text: "Optional trend arrow in the ranking badge: a thin green arrow up or red arrow down shows how a title moved in the JustWatch chart. Turn it on in Settings, Info, right under Rankings; portrait and landscape posters have separate switches" },
+      { type: "feature", text: "Optional short genre names: turn on \"Short genre names\" to abbreviate long genres on the badge (Science Fiction becomes Sci-Fi, Documentary becomes Docu); portrait and landscape posters have separate switches" },
+      { type: "feature", text: "Returning series now show the season and premiere date on the badge (for example \"S3 · 12 Mar\") when the next season is more than two weeks away, then switch to the New episode badge" },
       { type: "fix", text: "Top tinta and sfumato badges now sit flush with the top edge of the poster, like bordo and glass, instead of floating slightly lower" },
+      { type: "fix", text: "Style thumbnails in the Preset tab no longer pick up your own settings (trend arrow, short genres, award style, overflow, exclusions), so every look is shown with the same neutral sample" },
+      { type: "perf", text: "Quality badges (4K, HDR, Dolby Vision, Atmos, IMAX) now come from an online database updated twice a week, and posters refresh when it changes" },
     ],
   },
   {
