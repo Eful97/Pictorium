@@ -40,7 +40,8 @@ export const CHANGELOG: ChangelogRelease[] = [
       { type: "feature", text: "Returning series now show the season and premiere date on the badge (for example \"S3 · 12 Mar\") when the next season is more than two weeks away, then switch to the New episode badge" },
       { type: "fix", text: "Top tinta and sfumato badges now sit flush with the top edge of the poster, like bordo and glass, instead of floating slightly lower" },
       { type: "fix", text: "Style thumbnails in the Preset tab no longer pick up your own settings (trend arrow, short genres, award style, overflow, exclusions), so every look is shown with the same neutral sample" },
-      { type: "perf", text: "Quality badges (4K, HDR, Dolby Vision, Atmos, IMAX) now come from an online database updated twice a week, and posters refresh when it changes" },
+      { type: "perf", text: "Quality badges (4K, HDR, Dolby Vision, Atmos, IMAX) now come from an online database updated twice a week; when it changes, posters keep showing instantly and refresh in the background instead of all being rebuilt at once" },
+      { type: "fix", text: "Classic films (before 1990) no longer get Dolby Vision, HDR or Atmos badges from a single doubtful release: a format needs at least two matching releases" },
     ],
   },
   {
