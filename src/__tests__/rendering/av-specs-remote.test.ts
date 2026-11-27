@@ -1,6 +1,10 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest"
 import { lookupAVSpecsServer, refreshAVSpecsNow, __resetAVSpecsRemoteForTests } from "@/lib/av-specs-remote"
 import { lookupBundledAVSpecs as lookupAVSpecs } from "@/lib/av-specs-remote"
+import seedData from "@/data/av-specs.json"
+
+// Above the 75%-of-seed shrink guard.
+const BIG = Math.ceil(Object.keys(seedData).length * 0.75) + 5
 
 function snapshot(count: number, overrides: Record<string, unknown> = {}): Record<string, unknown> {
   const out: Record<string, unknown> = {}
@@ -28,7 +32,7 @@ describe("av-specs remote loader", () => {
   })
 
   it("remote entries win over the seed; absent ids keep the seed", async () => {
-    mockFetch(async () => json(snapshot(120, { tt15239678: { quality: "FHD", formats: ["atmos"] } })))
+    mockFetch(async () => json(snapshot(BIG, { tt15239678: { quality: "FHD", formats: ["atmos"] } })))
     expect(await refreshAVSpecsNow()).toBe(true)
     expect(lookupAVSpecsServer("tt15239678")).toEqual({ quality: "FHD", formats: ["atmos"] })
     expect(lookupAVSpecsServer("tt9000001")).toEqual({ quality: "4K", formats: ["hdr"] })
@@ -36,7 +40,7 @@ describe("av-specs remote loader", () => {
   })
 
   it("drops invalid entries and unknown formats", async () => {
-    mockFetch(async () => json(snapshot(120, {
+    mockFetch(async () => json(snapshot(BIG, {
       tt8000001: { quality: "8K", formats: ["hdr", "bogus"] },
       tt8000002: { quality: "4K", formats: ["nope"] },
       bad_id: { quality: "4K" },
@@ -48,7 +52,7 @@ describe("av-specs remote loader", () => {
   })
 
   it("fail-closed: too few entries, bad status, bad JSON keep the previous index", async () => {
-    mockFetch(async () => json(snapshot(120)))
+    mockFetch(async () => json(snapshot(BIG)))
     await refreshAVSpecsNow()
     for (const bad of [
       () => json(snapshot(5)),
@@ -60,6 +64,19 @@ describe("av-specs remote loader", () => {
       expect(await refreshAVSpecsNow()).toBe(false)
       expect(lookupAVSpecsServer("tt9000001")).toEqual({ quality: "4K", formats: ["hdr"] })
     }
+  })
+
+  it("rejects a snapshot that shrinks below 75% of the active data", async () => {
+    mockFetch(async () => json(snapshot(BIG + 100)))
+    expect(await refreshAVSpecsNow()).toBe(true)
+    mockFetch(async () => json(snapshot(Math.floor((BIG + 100) * 0.7))))
+    expect(await refreshAVSpecsNow()).toBe(false)
+    expect(lookupAVSpecsServer("tt9000001")).toEqual({ quality: "4K", formats: ["hdr"] })
+  })
+
+  it("rejects a first load far smaller than the seed", async () => {
+    mockFetch(async () => json(snapshot(150)))
+    expect(await refreshAVSpecsNow()).toBe(false)
   })
 
   it("network error never throws", async () => {
@@ -75,13 +92,13 @@ describe("av-specs epoch", () => {
   it("is null before a load, a stable content hash after, and changes with the data", async () => {
     const { avSpecsEpoch } = await import("@/lib/av-specs-remote")
     expect(avSpecsEpoch()).toBeNull()
-    mockFetch(async () => json(snapshot(120)))
+    mockFetch(async () => json(snapshot(BIG)))
     await refreshAVSpecsNow()
     const first = avSpecsEpoch()
     expect(first).toMatch(/^[0-9a-f]{8}$/)
     await refreshAVSpecsNow()
     expect(avSpecsEpoch()).toBe(first)
-    mockFetch(async () => json(snapshot(121)))
+    mockFetch(async () => json(snapshot(BIG + 1)))
     await refreshAVSpecsNow()
     expect(avSpecsEpoch()).not.toBe(first)
   })

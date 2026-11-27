@@ -10,10 +10,16 @@ A second, separate **CC BY-SA 4.0** own DB snapshot is bundled as a fallback
 (see [Second source](#second-source-own-filler-db-cc-by-sa-40)); the two files
 are never merged.
 
-The snapshot is generated at development time and shipped in the repository.
-Nothing downloads or refreshes at build/run time: no first-request fetch, no
-scheduler, no per-episode network call. The runtime reads
-[`src/generated/anime-filler-map.json`](../src/generated/anime-filler-map.json).
+The CC BY 4.0 snapshot is generated at development time and shipped in the
+repository ([`src/generated/anime-filler-map.json`](../src/generated/anime-filler-map.json));
+it never refreshes at runtime. The own DB (see below) is bundled too, but the
+server refreshes it from GitHub every 24 hours: fire-and-forget (a lookup never
+waits for the network) and fail-closed (bad status, size, JSON or schema keeps
+the previous index). A refresh is also rejected when it holds fewer than 75% of
+the records of the currently active own index, so a truncated or wiped file
+cannot replace good data. Set `PICTORIUM_FILLER_OWN_URL=off` to disable it.
+The remote file is read from the `master` branch (not pinned to a commit), so a
+push there reaches every instance within 24 hours.
 
 ## Source and license
 
@@ -52,12 +58,13 @@ A second, independent source covers titles the CC BY 4.0 export does not:
 
 - File consumed: `anime-filler-own-map.json` (the repository's
   `to-pictorium-snapshot.mjs` output, same `schemaVersion 2`).
-- Pinned commit: `53dd5c414a7d46ecc1bdfd8c0c51c678f8889c7a`
-  (snapshot date 2026-11-08), licence **CC BY-SA 4.0**.
+- Pinned commit: `46269dd034d3ef1968f9823ee28ea87462258f14`
+  (snapshot date 2026-11-09), licence **CC BY-SA 4.0**. The vendor script pins
+  the same commit; keep the two in sync when re-vendoring.
 - Bundled as `src/generated/anime-filler-own-map.json`; vendor with
   `node scripts/update-anime-filler-own-map.mjs` (`--check` validates offline).
-- Current snapshot: **244 records / 14,535 episodes / 2,247 ranges**, 13 titles
-  skipped. 208 TMDB ids are net-new; 36 overlap the CC BY 4.0 snapshot.
+- Current snapshot: **261 records / 16,040 episodes / 2,438 ranges**, 0 titles
+  skipped.
 - Every title is `needs-review` upstream and its ids are not verified: treat the
   classifications as best-effort, not authoritative.
 
@@ -65,14 +72,15 @@ A second, independent source covers titles the CC BY 4.0 export does not:
 with distinct licences (CC BY 4.0 vs CC BY-SA 4.0) and are **never merged**. The
 runtime keeps two independent lookup indices:
 
-- the CC BY 4.0 snapshot is authoritative for every series it contains;
-- the own DB is consulted when the primary snapshot has no record for the id
-  (absent, not ambiguous) **or** when the requested episode is past the primary
-  record's classified window (`> n`) and the own record extends the same series;
-- an ambiguous primary record, or an episode inside the primary window (up to
-  `n`), returns `null`/the primary status and does **not** fall back, so each
+- the own DB (remote snapshot when loaded, else the bundled copy) is the
+  PREFERRED index and wins for every series it contains;
+- the CC BY 4.0 snapshot is the fallback when the own DB has no record for the
+  id; it can also extend a series past the own record's window (`> n`) when
+  that record covers the same series;
+- an ambiguous record, or an episode inside the winning record's window,
+  returns `null`/that record's status and does **not** fall back, so each
   episode is classified from exactly one source;
-- `ownFillerMapInfo()` reports the fallback provenance/coverage separately from
+- `ownFillerMapInfo()` reports the own DB provenance/coverage separately from
   `fillerMapInfo()`.
 
 ## Snapshot schema

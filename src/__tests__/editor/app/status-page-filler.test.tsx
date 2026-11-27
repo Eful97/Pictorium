@@ -77,7 +77,7 @@ function stubStatusFetch(health: unknown, options: { failHealth?: boolean } = {}
 }
 
 function remoteSnapshot() {
-  const records = Array.from({ length: 10 }, (_, index) => ({
+  const records = Array.from({ length: 400 }, (_, index) => ({
     m: index === 0 ? null : 900000 + index,
     t: 999000 + index,
     n: 2,
@@ -91,7 +91,7 @@ function remoteSnapshot() {
       sourceRevision: "own-db@sha256:test",
       sourceLicense: "CC BY-SA 4.0",
       sourceUrl: "https://github.com/Eful97/pictorium-anime-filler",
-      counts: { records: 10, episodes: 20, ranges: 10 },
+      counts: { records: 400, episodes: 800, ranges: 400 },
     },
     records,
   }
@@ -149,7 +149,7 @@ describe("GET /api/health filler provenance", () => {
       refreshedAt: expect.stringMatching(/^\d{4}-\d{2}-\d{2}T/),
       refreshHours: 0,
       revision: "own-db@sha256:test",
-      recordCount: 10,
+      recordCount: 400,
     })
   })
 })

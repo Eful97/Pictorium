@@ -34,6 +34,8 @@ const RETRY_MS = 5 * 60 * 1000
 const FETCH_TIMEOUT_MS = 5000
 const MAX_BYTES = 5 * 1024 * 1024
 const MIN_REMOTE_ENTRIES = 100
+/** A refresh smaller than this share of the active data (remote, else seed) is rejected. */
+const MIN_REMOTE_RATIO = 0.75
 const QUALITIES: ReadonlySet<string> = new Set(["4K", "FHD", "HD", "SD"])
 const IMDB_ID = /^tt\d+$/
 
@@ -83,6 +85,7 @@ async function fetchRemote(): Promise<boolean> {
     if (text.length > MAX_BYTES) return false
     const map = parseSnapshot(JSON.parse(text))
     if (!map) return false
+    if (map.size < (remote?.size ?? seed.size) * MIN_REMOTE_RATIO) return false
     remote = map
     epoch = createHash("sha1").update(text).digest("hex").slice(0, 8)
     loadedAt = Date.now()

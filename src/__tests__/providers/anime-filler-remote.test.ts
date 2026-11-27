@@ -2,8 +2,9 @@ import { afterEach, describe, expect, it, vi } from "vitest"
 
 const SOURCE_URL = "https://github.com/Eful97/pictorium-anime-filler"
 
-function remoteSnapshot() {
-  const records = Array.from({ length: 10 }, (_, index) => ({
+// Large enough to pass the 75%-of-active-index shrink guard (bundled own DB ~261).
+function remoteSnapshot(count = 400) {
+  const records = Array.from({ length: count }, (_, index) => ({
     m: index === 0 ? null : 900000 + index,
     t: 999000 + index,
     n: 2,
@@ -17,7 +18,7 @@ function remoteSnapshot() {
       sourceRevision: "db.json@sha256:test",
       sourceLicense: "CC BY-SA 4.0",
       sourceUrl: SOURCE_URL,
-      counts: { records: 10, episodes: 20, ranges: 10 },
+      counts: { records: count, episodes: count * 2, ranges: count },
     },
     records,
   }
@@ -53,7 +54,7 @@ describe("remote own snapshot", () => {
 
     await expect(filler.refreshFillerSnapshotNow()).resolves.toBe(true)
     expect(filler.resolveFillerStatus(999000, 1)).toBe("filler")
-    expect(filler.ownFillerMapInfo().recordCount).toBe(10)
+    expect(filler.ownFillerMapInfo().recordCount).toBe(400)
     expect(filler.ownFillerRuntimeInfo()).toMatchObject({
       enabled: true,
       source: "remote",
@@ -91,6 +92,31 @@ describe("remote own snapshot", () => {
     const filler = await import("@/lib/anime-filler")
     await expect(filler.refreshFillerSnapshotNow()).resolves.toBe(false)
     expect(filler.resolveFillerStatus(999000, 1)).toBeNull()
+    expect(filler.ownFillerRuntimeInfo().source).toBe("bundled")
+  })
+
+  it("rejects a refresh that shrinks the active index below 75%", async () => {
+    vi.resetModules()
+    vi.stubEnv("PICTORIUM_FILLER_OWN_URL", "https://example.test/anime-filler-own-map.json")
+    vi.stubEnv("PICTORIUM_FILLER_OWN_REFRESH_HOURS", "0")
+    const fetchMock = vi.fn(async () => jsonResponse(JSON.stringify(remoteSnapshot(400))))
+    vi.stubGlobal("fetch", fetchMock)
+
+    const filler = await import("@/lib/anime-filler")
+    await expect(filler.refreshFillerSnapshotNow()).resolves.toBe(true)
+    fetchMock.mockImplementation(async () => jsonResponse(JSON.stringify(remoteSnapshot(250))))
+    await expect(filler.refreshFillerSnapshotNow()).resolves.toBe(false)
+    expect(filler.ownFillerMapInfo().recordCount).toBe(400)
+    fetchMock.mockImplementation(async () => jsonResponse(JSON.stringify(remoteSnapshot(310))))
+    await expect(filler.refreshFillerSnapshotNow()).resolves.toBe(true)
+  })
+
+  it("rejects a first remote load far smaller than the bundled own DB", async () => {
+    vi.resetModules()
+    vi.stubEnv("PICTORIUM_FILLER_OWN_URL", "https://example.test/anime-filler-own-map.json")
+    vi.stubGlobal("fetch", vi.fn(async () => jsonResponse(JSON.stringify(remoteSnapshot(10)))))
+    const filler = await import("@/lib/anime-filler")
+    await expect(filler.refreshFillerSnapshotNow()).resolves.toBe(false)
     expect(filler.ownFillerRuntimeInfo().source).toBe("bundled")
   })
 })
