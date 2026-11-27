@@ -230,6 +230,8 @@ export interface GenerationInput {
   seasonCount: number | null
   /** `next_episode_to_air.air_date` + `number_of_episodes` TMDB (badge Nuovo episodio / Solo N episodi). */
   nextEpisodeAirDate?: string | null
+  nextEpisodeSeason?: number | null
+  nextEpisodeNumber?: number | null
   numberOfEpisodes?: number | null
   originCountries: readonly string[]
   /** ID generi TMDB canonici (16 = Animation) — escludono l'animazione dal K-Drama automatico. */

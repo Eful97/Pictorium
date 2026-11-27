@@ -14,6 +14,7 @@
   "badge.nextEpisode": "Nowy odcinek · {date}",
   "badge.onlyEpisodes": "Tylko {n} odcinków",
   "badge.returning": "Powraca",
+  "badge.returningSeason": "Sez. {n} · {date}",
   "badge.justAddedMovie": "Właśnie dodane",
   "badge.justAddedSeries": "Właśnie dodane",
   "badge.seriesEnded": "Serial zakończony",

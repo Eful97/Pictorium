@@ -14,6 +14,7 @@
   "badge.nextEpisode": "Tập mới · {date}",
   "badge.onlyEpisodes": "Chỉ {n} tập",
   "badge.returning": "Trở lại",
+  "badge.returningSeason": "S{n} · {date}",
   "badge.justAddedMovie": "Mới thêm",
   "badge.justAddedSeries": "Mới thêm",
   "badge.seriesEnded": "Đã kết thúc",

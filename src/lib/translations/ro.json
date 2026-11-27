@@ -14,6 +14,7 @@
   "badge.nextEpisode": "Episod nou · {date}",
   "badge.onlyEpisodes": "Doar {n} episoade",
   "badge.returning": "Revine",
+  "badge.returningSeason": "S{n} · {date}",
   "badge.justAddedMovie": "Adăugat recent",
   "badge.justAddedSeries": "Adăugat recent",
   "badge.seriesEnded": "Serial încheiat",

@@ -14,6 +14,7 @@
   "badge.nextEpisode": "새 에피소드 · {date}",
   "badge.onlyEpisodes": "총 {n}편",
   "badge.returning": "방영 중",
+  "badge.returningSeason": "S{n} · {date}",
   "badge.justAddedMovie": "Just added",
   "badge.justAddedSeries": "Just added",
   "badge.seriesEnded": "Series ended",

@@ -14,6 +14,7 @@
   "badge.nextEpisode": "Nieuwe aflevering · {date}",
   "badge.onlyEpisodes": "Slechts {n} afleveringen",
   "badge.returning": "Loopt nog",
+  "badge.returningSeason": "S{n} · {date}",
   "badge.justAddedMovie": "Net toegevoegd",
   "badge.justAddedSeries": "Net toegevoegd",
   "badge.seriesEnded": "Serie afgelopen",

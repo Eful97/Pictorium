@@ -14,6 +14,7 @@
   "badge.nextEpisode": "פרק חדש · {date}",
   "badge.onlyEpisodes": "רק {n} פרקים",
   "badge.returning": "חוזרת",
+  "badge.returningSeason": "עונה {n} · {date}",
   "badge.justAddedMovie": "התווסף עכשיו",
   "badge.justAddedSeries": "התווספה עכשיו",
   "badge.seriesEnded": "הסדרה הסתיימה",

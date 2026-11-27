@@ -97,6 +97,9 @@ export interface PosterTitleMeta {
   seasonCount: number | null
   /** TMDB `next_episode_to_air.air_date` + `number_of_episodes` (TV series: New Episode / Only N Episodes inputs). */
   nextEpisodeAirDate: string | null
+  /** TMDB `next_episode_to_air` season/episode numbers (returning-season label). */
+  nextEpisodeSeason: number | null
+  nextEpisodeNumber: number | null
   numberOfEpisodes: number | null
   originCountries: string[]
   /** ID generi TMDB canonici (16 = Animation) — escludono l'animazione dal K-Drama automatico. */

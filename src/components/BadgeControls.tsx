@@ -30,7 +30,7 @@ import type { SeasonalThemeChoice } from "@/lib/seasonal-theme"
 import { lookupAVSpecs } from "@/lib/av-specs"
 import { PACK_MARK_IDS, QUALITY_MARK_IDS, isPackMark, qualityMarkLabel } from "@/lib/quality-badge-pack"
 import { getAwardBadgeLabel, getNominationBadgeLabel } from "@/lib/badge-labels"
-import { getBasedOnBookLabel, getFewEpisodesLabel, getNewSeasonLabel, getNextEpisodeLabel, getSeriesEndedLabel, getTrueStoryLabel, isKDramaBadgeEligible } from "@/lib/poster-badge"
+import { getBasedOnBookLabel, getFewEpisodesLabel, getNewSeasonLabel, getNextEpisodeLabel, getReturningSeasonLabel, getSeriesEndedLabel, getTrueStoryLabel, isKDramaBadgeEligible } from "@/lib/poster-badge"
 import { withIdAwards, withIdNoms } from "@/lib/award-ids"
 import { getSubGenreLabel } from "@/lib/subgenres"
 import { getUpcomingReleaseLabel } from "@/lib/release-badge"
@@ -603,7 +603,7 @@ export function BadgeControls() {
                 const studio = metaInfo.studios?.length ? metaInfo.studios[0] : null
                 const tvType = selected.media_type === "tv" ? metaInfo.type : null
                 const tvStatus = selected.media_type === "tv" ? metaInfo.status : null
-                const extra = selected.media_type === "tv" ? (isMiniseriesType(tvType) ? t("badge.miniseries") : isReturningStatus(tvStatus) ? t("badge.returning") : null) : null
+                const extra = selected.media_type === "tv" ? (isMiniseriesType(tvType) ? t("badge.miniseries") : isReturningStatus(tvStatus) ? (getReturningSeasonLabel({ tvStatus, airDate: metaInfo.next_episode_to_air?.air_date ?? null, season: metaInfo.next_episode_to_air?.season_number ?? null, episode: metaInfo.next_episode_to_air?.episode_number ?? null, locale: lang, dateFormat: ed.defaultDateFormat, t }) ?? t("badge.returning")) : null) : null
                 const upcomingRelease = getUpcomingReleaseLabel({
                   mediaType: selected.media_type === "tv" ? "tv" : "movie",
                   releaseDate: metaInfo.release_date,

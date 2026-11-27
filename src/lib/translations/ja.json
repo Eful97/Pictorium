@@ -14,6 +14,7 @@
   "badge.nextEpisode": "新エピソード · {date}",
   "badge.onlyEpisodes": "全{n}話",
   "badge.returning": "継続中",
+  "badge.returningSeason": "S{n} · {date}",
   "badge.justAddedMovie": "Just added",
   "badge.justAddedSeries": "Just added",
   "badge.seriesEnded": "Series ended",

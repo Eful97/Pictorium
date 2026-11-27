@@ -14,6 +14,7 @@
   "badge.nextEpisode": "Nytt avsnitt · {date}",
   "badge.onlyEpisodes": "Endast {n} avsnitt",
   "badge.returning": "Pågående",
+  "badge.returningSeason": "S{n} · {date}",
   "badge.justAddedMovie": "Nyligen tillagd",
   "badge.justAddedSeries": "Nyligen tillagd",
   "badge.seriesEnded": "Serien avslutad",

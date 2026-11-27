@@ -14,6 +14,7 @@
   "badge.nextEpisode": "Yeni bölüm · {date}",
   "badge.onlyEpisodes": "Sadece {n} bölüm",
   "badge.returning": "Devam ediyor",
+  "badge.returningSeason": "S{n} · {date}",
   "badge.justAddedMovie": "Yeni eklendi",
   "badge.justAddedSeries": "Yeni eklendi",
   "badge.seriesEnded": "Dizi sona erdi",
