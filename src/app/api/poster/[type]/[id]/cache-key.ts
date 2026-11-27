@@ -4,6 +4,7 @@
 // TTL dinamici e validatore condizionale. Idrata la entry canonica dal disco
 // (L1.5). Corpo spostato da route.ts invariato.
 
+import { avSpecsEpoch } from "@/lib/av-specs-remote"
 import type { NextRequest } from "next/server"
 import type { Mapping } from "@/lib/types"
 import type { RegionDef } from "@/lib/regions"
@@ -140,7 +141,12 @@ export async function resolvePosterCacheIdentity(ctx: PosterCacheIdentityContext
   const portraitBaseKey = !earlyLandscape && mapping?.portraitBackdropPath && !hardenedParams.get("poster")
     ? `:pbp${mapping.portraitBackdropPath}`
     : ""
-  const cacheKey = `poster:v${RENDER_VERSION}:${mediaType}:${tmdbId}:reg${posterRegion.code}:r${cachedRank ?? "x"}:lr${preTrendRank ?? "x"}${rankTrend ? `:lt${rankTrend === "up" ? "u" : "d"}` : ""}:la${preAnimeRank ?? "x"}:sd${sdHash}:${cacheParams.toString()}${rotateKey}${mapVersion}${dynamicBucketKey}${portraitBaseKey}${configHash ? `:cfg${configHash}` : ""}${formatKey}${qualityKey}`
+  // Snapshot A/V remoto: un aggiornamento dei dati non deve essere servito da
+  // poster resi con i dati vecchi (come l epoca dello snapshot filler). Vuoto
+  // finche lo snapshot non e stato caricato: chiave storica invariata.
+  const avEpoch = avSpecsEpoch()
+  const avKey = avEpoch ? `:av${avEpoch}` : ""
+  const cacheKey = `poster:v${RENDER_VERSION}:${mediaType}:${tmdbId}:reg${posterRegion.code}:r${cachedRank ?? "x"}:lr${preTrendRank ?? "x"}${rankTrend ? `:lt${rankTrend === "up" ? "u" : "d"}` : ""}:la${preAnimeRank ?? "x"}:sd${sdHash}:${cacheParams.toString()}${rotateKey}${mapVersion}${dynamicBucketKey}${portraitBaseKey}${configHash ? `:cfg${configHash}` : ""}${formatKey}${qualityKey}${avKey}`
   const needsVariant = !legacyAvif && outputFormat !== canonicalFormat
   const variantKey = needsVariant ? `${cacheKey}:fmt${outputFormat}` : cacheKey
   // Disk L1.5: after a restart/deploy the canonical render comes back from

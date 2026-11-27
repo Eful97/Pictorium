@@ -27,6 +27,8 @@ export interface MetaInfo {
   director?: string | null
   keywords?: string[]
   imdb_id?: string | null
+  /** A/V specs (4K/HDR/DV/Atmos/IMAX) of the title, resolved by the server (details route). */
+  avSpecs?: { quality?: string; formats?: readonly string[] } | null
   /** QID Wikidata (es. "Q23577") da TMDB external_ids: alimenta il param
    * wikidata_id della preview (fast-path REST awards, niente SPARQL). */
   wikidata_id?: string | null

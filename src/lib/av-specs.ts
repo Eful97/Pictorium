@@ -1,5 +1,3 @@
-import avSpecsData from "@/data/av-specs.json"
-
 export type VideoFormat = "dv" | "hdr" | "hdr10plus" | "atmos" | "imax"
 
 export interface AVSpecEntry {
@@ -7,21 +5,9 @@ export interface AVSpecEntry {
   readonly formats?: readonly VideoFormat[]
 }
 
-const specsMap = new Map<string, AVSpecEntry>(
-  Object.entries(avSpecsData as Record<string, AVSpecEntry>)
-)
-
-/**
- * Cerca le specifiche AV (qualità 4K/FHD e formati DV, Atmos, IMAX)
- * nel database locale statico a latenza zero.
- *
- * Supporta ID IMDb ("tt15239678"). Ritorna null se il titolo non è presente.
- */
-export function lookupAVSpecs(id: string | null | undefined): AVSpecEntry | null {
-  if (!id) return null
-  const key = id.trim()
-  return specsMap.get(key) ?? null
-}
+// I DATI (seed `src/data/av-specs.json` + snapshot remoto) vivono in
+// `av-specs-remote.ts`, solo server: questo modulo è client-safe (tipi e
+// costanti) e non porta il database nel bundle del browser.
 
 /** Formati video noti per la validazione */
 export const KNOWN_VIDEO_FORMATS: readonly VideoFormat[] = ["dv", "hdr", "hdr10plus", "atmos", "imax"]

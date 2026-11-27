@@ -159,6 +159,9 @@ Semantica di resa:
   Sorgente: seed `src/data/av-specs.json` (bundle, usato anche dal client) con overlay server-only
   `src/lib/av-specs-remote.ts` (snapshot GitHub `Eful97/pictorium-quality-database`, refresh 24h,
   fail-closed; voce remota > seed per id; env `PICTORIUM_AV_SPECS_URL`/`_REFRESH_HOURS`).
+  Come i filler: i dati NON stanno piu nel bundle client (`av-specs.ts` e solo tipi/costanti); il client riceve
+  `avSpecs` dalla route `/api/tmdb/{id}/details` (risolto lato server), e l epoca dello snapshot (hash del
+  contenuto, `avSpecsEpoch()`) entra nella chiave cache del poster (`:av{epoch}`; assente finche non caricato).
 - pack: nessun dato per-titolo → compaiono **solo** quando la selezione esplicita
   (`formats=` / mapping / default non vuoti) li contiene. `formats=none` o assenza
   di selezione = nessun pack mark (render legacy byte-identico).

@@ -1,5 +1,6 @@
 import { describe, expect, it } from "vitest"
-import { lookupAVSpecs, isVideoFormat, KNOWN_VIDEO_FORMATS, FORMAT_ICON_PATHS } from "@/lib/av-specs"
+import { isVideoFormat, KNOWN_VIDEO_FORMATS, FORMAT_ICON_PATHS } from "@/lib/av-specs"
+import { lookupBundledAVSpecs as lookupAVSpecs } from "@/lib/av-specs-remote"
 import { REVIEWED832_APPROVED, REVIEWED832_SCOPE, REVIEWED_APPROVED, REVIEWED_EXCLUDED, REVIEWED_PHASE3_APPROVED, REVIEWED_PHASE3_DB_BASELINE_SHA256, REVIEWED_PHASE3_OBSERVED_BATCH_PREFIX, REVIEWED_PHASE3_PINS, REVIEWED_PHASE3_SCOPE, REVIEWED_PHASE3_SNAPSHOT_SHA256, REVIEWED_SCOPE, REVIEWED_SNAPSHOT_SHA256 } from "../../../scripts/torrentio-av-import.mjs"
 import { renderQualityBadgeGroup, renderQualityIconBadge } from "@/lib/poster-service"
 import { buildAgeEmphasisSvg } from "@/lib/badge-svg-shared"

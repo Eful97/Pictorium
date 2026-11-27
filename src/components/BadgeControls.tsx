@@ -27,7 +27,6 @@ import {
 } from "@/components/RankingAppearanceSelector"
 import { type ExtraBadgeStyle, type RankingBadgeStyle } from "@/lib/badge-styles"
 import type { SeasonalThemeChoice } from "@/lib/seasonal-theme"
-import { lookupAVSpecs } from "@/lib/av-specs"
 import { PACK_MARK_IDS, QUALITY_MARK_IDS, isPackMark, qualityMarkLabel } from "@/lib/quality-badge-pack"
 import { getAwardBadgeLabel, getNominationBadgeLabel } from "@/lib/badge-labels"
 import { getBasedOnBookLabel, getFewEpisodesLabel, getNewSeasonLabel, getNextEpisodeLabel, getReturningSeasonLabel, getSeriesEndedLabel, getTrueStoryLabel, isKDramaBadgeEligible } from "@/lib/poster-badge"
@@ -108,7 +107,7 @@ export function BadgeControls() {
     setManualChooser(false)
   }, [previewUrl])
 
-  const localSpec = lookupAVSpecs(metaInfo?.imdb_id || selected?.imdb_id)
+  const localSpec = metaInfo?.avSpecs ?? null
   // Selection chain: per-title selection wins; null = inherit the space
   // defaults. Pack marks have no per-title data, so they are painted only
   // when explicitly selected (never invented).

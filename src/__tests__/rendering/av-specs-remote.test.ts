@@ -1,6 +1,6 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest"
 import { lookupAVSpecsServer, refreshAVSpecsNow, __resetAVSpecsRemoteForTests } from "@/lib/av-specs-remote"
-import { lookupAVSpecs } from "@/lib/av-specs"
+import { lookupBundledAVSpecs as lookupAVSpecs } from "@/lib/av-specs-remote"
 
 function snapshot(count: number, overrides: Record<string, unknown> = {}): Record<string, unknown> {
   const out: Record<string, unknown> = {}
@@ -65,5 +65,24 @@ describe("av-specs remote loader", () => {
   it("network error never throws", async () => {
     mockFetch(async () => { throw new Error("down") })
     expect(await refreshAVSpecsNow()).toBe(false)
+  })
+})
+
+describe("av-specs epoch", () => {
+  beforeEach(() => __resetAVSpecsRemoteForTests())
+  afterEach(() => vi.unstubAllGlobals())
+
+  it("is null before a load, a stable content hash after, and changes with the data", async () => {
+    const { avSpecsEpoch } = await import("@/lib/av-specs-remote")
+    expect(avSpecsEpoch()).toBeNull()
+    mockFetch(async () => json(snapshot(120)))
+    await refreshAVSpecsNow()
+    const first = avSpecsEpoch()
+    expect(first).toMatch(/^[0-9a-f]{8}$/)
+    await refreshAVSpecsNow()
+    expect(avSpecsEpoch()).toBe(first)
+    mockFetch(async () => json(snapshot(121)))
+    await refreshAVSpecsNow()
+    expect(avSpecsEpoch()).not.toBe(first)
   })
 })

@@ -3,7 +3,7 @@ import fs from "node:fs"
 import os from "node:os"
 import path from "node:path"
 import { describe, expect, it } from "vitest"
-import { lookupAVSpecs } from "@/lib/av-specs"
+import { lookupBundledAVSpecs as lookupAVSpecs } from "@/lib/av-specs-remote"
 import {
   MANUAL_ALGORITHM_SERIES,
   MANUAL_IDENTITY_METHOD,

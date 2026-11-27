@@ -12,7 +12,16 @@
  * (0 = once per process). Import from server code only: the client keeps the
  * bundled seed through `lookupAVSpecs`.
  */
-import { lookupAVSpecs, isVideoFormat, type AVSpecEntry, type VideoFormat } from "@/lib/av-specs"
+import { createHash } from "node:crypto"
+import avSpecsData from "@/data/av-specs.json"
+import { isVideoFormat, type AVSpecEntry, type VideoFormat } from "@/lib/av-specs"
+
+const seed = new Map<string, AVSpecEntry>(Object.entries(avSpecsData as Record<string, AVSpecEntry>))
+
+/** Bundled seed only (no remote overlay): offline fallback and tests. */
+export function lookupBundledAVSpecs(id: string | null | undefined): AVSpecEntry | null {
+  return id ? (seed.get(id.trim()) ?? null) : null
+}
 
 const DEFAULT_REMOTE_URL = "https://raw.githubusercontent.com/Eful97/pictorium-quality-database/main/av-specs.json"
 const configuredUrl = (process.env.PICTORIUM_AV_SPECS_URL ?? "").trim()
@@ -33,6 +42,7 @@ let loadedAt = 0
 let lastAttemptAt = 0
 let inFlight = false
 let etag: string | null = null
+let epoch: string | null = null
 
 function parseEntry(raw: unknown): AVSpecEntry | null {
   if (!raw || typeof raw !== "object") return null
@@ -74,6 +84,7 @@ async function fetchRemote(): Promise<boolean> {
     const map = parseSnapshot(JSON.parse(text))
     if (!map) return false
     remote = map
+    epoch = createHash("sha1").update(text).digest("hex").slice(0, 8)
     loadedAt = Date.now()
     etag = response.headers.get("etag")
     return true
@@ -98,7 +109,16 @@ function maybeRefresh(): void {
 export function lookupAVSpecsServer(id: string | null | undefined): AVSpecEntry | null {
   maybeRefresh()
   if (!id) return null
-  return remote?.get(id.trim()) ?? lookupAVSpecs(id)
+  return remote?.get(id.trim()) ?? lookupBundledAVSpecs(id)
+}
+
+/**
+ * Content hash of the loaded remote snapshot (null before the first load).
+ * Goes into the poster cache key so a data update is not served from posters
+ * rendered with the old data, like the filler snapshot epoch.
+ */
+export function avSpecsEpoch(): string | null {
+  return epoch
 }
 
 /** Test/admin hook: refresh now and report whether the snapshot is current. */
@@ -115,4 +135,5 @@ export function __resetAVSpecsRemoteForTests(): void {
   lastAttemptAt = 0
   inFlight = false
   etag = null
+  epoch = null
 }
