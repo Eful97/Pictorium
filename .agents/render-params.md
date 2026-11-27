@@ -156,6 +156,9 @@ Semantica di resa:
 
 - built-in (`dv`, `hdr`, `hdr10plus`, `atmos`, `imax`): come sempre, solo se il titolo
   li possiede nell'av-specs locale; precedenza HDR10+ e combo DV+Atmos invariate.
+  Sorgente: seed `src/data/av-specs.json` (bundle, usato anche dal client) con overlay server-only
+  `src/lib/av-specs-remote.ts` (snapshot GitHub `Eful97/pictorium-quality-database`, refresh 24h,
+  fail-closed; voce remota > seed per id; env `PICTORIUM_AV_SPECS_URL`/`_REFRESH_HOURS`).
 - pack: nessun dato per-titolo → compaiono **solo** quando la selezione esplicita
   (`formats=` / mapping / default non vuoti) li contiene. `formats=none` o assenza
   di selezione = nessun pack mark (render legacy byte-identico).
@@ -802,6 +805,7 @@ dither Bayer deterministico (ETag stabile). L'ombra lineare superiore è
 | `rt` | `defaultRankTrend`/`rankTrend` → `rt=1` solo se true (poster-url, stremio-poster-params; toggle Settings → Informazioni, default OFF, INDIPENDENTE per forma: `defaultRankTrend` verticale / `defaultRankTrendLandscape` orizzontale, l'URL Stremio e l'anteprima leggono quello della forma del poster) | opt-in `rt=1`: freccia SOTTILE verde (↑) / rossa (↓) di movimento JW, disegnata DENTRO il badge rank (`attachRankTrendArrow`): stili con contenitore = spazio em riservato in coda al testo + freccia nello spazio; nastri netflix/colored = a destra del numerale; `number`/`editoriale` = accanto; Fresh = a destra dell'inchiostro del numerale, Card = sopra il numerale nel margine. Solo rank AUTOMATICO JW live: nessun effetto con `label=`, `rank=`/`rk=`, rank anime, rank di mapping salvato o fonti non JW; STABLE = nessuna freccia. Entra in cache key (`:lt<u\|d>`) e ETag. Dato: `ChartRow.trend` dello snapshot JW pinnato (`rank-trend-label.ts`) |
 | `bg` | `badgeGenre === false ? "0" : null` | `qBg !== null ? qBg !== "0"` — nasconde il GENERE nel badge genere/rating |
 | `by` | `badgeYear === false ? "0" : null` | `qBy !== null ? qBy !== "0"` — nasconde l'ANNO nel badge genere/rating |
+| `gs` | `badgeGenreShort ? "1" : null` (solo se attivo: URL storici invariati; solo default globali portrait, non per-titolo/landscape) | `qGs !== null ? qGs === "1"` → `configOverride` > `esd`/`sd` > off. Abbrevia SOLO il testo mostrato (`abbreviateGenreName`, `genre-abbrev.ts`: Science Fiction→Sci-Fi, Documentary→Docu, History→Hist, Biography→Bio, TV Movie→TV; nome ignoto invariato). `genreName` intero resta la chiave di accent/tinta (`GENRE_FALLBACK`); chiave cache badge usa l'etichetta mostrata |
 | `br` | `badgeRating === false ? "0" : null` | `qBr !== null ? qBr !== "0"` — nasconde il VOTO nel badge genere/rating |
 | `bq` | `badgeQuality === false ? "0" : null` | `qBq` — spegne il **tech stack qualità** (tier + marchi A/V): `qBq !== null ? qBq !== "0"`, catena `query > mapping effettivo per formato > config token > server defaults > true` (`poster-config.ts`). `bq=0` azzera `effectiveQuality`/`effectiveFormats` (`poster-service.ts`), quindi niente 4K né DV/Atmos; **non** tocca la pill età (governata da `age` + master `badges`) né genere/ranking |
 | `be` | `blurEnabled ? "1" : "0"` (sempre esplicito in preview, `poster-url.ts`); solo-OFF in pattern/Stremio | `q.get("be")` — master della sfocatura di scena: `be !== "0"` (`poster-config.ts`); `be=0` non produce l'overlay blur/tinta (`applyBlur` esce subito) e lascia l'artwork nitido. Catena `query > mapping > config > defaults > true` |
