@@ -62,6 +62,8 @@ interface BadgeParams {
   /** Componenti del badge genere/rating: `false` emette `bg/by/br=0`. */
   badgeGenre?: boolean
   badgeYear?: boolean
+  /** Genere abbreviato: emesso come `gs=1` solo quando true (assente = default OFF). */
+  badgeGenreShort?: boolean
   badgeRating?: boolean
   badgeQuality?: boolean
   /** Badge età testuale: `false` emette `age=0` (default OFF). */
@@ -378,6 +380,7 @@ export function buildUrlPattern(bp: BadgeParams & {
     rankingBadges: bp.rankingBadges,
     badgeGenre: bp.badgeGenre,
     badgeYear: bp.badgeYear,
+    badgeGenreShort: bp.badgeGenreShort,
     badgeRating: bp.badgeRating,
     badgeQuality: bp.badgeQuality,
     ageBadge: bp.ageBadge ?? undefined,
@@ -478,6 +481,7 @@ export function buildPreviewUrl(ps: PosterState, bp: BadgeParams, configToken?: 
   params.push(`ranking=${bp.rankingBadges ? "1" : "0"}`)
   params.push(`bg=${bp.badgeGenre !== false ? "1" : "0"}`)
   params.push(`by=${bp.badgeYear !== false ? "1" : "0"}`)
+  if (bp.badgeGenreShort) params.push("gs=1")
   params.push(`br=${bp.badgeRating !== false ? "1" : "0"}`)
   params.push(`bq=${bp.badgeQuality !== false ? "1" : "0"}`)
   // Badge età sempre esplicito in preview (ON e OFF): senza, un default
@@ -818,6 +822,7 @@ export interface DefaultsPreviewParams {
   defaultRankingBadges?: boolean
   defaultBadgeGenre?: boolean
   defaultBadgeYear?: boolean
+  defaultBadgeGenreShort?: boolean
   defaultBadgeRating?: boolean
   defaultBadgeQuality?: boolean
   /** Badge età testuale di default portrait (default OFF): sempre esplicito in preview. In preview landscape vince il profilo `landscape` (`land ?? flat`). */
@@ -1096,6 +1101,8 @@ export function buildDefaultsPreviewUrl(bp: DefaultsPreviewParams): string {
   if (bp.previewExtra) params.push(`extra=${encodeURIComponent(bp.previewExtra)}`)
   params.push(`bg=${pick(land.badgeGenre, bp.defaultBadgeGenre) !== false ? "1" : "0"}`)
   params.push(`by=${pick(land.badgeYear, bp.defaultBadgeYear) !== false ? "1" : "0"}`)
+  // Esplicito (anche `0`): la bozza non salvata deve vincere sul default server.
+  params.push(`gs=${pick(land.badgeGenreShort, bp.defaultBadgeGenreShort) === true ? "1" : "0"}`)
   params.push(`br=${pick(land.badgeRating, bp.defaultBadgeRating) !== false ? "1" : "0"}`)
   params.push(`bq=${pick(land.badgeQuality, bp.defaultBadgeQuality) !== false ? "1" : "0"}`)
   // Badge età sempre esplicito in preview (toggle + paese non salvati devono

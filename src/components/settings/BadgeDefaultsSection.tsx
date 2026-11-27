@@ -269,6 +269,7 @@ export function BadgeDefaultsSection({ active, shape, onPreviewFamilyChange, pre
   const [globalBadges, setGlobalBadges] = scoped("globalBadges", ed.defaultGlobalBadges, ed.setDefaultGlobalBadges)
   const [badgeGenre, setBadgeGenre] = scoped("badgeGenre", ed.defaultBadgeGenre, ed.setDefaultBadgeGenre)
   const [badgeYear, setBadgeYear] = scoped("badgeYear", ed.defaultBadgeYear, ed.setDefaultBadgeYear)
+  const [badgeGenreShort, setBadgeGenreShort] = scoped("badgeGenreShort", ed.defaultBadgeGenreShort, ed.setDefaultBadgeGenreShort)
   const [badgeRating, setBadgeRating] = scoped("badgeRating", ed.defaultBadgeRating, ed.setDefaultBadgeRating)
   const [separateRatings, setSeparateRatings] = scoped("separateRatings", ed.defaultSeparateRatings, ed.setDefaultSeparateRatings)
   const [separateRatingsStyle, setSeparateRatingsStyle] = scoped("separateRatingsStyle", ed.defaultSeparateRatingsStyle, ed.setDefaultSeparateRatingsStyle)
@@ -1613,6 +1614,14 @@ export function BadgeDefaultsSection({ active, shape, onPreviewFamilyChange, pre
                   }}
                   label={t("ui.badgeYear")}
                   disabled={defaultBottomMetaLocked}
+                />
+              </div>
+              <div className="flex items-center justify-between" title={t("ui.badgeGenreShortHint")}>
+                <span className="text-muted">{t("ui.badgeGenreShort")}</span>
+                <Toggle
+                  value={badgeGenreShort}
+                  onChange={(v) => setBadgeGenreShort(v)}
+                  label={t("ui.badgeGenreShort")}
                 />
               </div>
               </fieldset>

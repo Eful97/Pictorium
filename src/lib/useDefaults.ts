@@ -121,6 +121,8 @@ export interface DefaultsState {
   /** Componenti del badge genere/rating di default (default tutti ON). */
   defaultBadgeGenre: boolean
   defaultBadgeYear: boolean
+  /** Genere abbreviato (es. Science Fiction → Sci-Fi); default OFF. */
+  defaultBadgeGenreShort: boolean
   defaultBadgeRating: boolean
   defaultBadgeQuality: boolean
   /** Badge età testuale di default portrait (default OFF). */
@@ -250,6 +252,8 @@ export interface DefaultsState {
   /** Componenti del badge genere/rating (default tutti ON). */
   badgeGenre: boolean
   badgeYear: boolean
+  /** Genere abbreviato nel badge (default OFF). */
+  badgeGenreShort: boolean
   badgeRating: boolean
   badgeQuality: boolean
   /** Riga rating custom provider (default ON). */
@@ -400,6 +404,7 @@ const DEFAULT_FLAT_DEFAULTS: Omit<DefaultsState, "landscape"> = {
   defaultRankingBadges: true,
   defaultBadgeGenre: true,
   defaultBadgeYear: true,
+  defaultBadgeGenreShort: false,
   defaultBadgeRating: true,
   defaultBadgeQuality: true,
   defaultAgeBadge: false,
@@ -469,6 +474,7 @@ const DEFAULT_FLAT_DEFAULTS: Omit<DefaultsState, "landscape"> = {
   rankingBadges: true,
   badgeGenre: true,
   badgeYear: true,
+  badgeGenreShort: false,
   badgeRating: true,
   badgeQuality: true,
   customRatings: true,
@@ -550,6 +556,7 @@ interface StoredDefaults {
   rankingBadges?: boolean
   badgeGenre?: boolean
   badgeYear?: boolean
+  badgeGenreShort?: boolean
   badgeRating?: boolean
   badgeQuality?: boolean
   ageBadge?: boolean
@@ -633,6 +640,7 @@ interface StoredDefaults {
   defaultRankingBadges?: boolean
   defaultBadgeGenre?: boolean
   defaultBadgeYear?: boolean
+  defaultBadgeGenreShort?: boolean
   defaultBadgeRating?: boolean
   defaultBadgeQuality?: boolean
   defaultAgeBadge?: boolean
@@ -1093,6 +1101,7 @@ function buildFromStored(d: StoredDefaults | null): DefaultsState {
     defaultRankingBadges: d.defaultRankingBadges ?? d.rankingBadges ?? true,
     defaultBadgeGenre: d.defaultBadgeGenre ?? d.badgeGenre ?? true,
     defaultBadgeYear: d.defaultBadgeYear ?? d.badgeYear ?? true,
+    defaultBadgeGenreShort: d.defaultBadgeGenreShort ?? d.badgeGenreShort ?? false,
     defaultBadgeRating: d.defaultBadgeRating ?? d.badgeRating ?? true,
     defaultBadgeQuality: d.defaultBadgeQuality ?? d.badgeQuality ?? true,
     // Badge età portrait: default OFF; paese validato fail-closed su "IT"
@@ -1218,6 +1227,7 @@ function buildFromStored(d: StoredDefaults | null): DefaultsState {
     rankingBadges: d.rankingBadges ?? d.defaultRankingBadges ?? true,
     badgeGenre: d.badgeGenre ?? d.defaultBadgeGenre ?? true,
     badgeYear: d.badgeYear ?? d.defaultBadgeYear ?? true,
+    badgeGenreShort: d.badgeGenreShort ?? d.defaultBadgeGenreShort ?? false,
     badgeRating: d.badgeRating ?? d.defaultBadgeRating ?? true,
     badgeQuality: d.badgeQuality ?? d.defaultBadgeQuality ?? true,
     customRatings: d.customRatings ?? d.defaultCustomRatings ?? true,
@@ -1390,6 +1400,7 @@ export function defaultsToPayload(d: DefaultsState): Record<string, unknown> {
     rankingBadges: d.defaultRankingBadges,
     badgeGenre: d.defaultBadgeGenre,
     badgeYear: d.defaultBadgeYear,
+    badgeGenreShort: d.defaultBadgeGenreShort,
     badgeRating: d.defaultBadgeRating,
     badgeQuality: d.defaultBadgeQuality,
     ageBadge: d.defaultAgeBadge,

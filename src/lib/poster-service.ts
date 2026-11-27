@@ -7,6 +7,7 @@ import { MAX_SEPARATE_RATINGS } from "./ratings"
 import { renderSeparateRatingStack,renderSeparateRatingsBottom,renderSeparateRatingsNotch,renderSeparateRatingsSideNotch,notchSeparateStepBodyHeight,notchSeparateStepText,type SeparateRatingStack } from "./separate-rating-renderer"
 import { cacheGet,cacheSet } from "./cache"
 import { GENRE_FALLBACK } from "./badges"
+import { abbreviateGenreName } from "./genre-abbrev"
 import { applyBlur } from "./blur"
 import { STD_W,STD_H,extractSceneTint,fitBadgeToCanvas,BadgeRender,PosterComposite,badgeBody,badgeCanvasForBody,scaleBadgeBleed,topBandMeanRGB,bottomBandMeanRGB,effectiveTopBackgroundLuminance,effectiveBottomBackgroundLuminance,adaptiveAccentHexForBand } from "./poster-render-helpers"
 import { LAND_W,LAND_H } from "./image-utils"
@@ -141,6 +142,9 @@ export async function generatePosterBuffer(input: GenerationInput): Promise<Buff
   const genreBadgeLight = genreBadgeLightOpt ?? bottomLight
   // Font badge normalizzato (assente/invalido → "inter" = resa storica).
   const badgeFont = normalizeBadgeFont(input.badgeFont)
+  // Testo del genere mostrato: abbreviato solo se il toggle è attivo. Il nome
+  // intero (`genreName`) resta la chiave per accent/tinta (GENRE_FALLBACK).
+  const genreLabel = input.genreShort && genreName ? abbreviateGenreName(genreName) : genreName
   // Stile pill età normalizzato (assente/invalido → "standard" = resa
   // storica; entra nella chiave solo con l'età presente).
   const ageBadgeStyle: AgeBadgeStyle = isAgeBadgeStyle(rawAgeBadgeStyle) ? rawAgeBadgeStyle : DEFAULT_AGE_BADGE_STYLE
@@ -530,7 +534,7 @@ export async function generatePosterBuffer(input: GenerationInput): Promise<Buff
   const notchStepRawYear = input.freshRawBadgeYear ?? badgeYear
   const notchStepLabel = isNotchSeparateRatingsStyle(effBottomStyle)
     ? notchSeparateStepText({
-        genre: notchStepRawGenre && genreName ? genreName : null,
+        genre: notchStepRawGenre && genreLabel ? genreLabel : null,
         year: notchStepRawYear && year ? year : null,
       })
     : ""
@@ -846,7 +850,7 @@ export async function generatePosterBuffer(input: GenerationInput): Promise<Buff
     topLight, qualityBadgeScale, ribbonSide, comingSoonLabel: ribbonTextLabel, isFresh, isCard,
     bottomAnchor, qualityAnchor, logoResult, networkLogoPosition, extraBadgeAnchor, topBadgeAnchor,
     showComingSoon, networkLogo, input, shape, badgeStyle, topBadgeLight,
-    genreBadgeLight, typeIcon, mediaType, hasGenreBadge, genreName, voteAverage,
+    genreBadgeLight, typeIcon, mediaType, hasGenreBadge, genreName: genreLabel, voteAverage,
     CW, year, badgeFont, genreStdAccent, badgeGenre, badgeYear,
     badgeRating, genreBadgeScale, rankStdAccent, rankingBadgeAccent, awardLogoTopKey, awardLogoTopCaption,
     badgeItemTransforms, genreBadgeOffsetX, genreBadgeOffsetY,
@@ -860,7 +864,7 @@ export async function generatePosterBuffer(input: GenerationInput): Promise<Buff
     genreBadgeKey
       ? (cacheGet<BadgeRender>(genreBadgeKey)
           || coalesceBadgeRender(genreBadgeKey, () =>
-                renderGenreBadge(genreName ?? "", voteAverage ?? 0, badgePw, year, badgeStyle, genreStdAccent, genreLight, { showGenre: badgeGenre, showYear: badgeYear, showRating: badgeRating, typeIcon: genreTypeIcon }, badgeStyle === "bar" ? genreBadgeScale : 100, badgeFont)
+                renderGenreBadge(genreLabel ?? "", voteAverage ?? 0, badgePw, year, badgeStyle, genreStdAccent, genreLight, { showGenre: badgeGenre, showYear: badgeYear, showRating: badgeRating, typeIcon: genreTypeIcon }, badgeStyle === "bar" ? genreBadgeScale : 100, badgeFont)
                 .then((r) => { if (r) cacheSet(genreBadgeKey, r, ["badge"], BADGE_CACHE_TTL); return r })
             ))
       : Promise.resolve(null)
@@ -1160,12 +1164,12 @@ export async function generatePosterBuffer(input: GenerationInput): Promise<Buff
       // divergono con shrink overflow e metriche dei font).
       let sepCenterShift = 0
       if (anchorRight && genreBadgeResult && (input.separateRatings?.length ?? 0) > 0) {
-        const fullKey = badgeCacheKey("genre", genreName, voteAverage, CW, year, badgeStyle, badgeFont, genreStdAccent, genreBadgeLight, badgeGenre, badgeYear, true, genreBadgeScale, genreTypeIcon)
+        const fullKey = badgeCacheKey("genre", genreLabel, voteAverage, CW, year, badgeStyle, badgeFont, genreStdAccent, genreBadgeLight, badgeGenre, badgeYear, true, genreBadgeScale, genreTypeIcon)
         const fullHit = cacheGet<{ png: Buffer; w: number; h: number }>(fullKey)
         const fullW = fullHit
           ? fullHit.w
           : await coalesceBadgeRender(fullKey, () =>
-              renderGenreBadge(genreName ?? "", voteAverage ?? 0, badgePw, year, badgeStyle, genreStdAccent, genreBadgeLight, { showGenre: badgeGenre, showYear: badgeYear, showRating: true, typeIcon: genreTypeIcon }, 100, badgeFont)
+              renderGenreBadge(genreLabel ?? "", voteAverage ?? 0, badgePw, year, badgeStyle, genreStdAccent, genreBadgeLight, { showGenre: badgeGenre, showYear: badgeYear, showRating: true, typeIcon: genreTypeIcon }, 100, badgeFont)
                 .then((r) => { if (r) cacheSet(fullKey, r, ["badge"], BADGE_CACHE_TTL); return r }),
             ).then((r) => (r ? r.w : null), () => null)
         if (fullW != null && fullW > genreBadgeResult.w) {
@@ -2338,7 +2342,7 @@ export async function generatePosterBuffer(input: GenerationInput): Promise<Buff
     const bottom = cached ?? await coalesceBadgeRender(bottomKey, () =>
       (isNotchStep
         ? renderSeparateRatingsNotch(items, badgePw, bottomVariant, badgeFont, separateBadgeScaleEff, availW, effSepBottomLight, {
-            genre: notchStepRawGenre && genreName ? genreName : null,
+            genre: notchStepRawGenre && genreLabel ? genreLabel : null,
             year: notchStepRawYear && year ? year : null,
           }, notchStepAccent)
         : renderSeparateRatingsBottom(items, badgePw, bottomVariant, badgeFont, separateBadgeScaleEff, availW, effSepBottomLight, itemTransformsForSeparate))
@@ -2516,7 +2520,7 @@ export async function generatePosterBuffer(input: GenerationInput): Promise<Buff
   // -----------------------------------------------------------------------
   ;({ freshOverlayGeo, freshBottomShadeLayer, typeIconInlineAux } = await composeFreshLayer({
     isFresh, topBadge, input, freshBaseBuf, CW, CH,
-    badgesEnabled, badgeGenre, badgeYear, isBottomStyle, bottomVariant, genreName,
+    badgesEnabled, badgeGenre, badgeYear, isBottomStyle, bottomVariant, genreName: genreLabel,
     year, voteAverage, typeIcon, mediaType, logoResult, networkLogoForLayout,
     badgeFont, freshOverlayGeo, topBadgeScale, topBadgeOffsetX, topBadgeOffsetY, genreBadgeScale,
     genreBadgeOffsetX, genreBadgeOffsetY, networkLogoScale, networkLogoOffsetX, networkLogoOffsetY, networkLogoFollowTitle,
@@ -2540,7 +2544,7 @@ export async function generatePosterBuffer(input: GenerationInput): Promise<Buff
   let cardMainBadgeRendered = false
   ;({ cardMainBadgeRendered, typeIconInlineAux, cardPng, cardOverlayGeo } = await composeCardLayer({
     isCard, topBadge, input, badgesEnabled, badgeGenre, badgeYear,
-    isBottomStyle, bottomVariant, voteAverage, genreName, year, typeIcon,
+    isBottomStyle, bottomVariant, voteAverage, genreName: genreLabel, year, typeIcon,
     mediaType, badgePw, CW, badgeStyle, accentColorGenre, bottomLight,
     badgeFont, genreBadgeScale, cardMainBadgeRendered, typeIconInlineAux, genreBadgeLight, isLandscape,
     separateBadgeScaleEff, effSepBottomLight, CH, qualityStackAnchor, rankingBadgeStyle, ribbonSide,

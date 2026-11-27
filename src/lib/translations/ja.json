@@ -510,6 +510,8 @@
   "ui.styleGenreBadge": "バッジスタイル",
   "ui.commonAppearance": "共通の外観",
   "ui.badgeFont": "バッジフォント",
+  "ui.badgeGenreShort": "ジャンル名を短縮",
+  "ui.badgeGenreShortHint": "長いジャンル名を短縮（例: Science Fiction → Sci-Fi, Documentary → Docu）",
   "ui.textLogo": "ロゴテキスト",
   "ui.textLogoPlaceholder": "タイトルを入力…",
   "ui.textLogoFont": "ロゴのフォント",

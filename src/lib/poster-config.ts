@@ -455,6 +455,7 @@ export interface PosterRenderConfig {
   badgeYear: boolean
   badgeRating: boolean
   badgeQuality: boolean
+  genreShort: boolean
   /** Badge testuale di classificazione per età (default OFF). Per-shape con
    *  per-titolo: query `age` > mapping effettivo per formato > config token >
    *  defaults effettivi per forma > flat > false (come gli altri toggle
@@ -963,6 +964,9 @@ export function resolvePosterRenderConfig(input: PosterRenderConfigInput): Poste
   const badgeYear = qBy !== null ? qBy !== "0" : (m?.badgeYear ?? configOverride?.badgeYear ?? esd.badgeYear ?? sd.badgeYear ?? true)
   const badgeRating = qBr !== null ? qBr !== "0" : (m?.badgeRating ?? configOverride?.badgeRating ?? esd.badgeRating ?? sd.badgeRating ?? true)
   const badgeQuality = qBq !== null ? qBq !== "0" : (m?.badgeQuality ?? configOverride?.badgeQuality ?? esd.badgeQuality ?? sd.badgeQuality ?? true)
+  // Abbreviazione generi (Sci-Fi, Docu, ...): query `gs=1` > config token > server defaults > off.
+  const qGs = q.get("gs")
+  const genreShort = qGs !== null ? qGs === "1" : (configOverride?.badgeGenreShort ?? esd.badgeGenreShort ?? sd.badgeGenreShort ?? false)
 
   // Badge età (classificazione regionale testuale) — per-shape con
   // per-titolo via resolveAgeBadgeRequest (unico punto di verità con la
@@ -1483,6 +1487,7 @@ export function resolvePosterRenderConfig(input: PosterRenderConfigInput): Poste
     rankingEnabled,
     badgeGenre,
     badgeYear,
+    genreShort,
     badgeRating,
     badgeQuality,
     ageBadge,

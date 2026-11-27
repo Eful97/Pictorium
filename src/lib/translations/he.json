@@ -510,6 +510,8 @@
   "ui.styleGenreBadge": "סגנון התג",
   "ui.commonAppearance": "מראה משותף",
   "ui.badgeFont": "גופן התג",
+  "ui.badgeGenreShort": "שמות ז'אנר מקוצרים",
+  "ui.badgeGenreShortHint": "קיצור ז'אנרים ארוכים (למשל Science Fiction → Sci-Fi, Documentary → Docu)",
   "ui.textLogo": "טקסט הלוגו",
   "ui.textLogoPlaceholder": "הקלידו את הכותרת…",
   "ui.textLogoFont": "גופן הלוגו",

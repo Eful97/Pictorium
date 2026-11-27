@@ -93,6 +93,7 @@ export interface LandscapeServerDefaults {
   rankingBadges?: boolean
   badgeGenre?: boolean
   badgeYear?: boolean
+  badgeGenreShort?: boolean
   badgeRating?: boolean
   badgeQuality?: boolean
   /**
@@ -210,6 +211,7 @@ export interface ServerDefaults {
   rankingBadges?: boolean
   badgeGenre?: boolean
   badgeYear?: boolean
+  badgeGenreShort?: boolean
   badgeRating?: boolean
   badgeQuality?: boolean
   /** Badge testuale di classificazione per età (default OFF). Flat portrait:

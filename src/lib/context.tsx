@@ -371,6 +371,7 @@ export function usePictorium(): PictoriumCtx {
     rankingBadges, setRankingBadges,
     badgeGenre, setBadgeGenre,
     badgeYear, setBadgeYear,
+    badgeGenreShort, setBadgeGenreShort,
     badgeRating, setBadgeRating,
     badgeQuality, setBadgeQuality,
     ageBadge, setAgeBadge,
@@ -422,6 +423,7 @@ export function usePictorium(): PictoriumCtx {
     defaultRankingBadges,
     defaultBadgeGenre,
     defaultBadgeYear,
+    defaultBadgeGenreShort,
     defaultBadgeRating,
     defaultBadgeQuality,
     defaultAgeBadge,
@@ -1042,6 +1044,7 @@ export function usePictorium(): PictoriumCtx {
       videoFormats: noPreview ? defaultVideoFormats : (videoFormats ?? defaultVideoFormats),
       badgeGenre: noPreview ? defaultBadgeGenre : badgeGenre,
       badgeYear: noPreview ? defaultBadgeYear : badgeYear,
+      badgeGenreShort: noPreview ? defaultBadgeGenreShort : badgeGenreShort,
       badgeRating: noPreview ? defaultBadgeRating : badgeRating,
       badgeQuality: noPreview ? defaultBadgeQuality : badgeQuality,
       // Badge età per-titolo: vedi tmplAge/deliveryAge sopra per i default;
@@ -1239,6 +1242,7 @@ export function usePictorium(): PictoriumCtx {
     if (changed("rankingBadges")) setRankingBadges(cur.rankingBadges as boolean)
     if (changed("badgeGenre")) setBadgeGenre(cur.badgeGenre as boolean)
     if (changed("badgeYear")) setBadgeYear(cur.badgeYear as boolean)
+    if (changed("badgeGenreShort")) setBadgeGenreShort(cur.badgeGenreShort as boolean)
     if (changed("badgeRating")) setBadgeRating(cur.badgeRating as boolean)
     if (changed("badgeQuality")) setBadgeQuality(cur.badgeQuality as boolean)
     // Badge età per-titolo live (unmapped title only, like the other

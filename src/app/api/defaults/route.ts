@@ -134,6 +134,7 @@ const defaultsSchema = z.object({
   rankingBadges: z.boolean().optional(),
   badgeGenre: z.boolean().optional(),
   badgeYear: z.boolean().optional(),
+  badgeGenreShort: z.boolean().optional(),
   badgeRating: z.boolean().optional(),
   badgeQuality: z.boolean().optional(),
   /** Badge età testuale (default OFF). Flat portrait (il profilo
@@ -300,6 +301,7 @@ const defaultsSchema = z.object({
     rankingBadges: z.boolean().optional(),
     badgeGenre: z.boolean().optional(),
     badgeYear: z.boolean().optional(),
+    badgeGenreShort: z.boolean().optional(),
     badgeRating: z.boolean().optional(),
     badgeQuality: z.boolean().optional(),
     /**

@@ -69,6 +69,8 @@ export interface GenerationInput {
   badgeGenre: boolean
   badgeYear: boolean
   badgeRating: boolean
+  /** Genere abbreviato nel badge (solo testo; assente = nome intero). */
+  genreShort?: boolean
   badgeQuality?: boolean
   quality?: string | null
   /** Etichetta di classificazione per età già risolta e sanificata dalla

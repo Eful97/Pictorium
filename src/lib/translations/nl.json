@@ -510,6 +510,8 @@
   "ui.styleGenreBadge": "Badgestijl",
   "ui.commonAppearance": "Gemeenschappelijk uiterlijk",
   "ui.badgeFont": "Badgelettertype",
+  "ui.badgeGenreShort": "Korte genrenamen",
+  "ui.badgeGenreShortHint": "Verkort lange genres (bv. Science Fiction → Sci-Fi, Documentary → Docu)",
   "ui.textLogo": "Logotekst",
   "ui.textLogoPlaceholder": "Typ de titel…",
   "ui.textLogoFont": "Logofont",

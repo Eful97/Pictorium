@@ -510,6 +510,8 @@
   "ui.styleGenreBadge": "Badgestil",
   "ui.commonAppearance": "Gemensamt utseende",
   "ui.badgeFont": "Badgetypsnitt",
+  "ui.badgeGenreShort": "Korta genrenamn",
+  "ui.badgeGenreShortHint": "Förkorta långa genrer (t.ex. Science Fiction → Sci-Fi, Documentary → Docu)",
   "ui.textLogo": "Logotext",
   "ui.textLogoPlaceholder": "Skriv titeln…",
   "ui.textLogoFont": "Logotypsnitt",
