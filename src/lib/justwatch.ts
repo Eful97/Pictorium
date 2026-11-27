@@ -1291,6 +1291,53 @@ export async function hasJWOffers(
 }
 
 /** Solo per i test: svuota la cache condivisa delle classifiche e qualità JustWatch, cookie e circuit breaker. */
+/**
+ * Chiamata GraphQL generica con lo stesso transport (header, cookie, circuit
+ * breaker, timeout) delle chart: usata dai cataloghi dinamici. Lancia su
+ * outage/errore (mai `[]` fasullo); il chiamante decide la degradazione.
+ */
+export async function jwGraphql<T = unknown>(
+  operationName: string,
+  query: string,
+  variables: Record<string, unknown>,
+  signal?: AbortSignal,
+  timeoutMs: number = JW_TIMEOUT_MS,
+): Promise<T> {
+  if (isCircuitOpen()) throw new Error(`JustWatch circuit open (${operationName})`)
+  const trial = justwatchBreaker.currentTrial()
+  let res: Response
+  try {
+    res = await timedFetch(JW_API, {
+      method: "POST",
+      headers: jwHeaders(),
+      signal: combineAbortSignals(signal, timeoutMs),
+      body: JSON.stringify({ operationName, query, variables }),
+    })
+  } catch (err) {
+    if (signal?.aborted) {
+      releaseCircuitTrial(trial)
+      throw err
+    }
+    recordCircuitFailure()
+    throw err
+  }
+  captureCookie(res.headers)
+  if (!res.ok) {
+    recordCircuitFailure(res.status)
+    throw new Error(`JustWatch ${operationName} failed: ${res.status}`)
+  }
+  const json = await res.json().catch((e) => {
+    recordCircuitFailure()
+    throw e instanceof Error ? e : new Error(`JustWatch ${operationName} invalid JSON`)
+  })
+  if (json?.errors && !json?.data) {
+    recordCircuitFailure()
+    throw new Error(`JustWatch ${operationName} GraphQL error: ${json.errors[0]?.message || "unknown"}`)
+  }
+  recordCircuitSuccess()
+  return json.data as T
+}
+
 export function __resetJWRankingsCache(): void {
   rankingsCache.clear()
   qualityCache.clear()

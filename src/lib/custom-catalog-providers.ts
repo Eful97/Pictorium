@@ -6,6 +6,8 @@ import { createLogger } from "@/lib/logger"
 import { envWithFallback } from "@/lib/env-compat"
 import { isPrivateHost } from "@/lib/safe-remote-fetch"
 import { detectCatalogProvider, isTraktUserContentUrl } from "./catalog-provider-detect"
+import { parseJWDynamicUrl } from "./catalog-provider-detect"
+import { fetchJWDynamicList } from "./jw-dynamic"
 import { sanitizeCustomCatalogSort, type CustomCatalogSortOrder } from "./types"
 
 // Re-export per compatibilità: il riconoscimento URL vive in
@@ -76,6 +78,8 @@ export async function fetchPinnedProviderUrl(
 // "le liste personalizzate fai sempre 12 ore"). Errors, empties,
 // incomplete/aborted prefixes and time-budget partials never land here.
 const CUSTOM_LIST_SOURCE_TTL_MS = 12 * 60 * 60 * 1000
+// Liste dinamiche JustWatch: stessa cadenza 6h delle chart JW e chiave per giorno.
+const JW_DYNAMIC_SOURCE_TTL_MS = 6 * 60 * 60 * 1000
 
 /**
  * Esito tipizzato del fetch catalogo (Fase 5): la pipeline Stremio tratta
@@ -1285,7 +1289,7 @@ export async function fetchUnifiedCatalogResult(
       : traktAuth.kind === "token"
         ? `:tu${hashFragment(traktOwner)}:tg${hashFragment(traktAuth.generation ?? "none")}`
         : `:tu${hashFragment(traktOwner)}:tg${traktAuth.kind}`
-  const cacheKey = `custom_cat:${provider}:${crypto.createHash("sha1").update(trimmed).digest("hex").slice(0, 10)}:${limit}:ak${hashFragment(options?.apiKey)}:mk${hashFragment(options?.mdblistKey)}:tk${hashFragment(getTraktClientId())}:ds${hashFragment(options?.datasetId)}:vk${hashFragment(options?.tvdbKey)}:u${hashFragment(options?.userId ?? undefined)}${traktCacheFragment}${sortCacheFragment}`
+  const cacheKey = `custom_cat:${provider}:${crypto.createHash("sha1").update(trimmed).digest("hex").slice(0, 10)}:${limit}:ak${hashFragment(options?.apiKey)}:mk${hashFragment(options?.mdblistKey)}:tk${hashFragment(getTraktClientId())}:ds${hashFragment(options?.datasetId)}:vk${hashFragment(options?.tvdbKey)}:u${hashFragment(options?.userId ?? undefined)}${traktCacheFragment}${sortCacheFragment}${provider === "justwatch" ? `:d${new Date().toISOString().slice(0, 10)}` : ""}`
   const cached = traktNoCache ? null : cacheGet<MDBListEntry[]>(cacheKey)
   if (cached) return { items: cached, status: "ok" }
 
@@ -1308,6 +1312,13 @@ export async function fetchUnifiedCatalogResult(
         status: fetched.items.length > 0 ? "ok" : "empty",
         ...(fetched.incomplete ? { incomplete: true as const } : {}),
       }
+      break
+    }
+    case "justwatch": {
+      const spec = parseJWDynamicUrl(trimmed)
+      result = spec
+        ? await fetchJWDynamicList(spec, { limit, signal: options?.signal })
+        : { items: [], status: "unsupported" }
       break
     }
     case "tvdb":
@@ -1384,7 +1395,7 @@ export async function fetchUnifiedCatalogResult(
     }
   }
   if (items.length > 0 && !traktNoCache && (provider !== "trakt" || traktAuth?.kind !== "token" || traktPrivateVerified)) {
-    cacheSet(cacheKey, items, ["custom_catalogs"], CUSTOM_LIST_SOURCE_TTL_MS)
+    cacheSet(cacheKey, items, ["custom_catalogs"], provider === "justwatch" ? JW_DYNAMIC_SOURCE_TTL_MS : CUSTOM_LIST_SOURCE_TTL_MS)
     return { items, status: "ok", ...(traktPrivateServed ? { traktPrivate: true as const } : {}) }
   }
   if (items.length > 0) return { items, status: "ok", ...(traktPrivateServed ? { traktPrivate: true as const } : {}) }
