@@ -30,6 +30,16 @@ export interface ChangelogRelease {
  *  (which bumps on every commit and would leave the dot permanently on). */
 export const CHANGELOG: ChangelogRelease[] = [
   {
+    version: "1.28.6",
+    date: "2026-11-28",
+    title: "Release 1.28.6",
+    items: [
+      { type: "fix", text: "Episode thumbnails with TVDB ordering now show the TVDB cover in the picker grid and in the large preview, instead of looking for a TMDB still under a numbering TMDB does not have" },
+      { type: "fix", text: "Episode thumbnail picker no longer reports an error when TMDB has no stills for an episode: it shows an empty list" },
+      { type: "fix", text: "Automatic episode-group detection no longer mistakes a story-arc group for a season split because of its description, so shows like Re:ZERO keep their real seasons" },
+    ],
+  },
+  {
     version: "1.28.5",
     date: "2026-11-27",
     title: "Release 1.28.5",
