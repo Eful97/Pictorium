@@ -390,7 +390,7 @@ function searchParamsOf(req: KeyRequest): URLSearchParams | undefined {
  * vogliono anche sugli scoped. Con flag OFF tutto è byte-identico a oggi.
  *
  * - tmdb: header `x-api-key` > query `api_key` > namespace.tmdb > istanza > env TMDB.
- * - mdblist: query `mdblist_key` > namespace.mdblist > istanza > env MDBLIST.
+ * - mdblist: query `mdblist_key` > header `x-mdblist-key` > namespace.mdblist > istanza > env MDBLIST.
  * - tvdb: header `x-tvdb-key` > query `tvdb_key` > namespace.tvdb > istanza > env TVDB.
  * - simkl: query `simkl_key` > header `x-simkl-key`/`simkl-api-key` > namespace.simkl > istanza > env SIMKL_CLIENT_ID/SIMKL_API_KEY.
  * - fanart: query `fanart_key` > header `x-fanart-key` > namespace.fanart > istanza > env FANART (chiave progetto: spazio vince sull'istanza).
@@ -417,6 +417,10 @@ export async function resolveUserApiKeys(
   }
   const queryMdblist = sp?.get("mdblist_key")
   if (queryMdblist) out.mdblist = { key: queryMdblist, source: "query" }
+  else {
+    const headerMdblist = req.headers.get("x-mdblist-key")
+    if (headerMdblist) out.mdblist = { key: headerMdblist, source: "header" }
+  }
   const queryTvdb = sp?.get("tvdb_key")
   if (queryTvdb) out.tvdb = { key: queryTvdb, source: "query" }
   else {

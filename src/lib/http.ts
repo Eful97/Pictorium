@@ -48,29 +48,40 @@ function mergeNamedHeader(
   return record
 }
 
+const KEY_PARAM_HEADERS: ReadonlyArray<readonly [string, string]> = [
+  ["api_key", "x-api-key"],
+  ["tvdb_key", "x-tvdb-key"],
+  ["mdblist_key", "x-mdblist-key"],
+]
+
 /**
- * Sposta `api_key` dalla query all'header `x-api-key` sulle chiamate `/api/*`
- * (il server accetta entrambi, header prima): la chiave non finisce nei log di
- * accesso di proxy/CDN, nella history né nei messaggi d'errore. Un
- * `x-api-key` esplicito del chiamante vince; una query vuota viene solo tolta.
+ * Sposta le chiavi (`api_key`, `tvdb_key`, `mdblist_key`) dalla query agli
+ * header sulle chiamate `/api/*` (il server accetta entrambi): le chiavi non
+ * finiscono nei log di accesso di proxy/CDN, nella history né nei messaggi
+ * d'errore. Un header esplicito del chiamante vince; una query vuota viene
+ * solo tolta; un valore non header-safe resta in query.
  */
-export function moveApiKeyToHeader(
+export function moveKeysToHeaders(
   path: string,
   headers: HeadersInit | undefined,
 ): { path: string; headers: HeadersInit | undefined } {
   if (!path.startsWith("/api/")) return { path, headers }
-  const m = /([?&])api_key=([^&#]*)/.exec(path)
-  if (!m) return { path, headers }
-  let value = m[2]
-  try { value = decodeURIComponent(value) } catch { /* keep raw */ }
-  value = value.trim()
-  // Drop the param (and its separator) while keeping the other params byte-identical.
-  const rest = path.replace(/([?&])api_key=[^&#]*(&?)/, (_s, sep: string, amp: string) => (amp ? sep : ""))
-  if (!value) return { path: rest, headers }
-  if (!/^[\x21-\x7e]+$/.test(value)) return { path, headers } // not header-safe: leave as is
-  const h = new Headers(headers)
-  if (!h.has("x-api-key")) h.set("x-api-key", value)
-  return { path: rest, headers: h }
+  let outPath = path
+  let h: Headers | undefined
+  for (const [param, header] of KEY_PARAM_HEADERS) {
+    const m = new RegExp(`[?&]${param}=([^&#]*)`).exec(outPath)
+    if (!m) continue
+    let value = m[1]
+    try { value = decodeURIComponent(value) } catch { /* keep raw */ }
+    value = value.trim()
+    if (value && !/^[!-~]+$/.test(value)) continue // not header-safe: leave as is
+    // Drop the param (and its separator) keeping the other params byte-identical.
+    outPath = outPath.replace(new RegExp(`([?&])${param}=[^&#]*(&?)`), (_s, sep: string, amp: string) => (amp ? sep : ""))
+    if (!value) continue
+    h ??= new Headers(headers)
+    if (!h.has(header)) h.set(header, value)
+  }
+  return { path: outPath, headers: h ?? headers }
 }
 
 /**
@@ -106,7 +117,7 @@ export function scopedApiInit(
 export async function userFetch(input: string, init: RequestInit & { timeout?: number } = {}): Promise<Response> {
   const { timeout = 15000, signal: externalSignal, ...fetchInit } = init
   const scoped = scopedApiInit(input, fetchInit)
-  const sent = moveApiKeyToHeader(scoped.path, scoped.headers)
+  const sent = moveKeysToHeaders(scoped.path, scoped.headers)
   const scopedInit = { ...fetchInit, headers: applyAdminAuthHeaders(sent.path, sent.headers) }
   // The timeout and the caller cancellation share one composed signal, used
   // by both the first fetch and the password-auth retry below.
@@ -152,7 +163,7 @@ export async function http<T = unknown>(path: string, opts: ApiOptions = {}): Pr
   // path scoped quando si è su un link `/u/<uuid>`. Fuori da lì è passthrough.
   const scoped = scopedApiInit(path, { headers: fetchOpts.headers })
   path = scoped.path
-  const sent = moveApiKeyToHeader(path, scoped.headers)
+  const sent = moveKeysToHeaders(path, scoped.headers)
   const scopedOpts = { ...fetchOpts, headers: applyAdminAuthHeaders(sent.path, sent.headers) }
 
   // M1: concurrent identical scoped GETs share one attempt loop. Joiners get

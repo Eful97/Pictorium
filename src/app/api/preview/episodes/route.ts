@@ -71,6 +71,8 @@ function previewCacheHeaders(isPartial: boolean): Record<string, string> {
       ? "public, max-age=30"
       : "public, max-age=60, stale-while-revalidate=120",
     "Access-Control-Allow-Origin": "*",
+    // Keys travel as headers (see moveKeysToHeaders): CDN entries must split per key.
+    "Vary": "x-api-key, x-tvdb-key",
   }
 }
 
@@ -92,10 +94,9 @@ export async function GET(req: NextRequest) {
   // titles follow the requested language instead of staying Italian.
   const tvdbLanguage = tvdbLanguageForContentLanguage(language)
   const apiKey = (await resolveRouteApiKey(req)) || ""
-  const tvdbKeyParam = req.nextUrl.searchParams.get("tvdb_key") || undefined
   // resolveRouteApiKey applies the multi-user guard (scoped `?u=` never falls
   // back to operator env keys). No direct env read here: it would bypass it.
-  const tvdbApiKey = tvdbKeyParam || (await resolveRouteApiKey(req, "tvdb")) || ""
+  const tvdbApiKey = (await resolveRouteApiKey(req, "tvdb")) || ""
   const episodeMetadataSource = req.nextUrl.searchParams.get("source") || (tvdbApiKey ? "tvdb" : "tmdb")
 
   // "auto" (parametro assente) e "standard" esplicito hanno chiavi diverse:
