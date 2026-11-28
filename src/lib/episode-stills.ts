@@ -87,6 +87,9 @@ export function sanitizeEpisodeFillerLang(raw: unknown): string | null {
   return /^[A-Za-z]{2,3}(?:-[A-Za-z0-9]{2,8})*$/.test(value) ? value : null
 }
 
+/** Client-side shape gate for a TVDB cover URL (server re-validates strictly). */
+const TVDB_STILL_URL_RE = /^https:\/\/artworks\.thetvdb\.com\/[A-Za-z0-9._\/-]+\.(?:jpe?g|png|webp)$/i
+
 /** Sanitized still path (never a full URL) or null when not acceptable. */
 export function sanitizeEpisodeStillPath(raw: unknown): string | null {
   if (typeof raw !== "string") return null
@@ -194,7 +197,14 @@ export interface EpisodeThumbnailUrlInput {
  * the SAME request Stremio will serve.
  */
 export function buildEpisodeThumbnailUrl(input: EpisodeThumbnailUrlInput): string | null {
-  const still = sanitizeEpisodeStillPath(input.still)
+  // A TVDB episode cover travels as its complete artwork URL (the route
+  // re-validates host/path and fetches it directly); everything else must be
+  // a TMDB still path.
+  const still =
+    sanitizeEpisodeStillPath(input.still) ??
+    (typeof input.still === "string" && TVDB_STILL_URL_RE.test(input.still.trim()) && !input.still.includes("..")
+      ? input.still.trim()
+      : null)
   if (!still) return null
   const params = new URLSearchParams({
     // Render version (same as `/meta`): the browser never reuses a pre-change PNG.

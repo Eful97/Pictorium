@@ -723,8 +723,14 @@ export async function GET(req: NextRequest, { params }: { params: Promise<RouteP
       if (typeof episodeDetails.vote_average === "number" && Number.isFinite(episodeDetails.vote_average)) {
         voteAverage = episodeDetails.vote_average
       }
-    } catch {
-      return jsonError("TMDB episode details unavailable", 502, acceptEncoding)
+    } catch (e) {
+      // An explicit TVDB cover under a TVDB/AniZip ordering: the visible S:E
+      // may not exist on TMDB (404). The image is complete without a TMDB
+      // vote, so fail open (no ★) instead of breaking the preview.
+      const tvdbBase = explicitStill?.startsWith("https://") === true
+      if (!(tvdbBase && e instanceof Error && /\b404\b/.test(e.message))) {
+        return jsonError("TMDB episode details unavailable", 502, acceptEncoding)
+      }
     }
   }
 

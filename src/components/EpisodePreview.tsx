@@ -418,8 +418,9 @@ function EpisodeStillStudio({
         (stagedEntry?.provider === "tmdb" ? sanitizeEpisodeStillPath(stagedEntry.still) : null) ??
         sanitizeEpisodeStillPath(ed.episodeThumbnailStills?.[row.key]) ??
         row.defaultStill ??
-        // A TVDB-only choice has its own raw cover: no TMDB fallback lookup.
-        (stagedEntry?.provider === "tvdb" ? row.tvdbImage : null)
+        // A TVDB cover (explicit choice, or TVDB ordering/source whose
+        // thumbnail is the TVDB image) is its own raw base: no TMDB lookup.
+        row.tvdbImage
       if (known) continue
       targets.push({
         key: row.key,
@@ -861,10 +862,13 @@ function EpisodeStillStudio({
   // saved TMDB override as its fallback: `/meta` would not either after save.
   const tmdbFallbackStill =
     current.defaultStill ?? stillsState.stills[0]?.file_path ?? null
+  // TVDB base: same URL as `/meta` (`stills=tvdb` + TMDB fallback) whenever a
+  // TMDB still exists. Rows with NO TMDB still (TVDB/AniZip ordering whose
+  // visible S:E does not exist on TMDB) use their own TVDB cover directly.
   const effectiveStill: string | null =
     effectiveProvider === "tmdb"
       ? stagedTmdbStill ?? savedOverride ?? stillsState.selected
-      : tmdbFallbackStill
+      : tmdbFallbackStill ?? current.tvdbImage ?? null
   /**
    * ONE composed `/api/thumbnail` request for the CENTER preview, with the same
    * effective Miniature choices as `/meta`. Left-grid cells intentionally use
@@ -910,7 +914,9 @@ function EpisodeStillStudio({
       user: userId,
     })
     if (!base) return null
-    return provider === "tvdb" ? `${base}&stills=tvdb` : base
+    // A TVDB cover is already the explicit base: no `stills=tvdb` lookup by
+    // S:E (which could pick another ordering's image).
+    return provider === "tvdb" && !still.startsWith("https://") ? `${base}&stills=tvdb` : base
   }
   const previewUrl = composeThumbnailUrl(
     current.season,
@@ -1169,15 +1175,16 @@ function EpisodeStillStudio({
                             stagedTmdb ??
                             savedOverride ??
                             defaultStillByKey.get(key) ??
-                            gridFallbackStills[key] ??
                             null
-                          // A TVDB choice shows the single TVDB cover (raw, no
-                          // composed badge) instead of a TMDB still it never
+                          // A TVDB choice, or a row whose payload thumbnail IS
+                          // the TVDB cover (TVDB ordering/source), shows that
+                          // single raw cover instead of a TMDB still it never
                           // chose; missing cover = honest TMDB fallback cell.
+                          const tvdbCover = tvdbImageByKey.get(key) ?? null
                           const thumbUrl =
                             stagedEntry?.provider === "tvdb"
-                              ? tvdbImageByKey.get(key) ?? rawStillUrl(thumbStill)
-                              : rawStillUrl(thumbStill)
+                              ? tvdbCover ?? rawStillUrl(thumbStill ?? gridFallbackStills[key] ?? null)
+                              : rawStillUrl(thumbStill) ?? tvdbCover ?? rawStillUrl(gridFallbackStills[key] ?? null)
                           return (
                             <div key={ep.id} className="flex items-center gap-1.5">
                               {selectionEnabled && ep.season > 0 && (

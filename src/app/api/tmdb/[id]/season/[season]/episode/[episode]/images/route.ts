@@ -49,7 +49,12 @@ export async function GET(req: NextRequest, { params }: { params: Promise<RouteP
   try {
     const imagesSignal = typeof AbortSignal !== "undefined" && "timeout" in AbortSignal ? AbortSignal.timeout(8000) : undefined
     data = await getTVEpisodeImages(seriesId, seasonNumber, episodeNumber, languages, apiKey, imagesSignal, 8000)
-  } catch {
+  } catch (e) {
+    // 404 = genuine miss: this S:E does not exist in standard TMDB numbering
+    // (TVDB/AniZip orderings). Honest empty list, never cached, not an outage.
+    if (e instanceof Error && /TMDB fetch failed: 404\b/.test(e.message)) {
+      return jsonGzip({ stills: [] }, 200, undefined, acceptEncoding)
+    }
     return jsonGzip({ error: "TMDB episode images unavailable" }, 502, undefined, acceptEncoding)
   }
   // Stesso tag della route images: la cache di risposta condivisa resta una

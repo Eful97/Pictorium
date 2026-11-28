@@ -146,8 +146,18 @@ describe("GET /api/tmdb/[id]/season/[season]/episode/[episode]/images", () => {
     expect(fetchSpy).toHaveBeenCalledTimes(1)
   })
 
-  it("risponde 502 su 404 upstream e NON mette in cache il fallimento", async () => {
+  it("404 upstream (S:E assente in numerazione standard) = lista vuota 200, non cacheata", async () => {
     mockFetchJson(null, 404)
+
+    const res = await GET(epReq("555001", "1", "1"), epParams("555001", "1", "1"))
+
+    expect(res.status).toBe(200)
+    await expect(res.json()).resolves.toEqual({ stills: [] })
+    expect(cacheGet("episode_images:555001:1:1:en,null")).toBeNull()
+  })
+
+  it("risponde 502 su 5xx upstream e NON mette in cache il fallimento", async () => {
+    mockFetchJson(null, 500)
 
     const res = await GET(epReq("555001", "1", "1"), epParams("555001", "1", "1"))
 
