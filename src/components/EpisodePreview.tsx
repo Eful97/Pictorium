@@ -16,7 +16,8 @@ import { useT } from "@/lib/contexts/TranslationContext"
 import { contentLanguageForUiLang } from "@/lib/regions"
 import { usePosterEditor } from "@/lib/contexts/PosterEditorContext"
 import { userFetch } from "@/lib/http"
-import { useEpisodeStills, fetchEpisodeStills, type TMDBEpisodeStill } from "@/lib/useEpisodeStills"
+import { SourceBadge } from "@/components/SourceBadge"
+import { useEpisodeStills,fetchEpisodeStills, type TMDBEpisodeStill } from "@/lib/useEpisodeStills"
 import { buildEpisodeThumbnailUrl, episodeStillKey, EPISODE_FILLER_COLORS, sanitizeEpisodeFillerStatus, sanitizeEpisodeStillPath, type EpisodeFillerStatus } from "@/lib/episode-stills"
 import {
   buildBulkFillerCorrectionIssue,
@@ -1704,6 +1705,7 @@ function EpisodeStillStudio({
                             loading="lazy"
                             className="w-full h-full object-cover"
                           />
+                          <SourceBadge id="tmdb" label="TMDB" />
                         </button>
                       )
                     })}
@@ -1745,6 +1747,7 @@ function EpisodeStillStudio({
                         loading="lazy"
                         className="w-full h-full object-cover"
                       />
+                      <SourceBadge id="tvdb" label="TVDB" />
                     </button>
                     <p data-testid="episode-tvdb-still-note" className="text-[11px] text-zinc-500 leading-relaxed px-1">
                       TVDB · 1 immagine per episodio (nessuna variante).

@@ -14,7 +14,7 @@ import { usePosterEditor } from "@/lib/contexts/PosterEditorContext"
 import { usePosterFit } from "@/lib/usePosterFit"
 import { useFanartPosters } from "@/lib/useFanartPosters"
 import { useTvdbArtworks } from "@/lib/useTvdbArtworks"
-import { RatingSourceIcon } from "@/components/RatingSourceIcon"
+import { SourceBadge } from "@/components/SourceBadge"
 import { RotateCcw, Check, Clock, Sparkles, ArrowUpDown, EyeOff, ChevronDown, X, Loader2, Link2 } from "lucide-react"
 
 /** Primary BCP-47/ISO subtag ("pt-br" -> "pt") for TMDB `iso_639_1` matching. */
@@ -519,6 +519,7 @@ export function PosterOptions({ posters, posterActivePath, lang, selectPoster, a
               return (
                 <div key={img.file_path} className={`relative group rounded-xl overflow-hidden ${isBestFit && bestScore >= 0.45 ? `ring-1 ${isHighScore ? "ring-orange-400/70 shadow-[0_0_18px_rgba(232,93,42,0.12)]" : "ring-amber-400/50"}` : ""}`}>
                   <PosterBtn staggerIndex={stagger} img={img} active={posterActivePath === img.file_path} onSelect={selectPoster} />
+                  <SourceBadge id="tmdb" label="TMDB" className={showBadge ? "top-7" : "top-1"} />
                   <div className="pointer-events-none absolute inset-x-0 top-0 h-16 bg-gradient-to-b from-black/50 to-transparent opacity-100 sm:opacity-0 sm:group-hover:opacity-100 transition-opacity" />
                   {showBadge && (
                     <div className={`fit-badge z-20 ${isHighScore ? "fit-badge-amber" : ""}`}>
@@ -581,6 +582,7 @@ export function PosterOptions({ posters, posterActivePath, lang, selectPoster, a
               return (
                 <div key={img.file_path} className="relative group rounded-xl overflow-hidden">
                   <PosterBtn staggerIndex={stagger} img={img} active={posterActivePath === img.file_path} onSelect={selectPoster} />
+                  <SourceBadge id="tmdb" label="TMDB" />
                   {langRotationEnabled && (
                     <div className="absolute top-1.5 right-1.5 z-20 opacity-100 sm:opacity-0 sm:group-hover:opacity-100 transition-opacity">
                       <button type="button"
@@ -646,14 +648,16 @@ export function PosterOptions({ posters, posterActivePath, lang, selectPoster, a
                 const lang = m?.lang ?? null
                 const langLabel = !lang || lang === "00" ? t("ui.fanartLangUnknown") : LANG_NAMES[lang] || lang
                 return (
-                  <PosterBtn
-                    key={tile.file_path}
-                    staggerIndex={i}
-                    img={tile}
-                    active={posterActivePath === tile.file_path}
-                    onSelect={selectPoster}
-                    title={`${langLabel} · ♥ ${m?.likes ?? 0}`}
-                  />
+                  <div key={tile.file_path} className="relative">
+                    <PosterBtn
+                      staggerIndex={i}
+                      img={tile}
+                      active={posterActivePath === tile.file_path}
+                      onSelect={selectPoster}
+                      title={`${langLabel} · ♥ ${m?.likes ?? 0}`}
+                    />
+                    <SourceBadge id="fanart" label={t("ui.fanartTitle")} />
+                  </div>
                 )
               })}
             </div>
@@ -705,10 +709,7 @@ export function PosterOptions({ posters, posterActivePath, lang, selectPoster, a
                       onSelect={selectPoster}
                       title={`${t("ui.tvdbTitle")} · ${langLabel}`}
                     />
-                    <span className="absolute top-1 left-1 z-20 flex items-center gap-1 rounded-md bg-black/60 px-1.5 py-0.5 text-[10px] font-semibold text-zinc-200 backdrop-blur-md border border-white/10 pointer-events-none">
-                      <RatingSourceIcon id="tvdb" className="w-3 h-3" />
-                      {t("ui.tvdbTitle")}
-                    </span>
+                    <SourceBadge id="tvdb" label={t("ui.tvdbTitle")} />
                   </div>
                 )
               })}
