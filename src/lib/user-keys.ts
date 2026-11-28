@@ -43,7 +43,7 @@ export class InvalidUserKeyError extends Error {
 }
 
 function assertValidUserId(userId: string): void {
-  if (!/^[0-9a-f-]{36}$/i.test(userId)) throw new Error("Invalid user id")
+  if (!/^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(userId)) throw new Error("Invalid user id")
 }
 
 export function isUserKeysEncryptionAvailable(): boolean {

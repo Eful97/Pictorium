@@ -146,7 +146,9 @@ interface FanartCacheEntry {
 const fanartCache = new Map<string, FanartCacheEntry>()
 
 function cacheKeyFor(type: FanartMediaType, id: number): string {
-  // Solo tipo+id: la chiave progetto è globale d'istanza, mai per-utente.
+  // Solo tipo+id, volutamente senza chiave: le artwork sono pubbliche e la
+  // route verifica la presenza della chiave (spazio/istanza) PRIMA di leggere
+  // la cache, quindi un hit non aggira mai un accesso negato.
   return `${type}:${id}`
 }
 

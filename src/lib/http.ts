@@ -49,6 +49,31 @@ function mergeNamedHeader(
 }
 
 /**
+ * Sposta `api_key` dalla query all'header `x-api-key` sulle chiamate `/api/*`
+ * (il server accetta entrambi, header prima): la chiave non finisce nei log di
+ * accesso di proxy/CDN, nella history né nei messaggi d'errore. Un
+ * `x-api-key` esplicito del chiamante vince; una query vuota viene solo tolta.
+ */
+export function moveApiKeyToHeader(
+  path: string,
+  headers: HeadersInit | undefined,
+): { path: string; headers: HeadersInit | undefined } {
+  if (!path.startsWith("/api/")) return { path, headers }
+  const m = /([?&])api_key=([^&#]*)/.exec(path)
+  if (!m) return { path, headers }
+  let value = m[2]
+  try { value = decodeURIComponent(value) } catch { /* keep raw */ }
+  value = value.trim()
+  // Drop the param (and its separator) while keeping the other params byte-identical.
+  const rest = path.replace(/([?&])api_key=[^&#]*(&?)/, (_s, sep: string, amp: string) => (amp ? sep : ""))
+  if (!value) return { path: rest, headers }
+  if (!/^[\x21-\x7e]+$/.test(value)) return { path, headers } // not header-safe: leave as is
+  const h = new Headers(headers)
+  if (!h.has("x-api-key")) h.set("x-api-key", value)
+  return { path: rest, headers: h }
+}
+
+/**
  * Applica il namespace utente a una chiamata API: `?u=` sempre (identità
  * pubblica, serve anche a Stremio) + credenziale (`x-user-token` o
  * `x-user-password`) SOLO se sbloccato in sessione. Senza unlock, niente
@@ -81,7 +106,8 @@ export function scopedApiInit(
 export async function userFetch(input: string, init: RequestInit & { timeout?: number } = {}): Promise<Response> {
   const { timeout = 15000, signal: externalSignal, ...fetchInit } = init
   const scoped = scopedApiInit(input, fetchInit)
-  const scopedInit = { ...fetchInit, headers: applyAdminAuthHeaders(scoped.path, scoped.headers) }
+  const sent = moveApiKeyToHeader(scoped.path, scoped.headers)
+  const scopedInit = { ...fetchInit, headers: applyAdminAuthHeaders(sent.path, sent.headers) }
   // The timeout and the caller cancellation share one composed signal, used
   // by both the first fetch and the password-auth retry below.
   const signal = combineAbortSignals(externalSignal ?? undefined, timeout)
@@ -98,18 +124,18 @@ export async function userFetch(input: string, init: RequestInit & { timeout?: n
   const hasBody = fetchInit.body !== undefined && fetchInit.body !== null
   const key = inflightGetKey(method, scoped.path, hasBody)
   if (!key) {
-    const res = await fetch(scoped.path, { ...scopedInit, signal })
+    const res = await fetch(sent.path, { ...scopedInit, signal })
     // Secret stantio + password fresca: un solo retry con password (butta il
     // secret se il retry passa). Senza entrambe le credenziali è passthrough.
-    return (await retryWithPasswordAuth(scoped.path, { ...scopedInit, signal }, res)) ?? res
+    return (await retryWithPasswordAuth(sent.path, { ...scopedInit, signal }, res)) ?? res
   }
   const existing = lookupShared(key)
   // The fan-out copy happens AFTER the abort race on the returned chain, so
   // no derived promise is ever left without a handler on the early-abort path.
   if (existing) return raceWithAbort(existing as Promise<Response>, externalSignal ?? undefined).then(fanOut)
   const shared = trackShared(key, externalSignal ?? undefined, async () => {
-    const res = await fetch(scoped.path, { ...scopedInit, signal })
-    return (await retryWithPasswordAuth(scoped.path, { ...scopedInit, signal }, res)) ?? res
+    const res = await fetch(sent.path, { ...scopedInit, signal })
+    return (await retryWithPasswordAuth(sent.path, { ...scopedInit, signal }, res)) ?? res
   })
   return raceWithAbort(shared as Promise<Response>, externalSignal ?? undefined).then(fanOut)
 }
@@ -126,7 +152,8 @@ export async function http<T = unknown>(path: string, opts: ApiOptions = {}): Pr
   // path scoped quando si è su un link `/u/<uuid>`. Fuori da lì è passthrough.
   const scoped = scopedApiInit(path, { headers: fetchOpts.headers })
   path = scoped.path
-  const scopedOpts = { ...fetchOpts, headers: applyAdminAuthHeaders(path, scoped.headers) }
+  const sent = moveApiKeyToHeader(path, scoped.headers)
+  const scopedOpts = { ...fetchOpts, headers: applyAdminAuthHeaders(sent.path, sent.headers) }
 
   // M1: concurrent identical scoped GETs share one attempt loop. Joiners get
   // an isolated copy (JSON round-trip) so no caller can mutate the shared
@@ -145,10 +172,10 @@ export async function http<T = unknown>(path: string, opts: ApiOptions = {}): Pr
     throwIfAborted(combinedSignal)
 
     try {
-      let res = await fetch(path, { ...scopedOpts, signal: combinedSignal })
+      let res = await fetch(sent.path, { ...scopedOpts, signal: combinedSignal })
       // Secret stantio + password fresca: un solo retry con password prima di
       // trattare il 401 come definitivo (vedi userFetch sopra).
-      res = (await retryWithPasswordAuth(path, { ...scopedOpts, signal: combinedSignal }, res)) ?? res
+      res = (await retryWithPasswordAuth(sent.path, { ...scopedOpts, signal: combinedSignal }, res)) ?? res
 
       if (!res.ok) {
         // Fix L21: retry anche per i 5xx (il server può essere in riavvio o
@@ -165,7 +192,7 @@ export async function http<T = unknown>(path: string, opts: ApiOptions = {}): Pr
             continue
           }
         }
-        throw new ApiError(res.status, `API ${res.status}: ${path}`)
+        throw new ApiError(res.status, `API ${res.status}: ${sent.path}`)
       }
 
       if (res.status === 204) return null as T

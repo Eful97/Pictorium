@@ -1049,7 +1049,8 @@ async function fetchTmdbCollectionOrList(
   limit: number = 500,
   signal?: AbortSignal,
 ): Promise<{ items: MDBListEntry[]; incomplete: boolean }> {
-  const key = apiKey || envWithFallback("TMDB_KEY") || process.env.TMDB_KEY || process.env.TMDB_API_KEY
+  // Solo la chiave risolta dal chiamante: niente fallback env (vedi guardia scoped in tmdb.ts).
+  const key = apiKey
   if (!key || !identifier) return { items: [], incomplete: false }
 
   try {
