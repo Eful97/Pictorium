@@ -37,6 +37,10 @@ export const CHANGELOG: ChangelogRelease[] = [
       { type: "fix", text: "Episode thumbnails with TVDB ordering now show the TVDB cover in the picker grid and in the large preview, instead of looking for a TMDB still under a numbering TMDB does not have" },
       { type: "fix", text: "Episode thumbnail picker no longer reports an error when TMDB has no stills for an episode: it shows an empty list" },
       { type: "fix", text: "Automatic episode-group detection no longer mistakes a story-arc group for a season split because of its description, so shows like Re:ZERO keep their real seasons" },
+      { type: "feature", text: "Episode and poster source badge in the editor now shows the source logo and name on the tiles" },
+      { type: "fix", text: "Security: on multi-user instances, custom MDBList / TMDB / Fanart catalogs no longer fall back to the instance API keys, so a scoped request cannot spend the operator quota" },
+      { type: "fix", text: "Security: the editor now sends TMDB, TVDB and MDBList keys as request headers instead of URL query parameters, keeping them out of proxy and CDN logs, browser history and error messages" },
+      { type: "fix", text: "Security: key reveal responses are no longer cacheable, user ids are validated against the strict UUID format, and publicly cached routes vary on the key headers" },
     ],
   },
   {
