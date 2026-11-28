@@ -198,7 +198,9 @@ async function fetchFanartJson(path: string, apiKey: string, signal: AbortSignal
  * additive: candidati per la base landscape e per le gallery). Ogni sezione è
  * normalizzata e ordinata per likes.
  *
- * Chiave effettiva: `opts.fanartKey` (spazio utente) > env d'istanza. La cache
+ * Chiave: solo `opts.fanartKey`, già risolta dal chiamante (spazio utente > istanza
+ * via resolveUserApiKeys): nessun fallback env qui, o si aggirerebbe la guardia
+ * scoped/multi-user. La cache
  * resta globale per titolo (come il neutral-cache TMDB): i risultati non
  * contengono segreti, solo URL CDN — nessuno spazio vede la chiave altrui.
  *
@@ -212,7 +214,7 @@ export async function getFanartImages(
   opts?: FanartFetchOpts,
   signal?: AbortSignal,
 ): Promise<FanartSections> {
-  const apiKey = opts?.fanartKey?.trim() || fanartProjectKey()
+  const apiKey = opts?.fanartKey?.trim()
   if (!apiKey) throw new FanartError("not_configured", "Fanart.tv project key is not configured")
   if (!Number.isInteger(tmdbId) || tmdbId <= 0) return EMPTY_SECTIONS
 

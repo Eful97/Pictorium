@@ -69,7 +69,7 @@ describe("normalizeFanartPosters", () => {
 describe("getFanartPosters", () => {
   it("film: chiama /movies/{tmdbId} e normalizza", async () => {
     const fetchSpy = vi.spyOn(globalThis, "fetch").mockResolvedValue(jsonResponse(MOVIE_JSON))
-    const posters = await getFanartPosters("movie", 123)
+    const posters = await getFanartPosters("movie", 123, { fanartKey: "test-project-key" })
     expect(fetchSpy).toHaveBeenCalledOnce()
     const calledUrl = String(fetchSpy.mock.calls[0]?.[0])
     expect(calledUrl).toContain("/movies/123")
@@ -80,17 +80,17 @@ describe("getFanartPosters", () => {
 
   it("film: 404 = assenza confermata ([]), non errore", async () => {
     vi.spyOn(globalThis, "fetch").mockResolvedValue(new Response("not found", { status: 404 }))
-    await expect(getFanartPosters("movie", 999)).resolves.toEqual([])
+    await expect(getFanartPosters("movie", 999, { fanartKey: "test-project-key" })).resolves.toEqual([])
   })
 
   it("film: 401 = FanartError auth (mai cachato come vuoto)", async () => {
     vi.spyOn(globalThis, "fetch").mockResolvedValue(new Response("{}", { status: 401 }))
-    await expect(getFanartPosters("movie", 123)).rejects.toMatchObject({ code: "auth" })
+    await expect(getFanartPosters("movie", 123, { fanartKey: "test-project-key" })).rejects.toMatchObject({ code: "auth" })
   })
 
   it("film: 5xx = FanartError upstream", async () => {
     vi.spyOn(globalThis, "fetch").mockResolvedValue(new Response("{}", { status: 500 }))
-    await expect(getFanartPosters("movie", 123)).rejects.toMatchObject({ code: "upstream" })
+    await expect(getFanartPosters("movie", 123, { fanartKey: "test-project-key" })).rejects.toMatchObject({ code: "upstream" })
   })
 
   it("senza chiave progetto = FanartError not_configured", async () => {
@@ -108,7 +108,7 @@ describe("getFanartPosters", () => {
       }
       return jsonResponse({ tvdb_id: 75710, tvposter: [{ id: "9", url: "https://assets.fanart.tv/fanart/tv/75710/tvposter/x.jpg", lang: "en", likes: "7" }] })
     })
-    const posters = await getFanartPosters("tv", 456, { tmdbApiKey: "tmdb-key" })
+    const posters = await getFanartPosters("tv", 456, { tmdbApiKey: "tmdb-key", fanartKey: "test-project-key" })
     const fanartCall = fetchSpy.mock.calls.map((c) => String(c[0])).find((u) => u.includes("fanart"))
     expect(fanartCall).toContain("/tv/75710")
     expect(fanartCall).not.toContain("/tv/456")
@@ -120,7 +120,7 @@ describe("getFanartPosters", () => {
       if (String(input).includes("api.themoviedb.org")) return jsonResponse({ id: 789 })
       throw new Error("fanart must not be called")
     })
-    await expect(getFanartPosters("tv", 789, { tmdbApiKey: "tmdb-key" })).resolves.toEqual([])
+    await expect(getFanartPosters("tv", 789, { tmdbApiKey: "tmdb-key", fanartKey: "test-project-key" })).resolves.toEqual([])
     expect(fetchSpy.mock.calls.map((c) => String(c[0])).some((u) => u.includes("fanart"))).toBe(false)
   })
 
@@ -131,22 +131,29 @@ describe("getFanartPosters", () => {
       }
       return jsonResponse({})
     })
-    await expect(getFanartPosters("tv", 456, { tmdbApiKey: "tmdb-key" })).rejects.toBeInstanceOf(FanartError)
+    await expect(getFanartPosters("tv", 456, { tmdbApiKey: "tmdb-key", fanartKey: "test-project-key" })).rejects.toBeInstanceOf(FanartError)
   })
 
   it("hit in cache: secondo call senza rete", async () => {
     const fetchSpy = vi.spyOn(globalThis, "fetch").mockResolvedValue(jsonResponse(MOVIE_JSON))
-    await getFanartPosters("movie", 123)
-    await getFanartPosters("movie", 123)
+    await getFanartPosters("movie", 123, { fanartKey: "test-project-key" })
+    await getFanartPosters("movie", 123, { fanartKey: "test-project-key" })
     expect(fetchSpy).toHaveBeenCalledOnce()
   })
 
   it("due credenziali diverse condividono la cache (chiave progetto globale)", async () => {
     const fetchSpy = vi.spyOn(globalThis, "fetch").mockResolvedValue(jsonResponse(MOVIE_JSON))
-    await getFanartPosters("movie", 123, { tmdbApiKey: "tmdb-a" })
-    await getFanartPosters("movie", 123, { tmdbApiKey: "tmdb-b" })
+    await getFanartPosters("movie", 123, { tmdbApiKey: "tmdb-a", fanartKey: "test-project-key" })
+    await getFanartPosters("movie", 123, { tmdbApiKey: "tmdb-b", fanartKey: "test-project-key" })
     // TMDB key diversa, ma la cache Fanart è per titolo (progetto globale).
     expect(fetchSpy).toHaveBeenCalledTimes(1)
+  })
+
+  it("senza fanartKey esplicita ignora l'env d'istanza (la risolve il chiamante)", async () => {
+    process.env.PICTORIUM_FANART_KEY = "env-key"
+    const fetchSpy = vi.spyOn(globalThis, "fetch")
+    await expect(getFanartPosters("movie", 123)).rejects.toMatchObject({ code: "not_configured" })
+    expect(fetchSpy).not.toHaveBeenCalled()
   })
 
   it("la chiave dello spazio vince sull'env d'istanza", async () => {

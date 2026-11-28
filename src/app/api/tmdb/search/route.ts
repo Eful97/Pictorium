@@ -122,7 +122,7 @@ export async function GET(req: NextRequest) {
     }
     const body = { results, total_results: data.total_results || 0, total_pages: data.total_pages || 0 }
     cacheSet(cacheKey, body, ["tmdb", "search"])
-    return jsonGzip(body, 200, { "Cache-Control": "public, max-age=300, s-maxage=1800" }, acceptEncoding)
+    return jsonGzip(body, 200, { "Cache-Control": "public, max-age=300, s-maxage=1800", "Vary": "Accept-Encoding, x-api-key" }, acceptEncoding)
   } catch (e) {
     const message = e instanceof Error ? e.message : String(e)
     // Chiave rifiutata dall'upstream (marchiata 401 anche in negative cache).

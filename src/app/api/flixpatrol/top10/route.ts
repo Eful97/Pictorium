@@ -22,7 +22,7 @@ export async function GET(req: NextRequest) {
   }
   try {
     const data = await getTop10(platform, country, apiKey)
-    return Response.json(data, { headers: { "Cache-Control": "public, max-age=300, s-maxage=1800" } })
+    return Response.json(data, { headers: { "Cache-Control": "public, max-age=300, s-maxage=1800", "Vary": "x-api-key" } })
   } catch (err) {
     log.error("Top10 fetch failed", { error: err instanceof Error ? err.message : String(err) })
     return Response.json({ error: "Failed to fetch FlixPatrol data" }, { status: 500, headers: { "Cache-Control": "no-store" } })
