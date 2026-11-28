@@ -270,6 +270,8 @@ export const configTokenSchema = z.object({
   // Regione classifiche (codice JW "IT"/"US"... o slug FlixPatrol): validazione
   // lasca di proposito, la normalizzazione fail-closed avviene in risoluzione.
   region: z.string().max(32).optional(),
+  // UI language for catalog poster/meta (sanitized at read via isSupportedUiLang).
+  lang: z.string().max(8).optional(),
 })
 
 export type PictoriumUserConfig = z.infer<typeof configTokenSchema>
@@ -319,6 +321,7 @@ export const partialCatalogTokenSchema = z.object({
     return !keys.some((k) => k === "__proto__" || k === "constructor" || k === "prototype")
   }),
   region: z.string().max(32).optional(),
+  lang: z.string().max(8).optional(),
 }).strict()
 
 export type PartialCatalogUserConfig = z.infer<typeof partialCatalogTokenSchema>

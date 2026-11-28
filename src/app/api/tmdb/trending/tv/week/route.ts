@@ -52,7 +52,7 @@ export async function GET(req: NextRequest) {
 
     const body = { results }
     cacheSet(cacheKey, body, ["tmdb", "trending", "anime"])
-    return jsonGzip(body, 200, { "Cache-Control": "public, max-age=300, s-maxage=1800" }, acceptEncoding)
+    return jsonGzip(body, 200, { "Cache-Control": "public, max-age=300, s-maxage=1800", "Vary": "Accept-Encoding, x-api-key" }, acceptEncoding)
   } catch (err) {
     log.error("TV week fetch failed", { error: err instanceof Error ? err.message : String(err) })
     return jsonGzip({ error: "Anime fallback is unavailable" }, 502, { "Cache-Control": "no-store" }, acceptEncoding)

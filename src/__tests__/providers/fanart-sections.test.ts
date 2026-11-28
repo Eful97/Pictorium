@@ -56,7 +56,7 @@ beforeEach(() => {
 describe("getFanartImages", () => {
   it("returns every movie section normalized and likes-sorted", async () => {
     vi.spyOn(globalThis, "fetch").mockResolvedValue(jsonResponse(MOVIE_SECTIONS))
-    const images = await getFanartImages("movie", 500)
+    const images = await getFanartImages("movie", 500, { fanartKey: "test-project-key" })
     expect(images.posters).toHaveLength(1)
     expect(images.backgrounds.map((p) => p.url)).toEqual([
       "https://assets.fanart.tv/fanart/movies/500/moviebackground/b2.jpg",
@@ -69,7 +69,7 @@ describe("getFanartImages", () => {
 
   it("keeps the historical getFanartPosters contract (posters only)", async () => {
     vi.spyOn(globalThis, "fetch").mockResolvedValue(jsonResponse(MOVIE_SECTIONS))
-    const posters = await getFanartPosters("movie", 500)
+    const posters = await getFanartPosters("movie", 500, { fanartKey: "test-project-key" })
     expect(posters).toHaveLength(1)
     expect(posters[0]?.url).toContain("/movieposter/")
   })
@@ -86,7 +86,7 @@ describe("getFanartImages", () => {
         hdclearart: [{ id: "c", url: "https://assets.fanart.tv/fanart/tv/700/hdclearart/c.png", likes: "5" }],
       })
     })
-    const images = await getFanartImages("tv", 600, { tmdbApiKey: "tmdb-key" })
+    const images = await getFanartImages("tv", 600, { tmdbApiKey: "tmdb-key", fanartKey: "test-project-key" })
     expect(images.posters).toHaveLength(1)
     expect(images.backgrounds).toHaveLength(1)
     expect(images.thumbs).toHaveLength(1)
@@ -98,7 +98,7 @@ describe("getFanartImages", () => {
 describe("fanartLandscapeBaseCandidates", () => {
   it("orders backgrounds before thumbs and dedupes URLs", async () => {
     vi.spyOn(globalThis, "fetch").mockResolvedValue(jsonResponse(MOVIE_SECTIONS))
-    const images = await getFanartImages("movie", 500)
+    const images = await getFanartImages("movie", 500, { fanartKey: "test-project-key" })
     const candidates = fanartLandscapeBaseCandidates(images)
     expect(candidates).toEqual([
       "https://assets.fanart.tv/fanart/movies/500/moviebackground/b2.jpg",

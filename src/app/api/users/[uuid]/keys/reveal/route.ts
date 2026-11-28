@@ -48,5 +48,5 @@ export async function POST(req: NextRequest, { params }: { params: Promise<Route
   // disattivate (serve alla riattivazione senza ridigitare).
   const value = (await getUserKeys(userId, { includeDisabled: true }))[kind as UserKeyKind]
   if (!value) return Response.json({ error: "Key not set" }, { status: 404 })
-  return Response.json({ kind, value })
+  return Response.json({ kind, value }, { headers: { "Cache-Control": "no-store" } })
 }

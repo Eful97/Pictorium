@@ -32,6 +32,15 @@ describe("GET /api/tvdb/[id]/seasonTypes", () => {
     clearTvdbCache()
   })
 
+  it("public cached responses vary on the key headers (CDN must not share across keys)", async () => {
+    vi.spyOn(globalThis, "fetch").mockRejectedValue(new Error("offline"))
+    const req = new NextRequest("http://localhost:3000/api/tvdb/tt6468322/seasonTypes?tvdb_key=k")
+    const res = await GET(req, { params: Promise.resolve({ id: "tt6468322" }) })
+    expect(res.headers.get("Cache-Control") ?? "").toContain("public")
+    const vary = (res.headers.get("Vary") ?? "").toLowerCase()
+    for (const h of ["x-api-key", "x-tvdb-key", "x-tmdb-key"]) expect(vary).toContain(h)
+  })
+
   it("returns season types when resolved with IMDb ID", async () => {
     vi.spyOn(globalThis, "fetch")
       // 1. Auth token

@@ -158,6 +158,35 @@ describe("pickDefaultEpisodeGroupId", () => {
     ).toBe("641eb9d6b234b9007ac67063")
   })
 
+  it("ignora il segnale nelle descrizioni: 'Story Arc' non è una suddivisione in stagioni (caso reale Re:ZERO 65942)", () => {
+    // Il gruppo Story Arc (6 archi) ha la descrizione che cita "Season 1/2/3":
+    // prima contava come 'Seasons' e veniva scelto a parità di score, mappando
+    // 6 stagioni invece delle 4 reali. Il riconoscimento legge solo il nome.
+    const storyArcGroup = item({
+      id: "69ec40bc75c2e8fbcd17cb5f",
+      name: "Story Arc",
+      description:
+        "Re:Zero - Starting Life in Another World anime adapts the light novel series, covering Arcs 1–3 in Season 1, Arc 4 in Season 2, and Arc 5 in Season 3, with future seasons expected to cover Arcs 6-8",
+      type: 5,
+      group_count: 6,
+      episode_count: 85,
+    })
+    const seasonsGroup = item({
+      id: "641eb9d6b234b9007ac67063",
+      name: "Seasons",
+      description: "This group organizes the episodes into seasons based on production and broadcast.",
+      type: 6,
+      group_count: 5,
+      episode_count: 170,
+    })
+    // Standard: 1 stagione regolare (85ep); totale con speciali 175.
+    expect(pickDefaultEpisodeGroupId([storyArcGroup, seasonsGroup], 1, 85, 175)).toBe(
+      "641eb9d6b234b9007ac67063",
+    )
+    // Da solo, Story Arc non supera il riconoscimento: nessun gruppo.
+    expect(pickDefaultEpisodeGroupId([storyArcGroup], 1, 85, 175)).toBeNull()
+  })
+
   it("preserva le 5 stagioni standard scartando lo split in volumi (caso reale Stranger Things 66732)", () => {
     const releaseVolumes = item({
       id: "6927abf75b39bb2ce1248ec4",

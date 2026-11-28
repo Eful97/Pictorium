@@ -26,7 +26,7 @@ import { isValidImdbId } from "@/lib/imdb-csv"
 import { getCatalogEpoch } from "@/lib/catalog-epoch"
 import { buildNoticeDetail, NOTICE_ID_PREFIX } from "@/lib/notice-meta"
 import { resolveCatalogRegionWithDefaults, normalizeCatalogRating } from "@/lib/catalog-handler"
-import { isSupportedUiLang, contentLanguageForUiLang } from "@/lib/regions"
+import { isSupportedUiLang, contentLanguageForUiLang, pickSavedUiLang } from "@/lib/regions"
 import { getScopedUserId, userExists, userRateLimitKey } from "@/lib/user-auth"
 import { touchUserActivity } from "@/lib/user-activity"
 import { buildStremioPosterUrl, stremioPosterShape } from "@/lib/stremio-poster-url"
@@ -751,7 +751,9 @@ export async function pictoriumMeta(
   // query > mapping > token > defaults > renderer default.
   const region = resolveCatalogRegionWithDefaults(req, userConfig, effectiveDefaults)
   const requestedLang = req.nextUrl.searchParams.get("lang")?.toLowerCase()
-  const posterLang = isSupportedUiLang(requestedLang) ? requestedLang! : region.lang2
+  const posterLang = isSupportedUiLang(requestedLang)
+    ? requestedLang!
+    : (pickSavedUiLang(userConfig?.lang, effectiveDefaults.lang) ?? region.lang2)
   const tmdbLang = contentLanguageForUiLang(posterLang, region.code)
   // Ephemeral originating-catalog seasonal context (explicit `theme=` only,
   // e.g. the editor "Testa URL Stremio" flow from a Halloween/Christmas

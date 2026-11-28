@@ -55,33 +55,39 @@ export function pickDefaultEpisodeGroupId(
       (ec === totalEpisodeCountWithSpecials ||
         (ec > standardEpisodeCount && Math.abs(ec - totalEpisodeCountWithSpecials) <= 15))
     if (!matchRegular && !matchWithSpecials) continue
-    const text = `${g.name ?? ""} ${g.description ?? ""}`
-    // Le esclusioni editoriali si valutano sul NOME (scelta intenzionale):
-    // le descrizioni spesso citano le versioni edited solo per distinguerle
-    // (es. Original Parts: "does not include the edited episodes...").
-    if (EXCLUDE_RE.test(g.name ?? "")) continue
+    // Nome e descrizione si leggono separatamente: il NOME identifica il
+    // raggruppamento, la descrizione è prosa libera. Le esclusioni editoriali
+    // si valutano sul nome (scelta intenzionale): le descrizioni spesso citano
+    // le versioni edited solo per distinguerle (es. Original Parts: "does not
+    // include the edited episodes..."). Anche il segnale di riconoscimento
+    // (original/parts/seasons) si valuta sul nome: una descrizione che cita
+    // "Season 1/2/3" descrivendo gli archi rendeva eleggibile un gruppo che non
+    // è una suddivisione in stagioni (caso reale Re:ZERO 65942, gruppo
+    // "Story Arc" → 6 "stagioni" invece delle 4 reali).
+    const name = g.name ?? ""
+    if (EXCLUDE_RE.test(name)) continue
     // Split in volumi su standard multi-stagione: solo alcune stagioni si
     // spezzano e le altre restano 1:1 (caso reale Stranger Things 66732,
     // "Release Volumes" 8 gruppi/42ep su 5 stagioni) → scartato, resta lo
     // standard. Su standard a stagione unica lo split resta benvenuto
     // (produce stagioni nuove corrette, come Re:ZERO).
-    if (standardSeasonCount > 1 && /volum/i.test(g.name ?? "")) continue
+    if (standardSeasonCount > 1 && /volum/i.test(name)) continue
     let score = 0
     if (g.type === 1) score += 3
     if (standardSeasonCount > 1) {
       // Quando la serie ha già più stagioni standard (es. Attack on Titan 4 stagioni),
       // sovrascrivi solo per release canoniche in Parti (es. La Casa de Papel: Original Parts)
       // o release type 1 (Original Air Date TMDB).
-      if (PART_RE.test(text)) {
+      if (PART_RE.test(name)) {
         score += 2
-        if (ORIGINAL_RE.test(text)) score += 3
+        if (ORIGINAL_RE.test(name)) score += 3
       }
     } else {
       // Quando la serie ha 1 sola stagione su TMDB (anime mega-season es. Re:Zero),
       // qualsiasi suddivisione logica in 'Seasons' o 'Parts' o 'Original' è benvenuta.
-      if (ORIGINAL_RE.test(text)) score += 3
-      if (PART_RE.test(text)) score += 2
-      if (SEASON_RE.test(text)) score += 3
+      if (ORIGINAL_RE.test(name)) score += 3
+      if (PART_RE.test(name)) score += 2
+      if (SEASON_RE.test(name)) score += 3
     }
     if (score === 0) continue
     if (!best || score > best.score) best = { id: g.id, score }

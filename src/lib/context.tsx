@@ -22,6 +22,7 @@ import { loadLanguage } from "./i18n-loader"
 import { isSupportedUiLang, getRegionDef, defaultRegionForLang, contentLanguageForUiLang } from "./regions"
 import type { EnrichedAnimeItem } from "./validation"
 import { http, userFetch } from "./http"
+import { syncUiLangDefault } from "./save-defaults"
 import { currentPathUuid, fetchWithUserAuthRetry, userAuthHeaders, USER_UNLOCK_EVENT } from "./user-token"
 import { copyText } from "./clipboard"
 import { useAutoRootColors } from "./useAutoRootColors"
@@ -939,6 +940,7 @@ export function usePictorium(): PictoriumCtx {
       setLang(code)
       setI18nLang(code)
       safeSetItem("preferred_lang", code)
+      void syncUiLangDefault(code)
       // A manual region change since the request wins over the language
       // default: skip only the region write, lang/global/storage still commit.
       if (defaultRegionLiveRef.current !== requestedRegion) return

@@ -218,3 +218,13 @@ describe("regions", () => {
     expect(defaultRegionForLang(undefined)).toBeNull()
   })
 })
+
+describe("pickSavedUiLang", () => {
+  it("returns the first supported UI language, lowercased (vi has no chart region)", async () => {
+    const { pickSavedUiLang } = await import("@/lib/regions")
+    expect(pickSavedUiLang("vi")).toBe("vi")
+    expect(pickSavedUiLang("PT-BR")).toBe("pt-br")
+    expect(pickSavedUiLang(undefined, "xx", "vi")).toBe("vi")
+    expect(pickSavedUiLang("xx", 5, null)).toBeNull()
+  })
+})

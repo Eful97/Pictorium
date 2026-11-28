@@ -25,7 +25,7 @@ import { parseSupportedTmdbRef } from "@/lib/stremio-addon"
 import { buildStremioPosterUrl, stremioPosterShape } from "@/lib/stremio-poster-url"
 import { getOriginFromRequest } from "@/lib/poster-public-url"
 import { getJWRankings, getJWTitles, resolveJWGenreCode, JW_DIGITAL_MONETIZATION_TYPES, type JWRankEntry } from "@/lib/justwatch"
-import { getRegionDef, normalizeRegion, parseRegion, GLOBAL_REGION_CODE, type RegionDef } from "@/lib/regions"
+import { getRegionDef, normalizeRegion, parseRegion, pickSavedUiLang, GLOBAL_REGION_CODE, type RegionDef } from "@/lib/regions"
 import { getCatalogEpoch } from "@/lib/catalog-epoch"
 import { createLogger } from "@/lib/logger"
 import { concurrentMap } from "@/lib/episode-ordering"
@@ -1012,8 +1012,11 @@ export async function pictoriumCatalog(
       ? genericSelectionRegionDef(genericSel)
       : baseRegion
   const tmdbLang = region.lang
-  const posterLang = tmdbLang.slice(0, 2).toLowerCase()
-  const regionFragment = `:r${region.code}`
+  // Saved UI language (token > defaults) wins over the region language: regions
+  // without a national chart (e.g. vi) would otherwise fall back to Global/en.
+  const savedLang = pickSavedUiLang(userConfig?.lang, effectiveDefaults.lang)
+  const posterLang = savedLang ?? tmdbLang.slice(0, 2).toLowerCase()
+  const regionFragment = `:r${region.code}${savedLang ? `:l${savedLang}` : ""}`
 
   // Global Top 20 ranking source for this slot (movie/series). Platform,
   // anime and streaming catalogs never read it, and the cache fragment below

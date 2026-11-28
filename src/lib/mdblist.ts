@@ -1,6 +1,5 @@
 import crypto from "node:crypto"
 import { cacheFetchedAt, cacheGet, cacheRemainingMs, cacheSet } from "./cache"
-import { envWithFallback } from "./env-compat"
 import { combineAbortSignals, raceWithAbort } from "./abort-signal"
 import { timedFetch } from "./outbound-stats"
 import { isMdbKeyParked, noteMdbQuotaExhausted429, noteMdbQuotaSuccess } from "./mdblist-quota"
@@ -323,7 +322,9 @@ export async function fetchCustomMDBList(
   const target = parseMDBListTarget(urlOrSlug)
   if (!target) return []
 
-  const key = apiKey || envWithFallback("MDBLIST_KEY") || process.env.MDBLIST_KEY || process.env.MDBLIST_API_KEY
+  // Solo la chiave risolta dal chiamante (resolveUserApiKeys): un fallback env
+  // qui aggirerebbe la guardia scoped/multi-user (open-proxy sulla chiave d'istanza).
+  const key = apiKey
   const keyHash = key ? crypto.createHash("sha1").update(key).digest("hex").slice(0, 8) : "none"
   const targetHash = crypto.createHash("sha1").update(urlOrSlug.trim()).digest("hex").slice(0, 8)
   // The explicit sort changes the payload, so it is part of the 12h source
