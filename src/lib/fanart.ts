@@ -5,14 +5,13 @@
  * (`/tv/{tvdbId}`, risolto dagli external_ids TMDB — mai il TMDB-id della
  * serie passato diretto a Fanart). Niente SDK: fetch + `timedFetch`.
  *
- * Chiave progetto server-only (`PICTORIUM_FANART_KEY`, fallback
- * `POSTERIUM_FANART_KEY`): non entra mai in cache-key, mapping o URL.
+ * Chiave progetto server-only, risolta dal chiamante (resolveUserApiKeys):
+ * non entra mai in cache-key, mapping o URL.
  * La `client_key` personale è rinviata (richiederebbe cache per-contesto).
  */
 
 import { z } from "zod"
 import { createLogger } from "@/lib/logger"
-import { envWithFallback } from "@/lib/env-compat"
 import { combineAbortSignals } from "./abort-signal"
 import { timedFetch } from "./outbound-stats"
 
@@ -125,16 +124,10 @@ export function normalizeFanartPosters(items: readonly unknown[]): FanartPoster[
   return [...byUrl.values()].sort((a, b) => b.likes - a.likes)
 }
 
-/** Chiave progetto Fanart d'istanza (server-only, fallback quando lo spazio non ne ha una). */
-export function fanartProjectKey(): string | undefined {
-  const key = envWithFallback("FANART_KEY")
-  return key && key.trim().length > 0 ? key.trim() : undefined
-}
-
 export interface FanartFetchOpts {
   /** Chiave TMDB per risolvere il tvdb_id delle serie (external_ids). */
   tmdbApiKey?: string
-  /** Chiave progetto Fanart dello spazio utente: vince sull'env d'istanza. */
+  /** Chiave progetto Fanart dello spazio utente: già risolta dal chiamante (spazio > istanza). */
   fanartKey?: string
 }
 

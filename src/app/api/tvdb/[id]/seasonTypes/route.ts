@@ -32,7 +32,7 @@ export async function GET(req: NextRequest, context: { params: Promise<{ id: str
   const tmdbKey = req.headers.get("x-tmdb-key") || req.nextUrl.searchParams.get("tmdb_key") || (await resolveRouteApiKey(req)) || req.headers.get("x-api-key") || ""
   const cacheKey = `tvdb:seasonTypes:raw${rawId}:ak${hashFragment(tvdbKey)}:tk${hashFragment(tmdbKey || "")}`
   const cached = cacheGet<{ results: { id: number; name: string; type: string; alternateName?: string | null }[]; tvdbId?: number | null }>(cacheKey)
-  if (cached) return Response.json(cached, { headers: { "Cache-Control": "public, max-age=3600, stale-while-revalidate=3600" } })
+  if (cached) return Response.json(cached, { headers: { "Cache-Control": "public, max-age=3600, stale-while-revalidate=3600", "Vary": "x-api-key, x-tvdb-key, x-api-key-tvdb, x-tmdb-key" } })
 
   try {
     let tvdbSeriesId: number | null = null
@@ -58,7 +58,7 @@ export async function GET(req: NextRequest, context: { params: Promise<{ id: str
           if (trial.length > 0) {
             const body = { results: trial.map((t) => ({ id: t.id, name: t.name, type: t.type, alternateName: t.alternateName })), tvdbId: asNum }
             cacheSet(cacheKey, body, ["tvdb"], 24 * 60 * 60 * 1000)
-            return Response.json(body, { headers: { "Cache-Control": "public, max-age=3600, stale-while-revalidate=3600" } })
+            return Response.json(body, { headers: { "Cache-Control": "public, max-age=3600, stale-while-revalidate=3600", "Vary": "x-api-key, x-tvdb-key, x-api-key-tvdb, x-tmdb-key" } })
           }
         }
       } else {
@@ -71,25 +71,25 @@ export async function GET(req: NextRequest, context: { params: Promise<{ id: str
         if (trial.length > 0) {
           const body = { results: trial.map((t) => ({ id: t.id, name: t.name, type: t.type, alternateName: t.alternateName })), tvdbId: asNum }
           cacheSet(cacheKey, body, ["tvdb"], 24 * 60 * 60 * 1000)
-          return Response.json(body, { headers: { "Cache-Control": "public, max-age=3600, stale-while-revalidate=3600" } })
+          return Response.json(body, { headers: { "Cache-Control": "public, max-age=3600, stale-while-revalidate=3600", "Vary": "x-api-key, x-tvdb-key, x-api-key-tvdb, x-tmdb-key" } })
         }
       }
       // diagnostica: prova login per capire se chiave è invalida
       const { getTvdbToken } = await import("@/lib/tvdb")
       const token = await getTvdbToken(tvdbKey)
       if (!token) {
-        return Response.json({ results: [], error: "TVDB login fallito — chiave non valida o rete down" }, { headers: { "Cache-Control": "public, max-age=60, stale-while-revalidate=60" } })
+        return Response.json({ results: [], error: "TVDB login fallito — chiave non valida o rete down" }, { headers: { "Cache-Control": "public, max-age=60, stale-while-revalidate=60", "Vary": "x-api-key, x-tvdb-key, x-api-key-tvdb, x-tmdb-key" } })
       }
-      return Response.json({ results: [], error: `Nessuna serie TVDB per id ${rawId}` }, { headers: { "Cache-Control": "public, max-age=300, stale-while-revalidate=600" } })
+      return Response.json({ results: [], error: `Nessuna serie TVDB per id ${rawId}` }, { headers: { "Cache-Control": "public, max-age=300, stale-while-revalidate=600", "Vary": "x-api-key, x-tvdb-key, x-api-key-tvdb, x-tmdb-key" } })
     }
 
     const types = await getTvdbSeasonTypes(tvdbSeriesId, tvdbKey)
     if (types.length === 0) {
-      return Response.json({ results: [], tvdbId: tvdbSeriesId, error: `Nessun seasonType per serie ${tvdbSeriesId}` }, { headers: { "Cache-Control": "public, max-age=600, stale-while-revalidate=600" } })
+      return Response.json({ results: [], tvdbId: tvdbSeriesId, error: `Nessun seasonType per serie ${tvdbSeriesId}` }, { headers: { "Cache-Control": "public, max-age=600, stale-while-revalidate=600", "Vary": "x-api-key, x-tvdb-key, x-api-key-tvdb, x-tmdb-key" } })
     }
     const body = { results: types.map((t) => ({ id: t.id, name: t.name, type: t.type, alternateName: t.alternateName })), tvdbId: tvdbSeriesId }
     cacheSet(cacheKey, body, ["tvdb"], 24 * 60 * 60 * 1000)
-    return Response.json(body, { headers: { "Cache-Control": "public, max-age=3600, stale-while-revalidate=3600" } })
+    return Response.json(body, { headers: { "Cache-Control": "public, max-age=3600, stale-while-revalidate=3600", "Vary": "x-api-key, x-tvdb-key, x-api-key-tvdb, x-tmdb-key" } })
   } catch {
     // Mai e.message in chiaro nel body: può contenere URL/chiavi upstream.
     return Response.json({ results: [], error: "TVDB non disponibile" }, { status: 200 })
