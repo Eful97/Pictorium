@@ -175,6 +175,16 @@ export function isSupportedUiLang(code: string | null | undefined): boolean {
   return !!code && (SUPPORTED_UI_LANGS as readonly string[]).includes(code.toLowerCase())
 }
 
+/** First supported UI language among candidates (config token > defaults), lowercased; null when none. */
+export function pickSavedUiLang(...candidates: unknown[]): string | null {
+  for (const c of candidates) {
+    if (typeof c !== "string") continue
+    const l = c.trim().toLowerCase()
+    if (isSupportedUiLang(l)) return l
+  }
+  return null
+}
+
 /** Localize poster metadata independently of chart country, preserving matching regional locales. */
 export function contentLanguageForUiLang(lang: string | null | undefined, regionCode: string): string {
   const region = getRegionDef(regionCode)

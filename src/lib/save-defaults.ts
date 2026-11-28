@@ -7,6 +7,16 @@ function safeSetItem(key: string, val: string) {
   try { localStorage.setItem(key, val) } catch { /* localStorage non disponibile */ }
 }
 
+/** Persists the chosen UI language as an instance/space default (PUT merges), so
+ *  Stremio catalog posters/meta use it even when no chart region implies it
+ *  (e.g. `vi`). Best-effort: failures are silent, the picker never blocks. */
+export async function syncUiLangDefault(lang: string): Promise<void> {
+  try {
+    if (await isProfilelessOnMultiUser()) return
+    await userFetch("/api/defaults", { method: "PUT", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ lang }) })
+  } catch { /* best-effort */ }
+}
+
 /** Saves the defaults to localStorage and syncs them to the server.
  *  Writes ONLY the defaults: an open poster is left untouched (its per-title
  *  values stay frozen in the mapping on save).

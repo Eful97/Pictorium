@@ -400,6 +400,8 @@ export interface ServerDefaults {
   thumbnailFillerStyle?: "corner" | "strip" | "notch"
   /** Regione classifiche JustWatch/FlixPatrol + lingua titoli (codice JW, es. "IT"). */
   region?: string
+  /** Lingua UI scelta (codice UI, es. "vi"): lingua dei poster/meta nei cataloghi Stremio quando nessuna regione la implica. Sanitizzata in lettura. */
+  lang?: string
   /** Formato data badge "in uscita" (default `locale` = segue la lingua). */
   dateFormat?: DateFormat
   /**

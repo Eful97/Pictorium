@@ -228,6 +228,8 @@ const defaultsSchema = z.object({
   // chip, absent render) or `strip` (full-width top plate). Display-only, flat.
   thumbnailFillerStyle: z.enum(["corner", "strip", "notch"]).optional(),
   region: z.string().max(32).optional(),
+  // UI language (sanitized at read via isSupportedUiLang, like `region`).
+  lang: z.string().max(8).optional(),
   dateFormat: z.enum(["locale", "dmy", "mdy", "iso"]).optional(),
   // Qualità immagini (Preferenze): salvata sempre, applicata solo se
   // PICTORIUM_IMAGE_QUALITY_OPTION=1 su istanza privata.
